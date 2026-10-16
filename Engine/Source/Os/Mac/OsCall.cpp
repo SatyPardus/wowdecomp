@@ -42,7 +42,7 @@ void* OsCallInitializeContext(const char* name) {
     OsCallContext* context = new OsCallContext();
     memset(context, 0, sizeof(*context));
     SStrCopy(context->m_name, name ? name : "", sizeof(context->m_name));
-    context->unk_000C = -1;
+    context->unused_000C = -1;
     return context;
 }
 
