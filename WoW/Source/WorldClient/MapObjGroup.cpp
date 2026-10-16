@@ -56,7 +56,7 @@ uint32_t World::TriData::faceIndexCursor;
 uint32_t World::TriData::indexCursor;
 
 // STATIC: 0x00CB7538
-uint32_t World::TriData::unk_CB7538;
+uint32_t World::TriData::matrixPoolCount;
 
 // STATIC: 0x00CB7540
 uint16_t World::TriData::faceIndexPool[0x4000];
@@ -562,7 +562,7 @@ BspQuery_Segment::BspQuery_Segment(SMOPoly* faces, C3Vector* vertexList, uint16_
     this->m_ray.dir = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_materials = materials;
     this->m_faceIgnoreFlags = faceIgnoreFlags | 0x80;
-    this->unk_0054 = CMap::s_useSSE;
+    this->unused_0054 = CMap::s_useSSE;
     this->m_ray.origin = seg.b;
     this->m_ray.dir = C3Vector(seg.t.x - seg.b.x, seg.t.y - seg.b.y, seg.t.z - seg.b.z);
 
@@ -693,7 +693,7 @@ void CMapObjGroup::InitPtrs() {
     this->m_liquidVertArray = nullptr;
     this->m_portalStart = 0;
     this->m_portalCount = 0;
-    this->unk_014C = 0;
+    this->unused_014C = 0;
     this->m_polyListSize = 0;
     this->m_vertexListCount = 0;
     this->m_normalListCount = 0;
@@ -725,7 +725,7 @@ void VBBList_Block::Set(uint32_t itemSize, uint32_t itemCount, uint32_t offset) 
 
     this->m_buffer->m_index = index;
     g_theGxDevicePtr->BufSizeSet(this->m_buffer, itemSize, itemCount - 1);
-    this->m_buffer->unk_001C = 0;
+    this->m_buffer->m_hasData = 0;
 }
 
 // VERIFY: 79b8e8c1 manual
@@ -787,7 +787,7 @@ void CMapObjGroup::FillVertexVB(CGxBuf* buf, EGxVertexBufferFormat format) {
         }
 
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
         return;
     }
 
@@ -890,7 +890,7 @@ void CMapObjGroup::FillVertexVB(CGxBuf* buf, EGxVertexBufferFormat format) {
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 745d4cbb manual
@@ -924,7 +924,7 @@ void CMapObjGroup::FillTransparencyVB(CGxBuf* buf) {
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 58db9069 auto
@@ -933,7 +933,7 @@ void CMapObjGroup::UploadIndexBuffer(CGxBuf* buf) {
     char* data = g_theGxDevicePtr->BufLock(buf);
     memcpy(data, this->m_indices, sizeof(uint16_t) * this->m_indicesCount);
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 12c31afd auto
@@ -956,11 +956,11 @@ int32_t CMapObjGroup::FindLiquidType() {
 // OFFSET: 0x007C9BC0
 void CMapObjGroup::Init() {
     this->m_unkLoadedFlag &= ~0xF;
-    this->unk_0190 = 0.0f;
+    this->unused_0190 = 0.0f;
     this->m_flags = 0;
     this->m_bbox.b = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_bbox.t = C3Vector(0.0f, 0.0f, 0.0f);
-    this->unk_00D0 = 0;
+    this->unused_00D0 = 0;
     this->m_minimapTag = 0;
     this->m_filePtr = nullptr;
     this->m_fileSize = 0;
@@ -1004,7 +1004,7 @@ void CMapObjGroup::SetVertexVB() {
 
     CGxBuf* buf = this->m_vertsBlock ? this->m_vertsBlock->m_buffer : g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, vertexSize, this->m_vertexListCount);
 
-    if (!buf->unk_001C || !buf->unk_001D) {
+    if (!buf->m_hasData || !buf->m_valid) {
         this->FillVertexVB(buf, format);
     }
 
@@ -1016,7 +1016,7 @@ void CMapObjGroup::SetVertexVB() {
 void CMapObjGroup::SetTransparencyVB() {
     CGxBuf* buf = this->m_transparencyVertsBlock ? this->m_transparencyVertsBlock->m_buffer : g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, sizeof(CGxVertexPNCT), this->m_batchList[this->m_transparencyBatchesCount - 1].m_vertexEnd + 1);
 
-    if (!buf->unk_001C || !buf->unk_001D) {
+    if (!buf->m_hasData || !buf->m_valid) {
         this->FillTransparencyVB(buf);
     }
 
@@ -1028,7 +1028,7 @@ void CMapObjGroup::SetTransparencyVB() {
 void CMapObjGroup::SetIndexVB() {
     CGxBuf* buf = this->m_indicesBlock ? this->m_indicesBlock->m_buffer : g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), this->m_indicesCount);
 
-    if (!buf->unk_001C || !buf->unk_001D) {
+    if (!buf->m_hasData || !buf->m_valid) {
         this->UploadIndexBuffer(buf);
     }
 
@@ -1070,7 +1070,7 @@ VBBList_Block* VBBList::AllocBlock() {
 
         block->m_link.Unlink();
         block->m_listHead = nullptr;
-        block->unk_0008 = 0.0f;
+        block->unused_0008 = 0.0f;
         block->m_pool = nullptr;
         return block;
     }
@@ -1078,7 +1078,7 @@ VBBList_Block* VBBList::AllocBlock() {
     void* mem = SMemAlloc(sizeof(VBBList_Block), __FILE__, __LINE__, 0x8);
     VBBList_Block* block = mem ? new (mem) VBBList_Block : nullptr;
     this->unk_001C.LinkToTail(block);
-    block->unk_0008 = 0.0f;
+    block->unused_0008 = 0.0f;
     block->m_offset = 0;
     block->m_capacity = 0;
     block->m_listHead = nullptr;
@@ -1357,7 +1357,7 @@ void VBBList::FreeVBB(VBBList_Block* block) {
 
         block->Set(capacity, 1, offset);
         *block->m_listHead = nullptr;
-        block->unk_0008 = 0.0f;
+        block->unused_0008 = 0.0f;
         block->m_listHead = nullptr;
     } else {
         if (block->m_buffer) {
@@ -1482,12 +1482,12 @@ void CMapObjGroup::FreeVB() {
 void CMapObjGroup::AllocLiquidVB(EGxVertexBufferFormat format, uint32_t vertexCount, uint32_t indexCount, CGxBatch** batch) {
     if (!this->m_liquidVertsBlock) {
         CMapObjGroup::vertexVBList.AllocVBB(&this->m_liquidVertsBlock, GxVertexSize(format), vertexCount);
-        this->m_liquidVertsBlock->m_buffer->unk_001C = 0;
+        this->m_liquidVertsBlock->m_buffer->m_hasData = 0;
     }
 
     if (!this->m_liquidIndicesBlock) {
         CMapObjGroup::indexVBList.AllocVBB(&this->m_liquidIndicesBlock, 2, indexCount);
-        this->m_liquidIndicesBlock->m_buffer->unk_001C = 0;
+        this->m_liquidIndicesBlock->m_buffer->m_hasData = 0;
     }
 
     *batch = &this->m_liquidBatch;
@@ -2186,7 +2186,7 @@ bool CMapObjGroup::GetLiquidFacets(const CAaBox& box, uint32_t flags, World::Fac
     World::TriData::nBatches = 0;
     World::TriData::faceIndexCursor = 0;
     World::TriData::indexCursor = 0;
-    World::TriData::unk_CB7538 = 0;
+    World::TriData::matrixPoolCount = 0;
 
     World::TriData triData;
     this->GetLiquidTris(box, flags, &triData, mapObjDef);

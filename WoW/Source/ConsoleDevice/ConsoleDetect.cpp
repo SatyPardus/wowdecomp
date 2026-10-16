@@ -70,7 +70,7 @@ void ConsoleDetectSetDefaults(DefaultSettings& defaults, const Hardware& hardwar
     defaults.m_animatingDoodads = s_animatingDoodads[2 * video->m_animatingDoodadIdx + cpu->m_animatingDoodadIdx];
     defaults.m_trilinear = video->m_trilinear != 0;
     defaults.m_numLights = video->m_numLights;
-    defaults.unk_001A = video->m_specularity != 0;
+    defaults.m_specular = video->m_specularity != 0;
     defaults.m_specularity = video->m_specularity != 0;
     defaults.m_waterLOD = s_waterLOD[2 * video->m_waterLodidx + cpu->m_waterLODIdx];
     defaults.m_particleDensity = s_particleDensity[2 * video->m_particleDensityIdx + cpu->m_particleDensityIdx];

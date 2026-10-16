@@ -93,7 +93,7 @@ void CGxDeviceD3d9Ex::IBufUnlock(CGxBuf* buf) {
 
     if (emergencyMem.m_lock) {
         emergencyMem.Unlock();
-        buf->unk_001D = 0;
+        buf->m_valid = 0;
         this->m_intF5C = 1;
         return;
     }
@@ -113,7 +113,7 @@ void CGxDeviceD3d9Ex::IBufUnlock(CGxBuf* buf) {
             break;
     }
 
-    buf->unk_001D = SUCCEEDED(result);
+    buf->m_valid = SUCCEEDED(result);
 }
 
 // VERIFY: 00ed1a7a auto
@@ -137,17 +137,17 @@ char* CGxDeviceD3d9Ex::IBufLock(CGxBuf* buf) {
     DWORD flags = 0;
 
     if (pool->m_usage == GxPoolUsage_Stream) {
-        uint32_t index = (buf->m_itemSize + pool->unk_001C - 1) - (buf->m_itemSize + pool->unk_001C - 1) % buf->m_itemSize;
+        uint32_t index = (buf->m_itemSize + pool->m_offset - 1) - (buf->m_itemSize + pool->m_offset - 1) % buf->m_itemSize;
 
         if (index + buf->m_size > static_cast<uint32_t>(pool->m_size)) {
             flags = D3DLOCK_DISCARD;
             pool->Discard();
             buf->m_index = 0;
-            pool->unk_001C = buf->m_size;
+            pool->m_offset = buf->m_size;
         } else {
             flags = D3DLOCK_NOOVERWRITE;
             buf->m_index = index;
-            pool->unk_001C = index + buf->m_size;
+            pool->m_offset = index + buf->m_size;
         }
     } else if (pool->m_usage == GxPoolUsage_Dynamic) {
         flags = D3DLOCK_NOOVERWRITE;
@@ -253,7 +253,7 @@ LPDIRECT3DINDEXBUFFER9 CGxDeviceD3d9Ex::ICreateD3dIB(EGxPoolUsage usage, uint32_
 // OFFSET: 0x0068E1F0
 void CGxDeviceD3d9Ex::IReleaseD3dPool(CGxPool* pool) {
     if (pool->m_usage == GxPoolUsage_Stream) {
-        pool->unk_001C = 0;
+        pool->m_offset = 0;
     }
 
     pool->Invalidate();
@@ -975,7 +975,7 @@ void CGxDeviceD3d9Ex::IStateSyncScissorRect() {
 // VERIFY: 982ac480 auto
 // OFFSET: 0x006A78C0
 void CGxDeviceD3d9Ex::ISetVertexBuffer(uint32_t stream, LPDIRECT3DVERTEXBUFFER9 buffer, uint32_t offset, uint32_t stride) {
-    if (!this->m_caps.unk_0010) {
+    if (!this->m_caps.m_streamOffset) {
         offset = 0;
     }
 
@@ -2412,7 +2412,7 @@ void CGxDeviceD3d9Ex::ISetCaps(const CGxFormat& format) {
 
     this->m_caps.m_depthBias = (this->m_d3dCaps.RasterCaps & D3DPRASTERCAPS_DEPTHBIAS) != 0;
     this->m_caps.m_numStreams = this->m_d3dCaps.MaxStreams;
-    this->m_caps.unk_0010 = this->m_d3dCaps.Caps2 & 0x1;
+    this->m_caps.m_streamOffset = this->m_d3dCaps.Caps2 & 0x1;
 
     for (uint32_t i = 0; i < GxShTargets_Last; i++) {
         this->m_caps.m_shaderTargets[i] = 0;
@@ -2518,12 +2518,12 @@ void CGxDeviceD3d9Ex::ISetCaps(const CGxFormat& format) {
     this->m_caps.m_pointScaleMax = this->m_d3dCaps.MaxPointSize;
     this->m_caps.m_pointSprite = this->m_d3dCaps.MaxPointSize > 1.0f;
     this->m_caps.m_blendFactor = (this->m_d3dCaps.SrcBlendCaps & D3DPBLENDCAPS_BLENDFACTOR) != 0;
-    this->m_caps.unk_0130 = 1;
-    this->m_caps.unk_0114[1] = 0;
-    this->m_caps.unk_0114[0] = 0;
-    this->m_caps.unk_0114[2] = 0;
-    this->m_caps.unk_0114[3] = 0;
-    this->m_caps.unk_0114[4] = 0;
+    this->m_caps.m_shaderAlphaRef = 1;
+    this->m_caps.unused_0114[1] = 0;
+    this->m_caps.unused_0114[0] = 0;
+    this->m_caps.unused_0114[2] = 0;
+    this->m_caps.unused_0114[3] = 0;
+    this->m_caps.unused_0114[4] = 0;
     this->m_caps.unk_0134 = this->m_caps.m_shaderTargets[GxSh_Pixel] != 4;
     this->m_caps.unk_0138 = this->m_caps.m_shaderTargets[GxSh_Pixel] != 4;
 }
@@ -3091,7 +3091,7 @@ void CGxDeviceD3d9Ex::Draw(CGxBatch* batch, int32_t count) {
 
     uint32_t baseVertexIndex = 0;
 
-    if (!this->m_caps.unk_0010) {
+    if (!this->m_caps.m_streamOffset) {
         baseVertexIndex = this->m_primVertexFormatBuf[0]->m_index / this->m_primVertexFormatBuf[0]->m_itemSize;
     }
 
@@ -4310,7 +4310,7 @@ void CGxDeviceD3d9Ex::ITexForceRecreation(int32_t all) {
 // VERIFY: a4205c5c manual
 // OFFSET: 0x006A6BC0
 int32_t CGxDeviceD3d9Ex::ITexEvictFor(CGxTex* texId, uint32_t size) {
-    for (CGxTex* cached = this->m_texCacheList.Tail(); cached && cached->unk_0050 == static_cast<uint32_t>(this->m_frameCount); cached = this->m_texCacheList.Prev(cached)) {
+    for (CGxTex* cached = this->m_texCacheList.Tail(); cached && cached->m_lastUsedFrame == static_cast<uint32_t>(this->m_frameCount); cached = this->m_texCacheList.Prev(cached)) {
         if (texId->m_flags.m_filter == cached->m_flags.m_filter && texId->m_flags.m_renderTarget == cached->m_flags.m_renderTarget && texId->m_format == cached->m_format && texId->m_target == cached->m_target && texId->m_width == cached->m_width && texId->m_height == cached->m_height) {
             this->ITexTakeD3dTexture(texId, cached);
             return 1;
@@ -4337,7 +4337,7 @@ void CGxDeviceD3d9Ex::ITexLinkBound() {
         CGxTex* texId = static_cast<CGxTex*>(this->m_appRenderStates[i].m_value.m_data.p);
 
         if (texId && !texId->m_flags.m_renderTarget && texId->m_apiSpecificData) {
-            texId->unk_0050 = this->m_frameCount;
+            texId->m_lastUsedFrame = this->m_frameCount;
             this->m_texCacheList.LinkToTail(texId);
         }
     }
@@ -4346,7 +4346,7 @@ void CGxDeviceD3d9Ex::ITexLinkBound() {
 // VERIFY: 893e539c manual
 // OFFSET: 0x006A6D70
 void CGxDeviceD3d9Ex::ITexAcquire(CGxTex* texId) {
-    texId->unk_0050 = this->m_frameCount - 1;
+    texId->m_lastUsedFrame = this->m_frameCount - 1;
 
     for (CGxTex* destroyed = this->m_texDestroyList.Head(); destroyed; destroyed = this->m_texDestroyList.Next(destroyed)) {
         if (texId->m_flags.m_filter == destroyed->m_flags.m_filter && texId->m_flags.m_renderTarget == destroyed->m_flags.m_renderTarget && texId->m_format == destroyed->m_format && texId->m_target == destroyed->m_target && texId->m_width == destroyed->m_width && texId->m_height == destroyed->m_height) {
@@ -4361,7 +4361,7 @@ void CGxDeviceD3d9Ex::ITexAcquire(CGxTex* texId) {
         return;
     }
 
-    for (CGxTex* cached = this->m_texCacheList.Head(); cached && cached->unk_0050 != static_cast<uint32_t>(this->m_frameCount); cached = this->m_texCacheList.Next(cached)) {
+    for (CGxTex* cached = this->m_texCacheList.Head(); cached && cached->m_lastUsedFrame != static_cast<uint32_t>(this->m_frameCount); cached = this->m_texCacheList.Next(cached)) {
         if (texId->m_flags.m_filter == cached->m_flags.m_filter && texId->m_flags.m_renderTarget == cached->m_flags.m_renderTarget && texId->m_format == cached->m_format && texId->m_target == cached->m_target && texId->m_width == cached->m_width && texId->m_height == cached->m_height) {
             this->ITexTakeD3dTexture(texId, cached);
             return;
@@ -4371,7 +4371,7 @@ void CGxDeviceD3d9Ex::ITexAcquire(CGxTex* texId) {
     while (true) {
         CGxTex* oldest = this->m_texCacheList.Head();
 
-        if (!oldest || oldest->unk_0050 == static_cast<uint32_t>(this->m_frameCount)) {
+        if (!oldest || oldest->m_lastUsedFrame == static_cast<uint32_t>(this->m_frameCount)) {
             this->ITexUnlinkBound();
             int32_t found = this->ITexEvictFor(texId, size);
             this->ITexLinkBound();
@@ -4394,8 +4394,8 @@ void CGxDeviceD3d9Ex::ITexAcquire(CGxTex* texId) {
 // VERIFY: da1e5417 auto
 // OFFSET: 0x006A7040
 void CGxDeviceD3d9Ex::ITexTouch(CGxTex* texId) {
-    if (!texId->m_flags.m_renderTarget && texId->m_apiSpecificData && texId->unk_0050 != static_cast<uint32_t>(this->m_frameCount)) {
-        texId->unk_0050 = this->m_frameCount;
+    if (!texId->m_flags.m_renderTarget && texId->m_apiSpecificData && texId->m_lastUsedFrame != static_cast<uint32_t>(this->m_frameCount)) {
+        texId->m_lastUsedFrame = this->m_frameCount;
         this->m_texCacheList.LinkToTail(texId);
     }
 }

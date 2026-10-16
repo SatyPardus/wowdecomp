@@ -223,12 +223,12 @@ void CGQuestPOIFrame::UpdateMouseOverPOI(float x, float y) {
     for (uint32_t i = 0; i < 4; i++) {
         QuestPOIRenderGroup* group = &this->m_groups[i];
 
-        if (!group->m_info || !group->m_info->unk_0028) {
+        if (!group->m_info || !group->m_info->m_visible) {
             continue;
         }
 
         for (uint32_t j = 0; j < group->m_renderData.Count(); j++) {
-            int32_t mask = group->m_info->unk_002C;
+            int32_t mask = group->m_info->m_objectiveMask;
 
             if (mask == -1) {
                 continue;
@@ -236,7 +236,7 @@ void CGQuestPOIFrame::UpdateMouseOverPOI(float x, float y) {
 
             QuestPOIRenderData* data = &group->m_renderData.m_data[j];
 
-            if (!((1 << data->m_blob->unk_001C) & mask) || !CGQuestLog::IsPOIOnCurrentMap(&data->m_blob->m_centerX, data->m_blob->unk_0020, area->m_mapID)) {
+            if (!((1 << data->m_blob->m_objectiveIndex) & mask) || !CGQuestLog::IsPOIOnCurrentMap(&data->m_blob->m_centerX, data->m_blob->m_mapId, area->m_mapID)) {
                 continue;
             }
 
@@ -271,7 +271,7 @@ void CGQuestPOIFrame::UpdateMouseOverPOI(float x, float y) {
 // OFFSET: 0x0058E310
 void CGQuestPOIFrame::MergeBlobs(uint32_t index) {
     QuestPOIRenderGroup* group = &this->m_groups[index];
-    int32_t mask = group->m_info->unk_002C;
+    int32_t mask = group->m_info->m_objectiveMask;
 
     if (mask == -1) {
         return;
@@ -280,14 +280,14 @@ void CGQuestPOIFrame::MergeBlobs(uint32_t index) {
     for (uint32_t i = 0; i < group->m_renderData.Count(); i++) {
         QuestPOIRenderData* first = &group->m_renderData.m_data[i];
 
-        if (!first->m_valid || !((1 << first->m_blob->unk_001C) & mask)) {
+        if (!first->m_valid || !((1 << first->m_blob->m_objectiveIndex) & mask)) {
             continue;
         }
 
         for (uint32_t j = i + 1; j < group->m_renderData.Count(); j++) {
             QuestPOIRenderData* second = &group->m_renderData.m_data[j];
 
-            if (!second->m_valid || !((1 << second->m_blob->unk_001C) & mask)) {
+            if (!second->m_valid || !((1 << second->m_blob->m_objectiveIndex) & mask)) {
                 continue;
             }
 
@@ -436,7 +436,7 @@ void CGQuestPOIFrame::BuildBlobRenderData(QuestPOIRenderData* data, QuestPOIBlob
     data->m_objectives[1] = 0;
     data->m_objectives[2] = 0;
     data->m_objectives[3] = 0;
-    data->m_objectives[0] = blob->unk_001C;
+    data->m_objectives[0] = blob->m_objectiveIndex;
     data->m_numObjectives = 1;
     bool failed = false;
 
@@ -721,13 +721,13 @@ void CGQuestPOIFrame::Render() {
         for (uint32_t j = 0; j < group->m_renderData.Count(); j++) {
             QuestPOIRenderData* data = &group->m_renderData.m_data[j];
 
-            if (!data->m_blob || !data->m_valid || !CGQuestLog::IsPOIOnCurrentMap(&data->m_blob->m_centerX, data->m_blob->unk_0020, area->m_mapID)) {
+            if (!data->m_blob || !data->m_valid || !CGQuestLog::IsPOIOnCurrentMap(&data->m_blob->m_centerX, data->m_blob->m_mapId, area->m_mapID)) {
                 continue;
             }
 
-            int32_t mask = group->m_info->unk_002C;
+            int32_t mask = group->m_info->m_objectiveMask;
 
-            if ((mask == -1 || ((1 << data->m_blob->unk_001C) & mask)) && (s_highlightIndex == -1 || s_highlightIndex == static_cast<int32_t>(j))) {
+            if ((mask == -1 || ((1 << data->m_blob->m_objectiveIndex) & mask)) && (s_highlightIndex == -1 || s_highlightIndex == static_cast<int32_t>(j))) {
                 GxPrimLockVertexPtrs(data->m_fillVerts.Count(), data->m_fillVerts.m_data, sizeof(C3Vector), nullptr, 0, nullptr, 0, nullptr, 0, data->m_fillTexCoords.m_data, sizeof(C2Vector), nullptr, 0);
                 GxDrawLockedElements(GxPrim_Triangles, data->m_fillIndices.Count(), data->m_fillIndices.m_data);
                 GxPrimUnlockVertexPtrs();
@@ -748,13 +748,13 @@ void CGQuestPOIFrame::Render() {
         for (uint32_t j = 0; j < group->m_renderData.Count(); j++) {
             QuestPOIRenderData* data = &group->m_renderData.m_data[j];
 
-            if (!data->m_blob || !data->m_valid || !CGQuestLog::IsPOIOnCurrentMap(&data->m_blob->m_centerX, data->m_blob->unk_0020, area->m_mapID)) {
+            if (!data->m_blob || !data->m_valid || !CGQuestLog::IsPOIOnCurrentMap(&data->m_blob->m_centerX, data->m_blob->m_mapId, area->m_mapID)) {
                 continue;
             }
 
-            int32_t mask = group->m_info->unk_002C;
+            int32_t mask = group->m_info->m_objectiveMask;
 
-            if ((mask == -1 || ((1 << data->m_blob->unk_001C) & mask)) && (s_highlightIndex == -1 || s_highlightIndex == static_cast<int32_t>(j))) {
+            if ((mask == -1 || ((1 << data->m_blob->m_objectiveIndex) & mask)) && (s_highlightIndex == -1 || s_highlightIndex == static_cast<int32_t>(j))) {
                 GxPrimLockVertexPtrs(data->m_borderVerts.Count(), data->m_borderVerts.m_data, sizeof(C3Vector), nullptr, 0, nullptr, 0, nullptr, 0, data->m_borderTexCoords.m_data, sizeof(C2Vector), nullptr, 0);
                 GxDrawLockedElements(GxPrim_TriangleStrip, data->m_borderIndices.Count(), data->m_borderIndices.m_data);
                 GxPrimUnlockVertexPtrs();

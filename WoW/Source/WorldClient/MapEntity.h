@@ -42,13 +42,13 @@ class CMapEntity : public CMapStaticEntity {
     /* 0098 */ uint64_t m_funcParam64;
     /* 00A0 */ uintptr_t m_funcParam32;
     /* 00A4 */ uint32_t unk_00A4;
-    /* 00A8 */ C3Vector unk_00A8;
-    /* 00B4 */ uint32_t unk_00B4;
+    /* 00A8 */ C3Vector unused_00A8;
+    /* 00B4 */ uint32_t unused_00B4;
     /* 00B8 */ int32_t m_groundType;
-    /* 00BC */ uint16_t unk_00BC;
-    /* 00BE */ uint16_t unk_00BE;
-    /* 00C0 */ CImVector unk_00C0;
-    /* 00C4 */ float unk_00C4;
+    /* 00BC */ uint16_t m_liquidType;
+    /* 00BE */ uint16_t unused_00BE;
+    /* 00C0 */ CImVector m_targetAmbientColor;
+    /* 00C4 */ float m_targetDiffuseLightScale;
     /* 00C8 */ TSLink<CMapEntity> m_sortEntryLink;
 
     static int32_t QueryCameraFog(SMOFog* fog, CMapObjDef** mapObjDef, uint8_t* found, TSGrowableArray<uint32_t>** groups, float* distance);

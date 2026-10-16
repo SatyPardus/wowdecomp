@@ -420,10 +420,10 @@ void BattlenetLogin::SetAuthModulePinInfo(const char* keyMap) {
             SErrDisplayAppFatalMessage("", "", 0);
         }
 
-        this->unk_105D[1 + i] = keyMap[i] - '0';
+        this->m_pinKeyMap[1 + i] = keyMap[i] - '0';
     }
 
-    this->unk_105D[0] = 1;
+    this->m_pinKeyMap[0] = 1;
     this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_PIN, LOGIN_OK, nullptr, 0);
 }
 
@@ -432,7 +432,7 @@ void BattlenetLogin::SetAuthModulePinInfo(const char* keyMap) {
 void BattlenetLogin::SetTokenInfo(bool enabled, uint8_t required) {
     if (enabled) {
         this->m_tokenRequired = true;
-        this->unk_10D5 = required;
+        this->unused_10D5 = required;
         this->m_loginResponse->UpdateLoginStatus(LOGIN_STATE_TOKEN, LOGIN_OK, nullptr, 0);
     }
 }
@@ -806,11 +806,11 @@ Battlenet::TumorManager* BattlenetLogin::CreateTumorManager() {
 // VERIFY: a05b79fa manual
 // OFFSET: 0x008C7AB0
 void BattlenetLogin::EnterPIN(int32_t count, uint8_t* digits) {
-    if (!this->unk_105D[0]) {
+    if (!this->m_pinKeyMap[0]) {
         return;
     }
 
-    this->unk_105D[0] = 0;
+    this->m_pinKeyMap[0] = 0;
 
     if (static_cast<uint32_t>(count) > 10) {
         SErrDisplayAppFatalMessage("", "", 0);
@@ -1725,7 +1725,7 @@ LOGIN_STATE BattlenetLogin::NextSecurityState(LOGIN_STATE state) {
 // VERIFY: 9df286c6 auto
 // OFFSET: 0x008C5E20
 const uint8_t* BattlenetLogin::GetKeyMap() {
-    return &this->unk_105D[1];
+    return &this->m_pinKeyMap[1];
 }
 
 // VERIFY: f1a20f90 manual

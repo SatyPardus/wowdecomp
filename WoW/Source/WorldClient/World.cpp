@@ -231,10 +231,10 @@ uint32_t CWorld::enables2;
 uint32_t CWorld::m_M2PassMask;
 
 // STATIC: 0x00CD8624
-uint32_t CWorldScene::s_unk_CD8624;
+uint32_t CWorldScene::s_unused_CD8624;
 
 // STATIC: 0x00CD8774
-uint32_t CWorldScene::s_unk_CD8774;
+uint32_t CWorldScene::s_unused_CD8774;
 
 // STATIC: 0x00CD7758
 float CWorld::s_unk_CD7758;
@@ -418,7 +418,7 @@ static CWFrustum unk_CDD200;
 static int32_t unk_CD8F40;
 
 // STATIC: 0x00CD8778
-int32_t CWorldScene::s_unk_CD8778;
+int32_t CWorldScene::s_hasPendingExteriorGroups;
 
 // STATIC: 0x00ADF3F0
 int32_t s_entityCanLink;
@@ -605,12 +605,12 @@ void DayNight::FindAndAddZoneLight(const C3Vector* position) {
 // VERIFY: 4cdcc272 auto
 // OFFSET: 0x0077F1E0
 int32_t World::QueryObjectLiquid(CMapEntity* entity, int32_t* liquidType, float* height, int32_t* a4) {
-    if (!entity || !(entity->unk_007C & 0x20)) {
+    if (!entity || !(entity->m_staticFlags & 0x20)) {
         return 0;
     }
 
     *height = entity->m_liquidHeight;
-    *liquidType = entity->unk_00BC;
+    *liquidType = entity->m_liquidType;
     *a4 = 0;
 
     return 1;
@@ -619,12 +619,12 @@ int32_t World::QueryObjectLiquid(CMapEntity* entity, int32_t* liquidType, float*
 // VERIFY: 52533b77 auto
 // OFFSET: 0x0077F220
 int32_t World::QueryObjectLiquidFlags(CMapEntity* entity, int32_t* flag8, int32_t* flag9) {
-    if (!entity || !(entity->unk_007C & 0x20)) {
+    if (!entity || !(entity->m_staticFlags & 0x20)) {
         return 0;
     }
 
-    *flag8 = (entity->unk_007C >> 8) & 1;
-    *flag9 = (entity->unk_007C >> 9) & 1;
+    *flag8 = (entity->m_staticFlags >> 8) & 1;
+    *flag9 = (entity->m_staticFlags >> 9) & 1;
 
     return 1;
 }
@@ -657,7 +657,7 @@ int32_t World::QueryLiquidStatus(C3Vector* pos, int32_t* liquidType, float* heig
 // VERIFY: 46023465 auto
 // OFFSET: 0x0077F390
 int32_t World::QueryLiquidSounds(CMapEntity* entity, float radius, TSGrowableArray<World::LiquidQueryResult>& results) {
-    if (entity->unk_007C & 0x1) {
+    if (entity->m_staticFlags & 0x1) {
         uint32_t distance = 9999;
         entity->QueryLiquidSounds(results, &distance);
 
@@ -945,19 +945,19 @@ void World::ObjectEnableCollision(CMapBaseObj* object, int32_t enable) {
 // OFFSET: 0x007801C0
 void World::ObjectSetShadow(CMapEntity* entity, uint32_t shadow, uint32_t mask) {
     if (mask & 0x1) {
-        entity->unk_007C ^= (entity->unk_007C ^ (shadow << 1)) & 0x2;
+        entity->m_staticFlags ^= (entity->m_staticFlags ^ (shadow << 1)) & 0x2;
     }
 
     if (mask & 0x2) {
-        entity->unk_007C ^= (entity->unk_007C ^ ~(shadow << 10)) & 0x800;
+        entity->m_staticFlags ^= (entity->m_staticFlags ^ ~(shadow << 10)) & 0x800;
     }
 
     if (mask & 0x4) {
-        entity->unk_007C ^= (entity->unk_007C ^ (shadow << 8)) & 0x400;
+        entity->m_staticFlags ^= (entity->m_staticFlags ^ (shadow << 8)) & 0x400;
     }
 
     if (mask & 0x8) {
-        entity->unk_007C ^= (entity->unk_007C ^ (shadow << 10)) & 0x2000;
+        entity->m_staticFlags ^= (entity->m_staticFlags ^ (shadow << 10)) & 0x2000;
     }
 
     if (mask & 0x20) {
@@ -1064,22 +1064,22 @@ uint64_t World::QueryObjectParentParam64(CMapBaseObj* object) {
 
 // VERIFY: 75ab3dc4 manual
 // OFFSET: 0x00781A10
-CMapEntity* CMap::ObjectCreate(CM2Model* model, MAP_OBJECT_FUNC func, void* funcParam, uint64_t param64, uintptr_t param32, uint32_t a7) {
-    CMapEntity* entity = CMap::AllocEntity((a7 >> 3) & 0x1);
+CMapEntity* CMap::ObjectCreate(CM2Model* model, MAP_OBJECT_FUNC func, void* funcParam, uint64_t param64, uintptr_t param32, uint32_t flags) {
+    CMapEntity* entity = CMap::AllocEntity((flags >> 3) & 0x1);
     entity->m_model = model;
     entity->m_funcParam64 = param64;
     entity->m_funcParam32 = param32;
     entity->m_position = C3Vector(10000000.0f, 10000000.0f, 10000000.0f);
     entity->m_diffuseLightScale = 1.0f;
     entity->m_vec2 = C3Vector(10000000.0f, 10000000.0f, 10000000.0f);
-    entity->unk_00C4 = 1.0f;
+    entity->m_targetDiffuseLightScale = 1.0f;
     entity->m_type |= 0x200;
-    entity->unk_007C = (entity->unk_007C & ~0xEC02) | ((a7 & 0x1) << 1) | ((a7 & 0x4) << 8) | (~(a7 << 10) & 0x800) | (((a7 >> 3) & 0x1) << 13) | ((a7 & 0x10) << 11);
+    entity->m_staticFlags = (entity->m_staticFlags & ~0xEC02) | ((flags & 0x1) << 1) | ((flags & 0x4) << 8) | (~(flags << 10) & 0x800) | (((flags >> 3) & 0x1) << 13) | ((flags & 0x10) << 11);
     entity->m_flags = static_cast<MapObjFlag>(0);
     entity->m_func = nullptr;
-    entity->unk_00B4 = 0;
+    entity->unused_00B4 = 0;
 
-    if (a7 & 0x20) {
+    if (flags & 0x20) {
         entity->m_flags = static_cast<MapObjFlag>(0x20000);
     }
 
@@ -1089,12 +1089,12 @@ CMapEntity* CMap::ObjectCreate(CM2Model* model, MAP_OBJECT_FUNC func, void* func
     color.g = static_cast<uint8_t>(static_cast<int32_t>(ambient.y > 0.0f ? (ambient.y < 1.0f ? ambient.y * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.r = static_cast<uint8_t>(static_cast<int32_t>(ambient.x > 0.0f ? (ambient.x < 1.0f ? ambient.x * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.a = 0xFF;
-    entity->unk_00C0 = color;
+    entity->m_targetAmbientColor = color;
     entity->m_m2AmbientColor = color;
 
     if (entity->m_model) {
         if (!SStrCmpI(s_invisibleStalkerModel, model->m_shared->m_fileNameWithoutPath, STORM_MAX_STR)) {
-            entity->unk_007C |= 0x4000;
+            entity->m_staticFlags |= 0x4000;
         }
 
         entity->m_model->m_lightingCallback = CMapStaticEntity::ModelLightingCallback;
@@ -1116,7 +1116,7 @@ void World::ObjectSetModel(CMapEntity* entity, CM2Model* model) {
         entity->m_model->Release();
     }
 
-    entity->unk_007C &= ~0x4000;
+    entity->m_staticFlags &= ~0x4000;
     entity->m_model = model;
 
     if (!model) {
@@ -1124,7 +1124,7 @@ void World::ObjectSetModel(CMapEntity* entity, CM2Model* model) {
     }
 
     if (!SStrCmpI(s_invisibleStalkerModel, model->m_shared->m_fileNameWithoutPath, STORM_MAX_STR)) {
-        entity->unk_007C |= 0x4000;
+        entity->m_staticFlags |= 0x4000;
     }
 
     entity->m_model->m_lightingCallback = CMapStaticEntity::ModelLightingCallback;
@@ -1356,7 +1356,7 @@ void World::SetFarClip(float farClip) {
 
 // VERIFY: 833d137a auto
 // OFFSET: 0x00781430
-void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t a4) {
+void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4) {
     World::s_farClip = World::ValidateFarClip(CWorldParam::cvar_farClip->m_floatValue, zoneID);
     World::s_nearClip = 0.2f;
     World::s_prevFarClip = World::s_farClip;
@@ -1754,22 +1754,22 @@ void CWorld::Initialize() {
 
 // VERIFY: e7c98865 auto
 // OFFSET: 0x00406E90
-bool World::IsValidPosition(const C3Vector& position, float a4) {
-    return World::IsValidPosition(position.x, position.y, position.z, a4);
+bool World::IsValidPosition(const C3Vector& position, float margin) {
+    return World::IsValidPosition(position.x, position.y, position.z, margin);
 }
 
 // VERIFY: 8553e69c auto
 // OFFSET: 0x00406DE0
-bool World::IsValidPosition(float x, float y, float z, float a4) {
+bool World::IsValidPosition(float x, float y, float z, float margin) {
     if (std::isfinite(x) && std::isfinite(y) && std::isfinite(z)) {
         float v4 = -(y - 17066.666f);
         float v5 = -(x - 17066.666f);
 
-        if (a4 > v4) {
+        if (margin > v4) {
             return 0;
         }
 
-        if (34133.332f - a4 > v4 && a4 <= v5 && v5 < 34133.332f - a4) {
+        if (34133.332f - margin > v4 && margin <= v5 && v5 < 34133.332f - margin) {
             return 1;
         }
     }
@@ -2136,32 +2136,32 @@ void CWorldScene::CullHorizon(CRect* rect) {
 
 // VERIFY: b484c5b7 manual
 // OFFSET: 0x00791CB0
-void CWorldScene::AddDoodadDefModelToModelScene(CMapDoodadDef* a1) {
-    a1->m_doodadDefLink.Unlink();
+void CWorldScene::AddDoodadDefModelToModelScene(CMapDoodadDef* doodadDef) {
+    doodadDef->m_doodadDefLink.Unlink();
 
-    uint32_t flags = a1->m_flags;
+    uint32_t flags = doodadDef->m_flags;
 
     if ((flags & 0x20) || !(CWorld::enables & Enable_Doodads)) {
         return;
     }
 
-    a1->m_distanceToCamera = a1->m_sphere.c.y * CWorldScene::camPlane.n.y + a1->m_sphere.c.z * CWorldScene::camPlane.n.z + a1->m_sphere.c.x * CWorldScene::camPlane.n.x + CWorldScene::camPlane.d - a1->m_sphere.r;
+    doodadDef->m_distanceToCamera = doodadDef->m_sphere.c.y * CWorldScene::camPlane.n.y + doodadDef->m_sphere.c.z * CWorldScene::camPlane.n.z + doodadDef->m_sphere.c.x * CWorldScene::camPlane.n.x + CWorldScene::camPlane.d - doodadDef->m_sphere.r;
 
     float alpha = 1.0f;
 
     if ((CWorld::enables & Enable_NoFullAlpha) && !(flags & 0x800)) {
-        float dx = a1->m_sphere.c.x - CWorldScene::s_activeWorldView.x;
-        float dy = a1->m_sphere.c.y - CWorldScene::s_activeWorldView.y;
-        float dz = a1->m_sphere.c.z - CWorldScene::s_activeWorldView.z;
+        float dx = doodadDef->m_sphere.c.x - CWorldScene::s_activeWorldView.x;
+        float dy = doodadDef->m_sphere.c.y - CWorldScene::s_activeWorldView.y;
+        float dz = doodadDef->m_sphere.c.z - CWorldScene::s_activeWorldView.z;
         float distSq = dz * dz + dy * dy + dx * dx;
 
-        if (distSq > CWorldView::s_fadeDistSqr[a1->m_fadeLevel]) {
+        if (distSq > CWorldView::s_fadeDistSqr[doodadDef->m_fadeLevel]) {
             return;
         }
 
-        if (distSq > CWorldScene::s_fadeDistMinSqr[a1->m_fadeLevel]) {
+        if (distSq > CWorldScene::s_fadeDistMinSqr[doodadDef->m_fadeLevel]) {
             float dist = CMap::s_useSSE ? sqrtf(distSq) : sqrt(distSq);
-            alpha = 1.0f - (dist - CWorldScene::s_fadeDistMin[a1->m_fadeLevel]) / CWorldScene::s_fadeRangeDefault[a1->m_fadeLevel];
+            alpha = 1.0f - (dist - CWorldScene::s_fadeDistMin[doodadDef->m_fadeLevel]) / CWorldScene::s_fadeRangeDefault[doodadDef->m_fadeLevel];
 
             if (alpha > 0.99000001f) {
                 alpha = 1.0f;
@@ -2171,9 +2171,9 @@ void CWorldScene::AddDoodadDefModelToModelScene(CMapDoodadDef* a1) {
         }
     }
 
-    a1->m_model->SetAnimating(1);
+    doodadDef->m_model->SetAnimating(1);
 
-    CM2Model* model = a1->m_model;
+    CM2Model* model = doodadDef->m_model;
 
     if (model->m_attachParent) {
         model->m_fFlags |= 0x80;
@@ -2187,7 +2187,7 @@ void CWorldScene::AddDoodadDefModelToModelScene(CMapDoodadDef* a1) {
         model->m_fFlags |= 0x10000;
     }
 
-    a1->m_model->m_fadeAlpha = alpha;
+    doodadDef->m_model->m_fadeAlpha = alpha;
 }
 
 // VERIFY: 300a631e auto
@@ -2355,7 +2355,7 @@ void CWorldScene::CullEntitys(CSortEntry* entry) {
         if (model) {
             model->SetAnimating(1);
 
-            uint32_t lit = !(entity->unk_007C & 0x4);
+            uint32_t lit = !(entity->m_staticFlags & 0x4);
             uint32_t flags = model->m_fFlags;
 
             if (model->m_attachParent) {
@@ -2397,7 +2397,7 @@ void CWorldScene::CullEntitysInterior(TSList<CMapBaseObjLink, TSGetExplicitLink<
     while (link) {
         CMapEntity* entity = static_cast<CMapEntity*>(link->m_owner);
         CMapBaseObjLink* next = linkList->Next(link);
-        uint32_t entityFlags = entity->unk_007C;
+        uint32_t entityFlags = entity->m_staticFlags;
 
         if (!(force | (entityFlags & 0x1)) || !entity->m_culled || (entityFlags & 0x4)) {
             link = next;
@@ -2425,7 +2425,7 @@ void CWorldScene::CullEntitysInterior(TSList<CMapBaseObjLink, TSGetExplicitLink<
             if (model) {
                 model->SetAnimating(1);
 
-                uint32_t lit = !(entity->unk_007C & 0x4);
+                uint32_t lit = !(entity->m_staticFlags & 0x4);
                 uint32_t flags = model->m_fFlags;
 
                 if (model->m_attachParent) {
@@ -2475,8 +2475,8 @@ void CWorldScene::UpdateSortedModels() {
         if (model) {
             int32_t animating = 0;
 
-            if (!(entity->unk_007C & 0x4000)) {
-                if (entity->unk_007C & 0x400) {
+            if (!(entity->m_staticFlags & 0x4000)) {
+                if (entity->m_staticFlags & 0x400) {
                     animating = 1;
                 }
 
@@ -3253,9 +3253,9 @@ void CWorldScene::RenderPortalList(TSGrowableArray<CPortalView>* views, int32_t 
     }
 
     g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-    vertexBuf->unk_001C = 1;
+    vertexBuf->m_hasData = 1;
     g_theGxDevicePtr->BufUnlock(indexBuf, 0);
-    indexBuf->unk_001C = 1;
+    indexBuf->m_hasData = 1;
 
     GxPrimVertexPtr(vertexBuf, GxVBF_PC);
     g_theGxDevicePtr->PrimIndexPtr(indexBuf);
@@ -3334,7 +3334,7 @@ void CWorldScene::RenderOccluders() {
     }
 
     g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-    vertexBuf->unk_001C = 1;
+    vertexBuf->m_hasData = 1;
     GxPrimVertexPtr(vertexBuf, GxVBF_PN);
 
     CGxBuf* indexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), 6 * count);
@@ -3351,7 +3351,7 @@ void CWorldScene::RenderOccluders() {
     }
 
     g_theGxDevicePtr->BufUnlock(indexBuf, 0);
-    indexBuf->unk_001C = 1;
+    indexBuf->m_hasData = 1;
     g_theGxDevicePtr->PrimIndexPtr(indexBuf);
 
     CGxBatch batch;
@@ -3435,7 +3435,7 @@ void CWorldScene::RenderDebugFrustum() {
     }
 
     g_theGxDevicePtr->BufUnlock(faceBuf, 0);
-    faceBuf->unk_001C = 1;
+    faceBuf->m_hasData = 1;
     GxPrimVertexPtr(faceBuf, GxVBF_PC);
 
     CGxBuf* faceIndexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), 36);
@@ -3452,7 +3452,7 @@ void CWorldScene::RenderDebugFrustum() {
     }
 
     g_theGxDevicePtr->BufUnlock(faceIndexBuf, 0);
-    faceIndexBuf->unk_001C = 1;
+    faceIndexBuf->m_hasData = 1;
     g_theGxDevicePtr->PrimIndexPtr(faceIndexBuf);
 
     CGxBatch faceBatch;
@@ -3483,7 +3483,7 @@ void CWorldScene::RenderDebugFrustum() {
     }
 
     g_theGxDevicePtr->BufUnlock(lineBuf, 0);
-    lineBuf->unk_001C = 1;
+    lineBuf->m_hasData = 1;
     GxPrimVertexPtr(lineBuf, GxVBF_PC);
 
     CGxBuf* lineIndexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), 12);
@@ -3496,7 +3496,7 @@ void CWorldScene::RenderDebugFrustum() {
     }
 
     g_theGxDevicePtr->BufUnlock(lineIndexBuf, 0);
-    lineIndexBuf->unk_001C = 1;
+    lineIndexBuf->m_hasData = 1;
     g_theGxDevicePtr->PrimIndexPtr(lineIndexBuf);
 
     CGxBatch lineBatch;
@@ -3613,7 +3613,7 @@ void CWorldScene::CullDoodads(CSortEntry* entry, uint16_t fadeLevel) {
         if (visible) {
             CWorldScene::AddDoodadDefModelToModelScene(doodadDef);
             CWorldScene::nDoodadsRendered++;
-        } else if ((doodadDef->unk_007C & 0x400) || (doodadDef->m_sphere.c.x - CWorldScene::s_activeWorldView.x) * (doodadDef->m_sphere.c.x - CWorldScene::s_activeWorldView.x) + ((doodadDef->m_sphere.c.y - CWorldScene::s_activeWorldView.y) * (doodadDef->m_sphere.c.y - CWorldScene::s_activeWorldView.y) + (doodadDef->m_sphere.c.z - CWorldScene::s_activeWorldView.z) * (doodadDef->m_sphere.c.z - CWorldScene::s_activeWorldView.z)) < 100.0f) {
+        } else if ((doodadDef->m_staticFlags & 0x400) || (doodadDef->m_sphere.c.x - CWorldScene::s_activeWorldView.x) * (doodadDef->m_sphere.c.x - CWorldScene::s_activeWorldView.x) + ((doodadDef->m_sphere.c.y - CWorldScene::s_activeWorldView.y) * (doodadDef->m_sphere.c.y - CWorldScene::s_activeWorldView.y) + (doodadDef->m_sphere.c.z - CWorldScene::s_activeWorldView.z) * (doodadDef->m_sphere.c.z - CWorldScene::s_activeWorldView.z)) < 100.0f) {
             doodadDef->m_model->SetAnimating(1);
         } else {
             doodadDef->m_model->SetAnimating(0);
@@ -3789,7 +3789,7 @@ void CWorldScene::AddMapObjDefGroupToSortTable(uint32_t groupIndex, void* param)
         mapObjDefGroup->m_distanceToCamera = CWorldScene::camPlane.n.z * nearest.z + CWorldScene::camPlane.n.y * nearest.y + CWorldScene::camPlane.n.x * nearest.x + CWorldScene::camPlane.d;
 
         if (group->m_flags & 0x40) {
-            CWorldScene::s_unk_CD8778 = 1;
+            CWorldScene::s_hasPendingExteriorGroups = 1;
         }
 
         mapObjDefGroup->m_flags = static_cast<MapObjFlag>(mapObjDefGroup->m_flags & ~MAPOBJ_FLAG_INT_FOG);
@@ -3879,7 +3879,7 @@ void CWorldScene::CullDoodadsExterior(TSList<CMapBaseObjLink, TSGetExplicitLink<
                 } else {
                     C3Vector delta = doodadDef->m_sphere.c - CWorldScene::s_activeWorldView;
 
-                    if ((doodadDef->unk_007C & 0x400) || delta.x * delta.x + delta.z * delta.z + delta.y * delta.y < 100.0f) {
+                    if ((doodadDef->m_staticFlags & 0x400) || delta.x * delta.x + delta.z * delta.z + delta.y * delta.y < 100.0f) {
                         doodadDef->m_model->SetAnimating(1);
                     } else {
                         doodadDef->m_model->SetAnimating(0);
@@ -3920,7 +3920,7 @@ void CWorldScene::CullDoodadsInterior(TSList<CMapBaseObjLink, TSGetExplicitLink<
             doodadDef->m_culled = 1;
             int32_t animate = 1;
 
-            if (!(doodadDef->unk_007C & 0x400)) {
+            if (!(doodadDef->m_staticFlags & 0x400)) {
                 float dz = doodadDef->m_sphere.c.z - CWorldScene::s_activeWorldView.z;
                 float dy = doodadDef->m_sphere.c.y - CWorldScene::s_activeWorldView.y;
                 float dx = doodadDef->m_sphere.c.x - CWorldScene::s_activeWorldView.x;
@@ -3982,7 +3982,7 @@ void CWorldScene::CullChunks(CSortEntry* entry, uint32_t index) {
                         uint32_t variant = 0;
 
                         if (layerCount) {
-                            uint32_t flags = renderChunk->unk_000A;
+                            uint32_t flags = renderChunk->m_renderFlags;
                             variant = (flags & 1) ? ((flags & 4) | 2) >> 1 : (flags >> 1) & 2;
                         }
 
@@ -4235,7 +4235,7 @@ void World::TickObject(CMapEntity* entity) {
 // VERIFY: 8b1b26ac manual
 // OFFSET: 0x0077F2F0
 void World::ObjectSetHidden(CMapEntity* entity, int32_t hidden) {
-    entity->unk_007C ^= (entity->unk_007C ^ (4 * hidden)) & 0x4;
+    entity->m_staticFlags ^= (entity->m_staticFlags ^ (4 * hidden)) & 0x4;
 }
 
 // VERIFY: 8e291dc6 manual
@@ -4247,7 +4247,7 @@ int32_t World::Intersect(const C3Vector& start, const C3Vector& end, C3Vector* h
 // VERIFY: e6c442dd manual
 // OFFSET: 0x00792E60
 void CWorldScene::AddEntityToSortTable(CMapEntity* entity) {
-    uint32_t flags = entity->unk_007C;
+    uint32_t flags = entity->m_staticFlags;
 
     if ((flags & 0x4000) && !entity->m_model->m_attachList) {
         CWorldScene::sortTable.m_culledEntityList.LinkToTail(entity);
@@ -4304,47 +4304,47 @@ void CWorldScene::SetCameraTarget(CMapEntity* entity, WOWGUID transportGuid) {
 // VERIFY: c79fbbdc manual
 // OFFSET: 0x007A1BC0
 void CMap::UpdateEntity(CMapEntity* entity) {
-    entity->unk_007C &= 0xFFFFFC96;
+    entity->m_staticFlags &= 0xFFFFFC96;
     entity->m_flags = static_cast<MapObjFlag>((entity->m_flags & ~0x7) | 0x1);
     CMap::LinkStaticEntity(entity);
 
-    if (entity->unk_007C & 0x1) {
+    if (entity->m_staticFlags & 0x1) {
         entity->UpdateMapObjLiquid();
     } else {
         int32_t liquidType;
         int32_t a4;
 
         if (CMap::QueryLiquidStatus(&entity->m_position, &liquidType, &entity->m_liquidHeight, &a4, 1)) {
-            entity->unk_007C |= 0x20;
+            entity->m_staticFlags |= 0x20;
 
             if (entity->m_liquidHeight <= entity->m_bbox.t.z) {
-                entity->unk_007C |= 0x40;
+                entity->m_staticFlags |= 0x40;
             } else {
-                entity->unk_007C &= ~0x40;
+                entity->m_staticFlags &= ~0x40;
             }
 
-            entity->unk_00BC = static_cast<uint16_t>(liquidType);
+            entity->m_liquidType = static_cast<uint16_t>(liquidType);
         }
     }
 
-    if (!(entity->unk_007C & 0x2000) && (entity->unk_007C & 0x40) && entity->m_liquidHeight + 0.0099999998f > entity->m_position.z) {
+    if (!(entity->m_staticFlags & 0x2000) && (entity->m_staticFlags & 0x40) && entity->m_liquidHeight + 0.0099999998f > entity->m_position.z) {
         uint32_t areaId;
 
         if (CMap::QueryAreaId(entity, areaId)) {
-            const LiquidTypeRec* liquid = GetLiquidTypeRecForArea(areaId, entity->unk_00BC);
+            const LiquidTypeRec* liquid = GetLiquidTypeRecForArea(areaId, entity->m_liquidType);
 
             if (liquid && ((liquid->m_flags & 0x4) || entity->m_liquidHeight > entity->m_position.z)) {
-                entity->unk_007C ^= (entity->unk_007C ^ (liquid->m_flags << 8)) & 0x100;
-                entity->unk_007C ^= (entity->unk_007C ^ (liquid->m_flags << 8)) & 0x200;
+                entity->m_staticFlags ^= (entity->m_staticFlags ^ (liquid->m_flags << 8)) & 0x100;
+                entity->m_staticFlags ^= (entity->m_staticFlags ^ (liquid->m_flags << 8)) & 0x200;
             }
         }
     }
 
     if (entity->m_flags & 0x2) {
-        if (entity->unk_007C & 0x1000) {
-            entity->unk_00C4 = (2.5f - 1.0f) * (entity->m_m2DiffuseColor.a * 0.0039215689f) + 1.0f;
+        if (entity->m_staticFlags & 0x1000) {
+            entity->m_targetDiffuseLightScale = (2.5f - 1.0f) * (entity->m_m2DiffuseColor.a * 0.0039215689f) + 1.0f;
         } else {
-            entity->unk_00C4 = 1.0f;
+            entity->m_targetDiffuseLightScale = 1.0f;
         }
 
         return;
@@ -4359,13 +4359,13 @@ void CMap::UpdateEntity(CMapEntity* entity) {
     color.b = static_cast<uint8_t>(static_cast<int32_t>(b));
     color.g = static_cast<uint8_t>(static_cast<int32_t>(g));
     color.r = static_cast<uint8_t>(static_cast<int32_t>(r));
-    entity->unk_00C0 = color;
+    entity->m_targetAmbientColor = color;
 
     if (CShadowCache::GetShadowMode() > 1 || (entity->m_flags & 0x200) || !CMap::QueryShadow(&entity->m_position)) {
-        entity->unk_00C4 = 2.5f;
+        entity->m_targetDiffuseLightScale = 2.5f;
     } else {
-        entity->unk_007C |= 0x8;
-        entity->unk_00C4 = 0.5f;
+        entity->m_staticFlags |= 0x8;
+        entity->m_targetDiffuseLightScale = 0.5f;
     }
 }
 
@@ -4397,7 +4397,7 @@ void CWorldScene::RenderEntitys() {
 
         if (entity->m_model) {
             if (entity->m_model->IsLoaded(0, 1)) {
-                CWorldScene::CullModelSplitBody(entity->m_model, entity->unk_00A4, (entity->unk_007C >> 14) & 1);
+                CWorldScene::CullModelSplitBody(entity->m_model, entity->unk_00A4, (entity->m_staticFlags >> 14) & 1);
             } else if (streaming) {
                 entity->m_model->LinkToAsyncHead(0);
             }
@@ -4405,18 +4405,18 @@ void CWorldScene::RenderEntitys() {
 
         CM2Model* model = entity->m_model;
 
-        if (model && model->IsLoaded(0, 0) && !(entity->unk_007C & 0x4)) {
+        if (model && model->IsLoaded(0, 0) && !(entity->m_staticFlags & 0x4)) {
             CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ entity->m_funcParam64 }, TYPEMASK_UNIT, __FILE__, __LINE__));
 
             if (!unit) {
-                if (entity->unk_007C & 0x800) {
+                if (entity->m_staticFlags & 0x800) {
                     M2SequenceInfo info;
                     info.Clear();
                     model->GetSequenceInfo(0, 0, info);
                     CWorldScene::RequestModelStreaming(model, &info.m_bounds);
                 }
             } else {
-                if ((entity->unk_007C & 0x800) && unit->m_unit->m_unitFieldBytes1[0] != 9) {
+                if ((entity->m_staticFlags & 0x800) && unit->m_unit->m_unitFieldBytes1[0] != 9) {
                     CAaBox standBox = unit->GetStandBox();
                     CWorldScene::RequestModelStreaming(model, &standBox);
                 }
@@ -4745,17 +4745,17 @@ void World::ObjectSetUpdateCallback(CMapEntity* entity, int32_t (*func)(void*, u
 CMapEntity* CMap::ObjectCreateStatic(CM2Model* model, const C44Matrix& matrix, MAP_OBJECT_FUNC func, void* funcParam, uintptr_t param32) {
     CMapEntity* entity = CMap::AllocEntity(0);
     entity->m_type |= 0x200;
-    entity->unk_007C = (entity->unk_007C & 0xFFFFA390) | 0x400;
+    entity->m_staticFlags = (entity->m_staticFlags & 0xFFFFA390) | 0x400;
     entity->m_flags = MAPOBJ_FLAG_UNPLACED;
     entity->m_func = nullptr;
-    entity->unk_00B4 = 0;
+    entity->unused_00B4 = 0;
     C3Vector ambient = CMap::s_mapLight->m_light.m_ambColor;
     CImVector color;
     color.b = static_cast<uint8_t>(static_cast<int32_t>(ambient.z > 0.0f ? (ambient.z < 1.0f ? ambient.z * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.g = static_cast<uint8_t>(static_cast<int32_t>(ambient.y > 0.0f ? (ambient.y < 1.0f ? ambient.y * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.r = static_cast<uint8_t>(static_cast<int32_t>(ambient.x > 0.0f ? (ambient.x < 1.0f ? ambient.x * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.a = 0xFF;
-    entity->unk_00C0 = color;
+    entity->m_targetAmbientColor = color;
     entity->m_m2AmbientColor = color;
     entity->m_funcParam32 = param32;
     entity->m_model = model;
@@ -4763,7 +4763,7 @@ CMapEntity* CMap::ObjectCreateStatic(CM2Model* model, const C44Matrix& matrix, M
     entity->m_sphere.c.y = matrix.d1;
     entity->m_diffuseLightScale = 1.0f;
     entity->m_sphere.c.z = matrix.d2;
-    entity->unk_00C4 = 1.0f;
+    entity->m_targetDiffuseLightScale = 1.0f;
     entity->m_sphere.r = 0.0f;
     entity->m_vec2 = entity->m_sphere.c;
     ambient = CMap::s_mapLight->m_light.m_ambColor;
@@ -4771,18 +4771,18 @@ CMapEntity* CMap::ObjectCreateStatic(CM2Model* model, const C44Matrix& matrix, M
     color.g = static_cast<uint8_t>(static_cast<int32_t>(ambient.y > 0.0f ? (ambient.y < 1.0f ? ambient.y * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.r = static_cast<uint8_t>(static_cast<int32_t>(ambient.x > 0.0f ? (ambient.x < 1.0f ? ambient.x * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.a = 0xFF;
-    entity->unk_00C0 = color;
+    entity->m_targetAmbientColor = color;
     entity->m_m2AmbientColor = color;
     entity->m_scale = sqrtf(matrix.a2 * matrix.a2 + matrix.a1 * matrix.a1 + matrix.a0 * matrix.a0);
     entity->m_position.x = matrix.d0;
     entity->m_position.y = matrix.d1;
-    entity->unk_007C |= 0x400;
+    entity->m_staticFlags |= 0x400;
     entity->m_position.z = matrix.d2;
     CMap::LinkStaticEntity(entity);
 
     if (entity->m_model) {
         if (!SStrCmpI(s_invisibleStalkerModel, model->m_shared->m_fileNameWithoutPath, STORM_MAX_STR)) {
-            entity->unk_007C |= 0x4000;
+            entity->m_staticFlags |= 0x4000;
         }
 
         entity->m_model->m_lightingCallback = CMapStaticEntity::ModelLightingCallback;
@@ -4800,9 +4800,9 @@ CMapEntity* CMap::ObjectCreateStatic(CM2Model* model, const C44Matrix& matrix, M
 CMapEntity* CMap::ObjectCreateStaticEx(CM2Model* model, const C44Matrix& matrix, MAP_OBJECT_FUNC func, void* funcParam, uint64_t param64, uintptr_t param32, const char* file, int32_t line) {
     CMapEntity* entity = CMap::AllocEntity(0);
     entity->m_type |= 0x300;
-    entity->unk_007C = (entity->unk_007C & 0xFFFFA7D0) | 0x400;
+    entity->m_staticFlags = (entity->m_staticFlags & 0xFFFFA7D0) | 0x400;
     entity->m_func = nullptr;
-    entity->unk_00B4 = 0;
+    entity->unused_00B4 = 0;
     entity->m_flags = MAPOBJ_FLAG_UNPLACED;
     C3Vector ambient = CMap::s_mapLight->m_light.m_ambColor;
     CImVector color;
@@ -4810,7 +4810,7 @@ CMapEntity* CMap::ObjectCreateStaticEx(CM2Model* model, const C44Matrix& matrix,
     color.g = static_cast<uint8_t>(static_cast<int32_t>(ambient.y > 0.0f ? (ambient.y < 1.0f ? ambient.y * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.r = static_cast<uint8_t>(static_cast<int32_t>(ambient.x > 0.0f ? (ambient.x < 1.0f ? ambient.x * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.a = 0xFF;
-    entity->unk_00C0 = color;
+    entity->m_targetAmbientColor = color;
     entity->m_m2AmbientColor = color;
     entity->m_flags = MAPOBJ_FLAG_UNPLACED;
     entity->m_funcParam32 = param32;
@@ -4820,7 +4820,7 @@ CMapEntity* CMap::ObjectCreateStaticEx(CM2Model* model, const C44Matrix& matrix,
     entity->m_sphere.c.y = matrix.d1;
     entity->m_diffuseLightScale = 1.0f;
     entity->m_sphere.c.z = matrix.d2;
-    entity->unk_00C4 = 1.0f;
+    entity->m_targetDiffuseLightScale = 1.0f;
     entity->m_sphere.r = 0.0f;
     entity->m_vec2 = entity->m_sphere.c;
     ambient = CMap::s_mapLight->m_light.m_ambColor;
@@ -4828,7 +4828,7 @@ CMapEntity* CMap::ObjectCreateStaticEx(CM2Model* model, const C44Matrix& matrix,
     color.g = static_cast<uint8_t>(static_cast<int32_t>(ambient.y > 0.0f ? (ambient.y < 1.0f ? ambient.y * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.r = static_cast<uint8_t>(static_cast<int32_t>(ambient.x > 0.0f ? (ambient.x < 1.0f ? ambient.x * 255.0f + 0.5f : 255.0f) : 0.0f));
     color.a = 0xFF;
-    entity->unk_00C0 = color;
+    entity->m_targetAmbientColor = color;
     entity->m_m2AmbientColor = color;
     entity->m_scale = sqrtf(matrix.a2 * matrix.a2 + matrix.a1 * matrix.a1 + matrix.a0 * matrix.a0);
     entity->m_position.x = matrix.d0;
@@ -4838,7 +4838,7 @@ CMapEntity* CMap::ObjectCreateStaticEx(CM2Model* model, const C44Matrix& matrix,
 
     if (entity->m_model) {
         if (!SStrCmpI(s_invisibleStalkerModel, model->m_shared->m_fileNameWithoutPath, STORM_MAX_STR)) {
-            entity->unk_007C |= 0x4000;
+            entity->m_staticFlags |= 0x4000;
         }
 
         entity->m_model->m_lightingCallback = CMapStaticEntity::ModelLightingCallback;
@@ -5081,7 +5081,7 @@ void World::ObjectSetMoveable(CMapEntity* entity, int32_t moveable) {
 
 // VERIFY: 380eef33 manual
 // OFFSET: 0x007823D0
-static int32_t ObjectFadeoutCallback(void* param, uint32_t flags, uint64_t a3, uintptr_t a4) {
+static int32_t ObjectFadeoutCallback(void* param, uint32_t flags, uint64_t param64, uintptr_t param32) {
     CMapEntity* entity = static_cast<CMapEntity*>(param);
 
     if (!entity) {
@@ -5140,7 +5140,7 @@ void CGObject_C::PrepareToFadeInt(CMapEntity* entity, float alpha, uint64_t tran
         return;
     }
 
-    if (!entity->m_model || !entity->m_model->IsDrawable(0, 0) || alpha < 0.0099999998f || (entity->unk_007C & 0x4)) {
+    if (!entity->m_model || !entity->m_model->IsDrawable(0, 0) || alpha < 0.0099999998f || (entity->m_staticFlags & 0x4)) {
         World::ObjectDestroy(entity);
         return;
     }
@@ -5240,8 +5240,8 @@ CMapBaseObj* CWorld::ObjectCreate(const char* name, const C3Vector& position, fl
     }
 
     CMapDoodadDef* doodadDef = CMap::CreateDoodadDef(name, &position, facing, waitLoad);
-    doodadDef->unk_007C |= 0x2010;
-    doodadDef->unk_00B8.m_guid = guid;
+    doodadDef->m_staticFlags |= 0x2010;
+    doodadDef->m_collisionGuid.m_guid = guid;
 
     if (snap) {
         CMap::SnapBaseObjToSubChunk(doodadDef, &position, facing);

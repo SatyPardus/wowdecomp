@@ -14,14 +14,14 @@ struct MailSenderInfo {
     /* 0008 */ int32_t m_entry;
     /* 000C */ int32_t m_messageType;
     /* 0010 */ int32_t m_stationery;
-    /* 0014 */ float unk_0014;
+    /* 0014 */ float m_timeLeft;
 };
 
 struct StationeryInfo {
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_itemID;
     /* 0008 */ int32_t m_isDefault;
-    /* 000C */ int32_t unk_000C;
+    /* 000C */ int32_t unused_000C;
     /* 0010 */ WOWGUID m_itemGUID;
 };
 
@@ -30,7 +30,7 @@ struct MailAttachmentInfo {
     /* 0004 */ int32_t m_itemID;
     /* 0008 */ int32_t m_randomPropertiesID;
     /* 000C */ uint32_t m_suffixFactor;
-    /* 0010 */ uint32_t unk_0010;
+    /* 0010 */ uint32_t unused_0010;
     /* 0014 */ uint32_t m_count;
     /* 0018 */ int32_t m_spellCharges;
     /* 001C */ int32_t m_enchantIDs[7];
@@ -62,14 +62,14 @@ struct MailboxMessageInfo {
     /* 217C */ uint32_t m_invoiceValue;
     /* 2180 */ MailAttachmentInfo m_attachments[16];
     /* 2940 */ uint32_t m_deletePending;
-    /* 2944 */ uint32_t unk_2944;
+    /* 2944 */ uint32_t unused_2944;
 };
 
 struct SendMailItem {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ WOWGUID m_container;
     /* 0010 */ uint8_t m_slot;
-    /* 0011 */ uint8_t unk_0011[7];
+    /* 0011 */ uint8_t unused_0011[7];
 };
 
 class CGMailInfo {

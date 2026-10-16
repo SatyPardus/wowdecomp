@@ -43,7 +43,7 @@ struct RainParticleBuffer {
 
 struct RainPatterParticle {
     /* 0000 */ C3Vector m_position;
-    /* 000C */ float unk_000C;
+    /* 000C */ float unused_000C;
     /* 0010 */ float m_startTime;
     /* 0014 */ float m_endTime;
 };
@@ -193,7 +193,7 @@ class Rain {
 
     /* 0000 */ uint8_t m_useWeatherShaders;
     /* 0001 */ uint8_t m_fadeOut;
-    /* 0002 */ uint8_t unk_0002[2];
+    /* 0002 */ uint8_t unused_0002[2];
     /* 0004 */ CAaBox m_bbox;
     /* 001C */ Mists m_mists;
     /* 0070 */ PacketList<Packet<RainParticleBuffer>> m_rainDropPacketList;

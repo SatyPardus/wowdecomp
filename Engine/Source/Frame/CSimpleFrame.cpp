@@ -196,7 +196,7 @@ CSimpleFrame::CSimpleFrame(CSimpleFrame* parent) {
     this->m_alpha = 0xFF;
     this->m_parentAlpha = 0xFF;
     this->m_animSavedAlpha = 0xFF;
-    this->unk_00AC = 1;
+    this->m_lifecycleState = 1;
     this->m_hitRect = { 0.0f, 0.0f, 0.0f, 0.0f };
     this->m_hitRectInsets = { 0.0f, 0.0f, 0.0f, 0.0f };
     this->m_clampRectInsets = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -234,7 +234,7 @@ CSimpleFrame::CSimpleFrame(CSimpleFrame* parent) {
 // VERIFY: e1a5b71b manual
 // OFFSET: [0x00492770, 0x004926B0, 0x00492E40]
 CSimpleFrame::~CSimpleFrame() {
-    this->unk_00AC = 3;
+    this->m_lifecycleState = 3;
     this->m_simpleTop->UnregisterFrame(this);
     this->m_simpleTop->ValidateDeletedFrame(this);
     this->m_simpleTop = nullptr;
@@ -1155,7 +1155,7 @@ void CSimpleFrame::NotifyScrollParent() {
 
     CSimpleScrollFrame* scrollFrame = static_cast<CSimpleScrollFrame*>(frame->m_parent);
 
-    if (scrollFrame && scrollFrame->unk_00AC != 3) {
+    if (scrollFrame && scrollFrame->m_lifecycleState != 3) {
         scrollFrame->m_scrollChildUpdate = 1;
     }
 }
@@ -1475,7 +1475,7 @@ void CSimpleFrame::OnScreenSizeChanged() {
 
 // VERIFY: ee342124 manual
 // OFFSET: 0x004908E0
-void CSimpleFrame::OnLayerCursorEnter(int32_t a2) {
+void CSimpleFrame::OnLayerCursorEnter(int32_t motion) {
     if (this->m_hoverFrame) {
         this->m_hoverFrame->Show();
     }
@@ -1485,12 +1485,12 @@ void CSimpleFrame::OnLayerCursorEnter(int32_t a2) {
         this->NotifyDrawLayerChanged(4);
     }
 
-    this->RunOnEnterScript(a2);
+    this->RunOnEnterScript(motion);
 }
 
 // VERIFY: ebe4e67e manual
 // OFFSET: 0x00490980
-void CSimpleFrame::OnLayerCursorExit(int32_t a2, int32_t a3) {
+void CSimpleFrame::OnLayerCursorExit(int32_t motion, int32_t a3) {
     if (this->m_hoverFrame) {
         this->m_hoverFrame->Hide();
     }
@@ -1505,7 +1505,7 @@ void CSimpleFrame::OnLayerCursorExit(int32_t a2, int32_t a3) {
         this->m_isMouseDragging = 0;
     }
 
-    this->RunOnLeaveScript(a2);
+    this->RunOnLeaveScript(motion);
 }
 
 // VERIFY: 05878e28 auto

@@ -86,7 +86,7 @@ static int32_t s_skinPlayerCorpseSpell;
 static int32_t s_pendingCompanions;
 
 // STATIC: 0x00BE5D88
-uint32_t s_unkBE5D88[1024];
+uint32_t s_displayedSpells[1024];
 
 // STATIC: 0x00BE6D88
 int32_t s_spellList[1024];
@@ -104,7 +104,7 @@ int32_t CGSpellBook::m_duelSpell;
 uint32_t s_numSpells;
 
 // STATIC: 0x00BE8D9C
-uint32_t s_unkBE8D9C;
+uint32_t s_displayedSpellCount;
 
 // STATIC: 0x00BE8DA0
 uint32_t s_numSkillInfos;
@@ -227,9 +227,9 @@ void CGSpellBook::ClearSpells() {
     }
 
     s_numSpells = 0;
-    s_unkBE8D9C = 0;
+    s_displayedSpellCount = 0;
     memset(s_spellList, 0, sizeof(s_spellList));
-    memset(s_unkBE5D88, 0, sizeof(s_unkBE5D88));
+    memset(s_displayedSpells, 0, sizeof(s_displayedSpells));
 
     for (uint32_t i = 0; i < s_skillInfos.Count(); i++) {
         if (s_skillInfos.m_data[i]) {
@@ -727,8 +727,8 @@ void CGSpellBook::UpdateSpells(int32_t a1, int32_t a2, int32_t a3) {
     }
 
     uint32_t spellIndex = 0;
-    s_unkBE8D9C = 0;
-    memset(s_unkBE5D88, 0, sizeof(s_unkBE5D88));
+    s_displayedSpellCount = 0;
+    memset(s_displayedSpells, 0, sizeof(s_displayedSpells));
 
     for (uint32_t tab = 0; tab < s_numSkillInfos; tab++) {
         SpellRec previous;
@@ -744,13 +744,13 @@ void CGSpellBook::UpdateSpells(int32_t a1, int32_t a2, int32_t a3) {
             while (true) {
                 if (!g_spellDB.GetRecord(*spell, &current)) {
                     visible++;
-                    s_unkBE5D88[s_unkBE8D9C++] = s_spellList[spellIndex + j - 1];
+                    s_displayedSpells[s_displayedSpellCount++] = s_spellList[spellIndex + j - 1];
                     break;
                 }
 
                 if (SStrCmp(current.m_name, previous.m_name, STORM_MAX_STR) || !CGSpellBook::GetSpellProgressionRank(&current)) {
                     visible++;
-                    s_unkBE5D88[s_unkBE8D9C++] = spell[-1];
+                    s_displayedSpells[s_displayedSpellCount++] = spell[-1];
                     previous = current;
                 }
 
@@ -1227,7 +1227,7 @@ int __cdecl SortSpellsForDisplay(const void* a, const void* b) {
 
 // VERIFY: c77f786b manual
 // OFFSET: 0x00541DF0
-void CGSpellBook::AddSpellToNameCache(int32_t spellId, int32_t a2) {
+void CGSpellBook::AddSpellToNameCache(int32_t spellId, int32_t isPet) {
     SpellRec spell;
 
     if (!g_spellDB.GetRecord(spellId, &spell)) {
@@ -1253,7 +1253,7 @@ void CGSpellBook::AddSpellToNameCache(int32_t spellId, int32_t a2) {
             return;
         }
 
-        if (rank > node->m_rank && !a2) {
+        if (rank > node->m_rank && !isPet) {
             next = node;
             break;
         }
@@ -1261,7 +1261,7 @@ void CGSpellBook::AddSpellToNameCache(int32_t spellId, int32_t a2) {
 
     SPELLRANKNODE* node = new (SMemAlloc(sizeof(SPELLRANKNODE), __FILE__, __LINE__, 0)) SPELLRANKNODE;
     node->m_spellId = spellId;
-    node->m_petSpell = a2;
+    node->m_petSpell = isPet;
 
     if (*spell.m_nameSubtext) {
         node->m_subtext.Copy(spell.m_nameSubtext);

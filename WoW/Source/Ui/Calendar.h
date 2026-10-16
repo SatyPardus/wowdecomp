@@ -96,7 +96,7 @@ struct CalendarEventSelection {
     /* 0008 */ uint32_t m_startTime;
     /* 000C */ uint32_t m_endTime;
     /* 0010 */ uint32_t m_holidayID;
-    /* 0014 */ int32_t unk_0014;
+    /* 0014 */ int32_t m_eventType;
 };
 
 class CalendarEventTables {

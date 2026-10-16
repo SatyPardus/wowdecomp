@@ -39,7 +39,7 @@ class Snow {
     public:
     /* 0000 */ uint8_t m_useWeatherShaders;
     /* 0001 */ uint8_t m_fadeOut;
-    /* 0002 */ uint8_t unk_0002[2];
+    /* 0002 */ uint8_t unused_0002[2];
     /* 0004 */ CAaBox m_bbox;
     /* 001C */ Mists m_mists;
     /* 0070 */ PacketList<Packet<SnowFlakeParticleBuffer>> m_snowFlakePacketList;
@@ -83,9 +83,9 @@ class WeatherGridBase {
 
 class WeatherGrid : public WeatherGridBase {
     public:
-    /* 0004 */ float unk_0004;
-    /* 0008 */ float unk_0008;
-    /* 000C */ float unk_000C;
+    /* 0004 */ float unused_0004;
+    /* 0008 */ float unused_0008;
+    /* 000C */ float unused_000C;
     /* 0010 */ int32_t m_originX;
     /* 0014 */ int32_t m_originY;
     /* 0018 */ int32_t m_minCellX;
@@ -127,7 +127,7 @@ class Weather {
     /* 0020 */ int32_t m_pendingType;
     /* 0024 */ uint8_t m_densityChanged;
     /* 0025 */ uint8_t m_immediate;
-    /* 0026 */ uint8_t unk_0026[2];
+    /* 0026 */ uint8_t unused_0026[2];
     /* 0028 */ float m_densityBlend;
     /* 002C */ float m_startDensityBlend;
     /* 0030 */ float m_targetDensityBlend;
@@ -149,11 +149,11 @@ class Weather {
     /* 0180 */ float m_positionY;
     /* 0184 */ float m_positionZ;
     /* 0188 */ uint8_t m_onTaxi;
-    /* 0189 */ uint8_t unk_0189[3];
+    /* 0189 */ uint8_t unused_0189[3];
     /* 018C */ float m_facing;
     /* 0190 */ float m_speed;
     /* 0194 */ uint8_t m_hasUpdated;
-    /* 0195 */ uint8_t unk_0195[3];
+    /* 0195 */ uint8_t unused_0195[3];
 
     Weather();
     bool GetActiveEffectBounds(CAaBox* bounds);
@@ -178,44 +178,44 @@ bool CVarHandler_weatherDensity(CVar* var, const char* oldValue, const char* val
 
 class MapWeather {
     public:
-    /* 0000 */ uint32_t unk_0000;
-    /* 0004 */ uint32_t unk_0004;
-    /* 0008 */ uint32_t unk_0008;
-    /* 000C */ uint32_t unk_000C;
-    /* 0010 */ uint32_t unk_0010;
-    /* 0014 */ uint32_t unk_0014;
-    /* 0018 */ uint32_t unk_0018;
-    /* 001C */ uint32_t unk_001C;
-    /* 0020 */ uint32_t unk_0020;
-    /* 0024 */ uint8_t unk_0024;
-    /* 0025 */ uint8_t unk_0025;
-    /* 0026 */ uint8_t unk_0026[2];
-    /* 0028 */ uint32_t unk_0028;
-    /* 002C */ uint32_t unk_002C;
-    /* 0030 */ uint32_t unk_0030;
-    /* 0034 */ uint8_t unk_0034[172];
-    /* 00E0 */ uint8_t unk_00E0;
-    /* 00E1 */ uint8_t unk_00E1[91];
-    /* 013C */ uint32_t unk_013C;
-    /* 0140 */ uint32_t unk_0140;
-    /* 0144 */ uint32_t unk_0144;
-    /* 0148 */ uint32_t unk_0148;
-    /* 014C */ uint8_t unk_014C[24];
-    /* 0164 */ uint32_t unk_0164;
-    /* 0168 */ uint32_t unk_0168;
-    /* 016C */ uint8_t unk_016C[4];
-    /* 0170 */ uint32_t unk_0170;
-    /* 0174 */ uint32_t unk_0174;
-    /* 0178 */ uint8_t unk_0178[4];
-    /* 017C */ uint32_t unk_017C;
-    /* 0180 */ uint32_t unk_0180;
-    /* 0184 */ uint32_t unk_0184;
-    /* 0188 */ uint8_t unk_0188;
-    /* 0189 */ uint8_t unk_0189[3];
-    /* 018C */ uint32_t unk_018C;
-    /* 0190 */ uint32_t unk_0190;
-    /* 0194 */ uint8_t unk_0194;
-    /* 0195 */ uint8_t unk_0195[3];
+    /* 0000 */ uint32_t unused_0000;
+    /* 0004 */ uint32_t unused_0004;
+    /* 0008 */ uint32_t unused_0008;
+    /* 000C */ uint32_t unused_000C;
+    /* 0010 */ uint32_t unused_0010;
+    /* 0014 */ uint32_t unused_0014;
+    /* 0018 */ uint32_t unused_0018;
+    /* 001C */ uint32_t unused_001C;
+    /* 0020 */ uint32_t unused_0020;
+    /* 0024 */ uint8_t unused_0024;
+    /* 0025 */ uint8_t unused_0025;
+    /* 0026 */ uint8_t unused_0026[2];
+    /* 0028 */ uint32_t unused_0028;
+    /* 002C */ uint32_t unused_002C;
+    /* 0030 */ uint32_t unused_0030;
+    /* 0034 */ uint8_t unused_0034[172];
+    /* 00E0 */ uint8_t unused_00E0;
+    /* 00E1 */ uint8_t unused_00E1[91];
+    /* 013C */ uint32_t unused_013C;
+    /* 0140 */ uint32_t unused_0140;
+    /* 0144 */ uint32_t unused_0144;
+    /* 0148 */ uint32_t unused_0148;
+    /* 014C */ uint8_t unused_014C[24];
+    /* 0164 */ uint32_t unused_0164;
+    /* 0168 */ uint32_t unused_0168;
+    /* 016C */ uint8_t unused_016C[4];
+    /* 0170 */ uint32_t unused_0170;
+    /* 0174 */ uint32_t unused_0174;
+    /* 0178 */ uint8_t unused_0178[4];
+    /* 017C */ uint32_t unused_017C;
+    /* 0180 */ uint32_t unused_0180;
+    /* 0184 */ uint32_t unused_0184;
+    /* 0188 */ uint8_t unused_0188;
+    /* 0189 */ uint8_t unused_0189[3];
+    /* 018C */ uint32_t unused_018C;
+    /* 0190 */ uint32_t unused_0190;
+    /* 0194 */ uint8_t unused_0194;
+    /* 0195 */ uint8_t unused_0195[3];
 };
 
 #endif

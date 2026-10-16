@@ -19,7 +19,7 @@ class CInitCritSect;
 class SCritSect {
     public:
     /* 0000 */ CRITICAL_SECTION m_critsect;
-    /* 0018 */ uint8_t unk_0018[16];
+    /* 0018 */ uint8_t unused_0018[16];
 
     SCritSect();
     ~SCritSect();
@@ -71,7 +71,7 @@ struct CDebugLockEntry {
 class CDebugLock {
     public:
     /* 0000 */ uint32_t m_entry;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ CDebugLock* m_next;
 };
 
@@ -128,7 +128,7 @@ class SRWLock {
 class CSRWLock {
     public:
     /* 0000 */ SRWLock::SURWLOCK m_opaqueData;
-    /* 000C */ uint8_t unk_000C[12];
+    /* 000C */ uint8_t unused_000C[12];
 
     CSRWLock();
     ~CSRWLock();

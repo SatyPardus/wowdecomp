@@ -872,7 +872,7 @@ static int32_t Script_GetCVarBool(lua_State* L) {
 // VERIFY: e563d98b auto
 // OFFSET: 0x004DDA10
 static int32_t Script_DisconnectFromServer(lua_State* L) {
-    if (ClientServices::Connection()->unk_2F3C) {
+    if (ClientServices::Connection()->m_connected) {
         CGlueMgr::m_disconnectPending = 1;
         ClientServices::Connection()->Disconnect();
     }
@@ -891,7 +891,7 @@ static int32_t Script_EnterWorld(lua_State* L) {
 // VERIFY: fd0c42a5 auto
 // OFFSET: 0x004DDA50
 static int32_t Script_IsConnectedToServer(lua_State* L) {
-    if (ClientServices::Connection()->unk_2F3C) {
+    if (ClientServices::Connection()->m_connected) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);

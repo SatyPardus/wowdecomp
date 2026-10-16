@@ -31,10 +31,10 @@ class CMapStaticEntity : public CMapBaseObj {
 
     /* 0024 */ uint8_t m_fadeLevel;
     /* 0025 */ uint8_t m_culled;
-    /* 0026 */ uint8_t unk_0026;
-    /* 0027 */ uint8_t unk_0027;
+    /* 0026 */ uint8_t unused_0026;
+    /* 0027 */ uint8_t unused_0027;
     /* 0028 */ uint8_t m_shadowStamps[3];
-    /* 002B */ uint8_t unk_002B;
+    /* 002B */ uint8_t unused_002B;
     /* 002C */ int32_t m_unkCounter;
     /* 0030 */ float m_distanceToCamera;
     /* 0034 */ CM2Model* m_model;
@@ -43,7 +43,7 @@ class CMapStaticEntity : public CMapBaseObj {
     /* 0060 */ C3Vector m_vec2;
     /* 006C */ C3Vector m_position;
     /* 0078 */ float m_scale;
-    /* 007C */ uint32_t unk_007C;
+    /* 007C */ uint32_t m_staticFlags;
     /* 0080 */ float m_liquidHeight;
     /* 0084 */ CImVector m_m2AmbientColor;
     /* 0088 */ CImVector m_m2DiffuseColor;

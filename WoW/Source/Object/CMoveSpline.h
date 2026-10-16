@@ -20,11 +20,11 @@ union CMoveSplineFaceData {
 
 class CMoveSpline {
     public:
-    /* 0000 */ TSLink<void> unk_0000;
-    /* 0008 */ uint32_t unk_0008;
-    /* 000C */ uint32_t unk_000C;
+    /* 0000 */ TSLink<void> unused_0000;
+    /* 0008 */ uint32_t unused_0008;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ CMoveSplineFaceData m_face;
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t unused_001C;
     /* 0020 */ uint32_t m_flags;
     /* 0024 */ uint32_t m_timePassed;
     /* 0028 */ uint32_t m_start;
@@ -36,8 +36,8 @@ class CMoveSpline {
     /* 0208 */ float m_durationModNext;
     /* 020C */ float m_verticalAcceleration;
     /* 0210 */ uint32_t m_effectStartTime;
-    /* 0214 */ TSLink<void> unk_0214;
-    /* 021C */ uint32_t unk_021C;
+    /* 0214 */ TSLink<void> unused_0214;
+    /* 021C */ uint32_t unused_021C;
 
     static void Skip(CDataStore* msg);
 

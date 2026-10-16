@@ -42,7 +42,7 @@ class BlizzardObject : public TSLinkedNode<BlizzardObject> {
     /* 011C */ float m_radius;
     /* 0120 */ float m_shardAccum;
     /* 0124 */ float m_shardRate;
-    /* 0128 */ float unk_0128[4];
+    /* 0128 */ float unused_0128[4];
     /* 0138 */ TSList<Shard> m_shards;
     /* 0144 */ C44Matrix m_frame;
     /* 0184 */ int32_t m_hasFrame;

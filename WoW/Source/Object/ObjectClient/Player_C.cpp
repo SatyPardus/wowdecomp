@@ -159,8 +159,8 @@ struct GUILDUPDATETIMESTAMP {
 
 struct InitialSpellStruct {
     /* 0000 */ uint32_t m_spellId;
-    /* 0004 */ uint16_t unk_0004;
-    /* 0006 */ uint16_t unk_0006;
+    /* 0004 */ uint16_t m_slot;
+    /* 0006 */ uint16_t unused_0006;
 };
 
 struct QuestItemLoot {
@@ -249,7 +249,7 @@ static uint32_t s_pendingMovie;
 WOWGUID CGPlayer_C::s_resurrectOfferer;
 
 // STATIC: 0x00C9EAB0
-static uint32_t s_unk_C9EAB0;
+static uint32_t s_visibleAuraEffectDisplay;
 
 // STATIC: 0x00C9EAC0
 uint32_t CGPlayer_C::s_resurrectOfferSickness;
@@ -258,7 +258,7 @@ uint32_t CGPlayer_C::s_resurrectOfferSickness;
 uint32_t CGPlayer_C::s_resurrectOfferUseTimer;
 
 // STATIC: 0x00C9EAB4
-static uint32_t s_unk_C9EAB4;
+static uint32_t s_visibleAuraEffectFlags;
 
 // STATIC: 0x00C9EACC
 static uint8_t s_tabardSavePending;
@@ -784,8 +784,8 @@ void CGPlayer_C::Initialize() {
     CGPlayer_C::s_lastVendorListReceived = WOWGUID();
     s_giftWrapItem = WOWGUID();
     s_bindPointSet = 0;
-    s_unk_C9EAB0 = 0;
-    s_unk_C9EAB4 = 0;
+    s_visibleAuraEffectDisplay = 0;
+    s_visibleAuraEffectFlags = 0;
     CGPlayer_C::s_lastUpdatePVPGroup = WOWGUID();
     CGPlayer_C::s_lastUpdatePVPSequence = 0;
     CGPlayer_C::s_lastUpdatePVPTime = 0;
@@ -1030,7 +1030,7 @@ void CGPlayer_C::PreAnimate(CGWorldFrame* frame) {
 void CGPlayer_C::ShouldRender(uint32_t flags, int32_t& culled, int32_t& hidden) {
     this->CGUnit_C::ShouldRender(flags, culled, hidden);
 
-    if (this->IsCommentatorUberOrInArena() || ((this->m_clientFlags & 0x400000) && this->unk_18B8)) {
+    if (this->IsCommentatorUberOrInArena() || ((this->m_clientFlags & 0x400000) && this->m_pendingItemCacheCount)) {
         hidden = 1;
     } else if (!s_playerRenderDisabled && this->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
         hidden = 1;
@@ -1383,7 +1383,7 @@ uint32_t CGPlayer_C::GetBindAreaID() {
 
 // VERIFY: f0168031 auto
 // OFFSET: 0x006CEF20
-void __stdcall SignalPlayerAttackEvent(int32_t a1) {
+void __stdcall SignalPlayerAttackEvent(int32_t unused_a1) {
     FrameScript_SignalEvent(SCRIPT_EVENT_UNIT_ATTACK, "%s", "player");
 }
 
@@ -1403,18 +1403,18 @@ int32_t CGPlayer_C::IsGiftWrapping() {
 
 // VERIFY: 58af1e18 auto
 // OFFSET: 0x006CF240
-PlaySpellVisuaKitData::PlaySpellVisuaKitData(const SpellRec* spellRec, const SpellVisualKitRec* impactVisualKit, uint32_t a4) {
+PlaySpellVisuaKitData::PlaySpellVisuaKitData(const SpellRec* spellRec, const SpellVisualKitRec* impactVisualKit, uint32_t kitType) {
     this->m_spellRec = spellRec;
-    this->unk_0008 = a4;
+    this->m_kitType = kitType;
     this->m_impactVisualKit = impactVisualKit;
     this->m_position = nullptr;
     this->m_transportGUID = WOWGUID();
-    this->unk_0018 = 1;
-    this->unk_001C = 0;
-    this->unk_0020 = 0;
-    this->unk_0024 = -1;
+    this->m_playAnim = 1;
+    this->m_harmful = 0;
+    this->unused_0020 = 0;
+    this->unused_0024 = -1;
     this->m_someGUID = WOWGUID();
-    this->unk_0030 = 0;
+    this->m_effectFadeTime = 0;
 }
 
 // VERIFY: 6bc8ba4b auto
@@ -2780,9 +2780,9 @@ void __stdcall CGPlayer_C::ClearAFK(int32_t force) {
 // OFFSET: 0x006E6B40
 CGPlayer_C::CGPlayer_C(uint32_t time, const CClientObjCreate& create)
     : CGUnit_C(time, create),
-      unk_1854(-1),
+      unused_1854(-1),
       m_combatModeFlags(0),
-      unk_18B8(0),
+      m_pendingItemCacheCount(0),
       m_companionSpells(),
       m_lootTarget(),
       m_autoLoot(0) {
@@ -2834,7 +2834,7 @@ CGPlayer_C::CGPlayer_C(uint32_t time, const CClientObjCreate& create)
         ClientServices::Send2(&msg);
     }
 
-    this->unk_1954 = 0;
+    this->m_actionButtonsPending = 0;
 }
 
 // VERIFY: 1bf91d47 auto
@@ -2885,7 +2885,7 @@ void CGPlayer_C::PostInit(uint32_t time, const CClientObjCreate& create, bool re
 void CGPlayer_C::Reenable() {
     this->m_clientStandState = this->m_unit->m_unitFieldBytes1[0];
     this->CGUnit_C::Reenable();
-    this->unk_18B8 = 0;
+    this->m_pendingItemCacheCount = 0;
 
     if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
         this->SetActiveMirrorHandlers();
@@ -3047,7 +3047,7 @@ void CGPlayer_C::PostInitActivePlayer() {
     CGSpellBook::ClearSpells();
 
     for (uint32_t i = 0; i < s_initialSpells.Count(); i++) {
-        this->AddKnownSpell(s_initialSpells[i].m_spellId, static_cast<int16_t>(s_initialSpells[i].unk_0004), 0, 1);
+        this->AddKnownSpell(s_initialSpells[i].m_spellId, static_cast<int16_t>(s_initialSpells[i].m_slot), 0, 1);
     }
 
     CGSpellBook::UpdateSpells(1, 0, 1);
@@ -4059,7 +4059,7 @@ int32_t Packet_SMSG_ACTION_BUTTONS(void* param, NETMESSAGE msgId, uint32_t time,
 
     if (mode == 2) {
         if (player) {
-            player->unk_1954 = 1;
+            player->m_actionButtonsPending = 1;
         }
 
         return 1;
@@ -4074,7 +4074,7 @@ int32_t Packet_SMSG_ACTION_BUTTONS(void* param, NETMESSAGE msgId, uint32_t time,
     }
 
     if (mode == 1 && player) {
-        player->unk_1954 = 0;
+        player->m_actionButtonsPending = 0;
 
         for (uint32_t i = 0; i < sizeof(s_actionButtons) / sizeof(s_actionButtons[0]); i++) {
             int32_t action = s_actionButtons[i];
@@ -4193,7 +4193,7 @@ int32_t Packet_SMSG_INITIAL_SPELLS(void* param, NETMESSAGE msgId, uint32_t time,
 
     for (uint16_t i = 0; i < count; i++) {
         msg->Get(s_initialSpells[i].m_spellId);
-        msg->Get(s_initialSpells[i].unk_0004);
+        msg->Get(s_initialSpells[i].m_slot);
     }
 
     msg->Get(count);
@@ -4335,7 +4335,7 @@ int32_t Packet_SMSG_REMOVED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, 
     for (uint32_t i = 0; i < s_initialSpells.Count(); i++) {
         if (s_initialSpells[i].m_spellId == spellId) {
             s_initialSpells[i].m_spellId = 0;
-            s_initialSpells[i].unk_0004 = 0;
+            s_initialSpells[i].m_slot = 0;
         }
     }
 
@@ -4361,7 +4361,7 @@ int32_t Packet_SMSG_LEARNED_SPELL(void* param, NETMESSAGE msgId, uint32_t time, 
     } else {
         InitialSpellStruct* spell = s_initialSpells.New();
         spell->m_spellId = spellId;
-        spell->unk_0004 = slot;
+        spell->m_slot = slot;
     }
 
     return 1;
@@ -4402,7 +4402,7 @@ int32_t Packet_SMSG_SUPERCEDED_SPELL(void* param, NETMESSAGE msgId, uint32_t tim
     if (i == s_initialSpells.Count()) {
         InitialSpellStruct* spell = s_initialSpells.New();
         spell->m_spellId = newSpellId;
-        spell->unk_0004 = 0;
+        spell->m_slot = 0;
     }
 
     CGClassTrainer::RefreshList();
@@ -6105,7 +6105,7 @@ void __stdcall CGPlayer_C::TalkToGuildBanker(const WOWGUID& guid) {
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_GUILD_BANK_ACTIVATE));
     msg.Put(guid.m_guid);
-    msg.Put(static_cast<uint8_t>(CGGuildBankInfo::m_guildBankTabInfo[0].unk_2140 != 0));
+    msg.Put(static_cast<uint8_t>(CGGuildBankInfo::m_guildBankTabInfo[0].m_needsFullUpdate != 0));
     msg.Finalize();
     ClientServices::Send2(&msg);
     CGGuildBankInfo::m_pendingBanker = guid;
@@ -7894,9 +7894,9 @@ int32_t ClientPlaySpellVisualHandler(WOWGUID guid, void* param) {
 
 // VERIFY: 27cd2fc0 auto
 // OFFSET: 0x006D73B0
-void EnumVisibleForAuraEffect(const SpellRec* spell, int32_t a2, int32_t a3) {
-    s_unk_C9EAB0 = a2;
-    s_unk_C9EAB4 = a2 ? a3 : 0;
+void EnumVisibleForAuraEffect(const SpellRec* spell, int32_t display, int32_t flags) {
+    s_visibleAuraEffectDisplay = display;
+    s_visibleAuraEffectFlags = display ? flags : 0;
     ClntObjMgrEnumVisibleObjects(ClientPlaySpellVisualHandler, const_cast<SpellRec*>(spell));
 }
 
@@ -7939,7 +7939,7 @@ int32_t OnUpdatePlayerAuraVision(WOWGUID guid, uint32_t offset, uint32_t count, 
 
 // VERIFY: 5071e977 manual
 // OFFSET: 0x006E71D0
-void CGPlayer_C::DelKnownSpell(int32_t spellId, int32_t a3) {
+void CGPlayer_C::DelKnownSpell(int32_t spellId, int32_t silent) {
     if (spellId > g_spellDB.m_maxID) {
         SysMsgPrintf(STATUS_ERROR, 2, "NOSPELLIDFOUND|%d", spellId);
         return;
@@ -7951,7 +7951,7 @@ void CGPlayer_C::DelKnownSpell(int32_t spellId, int32_t a3) {
         return;
     }
 
-    bool notify = a3 == 0;
+    bool notify = silent == 0;
 
     if (spell.m_attributes & 0x20) {
         SkillLineAbilityRec* ability = SpellTableLookupAbility(this->m_unit->m_unitFieldBytes0[0], this->m_unit->m_unitFieldBytes0[1], spellId);
@@ -7998,7 +7998,7 @@ void CGPlayer_C::DelKnownSpell(int32_t spellId, int32_t a3) {
     CGSpellBook::DelKnownSpell(spellId, 0);
     CGActionBar::RemoveMacro(spellId);
 
-    if (!a3) {
+    if (!silent) {
         CGClassTrainer::RefreshList();
     }
 
@@ -10102,7 +10102,7 @@ int32_t CGPlayer_C::ValidateSlot(uint32_t slot, WOWGUID item) {
 
 // VERIFY: 03aa23c8 manual
 // OFFSET: 0x006DBAE0
-void CGPlayer_C::AutoStoreItemInBag(WOWGUID item, WOWGUID srcContainer, uint32_t srcSlot, WOWGUID dstBag, int32_t a5) {
+void CGPlayer_C::AutoStoreItemInBag(WOWGUID item, WOWGUID srcContainer, uint32_t srcSlot, WOWGUID dstBag, int32_t unused_a5) {
     if (srcSlot > 255) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
@@ -10283,7 +10283,7 @@ uint32_t CGPlayer_C::GetEquippedItemDisplayId() {
 
 // VERIFY: 79a55964 manual
 // OFFSET: 0x006DFEE0
-void CGPlayer_C::AutoEquipItem(WOWGUID container, uint32_t slot, int32_t a3) {
+void CGPlayer_C::AutoEquipItem(WOWGUID container, uint32_t slot, int32_t ignoreBind) {
     CGObject_C* object = ClntObjMgrObjectPtr(container, TYPEMASK_OBJECT, __FILE__, __LINE__);
 
     if (!object || !object->GetBag()) {
@@ -10308,7 +10308,7 @@ void CGPlayer_C::AutoEquipItem(WOWGUID container, uint32_t slot, int32_t a3) {
     }
 
     CGGameUI::SetCursorItem(item, container, slot, 1, 0, 0);
-    this->AutoEquipCursorItem(a3);
+    this->AutoEquipCursorItem(ignoreBind);
 }
 
 // VERIFY: d775d48d manual
@@ -10614,20 +10614,20 @@ void CGPlayer_C::UpdateInventoryComponent(INVENTORY_SLOTS slot, const VisibleIte
                 this->m_characterComponent->RemoveItem(ITEMSLOT_11);
             }
 
-            if (!this->unk_0B40) {
+            if (!this->m_rangedWeaponModel) {
                 goto applyEffects;
             }
 
             if (this->m_sheatheState != 2) {
-                if (this->unk_0B40->m_attachParent) {
-                    this->unk_0B40->DetachFromParent();
+                if (this->m_rangedWeaponModel->m_attachParent) {
+                    this->m_rangedWeaponModel->DetachFromParent();
                 }
 
-                this->unk_0B40->m_fFlags |= 0x20;
-                this->unk_0B40->m_drawCallback = nullptr;
-                this->unk_0B40->m_drawArg = nullptr;
-                this->unk_0B40->Release();
-                this->unk_0B40 = nullptr;
+                this->m_rangedWeaponModel->m_fFlags |= 0x20;
+                this->m_rangedWeaponModel->m_drawCallback = nullptr;
+                this->m_rangedWeaponModel->m_drawArg = nullptr;
+                this->m_rangedWeaponModel->Release();
+                this->m_rangedWeaponModel = nullptr;
                 goto applyEffects;
             }
 
@@ -11138,13 +11138,13 @@ TSGrowableArray<int32_t>* CGPlayer_C::GetTradeSkillSpells(int32_t skillLine) {
 // VERIFY: 1d2b7f27 auto
 // OFFSET: 0x006CF2E0
 uint32_t GetVisibleAuraEffectDisplay() {
-    return s_unk_C9EAB0;
+    return s_visibleAuraEffectDisplay;
 }
 
 // VERIFY: 189d8dee auto
 // OFFSET: 0x006CF2F0
 uint32_t GetVisibleAuraEffectFlags() {
-    return s_unk_C9EAB4;
+    return s_visibleAuraEffectFlags;
 }
 
 // VERIFY: 07b73796 auto
@@ -13441,8 +13441,8 @@ void CGPlayer_C::DestructActivePlayer() {
     EventUnregister(EVENT_ID_IDLE, CGPlayer_C::AutoCombatModeEventHandler);
     this->m_combatModeFlags &= ~0xEu;
     CGGameUI::UpdateCombatMode();
-    s_unk_C9EAB0 = 0;
-    s_unk_C9EAB4 = 0;
+    s_visibleAuraEffectDisplay = 0;
+    s_visibleAuraEffectFlags = 0;
 }
 
 // VERIFY: 87e023cc manual
@@ -14498,20 +14498,20 @@ void CGPlayer_C::UpdatePartyMemberState() {
 
 // VERIFY: 1ec0ea5b manual
 // OFFSET: 0x006E1A70
-void __stdcall CGPlayer_C::ServerBindConfirm(WOWGUID item, uint64_t a2, uint32_t a3, uint64_t a4, uint8_t a5) {
+void __stdcall CGPlayer_C::ServerBindConfirm(WOWGUID item, uint64_t srcContainer, uint32_t srcSlot, uint64_t dstContainer, uint8_t dstSlot) {
     CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__));
 
     if (!object) {
         return;
     }
 
-    CGGameUI::SetCursorItem(item, WOWGUID{ a2 }, a3, 1, 0, 1);
+    CGGameUI::SetCursorItem(item, WOWGUID{ srcContainer }, srcSlot, 1, 0, 1);
     uint32_t index = FindEmptySwapIndex();
     ITEMSWAP* swap = &s_itemSwaps.m_data[index];
-    swap->m_srcContainer.m_guid = a2;
-    swap->m_srcSlot = a3;
-    swap->m_dstContainer.m_guid = a4;
-    swap->m_dstSlot = a5;
+    swap->m_srcContainer.m_guid = srcContainer;
+    swap->m_srcSlot = srcSlot;
+    swap->m_dstContainer.m_guid = dstContainer;
+    swap->m_dstSlot = dstSlot;
     swap->m_itemId = object->m_obj->m_entryID;
     FrameScript_SignalEvent(SCRIPT_EVENT_AUTOEQUIP_BIND_CONFIRM, "%d", index);
 }

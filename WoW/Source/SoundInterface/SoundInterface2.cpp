@@ -607,7 +607,7 @@ SI2SoundUserData::SI2SoundUserData() {
     this->m_soundKitId = 0;
     this->m_def = nullptr;
     this->m_group = 0;
-    this->unk_0014 = 0;
+    this->unused_0014 = 0;
     this->m_advancedId = 0;
 }
 
@@ -618,7 +618,7 @@ SI2SoundUserData::~SI2SoundUserData() {
     this->m_soundKitId = 0;
     this->m_def = nullptr;
     this->m_group = 0;
-    this->unk_0014 = 0;
+    this->unused_0014 = 0;
     this->m_advancedId = 0;
 }
 
@@ -982,7 +982,7 @@ int32_t SI2ZoneSoundPair::Transition(int32_t soundKitId, int32_t type, SE2SoundK
 // OFFSET: 0x004C7410
 SE2SoundKitObject::SE2SoundKitObject() {
     this->m_advancedId = 0;
-    this->unk_0010 = 0;
+    this->unused_0010 = 0;
 }
 
 // VERIFY: 19a1e756 auto

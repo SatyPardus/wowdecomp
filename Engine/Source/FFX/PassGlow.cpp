@@ -143,8 +143,8 @@ void PassGlow::Execute() {
     C2Vector tex1[4];
 
     FFX::SetupGx(this->m_output);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, tex0, this->unk_002C);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, tex1, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, tex0, this->m_flip);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, tex1, this->m_flip);
 
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
     g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(this->m_inputs[1]->m_texture, 1, nullptr));
@@ -195,7 +195,7 @@ void PassGlowWave::Execute() {
 
     FFX::SetupGx(this->m_output);
     FFX::SetupIB();
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, tex0, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, tex0, this->m_flip);
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
 
     C44Matrix waveMtx;
@@ -213,9 +213,9 @@ void PassGlowWave::Execute() {
     waveMtx.Scale(scale);
     waveMtx.RotateAroundZ(0.17453294f);
 
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, tex1, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, tex1, this->m_flip);
     g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(this->m_inputs[1]->m_texture, 1, nullptr));
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[2]->m_size, this->m_inputs[2]->m_texSize, FFX::s_gridPos, tex2, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[2]->m_size, this->m_inputs[2]->m_texSize, FFX::s_gridPos, tex2, this->m_flip);
     g_theGxDevicePtr->RsSet(GxRs_Texture2, TextureGetGxTex(this->m_inputs[2]->m_texture, 1, nullptr));
 
     CGxBuf* buf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, sizeof(FFX::VertexPCT3), 4);

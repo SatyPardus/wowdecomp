@@ -192,7 +192,7 @@ namespace Liquid {
 
     class IVertexData {
         public:
-        /* 0004 */ uint32_t unk_0004;
+        /* 0004 */ uint32_t unused_0004;
 
         virtual ~IVertexData();
         virtual float GetHeight(uint32_t index) = 0;
@@ -233,7 +233,7 @@ namespace Liquid {
         static uint8_t s_fullTable[8];
         static uint16_t s_defaultTexCoord[2];
 
-        /* 0000 */ uint32_t unk_0000;
+        /* 0000 */ uint32_t unused_0000;
         /* 0004 */ const uint8_t* m_data;
 
         CAreaData(const void* data);
@@ -330,15 +330,15 @@ namespace Liquid {
     extern CDataAllocator s_waterFFPAllocator;
     extern CDataAllocator s_magmaAllocator;
     extern CDataAllocator s_magmaFFPAllocator;
-    extern float s_unk_B23F64;
+    extern float s_worldCoordScale;
     extern int32_t s_specularEnabled;
     extern IDatabase<LiquidMaterialRec>* s_liquidMaterialDB;
     extern IDatabase<LiquidTypeRec>* s_liquidTypeDB;
     extern char s_shaderPath[256];
     extern int32_t s_shadersEnabled;
-    extern int32_t s_unk_D43AF4;
-    extern int32_t s_unk_D43AF8;
-    extern int32_t s_unk_D43AFC;
+    extern int32_t s_useCameraRelativeCoords;
+    extern int32_t s_settingsBankRefCount;
+    extern int32_t s_materialBankRefCount;
     extern uint8_t s_unk_D43B48[4];
     extern CTexture* s_unk_D43B4C;
     extern CTexture* s_unk_D43B50[32];

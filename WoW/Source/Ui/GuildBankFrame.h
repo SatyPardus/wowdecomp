@@ -13,12 +13,12 @@ struct GuildBankTabInfo {
     /* 0000 */ char m_name[64];
     /* 0040 */ char m_icon[256];
     /* 0140 */ char m_text[8192];
-    /* 2140 */ int32_t unk_2140;
+    /* 2140 */ int32_t m_needsFullUpdate;
 };
 
 struct GuildBankLogEntry {
     /* 0000 */ uint32_t m_type;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ WOWGUID m_guid;
     /* 0010 */ int32_t m_itemID;
     /* 0014 */ uint32_t m_count;
@@ -33,11 +33,11 @@ struct GuildBankSlotInfo {
     /* 0004 */ uint32_t m_suffixFactor;
     /* 0008 */ int32_t m_randomPropertyID;
     /* 000C */ int32_t m_count;
-    /* 0010 */ uint32_t unk_0010;
-    /* 0014 */ uint32_t unk_0014;
+    /* 0010 */ uint32_t m_enchantId;
+    /* 0014 */ uint32_t m_spellCharges;
     /* 0018 */ uint32_t m_enchants[3];
     /* 0024 */ int32_t m_locked;
-    /* 0028 */ uint32_t unk_0028;
+    /* 0028 */ uint32_t m_flags;
 };
 
 int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);

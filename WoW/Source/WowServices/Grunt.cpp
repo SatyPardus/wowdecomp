@@ -59,7 +59,7 @@ static Grunt::ServerLink::Feature s_serverFeatures[] = {
 // INLINED
 Grunt::Pending::Pending(uint32_t timeout) {
     this->m_timeout = timeout;
-    this->unk_0008 = 0;
+    this->unused_0008 = 0;
 }
 
 // INLINED
@@ -1408,7 +1408,7 @@ int32_t Grunt::ServerLink::CmdGruntHello(CDataStore& msg) {
         return 1;
     }
 
-    this->unk_0094 = value;
+    this->unused_0094 = value;
 
     CDataStoreCache<1024> reply;
     reply.Put(static_cast<uint8_t>(0x20));

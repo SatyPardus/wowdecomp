@@ -56,7 +56,7 @@ class CSimpleFrame : public CScriptRegion {
     /* 00A0 */ CSimpleTop* m_simpleTop;
     /* 00A4 */ CSimpleFrame* m_hoverFrame;
     /* 00A8 */ CScriptRegion* m_titleRegion;
-    /* 00AC */ uint32_t unk_00AC;
+    /* 00AC */ uint32_t m_lifecycleState;
     /* 00B0 */ int32_t m_id;
     /* 00B4 */ uint32_t m_frameFlags;
     /* 00B8 */ float m_frameScale;
@@ -65,7 +65,7 @@ class CSimpleFrame : public CScriptRegion {
     /* 00BE */ uint8_t m_animSavedAlpha;
     /* 00BF */ uint8_t m_animating : 1;
     /* 00BF */ uint8_t m_animAlpha : 1;
-    /* 00C0 */ uint32_t unk_00C0;
+    /* 00C0 */ uint32_t unused_00C0;
     /* 00C4 */ float m_depth;
     /* 00C8 */ float m_parentDepth;
     /* 00CC */ uint32_t m_ignoreDepth;
@@ -147,8 +147,8 @@ class CSimpleFrame : public CScriptRegion {
     virtual void OnFrameRender();
     virtual void OnScreenSizeChanged();
     virtual void OnFrameSizeChanged(float width, float height);
-    virtual void OnLayerCursorEnter(int32_t a2);
-    virtual void OnLayerCursorExit(int32_t a2, int32_t a3);
+    virtual void OnLayerCursorEnter(int32_t motion);
+    virtual void OnLayerCursorExit(int32_t motion, int32_t a3);
     virtual int32_t OnLayerIme(const CImeEvent& evt);
     virtual int32_t OnLayerKeyDownRepeat(const CKeyEvent& evt);
     virtual int32_t OnLayerChar(const CCharEvent& evt);

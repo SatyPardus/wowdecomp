@@ -45,8 +45,8 @@ void CStringMemory::AllocateBlock(uint32_t size) {
     uint32_t index = this->Count();
     this->SetCount(index + 1);
     (*this)[index] = SMemAlloc(size, __FILE__, __LINE__, 0);
-    this->unk_0010 = static_cast<char*>((*this)[index]);
-    this->unk_0014 = this->unk_0010 + size;
+    this->m_cursor = static_cast<char*>((*this)[index]);
+    this->m_blockEnd = this->m_cursor + size;
 }
 
 // VERIFY: dc39ef0f auto
@@ -54,13 +54,13 @@ void CStringMemory::AllocateBlock(uint32_t size) {
 char* CStringMemory::New(const char* str) {
     uint32_t bytes = (SStrLen(str) + sizeof(char*) + 4) & ~3;
 
-    if (this->unk_0010 + bytes > this->unk_0014) {
+    if (this->m_cursor + bytes > this->m_blockEnd) {
         this->AllocateBlock(bytes);
     }
 
-    char* entry = this->unk_0010;
+    char* entry = this->m_cursor;
     SStrCopy(entry + sizeof(char*), str, STORM_MAX_STR);
-    this->unk_0010 += bytes;
+    this->m_cursor += bytes;
 
     return entry;
 }
@@ -70,15 +70,15 @@ char* CStringMemory::New(const char* str) {
 const char* CStringManager::Add(const char* str) {
     uint32_t index = SStrHashHT(str) % 521;
 
-    for (char* entry = this->unk_0000[index]; entry; entry = *reinterpret_cast<char**>(entry)) {
+    for (char* entry = this->m_buckets[index]; entry; entry = *reinterpret_cast<char**>(entry)) {
         if (!SStrCmp(str, entry + sizeof(char*), STORM_MAX_STR)) {
             return entry + sizeof(char*);
         }
     }
 
-    char* entry = this->unk_0824.New(str);
-    *reinterpret_cast<char**>(entry) = this->unk_0000[index];
-    this->unk_0000[index] = entry;
+    char* entry = this->m_memory.New(str);
+    *reinterpret_cast<char**>(entry) = this->m_buckets[index];
+    this->m_buckets[index] = entry;
 
     return entry + sizeof(char*);
 }
@@ -86,7 +86,7 @@ const char* CStringManager::Add(const char* str) {
 // VERIFY: 0fc843bc manual
 // OFFSET: 0x0047CF00
 CStringManager::CStringManager() {
-    memset(this->unk_0000, 0, sizeof(this->unk_0000));
+    memset(this->m_buckets, 0, sizeof(this->m_buckets));
 }
 
 // VERIFY: f5732b49 manual

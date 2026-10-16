@@ -29,7 +29,7 @@ const char* CGGMSurveyInfo::GetQuestion(uint32_t index) {
         return nullptr;
     }
 
-    int32_t questionId = survey->unk_0004[index - 1];
+    int32_t questionId = survey->m_questionIds[index - 1];
 
     if (questionId <= 0) {
         return nullptr;
@@ -53,7 +53,7 @@ const char* CGGMSurveyInfo::GetAnswer(uint32_t index, int32_t answer) {
         return nullptr;
     }
 
-    int32_t questionId = survey->unk_0004[index - 1];
+    int32_t questionId = survey->m_questionIds[index - 1];
 
     if (questionId <= 0 || !g_gmSurveyQuestionsDB.GetRecord(questionId)) {
         return nullptr;
@@ -111,7 +111,7 @@ void CGGMSurveyInfo::Submit() {
     for (uint32_t i = 0; i < 10; i++) {
         GMSurveyCurrentSurveyRec* currentSurvey = g_gmSurveyCurrentSurveyDB.GetRecord(s_locale);
         GMSurveySurveysRec* survey = g_gmSurveySurveysDB.GetRecord(currentSurvey ? currentSurvey->m_gmsurveyID : 0);
-        int32_t questionId = survey ? survey->unk_0004[i] : 0;
+        int32_t questionId = survey ? survey->m_questionIds[i] : 0;
         msg.Put(static_cast<uint32_t>(questionId));
 
         if (!questionId) {

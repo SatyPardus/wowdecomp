@@ -1045,7 +1045,7 @@ static int32_t Script_ProcessQuestLogRewardFactions(lua_State* L) {
             CGQuestInfo::InitRewRepFields(i, quest->m_rewardReputationFaction[i], quest->m_factionRewardId[i], quest->m_rewardReputationOverride[i]);
         }
 
-        CGQuestInfo::InitRewRepShowMask(quest->unk_28E0);
+        CGQuestInfo::InitRewRepShowMask(quest->m_rewardReputationMask);
         CGQuestInfo::ProcessQuestLogRewardFactions();
     }
 
@@ -1600,12 +1600,12 @@ static int32_t Script_QuestPOIGetIconInfo(lua_State* L) {
 
     bool complete;
     int32_t mapId;
-    uint32_t unknown;
+    uint32_t mapFloor;
     int32_t iconX;
     int32_t iconY;
-    int32_t floor;
+    int32_t objective;
 
-    if (!CGQuestLog::GetQuestPOIIcon(static_cast<int32_t>(lua_tonumber(L, 1)), &complete, &mapId, &unknown, &iconX, &iconY, &floor)) {
+    if (!CGQuestLog::GetQuestPOIIcon(static_cast<int32_t>(lua_tonumber(L, 1)), &complete, &mapId, &mapFloor, &iconX, &iconY, &objective)) {
         return 0;
     }
 
@@ -1626,7 +1626,7 @@ static int32_t Script_QuestPOIGetIconInfo(lua_State* L) {
     lua_pushboolean(L, complete);
     lua_pushnumber(L, y);
     lua_pushnumber(L, x);
-    lua_pushinteger(L, floor);
+    lua_pushinteger(L, objective);
     return 4;
 }
 

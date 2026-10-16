@@ -31,7 +31,7 @@ class CGDressUpModelFrame : public CGCharacterModelBase {
     /* 0384 */ CGUnitVirtualItem m_mainHand;
     /* 038C */ CGUnitVirtualItem m_offHand;
     /* 0394 */ uint8_t m_isNativeDisplay;
-    /* 0395 */ uint8_t unk_0395 [3];
+    /* 0395 */ uint8_t unused_0395 [3];
 
     ~CGDressUpModelFrame() override;
     int32_t GetScriptMetaTable() override;

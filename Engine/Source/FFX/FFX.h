@@ -46,7 +46,7 @@ namespace FFX {
         /* 0004 */ Tex* m_inputs[8];
         /* 0024 */ Tex* m_output;
         /* 0028 */ EGxBlend m_blend;
-        /* 002C */ bool unk_002C;
+        /* 002C */ bool m_flip;
 
         virtual ~Pass();
         virtual bool Valid() = 0;

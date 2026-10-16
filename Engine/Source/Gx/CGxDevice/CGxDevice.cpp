@@ -190,14 +190,14 @@ void CGxDevice::PrimTexCoord(uint32_t tmu, const C2Vector& t) {
 // VERIFY: c119ac3a manual
 // OFFSET: 0x00683130
 void CGxDevice::BufData(CGxBuf* buf, const void* data, uint32_t size, uint32_t offset) {
-    buf->unk_001E = 1;
+    buf->m_dirty = 1;
     buf->unk_001F = 0;
 }
 
 // VERIFY: 0d3647c3 manual
 // OFFSET: 0x00683150
 char* CGxDevice::BufLock(CGxBuf* buf) {
-    buf->unk_001E = 1;
+    buf->m_dirty = 1;
     buf->unk_001F = 0;
     this->m_bufLocked[buf->m_pool->m_target] = buf;
     return nullptr;
@@ -745,8 +745,8 @@ void CGxDevice::PrimVertexMask(uint32_t mask) {
 // VERIFY: a26b1a58 auto
 // OFFSET: 0x00682F10
 void CGxDevice::PrimIndexPtr(CGxBuf* buf) {
-    if (buf->unk_001E || this->m_primIndexBuf != buf) {
-        buf->unk_001E = 0;
+    if (buf->m_dirty || this->m_primIndexBuf != buf) {
+        buf->m_dirty = 0;
         this->m_primIndexDirty = 1;
         this->m_primIndexBuf = buf;
     }
@@ -783,7 +783,7 @@ void CGxDevice::BufSizeSet(CGxBuf* buf, uint32_t itemSize, uint32_t itemCount) {
     buf->m_itemSize = itemSize;
     buf->m_itemCount = itemCount;
     buf->m_size = itemCount * itemSize;
-    buf->unk_001C = 0;
+    buf->m_hasData = 0;
 }
 
 // VERIFY: fdced826 auto
@@ -997,7 +997,7 @@ void CGxDevice::PrimVertexFormat(CGxBuf* buf, const CGxVertexAttrib* attribs, ui
         const CGxVertexAttrib& attrib = attribs[i];
         CGxVertexAttrib& current = this->m_primVertexFormatAttrib[attrib.m_attrib];
 
-        if (buf->unk_001E || this->m_primVertexFormatBuf[attrib.m_attrib] != buf || ((current.m_offset - attrib.m_offset) | (current.m_type - attrib.m_type) | (current.m_bufSize - attrib.m_bufSize))) {
+        if (buf->m_dirty || this->m_primVertexFormatBuf[attrib.m_attrib] != buf || ((current.m_offset - attrib.m_offset) | (current.m_type - attrib.m_type) | (current.m_bufSize - attrib.m_bufSize))) {
             this->m_primVertexDirty |= 1 << attrib.m_attrib;
         }
 
@@ -1005,7 +1005,7 @@ void CGxDevice::PrimVertexFormat(CGxBuf* buf, const CGxVertexAttrib* attribs, ui
         current = attrib;
     }
 
-    buf->unk_001E = 0;
+    buf->m_dirty = 0;
     this->m_primVertexFormat = GxVertexBufferFormats_Last;
 }
 
@@ -1036,7 +1036,7 @@ CGxBuf* CGxDevice::BufStream(EGxPoolTarget target, uint32_t itemSize, uint32_t i
     buf->m_itemSize = itemSize;
     buf->m_size = itemCount * itemSize;
     buf->m_itemCount = itemCount;
-    buf->unk_001C = 0;
+    buf->m_hasData = 0;
     return buf;
 }
 
@@ -1703,7 +1703,7 @@ void CGxDevice::IShaderLoad(CGxShader** shaders, EGxShTarget target, const char*
                     for (uint32_t i = 0; i < permutations; i++) {
                         shaders[i]->Load(file);
                         shaders[i]->m_loaded = 0;
-                        shaders[i]->unk_0034 = 0;
+                        shaders[i]->unused_0034 = 0;
                     }
 
                     profile = 0;

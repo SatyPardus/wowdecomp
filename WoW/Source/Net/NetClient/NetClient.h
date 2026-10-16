@@ -23,18 +23,18 @@ struct ClntObjMgr {
     /* 0050 */ TSList<CGObject_C> m_lazyCleanupFifo [7];
     /* 00A4 */ TSList<CGObject_C> m_visibleObjects;
     /* 00B0 */ TSList<CGObject_C> m_reenabledObjects;
-    /* 00BC */ uint8_t unk_00BC[4];
+    /* 00BC */ uint8_t unused_00BC[4];
     /* 00C0 */ WOWGUID m_activePlayer;
     /* 00C8 */ PLAYER_TYPE m_type;
     /* 00CC */ uint32_t m_mapID;
     /* 00D0 */ ClientConnection* m_net;
-    /* 00D4 */ uint8_t unk_00D4[4];
+    /* 00D4 */ uint8_t unused_00D4[4];
 };
 
 class AuthenticationChallenge {
     public:
     /* 0000 */ uint32_t m_serverSeed;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ uint64_t m_proof;
 };
 
@@ -84,7 +84,7 @@ class NetClient : public WowConnectionResponse {
     /* 0004 */ LoginData m_loginData;
     /* 0534 */ NETSTATE m_netState;
     /* 0538 */ bool m_suspended;
-    /* 0539 */ uint8_t unk_0539[3];
+    /* 0539 */ uint8_t unused_0539[3];
     /* 053C */ MESSAGE_HANDLER m_handlers [1311];
     /* 19B8 */ void* m_handlerParams [1311];
     /* 2E34 */ NETEVENTQUEUE* m_netEventQueue;
@@ -93,7 +93,7 @@ class NetClient : public WowConnectionResponse {
     /* 2E40 */ uint32_t m_redirectKey;
     /* 2E44 */ ATOMIC32 m_refCount;
     /* 2E48 */ bool m_deleteMe;
-    /* 2E49 */ uint8_t unk_2E49[3];
+    /* 2E49 */ uint8_t unused_2E49[3];
     /* 2E4C */ uint32_t m_pingSent;
     /* 2E50 */ uint32_t m_pingSequence;
     /* 2E54 */ uint32_t m_latency [16];
@@ -136,7 +136,7 @@ class NetClient : public WowConnectionResponse {
     void HandleRedirectClient(WowConnection* connection, CDataStore* msg);
     void HandleResumeComms(WowConnection* connection, CDataStore* msg);
     void HandleSuspendComms(WowConnection* connection, CDataStore* msg);
-    int32_t ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_t a4);
+    int32_t ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_t unused_a4);
     void Ping();
     void PollEventQueue();
     void Disconnect();
@@ -148,27 +148,27 @@ class NetClient : public WowConnectionResponse {
 
 class CNetClient {
     public:
-    /* 0000 */ uint32_t unk_0000;
-    /* 0004 */ uint8_t unk_0004[1328];
-    /* 0534 */ uint32_t unk_0534;
-    /* 0538 */ uint8_t unk_0538[4];
-    /* 053C */ uint32_t unk_053C;
-    /* 0540 */ uint8_t unk_0540[5240];
-    /* 19B8 */ uint32_t unk_19B8;
-    /* 19BC */ uint8_t unk_19BC[5244];
-    /* 2E38 */ uint32_t unk_2E38;
-    /* 2E3C */ uint8_t unk_2E3C[256];
-    /* 2F3C */ uint32_t unk_2F3C;
-    /* 2F40 */ uint8_t unk_2F40[4];
-    /* 2F44 */ uint32_t unk_2F44;
-    /* 2F48 */ uint32_t unk_2F48;
-    /* 2F4C */ uint32_t unk_2F4C;
-    /* 2F50 */ uint32_t unk_2F50;
-    /* 2F54 */ uint32_t unk_2F54;
-    /* 2F58 */ uint8_t unk_2F58[1];
-    /* 2F59 */ uint8_t unk_2F59;
-    /* 2F5A */ uint8_t unk_2F5A[2];
-    /* 2F5C */ uint32_t unk_2F5C;
+    /* 0000 */ uint32_t unused_0000;
+    /* 0004 */ uint8_t unused_0004[1328];
+    /* 0534 */ uint32_t unused_0534;
+    /* 0538 */ uint8_t unused_0538[4];
+    /* 053C */ uint32_t unused_053C;
+    /* 0540 */ uint8_t unused_0540[5240];
+    /* 19B8 */ uint32_t unused_19B8;
+    /* 19BC */ uint8_t unused_19BC[5244];
+    /* 2E38 */ uint32_t unused_2E38;
+    /* 2E3C */ uint8_t unused_2E3C[256];
+    /* 2F3C */ uint32_t unused_2F3C;
+    /* 2F40 */ uint8_t unused_2F40[4];
+    /* 2F44 */ uint32_t unused_2F44;
+    /* 2F48 */ uint32_t unused_2F48;
+    /* 2F4C */ uint32_t unused_2F4C;
+    /* 2F50 */ uint32_t unused_2F50;
+    /* 2F54 */ uint32_t unused_2F54;
+    /* 2F58 */ uint8_t unused_2F58[1];
+    /* 2F59 */ uint8_t unused_2F59;
+    /* 2F5A */ uint8_t unused_2F5A[2];
+    /* 2F5C */ uint32_t unused_2F5C;
 };
 
 struct NETCLIENTNODE : public TSLinkedNode<NETCLIENTNODE> {

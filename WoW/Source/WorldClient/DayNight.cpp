@@ -2899,18 +2899,18 @@ DayNight::DNGlare::DNGlare() {
     this->m_occlusionQuery = nullptr;
     this->m_position.z = 0.0f;
     this->m_color = CImVector();
-    this->unk_003C[0] = 0.0f;
-    this->unk_003C[1] = 0.0f;
-    this->unk_003C[2] = 0.0f;
-    this->unk_003C[3] = 0.0f;
-    this->unk_003C[4] = 0.0f;
-    this->unk_003C[5] = 0.0f;
-    this->unk_003C[6] = 0.0f;
-    this->unk_003C[7] = 0.0f;
-    this->unk_005C[0] = 0;
-    this->unk_005C[1] = 0;
-    this->unk_005C[2] = 0;
-    this->unk_005C[3] = 0;
+    this->unused_003C[0] = 0.0f;
+    this->unused_003C[1] = 0.0f;
+    this->unused_003C[2] = 0.0f;
+    this->unused_003C[3] = 0.0f;
+    this->unused_003C[4] = 0.0f;
+    this->unused_003C[5] = 0.0f;
+    this->unused_003C[6] = 0.0f;
+    this->unused_003C[7] = 0.0f;
+    this->unused_005C[0] = 0;
+    this->unused_005C[1] = 0;
+    this->unused_005C[2] = 0;
+    this->unused_005C[3] = 0;
     this->m_alphaCurve[0].m_time = 0.0f;
     this->m_alphaCurve[0].m_value = 0.0f;
     this->m_planet = nullptr;
@@ -3272,13 +3272,13 @@ void DayNight::RemoveLightOverride(int32_t lightId, uint32_t duration) {
 
 // VERIFY: 1d606d65 auto
 // OFFSET: 0x007F31C0
-void DayNight::SetBlendSky(uint32_t index, const char* sky, int32_t a3, float blend) {
+void DayNight::SetBlendSky(uint32_t index, const char* sky, int32_t flags, float blend) {
     if (index > 3) {
         return;
     }
 
     if (sky) {
-        DayNight::g_dnInfo.m_blendSkybox[index] = DayNight::GetOverrideSky(sky, a3);
+        DayNight::g_dnInfo.m_blendSkybox[index] = DayNight::GetOverrideSky(sky, flags);
         DayNight::g_dnInfo.m_blendSkyboxWeight[index] = blend;
         DayNight::g_dnInfo.m_blendSkyboxFlags[index] = 0;
     } else {

@@ -1669,7 +1669,7 @@ int32_t ImageWriterWriteJpeg(const char* fileName, const void* pixels, uint32_t 
     params.m_quality = quality;
     params.m_subsample = 0;
     params.m_comment = nullptr;
-    params.unk_0020 = 0;
+    params.unused_0020 = 0;
     return WriteJpegFile(&params) != 0;
 }
 

@@ -399,8 +399,8 @@ static void LogConnectionStatus(WOWCS_OPS op, int32_t errorCode, int32_t initiat
 // VERIFY: 9e19522f manual
 // OFFSET: 0x006B0250
 ClientConnection::ClientConnection(RealmResponse* realmResponse) : RealmConnection(realmResponse) {
-    this->unk_2F3C = 0;
-    this->unk_2F40 = 0;
+    this->m_connected = 0;
+    this->m_characterLoggedIn = 0;
     this->m_inGame = 0;
     this->m_statusComplete = 1;
     this->m_statusResult = 1;
@@ -464,7 +464,7 @@ void ClientConnection::AccountLogin(const char* accountName, const char* passwor
 // OFFSET: 0x006B0940
 void ClientConnection::Disconnect() {
     this->NetClient::Disconnect();
-    this->unk_2F3C = 0;
+    this->m_connected = 0;
     WardenClient_Destroy();
 }
 
@@ -628,9 +628,9 @@ void ClientServices::Destroy() {
     ConsoleCommandUnregister("logout");
 
     if (g_clientConnection) {
-        if (g_clientConnection->unk_2F3C) {
+        if (g_clientConnection->m_connected) {
             g_clientConnection->NetClient::Disconnect();
-            g_clientConnection->unk_2F3C = 0;
+            g_clientConnection->m_connected = 0;
             WardenClient_Destroy();
         }
 
@@ -1103,7 +1103,7 @@ void ClientServices::RealmEnumCallback(uint32_t result) {
 // OFFSET: 0x006B1260
 int32_t ClientConnection::HandleConnect() {
     this->Complete(1, 5);
-    this->unk_2F3C = 1;
+    this->m_connected = 1;
     WardenClient_Initialize();
 
     return this->NetClient::HandleConnect();
@@ -1118,7 +1118,7 @@ int32_t ClientConnection::HandleDisconnect() {
     }
 
     this->m_statusComplete = 1;
-    this->unk_2F3C = 0;
+    this->m_connected = 0;
     this->m_loggingOut = 0;
     WardenClient_Destroy();
 
@@ -1129,7 +1129,7 @@ int32_t ClientConnection::HandleDisconnect() {
 // OFFSET: 0x006B1320
 int32_t ClientConnection::HandleCantConnect() {
     this->Complete(0, 4);
-    this->unk_2F3C = 0;
+    this->m_connected = 0;
     WardenClient_Destroy();
 
     return this->NetClient::HandleCantConnect();
@@ -1146,7 +1146,7 @@ void ClientConnection::Connect() {
     this->m_realmConnectPending = 0;
     this->Initiate(COP_CONNECT, 7, nullptr);
 
-    if (this->unk_2F3C) {
+    if (this->m_connected) {
         this->Complete(1, 5);
     }
 
@@ -1231,7 +1231,7 @@ void ClientConnection::HandleAuthResult(int32_t result) {
 void ClientConnection::GetCharacterList() {
     this->Initiate(COP_GET_CHARACTERS, 43, nullptr);
 
-    if (this->unk_2F3C) {
+    if (this->m_connected) {
         this->RequestCharacterEnum();
     } else {
         this->Cancel(RESPONSE_FAILED_TO_CONNECT);
@@ -1349,7 +1349,7 @@ void ClientConnection::HandleCharacterCreate(uint8_t result) {
 void ClientConnection::RequestCharacterCreate(const CHARACTER_CREATE_INFO& info) {
     this->Initiate(COP_CREATE_CHARACTER, CHAR_CREATE_IN_PROGRESS, nullptr);
 
-    if (!this->unk_2F3C) {
+    if (!this->m_connected) {
         this->Cancel(RESPONSE_FAILED_TO_CONNECT);
         return;
     }
@@ -1375,13 +1375,13 @@ void ClientConnection::RequestCharacterCreate(const CHARACTER_CREATE_INFO& info)
 void ClientConnection::CharacterLogin(WOWGUID guid, int32_t a2) {
     this->Initiate(COP_LOGIN_CHARACTER, CHAR_LOGIN_IN_PROGRESS, nullptr);
 
-    if (!this->unk_2F3C) {
+    if (!this->m_connected) {
         this->Cancel(RESPONSE_FAILED_TO_CONNECT);
         return;
     }
 
     this->RequestCharacterLogin(guid, a2);
-    this->unk_2F40 = 1;
+    this->m_characterLoggedIn = 1;
 }
 
 // VERIFY: 74e67f09 auto
@@ -1413,7 +1413,7 @@ void ClientConnection::HandleCharacterDelete(uint8_t result) {
 void ClientConnection::RequestCharacterDelete(WOWGUID guid) {
     this->Initiate(COP_DELETE_CHARACTER, CHAR_DELETE_IN_PROGRESS, nullptr);
 
-    if (!this->unk_2F3C) {
+    if (!this->m_connected) {
         this->Cancel(RESPONSE_FAILED_TO_CONNECT);
         return;
     }
@@ -1452,12 +1452,12 @@ void ClientRealmResponseAdapter::OnChatReceived(RealmConnection* connection, WOW
 
 // VERIFY: 01b28e4e auto
 // OFFSET: 0x006B1B80
-void ClientRealmResponseAdapter::OnAccountOnline(RealmConnection* connection, int32_t a2, WOWGUID guid) {
+void ClientRealmResponseAdapter::OnAccountOnline(RealmConnection* connection, int32_t unused_a2, WOWGUID guid) {
 }
 
 // VERIFY: 93d4ae81 auto
 // OFFSET: 0x006B1BA0
-void ClientRealmResponseAdapter::OnAFKMonitorInfoResponse(RealmConnection* connection, WOWGUID guid, int32_t a3, int32_t a4, int32_t a5, int32_t a6) {
+void ClientRealmResponseAdapter::OnAFKMonitorInfoResponse(RealmConnection* connection, WOWGUID guid, int32_t unused_a3, int32_t unused_a4, int32_t unused_a5, int32_t unused_a6) {
 }
 
 // VERIFY: a13283da auto
@@ -1529,7 +1529,7 @@ void ClientConnection::HandleLogoutComplete() {
         this->CharacterSetInGame(0);
     }
 
-    this->unk_2F40 = 0;
+    this->m_characterLoggedIn = 0;
 
     if (!ClientServices::s_currentConnection) {
         SErrDisplayAppFatalMessage("", "", 0);
@@ -1595,7 +1595,7 @@ void ClientConnection::CharacterLogout(bool quit, bool instant) {
 
     if (this != ClientServices::s_currentConnection) {
         this->CharacterSetInGame(0);
-        this->unk_2F40 = 0;
+        this->m_characterLoggedIn = 0;
         return;
     }
 
@@ -1726,7 +1726,7 @@ void ClientConnection::HandleCharacterLoginFailed(uint8_t result) {
         this->CharacterSetInGame(0);
     }
 
-    this->unk_2F40 = 0;
+    this->m_characterLoggedIn = 0;
 
     if (!ClientServices::s_currentConnection) {
         SErrDisplayAppFatalMessage("", "", 0);

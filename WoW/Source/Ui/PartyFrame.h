@@ -15,7 +15,7 @@ class CGPartyPetState {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ char m_name[80];
     /* 0058 */ uint8_t m_powerType;
-    /* 0059 */ uint8_t unk_0059;
+    /* 0059 */ uint8_t unused_0059;
     /* 005A */ uint16_t m_displayId;
     /* 005C */ uint32_t m_health;
     /* 0060 */ uint32_t m_maxHealth;
@@ -30,7 +30,7 @@ class CGPartyMemberState {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ uint16_t m_flags;
     /* 000A */ uint8_t m_powerType;
-    /* 000B */ uint8_t unk_000B;
+    /* 000B */ uint8_t unused_000B;
     /* 000C */ uint32_t m_health;
     /* 0010 */ uint32_t m_maxHealth;
     /* 0014 */ uint16_t m_power;
@@ -43,7 +43,7 @@ class CGPartyMemberState {
     /* 0120 */ uint8_t m_auraFlags[64];
     /* 0160 */ CGPartyPetState m_pet;
     /* 0308 */ uint32_t m_vehicleSeatId;
-    /* 030C */ uint32_t unk_030C;
+    /* 030C */ uint32_t unused_030C;
 };
 
 struct PartyReadyCheckInfo {

@@ -10,8 +10,8 @@
 // OFFSET: 0x009AB770
 PendingSpellCastData::PendingSpellCastData() {
     this->m_castItem = WOWGUID{ 0 };
-    this->unk_0010 = 0;
-    this->unk_0014 = 0;
+    this->unused_0010 = 0;
+    this->unused_0014 = 0;
     this->m_spellId = 0;
     this->m_targetFlags = 0;
     this->m_objectTarget = WOWGUID{ 0 };
@@ -21,22 +21,22 @@ PendingSpellCastData::PendingSpellCastData() {
     this->m_destTarget = WOWGUID{ 0 };
     this->m_sourcePos = C3Vector();
     this->m_destPos = C3Vector();
-    this->unk_006C = -1;
-    this->unk_0068 = 0.0f;
-    this->unk_0070 = 0;
+    this->unused_006C = -1;
+    this->unused_0068 = 0.0f;
+    this->unused_0070 = 0;
     this->m_elevation = 0.0f;
-    this->unk_0074 = 0;
-    this->unk_0120 = 0.0f;
-    this->unk_0078 = 0;
-    this->unk_007C = 0;
-    this->unk_0080 = 0;
-    this->unk_0084 = 0;
-    this->unk_0088 = 0;
-    this->unk_008C = 0;
-    this->unk_0110 = 0;
+    this->unused_0074 = 0;
+    this->m_missileSpeed = 0.0f;
+    this->unused_0078 = 0;
+    this->unused_007C = 0;
+    this->unused_0080 = 0;
+    this->unused_0084 = 0;
+    this->unused_0088 = 0;
+    this->unused_008C = 0;
+    this->unused_0110 = 0;
     this->m_castFlags = 0;
-    this->unk_0118 = 0;
-    this->unk_0124 = 0;
+    this->unused_0118 = 0;
+    this->m_glyphSlot = 0;
 }
 
 // VERIFY: 33b96970 manual

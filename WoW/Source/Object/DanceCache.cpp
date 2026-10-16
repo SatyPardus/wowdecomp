@@ -10,7 +10,7 @@ DanceCache::DanceCache() {
     this->m_name[0] = '\0';
     this->m_data = nullptr;
     this->m_dataCount = 0;
-    this->unk_0098 = 0;
+    this->m_version = 0;
 }
 
 // INLINED
@@ -35,7 +35,7 @@ DanceCache& DanceCache::operator=(const DanceCache& source) {
 
     memcpy(this->m_data, source.m_data, 4 * source.m_dataCount);
     this->m_dataCount = source.m_dataCount;
-    this->unk_0098 = source.unk_0098;
+    this->m_version = source.m_version;
 
     return *this;
 }
@@ -48,7 +48,7 @@ void DanceCache::Pack(CDataStore* msg) {
     msg->PutString(this->m_name);
     msg->Put(this->m_dataCount);
     msg->PutData(this->m_data, 4 * this->m_dataCount);
-    msg->Put(this->unk_0098);
+    msg->Put(this->m_version);
 }
 
 // VERIFY: 54057452 manual
@@ -65,5 +65,5 @@ void DanceCache::Unpack(CDataStore* msg) {
     msg->Get(this->m_dataCount);
     this->m_data = new (__FILE__, __LINE__) DANCEMOVE[this->m_dataCount];
     msg->GetData(this->m_data, 4 * this->m_dataCount);
-    msg->Get(this->unk_0098);
+    msg->Get(this->m_version);
 }

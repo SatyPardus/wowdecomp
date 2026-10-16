@@ -130,16 +130,16 @@ CGxDeviceOpenGl::CGxDeviceOpenGl() {
     this->m_pbufferRC = nullptr;
     this->m_fbo = 0;
     this->m_boundFbo = 0;
-    this->unk_3B48 = 6;
-    this->unk_3B4C = 0;
-    this->unk_3B50 = 0;
+    this->unused_3B48 = 6;
+    this->unused_3B4C = 0;
+    this->unused_3B50 = 0;
     this->m_viewDirty = 0;
     this->m_caps.m_colorFormat = GxCF_rgba;
     this->m_caps.unk_0018 = 0;
     this->m_renderTargetMode = 0;
     this->m_ambientOnlyMode = 0;
     this->DsInit();
-    this->unk_3AD0 = 0;
+    this->unused_3AD0 = 0;
     this->m_materialDirty = 7;
     this->m_sphereMapMode = GL_SPHERE_MAP;
 
@@ -672,7 +672,7 @@ void CGxDeviceOpenGl::ISetCaps(const CGxFormat& format) {
     }
 
     this->m_caps.m_numStreams = numStreams;
-    this->m_caps.unk_0010 = 1;
+    this->m_caps.m_streamOffset = 1;
     this->m_caps.m_generateMipMaps = glSGISGenerateMipmap;
 
     for (uint32_t i = 0; i < 6; i++) {
@@ -828,13 +828,13 @@ void CGxDeviceOpenGl::ISetCaps(const CGxFormat& format) {
         this->m_caps.m_pointSprite = 0;
     }
 
-    this->m_caps.unk_0130 = 1;
+    this->m_caps.m_shaderAlphaRef = 1;
     this->m_caps.unk_0134 = 1;
-    this->m_caps.unk_0114[1] = 0;
-    this->m_caps.unk_0114[0] = 0;
-    this->m_caps.unk_0114[2] = 0;
-    this->m_caps.unk_0114[3] = 0;
-    this->m_caps.unk_0114[4] = 0;
+    this->m_caps.unused_0114[1] = 0;
+    this->m_caps.unused_0114[0] = 0;
+    this->m_caps.unused_0114[2] = 0;
+    this->m_caps.unused_0114[3] = 0;
+    this->m_caps.unused_0114[4] = 0;
     this->m_caps.m_stereoAvailable = 0;
     this->m_caps.unk_0138 = this->m_caps.m_shaderTargets[GxSh_Pixel] != 12;
     this->Log(this->m_caps);
@@ -1301,7 +1301,7 @@ int32_t CGxDeviceOpenGl::BufUnlock(CGxBuf* buf, uint32_t size) {
 
     if (!pool->m_apiSpecific) {
         this->m_emergencyMem[pool->m_target].Unlock();
-        buf->unk_001D = 0;
+        buf->m_valid = 0;
         this->m_intF5C = 1;
         pool->m_mem = nullptr;
         return 0;
@@ -1311,7 +1311,7 @@ int32_t CGxDeviceOpenGl::BufUnlock(CGxBuf* buf, uint32_t size) {
         if (this->m_useVboBroker[pool->m_target][pool->m_usage]) {
             static_cast<CGxVboBroker*>(pool->m_apiSpecific)->UnlockVbo(buf->m_index, size);
             result = glUnmapBufferARB(s_glBufferTarget[pool->m_target]);
-            buf->unk_001D = result;
+            buf->m_valid = result;
             pool->m_mem = nullptr;
             return result;
         }
@@ -1328,7 +1328,7 @@ int32_t CGxDeviceOpenGl::BufUnlock(CGxBuf* buf, uint32_t size) {
                 s_emergencyMem[pool->m_target].Unlock();
             }
 
-            buf->unk_001D = result;
+            buf->m_valid = result;
         }
     }
 

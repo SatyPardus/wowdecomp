@@ -591,7 +591,7 @@ CVehiclePassenger_C* CVehiclePassenger_C::Alloc(CGUnit_C* unit) {
     passenger->m_startTime = 0;
     passenger->m_endTime = 0;
     passenger->m_startRelativeGuid = WOWGUID();
-    passenger->unk_004C = 0;
+    passenger->m_stopMovementTime = 0;
     passenger->m_vehicleRec = nullptr;
     passenger->m_seatRec = nullptr;
     passenger->m_rootVehicleGuid = WOWGUID();
@@ -705,7 +705,7 @@ void CVehiclePassenger_C::OnAnimEnd(uint32_t anim) {
 
 // VERIFY: 9156af0b auto
 // OFFSET: 0x00748560
-int32_t CVehiclePassenger_C::PickHighPriorityAnimation(int32_t a2, uint32_t* anim) const {
+int32_t CVehiclePassenger_C::PickHighPriorityAnimation(int32_t unused_a2, uint32_t* anim) const {
     if ((this->m_state == 0 || this->m_state == 3) && this->m_unit->m_unit->m_unitFieldHealth > 0) {
         return 0;
     }
@@ -859,7 +859,7 @@ void CVehiclePassenger_C::StopMovement() {
     uint32_t time = FrameTime::s_curTimeMs;
     CGInputControl::GetActive()->StopMovementAndTurning(time);
     this->m_flags |= 0x8;
-    this->unk_004C = time;
+    this->m_stopMovementTime = time;
 }
 
 // VERIFY: 20bfa0c2 manual
@@ -2047,7 +2047,7 @@ int32_t CVehiclePassenger_C::UpdateState(CGUnit_C* vehicle, VehicleSeatRec* seat
 
     uint32_t flags = this->m_flags;
 
-    if ((flags & 0x8) && static_cast<int32_t>(time - this->unk_004C - 2000) >= 0) {
+    if ((flags & 0x8) && static_cast<int32_t>(time - this->m_stopMovementTime - 2000) >= 0) {
         this->m_flags = flags & ~0x8;
     }
 

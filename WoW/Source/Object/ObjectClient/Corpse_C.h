@@ -23,7 +23,7 @@ class CGCorpse_C : public CGObject_C, public CGCorpse {
     /* 0280 */ uint32_t m_corpseFlags;
     /* 0284 */ float m_selectionRadius;
     /* 0288 */ CM2Model* m_lootEffect;
-    /* 028C */ uint8_t unk_028C [4];
+    /* 028C */ uint8_t unused_028C [4];
 
     ~CGCorpse_C() override;
     int32_t ShouldFadeout() override;
@@ -37,7 +37,7 @@ class CGCorpse_C : public CGObject_C, public CGCorpse {
     int32_t GetModelFileName(const char** name) const override;
     void RenderTargetSelection() const override;
     int32_t Animate(float elapsed) override;
-    void ShouldRender(uint32_t flags, int32_t& render, int32_t& a3) override;
+    void ShouldRender(uint32_t flags, int32_t& render, int32_t& hidden) override;
     void OnRightClick() override;
 
     CGCorpse_C(uint32_t time, const CClientObjCreate& create);

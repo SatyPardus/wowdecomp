@@ -29,7 +29,7 @@ CMapStaticEntity::CMapStaticEntity() {
     this->m_sphere.c = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_sphere.r = 0.0f;
     this->m_scale = 0.0f;
-    this->unk_007C &= 0xFFFE4000;
+    this->m_staticFlags &= 0xFFFE4000;
     this->m_distanceToCamera = 0.0f;
     this->m_liquidHeight = 0.0f;
     this->m_model = nullptr;
@@ -38,7 +38,7 @@ CMapStaticEntity::CMapStaticEntity() {
     this->m_shadowStamps[0] = 0;
     this->m_shadowStamps[1] = 0;
     this->m_shadowStamps[2] = 0;
-    this->unk_002B = 0;
+    this->unused_002B = 0;
     this->m_fadeLevel = 0;
     this->m_vec2 = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_culled = 2;
@@ -150,21 +150,21 @@ void FogQueue::Push(float distance, uint32_t fogIndex) {
 // VERIFY: eeb1ad46 manual
 // OFFSET: 0x007A0FE0
 CMapEntity::CMapEntity() {
-    this->unk_00A8 = C3Vector(0.0f, 0.0f, 0.0f);
+    this->unused_00A8 = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_func = nullptr;
     this->m_funcParam = nullptr;
     this->m_funcParam64 = 0;
     this->m_funcParam32 = 0;
-    this->unk_00B4 = 0;
+    this->unused_00B4 = 0;
     this->m_groundType = 0;
-    this->unk_00BC = 0;
-    this->unk_00BE = 0;
+    this->m_liquidType = 0;
+    this->unused_00BE = 0;
     this->unk_00A4 = 0xFFFFFFFF;
-    this->unk_00C0.b = 0xFF;
-    this->unk_00C0.g = 0x00;
-    this->unk_00C0.r = 0x00;
-    this->unk_00C0.a = 0x00;
-    this->unk_00C4 = 0.0f;
+    this->m_targetAmbientColor.b = 0xFF;
+    this->m_targetAmbientColor.g = 0x00;
+    this->m_targetAmbientColor.r = 0x00;
+    this->m_targetAmbientColor.a = 0x00;
+    this->m_targetDiffuseLightScale = 0.0f;
     this->m_type |= 0x20;
 }
 
@@ -292,7 +292,7 @@ void CMapStaticEntity::SelectLights(CM2Lighting* lighting) {
 
             dir = CMapStaticEntity::s_interiorSunDir;
 
-            if ((this->unk_007C & 0x1000) != 0) {
+            if ((this->m_staticFlags & 0x1000) != 0) {
                 DayNight::DNInfo* dayNight = DayNight::GetInfo();
                 float blend = this->m_m2DiffuseColor.a / 255.0f;
 
@@ -304,7 +304,7 @@ void CMapStaticEntity::SelectLights(CM2Lighting* lighting) {
             }
         }
 
-        if ((this->unk_007C & 0x8000) != 0) {
+        if ((this->m_staticFlags & 0x8000) != 0) {
             ambient.x *= CMapStaticEntity::s_characterAmbient;
             ambient.y *= CMapStaticEntity::s_characterAmbient;
             ambient.z *= CMapStaticEntity::s_characterAmbient;
@@ -384,7 +384,7 @@ FogQ FogQueue::Pop() {
 // VERIFY: 5f34315e manual
 // OFFSET: 0x007A1B10
 void CMapEntity::QueryLiquidSounds(TSGrowableArray<World::LiquidQueryResult>& results, uint32_t* distance) {
-    if (!(this->unk_007C & 0x1)) {
+    if (!(this->m_staticFlags & 0x1)) {
         return;
     }
 
@@ -415,9 +415,9 @@ void CMapEntity::Tick() {
     int32_t r = this->m_m2AmbientColor.r;
     int32_t g = this->m_m2AmbientColor.g;
     int32_t b = this->m_m2AmbientColor.b;
-    int32_t targetR = this->unk_00C0.r;
-    int32_t targetG = this->unk_00C0.g;
-    int32_t targetB = this->unk_00C0.b;
+    int32_t targetR = this->m_targetAmbientColor.r;
+    int32_t targetG = this->m_targetAmbientColor.g;
+    int32_t targetB = this->m_targetAmbientColor.b;
     int32_t changed = 0;
 
     if (targetR - r) {
@@ -478,27 +478,27 @@ void CMapEntity::Tick() {
     this->m_m2AmbientColor.g = static_cast<uint8_t>(g);
     this->m_m2AmbientColor.b = static_cast<uint8_t>(b);
 
-    if (!(this->unk_007C & 0x1) && !changed) {
+    if (!(this->m_staticFlags & 0x1) && !changed) {
         CImVector ambient = DayNight::GetInfo()->m_light1.m_ambient;
         this->m_m2AmbientColor = ambient;
-        this->unk_00C0 = ambient;
+        this->m_targetAmbientColor = ambient;
     }
 
     float rate = FrameTime::s_tickTimeSec * 3.3333333f;
-    float delta = this->m_diffuseLightScale - this->unk_00C4;
+    float delta = this->m_diffuseLightScale - this->m_targetDiffuseLightScale;
 
     if (0.0f != delta) {
         if (delta >= 0.0f) {
             this->m_diffuseLightScale = this->m_diffuseLightScale - rate;
 
-            if (this->m_diffuseLightScale < this->unk_00C4) {
-                this->m_diffuseLightScale = this->unk_00C4;
+            if (this->m_diffuseLightScale < this->m_targetDiffuseLightScale) {
+                this->m_diffuseLightScale = this->m_targetDiffuseLightScale;
             }
         } else {
             this->m_diffuseLightScale = rate + this->m_diffuseLightScale;
 
-            if (this->m_diffuseLightScale > this->unk_00C4) {
-                this->m_diffuseLightScale = this->unk_00C4;
+            if (this->m_diffuseLightScale > this->m_targetDiffuseLightScale) {
+                this->m_diffuseLightScale = this->m_targetDiffuseLightScale;
             }
         }
     }
@@ -544,7 +544,7 @@ bool CMapStaticEntity::GetMapObjAndGroup(CMapObjDef** mapObjDef, CMapObj** mapOb
 // VERIFY: d211d73c auto
 // OFFSET: 0x007A1A30
 bool CMapEntity::UpdateMapObjLiquid() {
-    this->unk_007C &= ~0x60;
+    this->m_staticFlags &= ~0x60;
     CMapObjDef* mapObjDef;
     CMapObj* mapObj;
     CMapObjDefGroup* mapObjDefGroup;
@@ -562,17 +562,17 @@ bool CMapEntity::UpdateMapObjLiquid() {
         return false;
     }
 
-    this->unk_007C |= 0x20;
+    this->m_staticFlags |= 0x20;
     C3Vector world = C3Vector(local.x, local.y, level) * mapObjDef->m_mat;
     this->m_liquidHeight = world.z;
 
     if (world.z <= this->m_bbox.t.z) {
-        this->unk_007C |= 0x40;
+        this->m_staticFlags |= 0x40;
     } else {
-        this->unk_007C &= ~0x40;
+        this->m_staticFlags &= ~0x40;
     }
 
-    this->unk_00BC = static_cast<uint16_t>(liquidType);
+    this->m_liquidType = static_cast<uint16_t>(liquidType);
     return true;
 }
 
@@ -601,10 +601,10 @@ bool CMapEntity::QueryInteriorLighting(CMapObjDef* mapObjDef, int32_t groupNum, 
 
     CImVector limit;
     *reinterpret_cast<uint32_t*>(&limit) = 0xA8;
-    this->AdjustLightmap(&color, &this->m_m2DiffuseColor, limit, &this->unk_00C0, 96);
+    this->AdjustLightmap(&color, &this->m_m2DiffuseColor, limit, &this->m_targetAmbientColor, 96);
 
     if (!flag) {
-        this->unk_007C &= ~0x1000;
+        this->m_staticFlags &= ~0x1000;
         return result;
     }
 
@@ -613,10 +613,10 @@ bool CMapEntity::QueryInteriorLighting(CMapObjDef* mapObjDef, int32_t groupNum, 
 
     if (alpha) {
         this->m_m2DiffuseColor.InterpColor(alpha, &info->m_light1.m_diffuse);
-        this->unk_00C0.InterpColor(alpha, &info->m_light1.m_ambient);
+        this->m_targetAmbientColor.InterpColor(alpha, &info->m_light1.m_ambient);
     }
 
-    this->unk_007C |= 0x1000;
+    this->m_staticFlags |= 0x1000;
     this->m_m2DiffuseColor.a = color.a;
     return result;
 }

@@ -744,7 +744,7 @@ void Spell_C_Initialize() {
 }
 
 // INLINED
-inline PendingSpellCast::PendingSpellCast() : unk_0139(0) {
+inline PendingSpellCast::PendingSpellCast() : m_isTrajectoryCast(0) {
 }
 
 // VERIFY: 672a78e9 manual
@@ -759,7 +759,7 @@ PendingSpellCast* CreatePendingSpellCast(bool assignCastCount) {
     s_pendingSpellCasts.LinkToHead(cast);
     memset(&cast->m_data, 0, sizeof(PendingSpellCastData));
     cast->m_hidden = 0;
-    cast->unk_0139 = 0;
+    cast->m_isTrajectoryCast = 0;
 
     if (assignCastCount) {
         uint8_t castCount = s_nextCastCount;
@@ -935,7 +935,7 @@ void StartSpellCastVisuals(CGUnit_C* unit, PendingSpellCast* cast, const SpellRe
         CGTradeSkillInfo::CommitPendingRecast(cast->m_data.m_spellId);
     }
 
-    if (!unit->m_castSpellId && !cast->unk_0139) {
+    if (!unit->m_castSpellId && !cast->m_isTrajectoryCast) {
         unit->SetCastingSpell(cast->m_data.m_castCount, cast->m_data.m_spellId);
         SpellVisualsHandleCastStart(unit, &cast->m_data, spell);
     }
@@ -1527,7 +1527,7 @@ int32_t Packet_SMSG_PET_CAST_FAILED(void* param, NETMESSAGE msgId, uint32_t time
         PendingSpellCast local;
         WOWGUID caster = pet;
         WOWGUID castItem = pet;
-        local.unk_0139 = 0;
+        local.m_isTrajectoryCast = 0;
         PendingSpellCast* cast = FindPendingSpellCast(castItem, &local, castCount, spellId, caster);
         s_spellHistory[1].RemoveStartCooldown(spellId);
         CGPetInfo::UpdateCooldowns();
@@ -2044,7 +2044,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
     if (visual) {
         SpellVisualKitRec* castKit = g_spellVisualKitDB.GetRecord(visual->m_castKit);
 
-        if (castKit && unit && !this->unk_0139) {
+        if (castKit && unit && !this->m_isTrajectoryCast) {
             PlaySpellVisuaKitData kitData(&spell, castKit, 0);
             unit->PlaySpellVisualKit(kitData);
         }
@@ -2080,8 +2080,8 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                     data.m_destLocation = destLocation;
                     data.m_destPosition = this->m_data.m_destPos;
                     data.m_elevation = this->m_data.m_elevation;
-                    data.unk_0030 = this->m_data.unk_0120;
-                    data.unk_0034 = 0;
+                    data.m_missileSpeed = this->m_data.m_missileSpeed;
+                    data.m_delay = 0;
                     data.unk_0038 = 0;
                     data.m_castCount = this->m_data.m_castCount;
                     Spell_C_PlayDestLocVisualsWithoutCaster(&data);
@@ -2125,8 +2125,8 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                     data.m_destLocation = point.m_worldPosition;
                     data.m_destPosition = point.m_worldPosition;
                     data.m_elevation = this->m_data.m_elevation;
-                    data.unk_0030 = this->m_data.unk_0120;
-                    data.unk_0034 = 0;
+                    data.m_missileSpeed = this->m_data.m_missileSpeed;
+                    data.m_delay = 0;
                     data.unk_0038 = 0;
                     data.m_castCount = this->m_data.m_castCount;
                     Spell_C_PlayDestLocVisualsWithoutCaster(&data);
@@ -2145,7 +2145,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
                 }
             }
         } else if (unit) {
-            if (this->unk_0139) {
+            if (this->m_isTrajectoryCast) {
                 if (this->m_data.m_castFlags & 0x20000) {
                     CMissile::AdjustAllMissileTrajectoryDurations(this->m_data.m_castCount, delay);
                 }
@@ -7552,13 +7552,13 @@ int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast*
     SpellVisualKitRec* kit = g_spellVisualKitDB.GetRecord(visual ? visual->m_castKit : 0);
     int32_t playNow = 0;
 
-    if (caster->m_castSpellId || cast->unk_0139 || !instant || !visual || !visual->m_hasMissile) {
+    if (caster->m_castSpellId || cast->m_isTrajectoryCast || !instant || !visual || !visual->m_hasMissile) {
         instant = 0;
     } else {
         instant = 1;
         playNow = kit && kit->m_animID > 0 && !(visual->m_flags & 0x4);
         cast->m_data.m_castFlags |= 0x20000;
-        cast->unk_0139 = 1;
+        cast->m_isTrajectoryCast = 1;
     }
 
     if (playNow) {
@@ -7571,7 +7571,7 @@ int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast*
         cast->m_data.m_sourcePos = C3Vector(0.0f, 0.0f, 0.0f);
         cast->m_data.m_destPos = C3Vector(0.0f, 0.0f, 0.0f);
         cast->m_data.m_elevation = 0.0f;
-        cast->m_data.unk_0120 = 1.0f;
+        cast->m_data.m_missileSpeed = 1.0f;
 
         if (visual->m_flags & 0x20) {
             caster->AttachPrecastMissileModel(visual, cast->m_data.m_castCount);
@@ -7606,7 +7606,7 @@ int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast*
     cast->m_data.m_sourcePos = launch;
     cast->m_data.m_destPos = impact;
     cast->m_data.m_elevation = *pitch;
-    cast->m_data.unk_0120 = *speed;
+    cast->m_data.m_missileSpeed = *speed;
 
     if (instant) {
         Spell_C_PlayMissileTrajectoryCastVisuals(caster, cast, spell, visual, kit, targets, arrival);
@@ -7614,7 +7614,7 @@ int32_t Spell_C_PrepareMissileTrajectoryCast(CGUnit_C* caster, PendingSpellCast*
         return 1;
     }
 
-    if (cast->unk_0139) {
+    if (cast->m_isTrajectoryCast) {
         caster->RecordMissileTrajectoryUpdate(cast->m_data.m_castCount, &impact, *pitch, *speed, arrival);
     }
 
@@ -7785,7 +7785,7 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
         msg.Put(cast->m_data.m_castCount);
         msg.Put(static_cast<uint32_t>(cast->m_data.m_spellId));
         msg.Put(castItem.m_guid);
-        msg.Put(cast->m_data.unk_0124);
+        msg.Put(cast->m_data.m_glyphSlot);
     } else if (caster->IsActivePlayer() && !(spell.m_attributesExF & 0x40000)) {
         msg.Put(static_cast<uint32_t>(CMSG_CAST_SPELL));
         msg.Put(cast->m_data.m_castCount);
@@ -7873,7 +7873,7 @@ static void Spell_C_ClearMacroCooldownState(const SpellRec* spell) {
 
 // VERIFY: 2a122241 manual
 // OFFSET: 0x007FE940
-static int32_t Spell_C_UpdateSpellWorldObject(void* param, uint32_t a2, uint64_t a3, uintptr_t a4) {
+static int32_t Spell_C_UpdateSpellWorldObject(void* param, uint32_t flags, uint64_t param64, uintptr_t param32) {
     if (s_spellWorldModel) {
         C44Matrix matrix(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, s_cursorWorldObjectPosition.x, s_cursorWorldObjectPosition.y, s_cursorWorldObjectPosition.z, 1.0f);
         matrix.RotateAroundZ(s_cursorWorldObjectFacing);
@@ -8818,7 +8818,7 @@ bool Spell_C_HandleGlyphClick(int32_t socket) {
         }
 
         cast = s_targetingSpell;
-        cast->m_data.unk_0124 = socket;
+        cast->m_data.m_glyphSlot = socket;
         bool result = false;
 
         if (s_needTargets & 0x20000) {
@@ -9154,7 +9154,7 @@ void PlayImpactVisual(const SpellRec* spell, const TSStackArray<WOWGUID>& target
 
         if (kit) {
             PlaySpellVisuaKitData data(spell, kit, 1);
-            data.unk_001C = SpellRec::IsHelpfulOrHarmful(spell) == 2;
+            data.m_harmful = SpellRec::IsHelpfulOrHarmful(spell) == 2;
             object->PlaySpellVisualKit(data);
         }
     }
@@ -9273,21 +9273,21 @@ void Spell_C_PlayDestLocVisualsWithoutCaster(NotifyDestLocSpellCastData* data) {
         missile->m_castTime = OsGetAsyncTimeMs();
         missile->SetReadyToFire(&missiles);
 
-        if (data->unk_0030 > 0.0f) {
+        if (data->m_missileSpeed > 0.0f) {
             missile->m_pitch = data->m_elevation;
-            missile->m_trajectorySpeed = data->unk_0030;
-            missile->m_arrivalTime = data->unk_0034 + missile->m_castTime;
+            missile->m_trajectorySpeed = data->m_missileSpeed;
+            missile->m_arrivalTime = data->m_delay + missile->m_castTime;
             missile->m_flags |= 0x10800;
         }
 
-        missile->unk_0114 = missileCount;
+        missile->m_missileCount = missileCount;
 
         if (missileCount > 1) {
-            missile->unk_0110 = 0;
+            missile->m_missileIndex = 0;
 
             for (int32_t i = 1; i < missileCount; i++) {
                 missile = CMissile::CopyMissile(missile);
-                missile->unk_0110 = i;
+                missile->m_missileIndex = i;
                 missile->SetReadyToFire(&missiles);
             }
         }
@@ -9300,7 +9300,7 @@ void Spell_C_PlayDestLocVisualsWithoutCaster(NotifyDestLocSpellCastData* data) {
             return;
         }
 
-        uint32_t delay = OsGetAsyncTimeMs() + data->unk_0034;
+        uint32_t delay = OsGetAsyncTimeMs() + data->m_delay;
         uint32_t flags = spell.m_spellMissileID > 0 ? 0x402010 : 0x2010;
         SpellVisualEffectNameRec* effectName;
 

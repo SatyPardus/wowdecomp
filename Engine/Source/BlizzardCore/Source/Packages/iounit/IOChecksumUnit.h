@@ -19,7 +19,7 @@ class IOChecksumUnit : public IOUnit {
     /* 0018 */ int64_t m_size;
     /* 0020 */ void* m_context;
     /* 0024 */ bool m_readToEnd;
-    /* 0025 */ uint8_t unk_0025[3];
+    /* 0025 */ uint8_t unused_0025[3];
 
     virtual uint32_t GetType();
     virtual bool Read(void* buffer, int64_t offset, uint32_t count, uint32_t* bytesRead);

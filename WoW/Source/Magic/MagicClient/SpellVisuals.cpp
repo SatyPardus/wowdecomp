@@ -776,10 +776,10 @@ static void ShardSequenceCallback(CM2Model* model, uint32_t boneId, uint32_t seq
 // VERIFY: c8180770 manual
 // OFFSET: 0x007FB4B0
 BlizzardObject::BlizzardObject() : m_entity(nullptr), m_shardAccum(0.0f), m_hasFrame(0) {
-    this->unk_0128[0] = 0.0f;
-    this->unk_0128[1] = 0.0f;
-    this->unk_0128[3] = 0.0f;
-    this->unk_0128[2] = 0.0f;
+    this->unused_0128[0] = 0.0f;
+    this->unused_0128[1] = 0.0f;
+    this->unused_0128[3] = 0.0f;
+    this->unused_0128[2] = 0.0f;
 }
 
 // VERIFY: 429896ff manual

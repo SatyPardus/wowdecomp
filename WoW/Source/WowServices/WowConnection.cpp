@@ -13,7 +13,7 @@
 WowConnection::IDBITS WowConnection::s_idBits;
 
 // STATIC: 0x00B38D00
-static uint32_t s_unkB38D00;
+static uint32_t s_unused_B38D00;
 
 // STATIC: 0x00B38D04
 static int32_t s_sendNodeCount;
@@ -246,7 +246,7 @@ void WowConnection::Init(WowConnectionResponse* response, void (*threadInit)()) 
     this->m_sendBytes = 0;
     this->m_oldsock = -1;
     this->m_notifyWriteReady = 0;
-    this->unk_0144 = -1;
+    this->unused_0144 = -1;
 
     WOW_CONN_STATE oldState = this->m_connState;
     this->m_connState = WOWC_UNINITIALIZED;
@@ -256,24 +256,24 @@ void WowConnection::Init(WowConnectionResponse* response, void (*threadInit)()) 
     }
 
     this->m_response = response;
-    this->unk_000C = 0;
+    this->unused_000C = 0;
     this->m_threadInit = threadInit;
-    this->unk_0018 = 0;
-    this->unk_0050 = 0;
-    this->unk_0054 = 0;
-    this->unk_0058 = 0;
-    this->unk_005C = 0;
-    this->unk_0060 = 0;
-    this->unk_0064 = 0;
-    this->unk_0078 = 0;
+    this->unused_0018 = 0;
+    this->unused_0050 = 0;
+    this->unused_0054 = 0;
+    this->unused_0058 = 0;
+    this->unused_005C = 0;
+    this->unused_0060 = 0;
+    this->unused_0064 = 0;
+    this->unused_0078 = 0;
     this->m_connectAddress = 0;
     this->m_connectPort = 0;
     this->m_connectRetryInterval = -1;
     memset(&this->m_peer, 0, sizeof(this->m_peer));
-    this->unk_00A0 = 0;
+    this->unused_00A0 = 0;
     this->m_serviceFlags = 0;
     this->m_serviceCount = 0;
-    this->unk_0134 = OsGetAsyncTimeMs();
+    this->unused_0134 = OsGetAsyncTimeMs();
     this->m_readBuffer = nullptr;
     this->m_readBytes = 0;
     this->m_readBufferSize = 0;
@@ -574,7 +574,7 @@ bool WowConnection::Connect(uint32_t address, uint16_t port, int32_t timeout) {
 // VERIFY: 30cc0530 manual
 // OFFSET: 0x00466B90
 void WowConnection::DestroyOsNet() {
-    s_unkB38D00 = 1;
+    s_unused_B38D00 = 1;
 
     if (!WowConnection::s_network) {
         return;
@@ -594,7 +594,7 @@ int32_t WowConnection::InitOsNet(bool (*netAddrFilter)(const NETADDR* addr), voi
         WowConnection::s_idBits.SetCount(256);
         WDataStore::StaticInitialize();
         WowConnection::s_verifyAddr = netAddrFilter;
-        s_unkB38D00 = 0;
+        s_unused_B38D00 = 0;
 
         if (static_cast<uint32_t>(numThreads) > 32) {
             numThreads = 32;

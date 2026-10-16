@@ -17,7 +17,7 @@ class Address {
     /* 0006 */ uint16_t m_port;
     /* 0008 */ uint32_t m_ip;
     /* 000C */ uint8_t m_zero[8];
-    /* 0014 */ uint8_t unk_0014[12];
+    /* 0014 */ uint8_t unused_0014[12];
 
     Address();
     int32_t GetPort() const;

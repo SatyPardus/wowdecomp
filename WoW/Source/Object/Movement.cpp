@@ -99,8 +99,8 @@ void CPlayerMoveQueue::FreeAll() {
 CMovementGlobals::CMovementGlobals() {
     this->m_movementLog = nullptr;
     this->m_fallingLog = nullptr;
-    this->unk_0110 = 0;
-    this->unk_0114 = 0;
+    this->unused_0110 = 0;
+    this->unused_0114 = 0;
     this->m_movers.SetLinkOffset(offsetof(CMovementShared, m_globalUnitsLink));
     this->m_flags &= ~0x1;
     this->m_hasTransportTime2 = 0;

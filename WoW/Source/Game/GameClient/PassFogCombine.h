@@ -17,10 +17,10 @@ class PassFogCombine : public FFX::Pass {
     /* 0040 */ CGxBuf* m_vertexBuf;
     /* 0044 */ CGxPool* m_indexPool;
     /* 0048 */ CGxBuf* m_indexBuf;
-    /* 004C */ uint32_t unk_004C;
-    /* 0050 */ uint32_t unk_0050;
-    /* 0054 */ float unk_0054;
-    /* 0058 */ float unk_0058;
+    /* 004C */ uint32_t m_lastWidth;
+    /* 0050 */ uint32_t m_lastHeight;
+    /* 0054 */ float m_density;
+    /* 0058 */ float m_fadeTime;
 
     ~PassFogCombine() override;
     bool Valid() override;

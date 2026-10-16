@@ -11,10 +11,10 @@ class CGxShader : public TSHashObject<CGxShader, HASHKEY_STRI> {
     /* 001C */ uint32_t m_refCount;
     /* 0020 */ void* m_apiSpecific;
     /* 0024 */ int32_t m_target;
-    /* 0028 */ int32_t unk_0028;
+    /* 0028 */ int32_t unused_0028;
     /* 002C */ int32_t m_valid;
     /* 0030 */ int32_t m_loaded;
-    /* 0034 */ int32_t unk_0034;
+    /* 0034 */ int32_t unused_0034;
     /* 0038 */ int32_t m_patched;
     /* 003C */ int32_t unk_003C;
     /* 0040 */ int32_t unk_0040;

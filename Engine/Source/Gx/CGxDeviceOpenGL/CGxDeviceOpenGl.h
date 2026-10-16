@@ -49,7 +49,7 @@ class CGxDeviceOpenGl : public CGxDevice {
     };
 
     /* 3968 */ uint32_t m_deviceStates [90];
-    /* 3AD0 */ uint32_t unk_3AD0;
+    /* 3AD0 */ uint32_t unused_3AD0;
     /* 3AD4 */ uint32_t m_materialDirty;
     /* 3AD8 */ GLenum m_sphereMapMode;
     /* 3ADC */ int32_t m_renderTargetMode;
@@ -66,10 +66,10 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3AF0 */ int32_t m_ownhwnd;
     #if defined(_WIN32)
     /* 3AF4 */ ATOM m_hwndClass;
-    #else
+#else
     /* 3AF4 */ uint32_t m_hwndClass;
     #endif
-    /* 3AF6 */ uint16_t unk_3AF6;
+    /* 3AF6 */ uint16_t unused_3AF6;
     #if defined(_WIN32)
     /* 3AF8 */ HDC m_hdc;
     /* 3AFC */ HGLRC m_hglrc;
@@ -94,12 +94,12 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3B24 */ TSFixedArray<CImVector> m_colorArray;
     /* 3B30 */ TSFixedArray<C2Vector> m_texCoordArray0;
     /* 3B3C */ TSFixedArray<C2Vector> m_texCoordArray1;
-    /* 3B48 */ uint32_t unk_3B48;
-    /* 3B4C */ uint32_t unk_3B4C;
-    /* 3B50 */ uint32_t unk_3B50;
+    /* 3B48 */ uint32_t unused_3B48;
+    /* 3B4C */ uint32_t unused_3B4C;
+    /* 3B50 */ uint32_t unused_3B50;
     /* 3B54 */ uintptr_t m_indexPtr;
     /* 3B58 */ int32_t m_viewDirty;
-    /* 3B5C */ uint32_t unk_3B5C;
+    /* 3B5C */ uint32_t unused_3B5C;
     /* 3B60 */ int32_t m_useVboBroker [2][3];
     /* 3B78 */ int32_t m_useVbo [2][3];
     /* 3B90 */ GLuint m_boundTexture;

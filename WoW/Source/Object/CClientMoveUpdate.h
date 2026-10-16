@@ -18,7 +18,7 @@ class CClientMoveUpdate {
     /* 0078 */ float m_flightBackSpeed;
     /* 007C */ float m_turnRate;
     /* 0080 */ float m_pitchRate;
-    /* 0084 */ uint32_t unk_0084;
+    /* 0084 */ uint32_t unused_0084;
     /* 0088 */ CMoveSpline m_moveSpline;
 
     static void Skip(CDataStore* msg);

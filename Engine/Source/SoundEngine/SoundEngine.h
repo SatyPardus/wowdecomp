@@ -158,8 +158,8 @@ class SEFileSound : public SESoundInternal {
     public:
     /* 00D8 */ TSLink<SESoundInternal> m_goLink;
     /* 00E0 */ SFileImpl* m_file;
-    /* 00E4 */ uint32_t unk_00E4;
-    /* 00E8 */ uint32_t unk_00E8;
+    /* 00E4 */ uint32_t unused_00E4;
+    /* 00E8 */ uint32_t unused_00E8;
     /* 00EC */ FMOD::Sound* m_sound;
     /* 00F0 */ FMOD::SoundGroup* m_loadSoundGroup;
     /* 00F4 */ FMOD::SoundGroup* m_soundGroup;

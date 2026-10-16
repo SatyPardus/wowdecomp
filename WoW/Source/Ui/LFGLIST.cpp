@@ -98,7 +98,7 @@ void LFGLIST::Clear() {
     this->m_time = 0;
     this->m_totalPlayers = 0;
     this->m_totalParties = 0;
-    this->unk_0010 = 0;
+    this->unused_0010 = 0;
     this->m_pendingNames = 0;
 }
 
@@ -124,7 +124,7 @@ bool LFGLIST::Copy(LFGLIST& source) {
     this->m_time = source.m_time;
     this->m_totalPlayers = source.m_totalPlayers;
     this->m_totalParties = source.m_totalParties;
-    this->unk_0010 = source.unk_0010;
+    this->unused_0010 = source.unused_0010;
     this->m_pendingNames = source.m_pendingNames;
 
     for (LFGListPlayer* player = source.m_players.m_fulllist.Head(); player; player = source.m_players.m_fulllist.Next(player)) {

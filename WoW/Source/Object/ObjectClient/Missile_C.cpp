@@ -393,8 +393,8 @@ int32_t CMissile::CallMotionScriptFunction(SimpleScriptIO& io) {
     io.m_numbers.m_count = 12;
     io.m_numbers.m_data[0] = this->m_progress;
     io.m_numbers.m_data[1] = (double)(int32_t)(OsGetAsyncTimeMs() - this->m_fireTime) * 0.001f;
-    io.m_numbers.m_data[2] = this->unk_0110;
-    io.m_numbers.m_data[3] = this->unk_0114;
+    io.m_numbers.m_data[2] = this->m_missileIndex;
+    io.m_numbers.m_data[3] = this->m_missileCount;
 
     float dx = this->m_launchPos.x - this->m_position.x;
     float dy = this->m_launchPos.y - this->m_position.y;
@@ -927,8 +927,8 @@ CMissile::CMissile() {
     this->m_followGroundRate = 0.0f;
     this->m_followGroundStart = 0.0f;
     this->m_motionFlags = 0;
-    this->unk_0110 = 0;
-    this->unk_0114 = 1;
+    this->m_missileIndex = 0;
+    this->m_missileCount = 1;
     this->m_velocity = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_fizzleTime = 0;
     this->m_missileCollision = nullptr;
@@ -1056,8 +1056,8 @@ CMissile* CMissile::CopyMissile(const CMissile* source) {
     missile->m_followGroundRate = source->m_followGroundRate;
     missile->m_followGroundStart = source->m_followGroundStart;
     missile->m_motionFlags = source->m_motionFlags;
-    missile->unk_0110 = source->unk_0110;
-    missile->unk_0114 = source->unk_0114;
+    missile->m_missileIndex = source->m_missileIndex;
+    missile->m_missileCount = source->m_missileCount;
     missile->m_motionScriptFunction = source->m_motionScriptFunction;
     missile->m_initialDistance = source->m_initialDistance;
     missile->m_random[0] = source->m_random[0];
@@ -1302,7 +1302,7 @@ void CMissile::HitTargetAreaEffect(const SpellRec* spell, const SpellVisualRec* 
                 data.m_transportGUID = transport;
                 data.m_position = &position;
                 data.m_someGUID = this->m_casterGuid;
-                data.unk_0018 = 0;
+                data.m_playAnim = 0;
                 player->PlaySpellVisualKit(data);
             }
         }
@@ -1325,7 +1325,7 @@ void CMissile::HitTargetAreaEffect(const SpellRec* spell, const SpellVisualRec* 
         if (hitResultCount) {
             uint32_t result = this->m_targetHitResults.m_data[i];
 
-            if (result && !(this->m_flags & 0x100) && !this->unk_0110) {
+            if (result && !(this->m_flags & 0x100) && !this->m_missileIndex) {
                 if (spell && !(spell->m_attributes & 0x100)) {
                     unit->AddWorldText(this->m_casterGuid, result, spell, 0);
                     CGGameUI::ShowSpellMissFeedback(unit->m_obj->m_guid, result);
@@ -1862,7 +1862,7 @@ void CMissile::MissedTarget(CGUnit_C* target, const C3Vector* direction) {
         if (!(this->m_flags & 0x100)) {
             SpellRec spell;
 
-            if (g_spellDB.GetRecord(this->m_spellID, &spell) && !(spell.m_attributes & 0x100) && !this->unk_0110) {
+            if (g_spellDB.GetRecord(this->m_spellID, &spell) && !(spell.m_attributes & 0x100) && !this->m_missileIndex) {
                 target->AddWorldText(this->m_casterGuid, this->GetHitResult(), &spell, 0);
                 CGGameUI::ShowSpellMissFeedback(target->m_obj->m_guid, this->GetHitResult());
                 UnitCombatLogSpellMissed(this->m_casterGuid, target->m_obj->m_guid, this->m_spellID, this->GetHitResult(), 0, 0, 0);
@@ -2125,7 +2125,7 @@ void CMissile::FireMissiles(const C3Vector* position) {
         if (kit) {
             CGUnit_C* unit = target;
 
-            if (unit || (this->m_casterGuid && !this->unk_0110 && (unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__))))) {
+            if (unit || (this->m_casterGuid && !this->m_missileIndex && (unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__))))) {
                 this->m_targetingEffectTime = OsGetAsyncTimeMs();
 
                 if (!target) {
@@ -2136,13 +2136,13 @@ void CMissile::FireMissiles(const C3Vector* position) {
                     data.m_position = &targetPos;
                     data.m_transportGUID = transport;
                     data.m_someGUID = this->m_casterGuid;
-                    data.unk_0018 = 0;
-                    data.unk_0030 = this->m_targetingEffectTime;
+                    data.m_playAnim = 0;
+                    data.m_effectFadeTime = this->m_targetingEffectTime;
                     unit->PlaySpellVisualKit(data);
                 } else {
                     PlaySpellVisuaKitData data(&spell, kit, 2);
                     data.m_someGUID = this->m_casterGuid;
-                    data.unk_0030 = this->m_targetingEffectTime;
+                    data.m_effectFadeTime = this->m_targetingEffectTime;
                     unit->PlaySpellVisualKit(data);
                 }
 

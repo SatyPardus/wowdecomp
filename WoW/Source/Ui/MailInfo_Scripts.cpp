@@ -761,7 +761,7 @@ static int32_t Script_GetLatestThreeSenders(lua_State* L) {
     for (uint32_t i = 0; i < 3; i++) {
         MailSenderInfo& sender = s_recentSenders[i];
 
-        if ((sender.m_guid || sender.m_entry) && sender.unk_0014 <= 0.0f) {
+        if ((sender.m_guid || sender.m_entry) && sender.m_timeLeft <= 0.0f) {
             lua_pushstring(L, GetSenderName(sender.m_entry, sender.m_messageType, sender.m_guid, sender.m_stationery));
             count++;
         }

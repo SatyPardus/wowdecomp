@@ -16,8 +16,8 @@ void __fastcall PassFogSeed::DeviceRestoredCallback() {
 
 // INLINED
 PassFogSeed::PassFogSeed(FFX::Tex** inputs, uint32_t count, FFX::Tex* output, EGxBlend blend, bool unk) : FFX::Pass(inputs, count, output, blend, unk) {
-    this->unk_0030 = 0;
-    this->unk_0034 = 0;
+    this->m_row = 0;
+    this->m_color = 0;
     s_deviceRestored = 1;
     g_theGxDevicePtr->AddDeviceRestoredCallback(PassFogSeed::DeviceRestoredCallback);
 }
@@ -56,7 +56,7 @@ void PassFogSeed::Execute() {
     float invWidth = 1.0f / input->m_texSize.x;
     float right = (input->m_size.x + 0.5f) * invWidth;
     float invHeight = 1.0f / input->m_texSize.y;
-    float row = ((input->m_size.y + 0.5f) * invHeight - 0.5f * invHeight) / input->m_size.y * this->unk_0030 + 0.5f * invHeight;
+    float row = ((input->m_size.y + 0.5f) * invHeight - 0.5f * invHeight) / input->m_size.y * this->m_row + 0.5f * invHeight;
     float left = 0.5f * invWidth;
     vertices[3] = left;
     vertices[4] = row;
@@ -67,7 +67,7 @@ void PassFogSeed::Execute() {
     vertices[18] = right;
     vertices[19] = row;
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 
     FFX::SetupGx(this->m_output);
 
@@ -79,7 +79,7 @@ void PassFogSeed::Execute() {
     GxPrimVertexPtr(buf, GxVBF_PT);
     g_theGxDevicePtr->PrimVertexMask(0x41);
     FFX::SetupIB();
-    GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(this->unk_0034));
+    GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(this->m_color));
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
 
     for (int32_t state = GxRs_Texture1; state <= GxRs_Texture15; state++) {
@@ -106,7 +106,7 @@ void PassFogSeed::Execute() {
     vertices[10] = 0.0f;
     vertices[11] = 0.0f;
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 
     GxPrimVertexPtr(buf, GxVBF_P);
     g_theGxDevicePtr->PrimVertexMask(0x1);
@@ -115,9 +115,9 @@ void PassFogSeed::Execute() {
     g_theGxDevicePtr->Draw(&FFX::s_quadBatch, 1);
     FFX::SetupReset();
 
-    if (this->unk_0030 < static_cast<uint32_t>(this->m_inputs[0]->m_texSize.y)) {
-        this->unk_0030++;
+    if (this->m_row < static_cast<uint32_t>(this->m_inputs[0]->m_texSize.y)) {
+        this->m_row++;
     } else {
-        this->unk_0030 = 0;
+        this->m_row = 0;
     }
 }

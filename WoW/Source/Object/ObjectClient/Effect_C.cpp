@@ -282,25 +282,25 @@ CEffect::CEffect() {
     this->m_lightning[9] = nullptr;
     this->m_lightning[10] = nullptr;
     this->m_lightning[11] = nullptr;
-    this->unk_0080 = 0;
-    this->unk_0084 = 0;
+    this->unused_0080 = 0;
+    this->unused_0084 = 0;
     this->m_facing = 0.0f;
-    this->unk_008C = -1;
+    this->m_lightningAttachment = -1;
     this->m_mountTransition = nullptr;
     this->m_pendingCacheId = 0;
     this->m_displayId = 0;
     this->m_itemSlot = 12;
-    this->unk_00A0 = 0;
+    this->m_fadeTime = 0;
     this->m_transportGuid = WOWGUID();
-    this->unk_00C8 = 0;
+    this->m_startTime = 0;
     this->m_expireTime = 0;
     this->unk_00D0 = 0;
     this->m_attachToModel = 0;
     this->m_attachToMount = 0;
-    this->unk_00DC = 0;
-    this->unk_00E0 = 0.0f;
-    this->unk_00E4 = 0.0f;
-    this->unk_00E8 = 0.0f;
+    this->unused_00DC = 0;
+    this->unused_00E0 = 0.0f;
+    this->unused_00E4 = 0.0f;
+    this->m_alpha = 0.0f;
     this->m_mapEntity = nullptr;
     this->m_refCount = 1;
     this->m_lightningRefCount = 0;
@@ -340,8 +340,8 @@ void CEffect::InitFromUnit(C3Vector position, uint32_t time, int32_t spellId, co
     this->m_transportGuid = transport;
     this->m_kitRec = kit;
     this->m_spellId = spellId;
-    this->unk_00C8 = time;
-    this->unk_00A0 = a9;
+    this->m_startTime = time;
+    this->m_fadeTime = a9;
     this->m_facing = unit->GetSmoothFacing();
     this->m_attachRec = attach;
     this->m_model = World::s_m2Scene->CreateModel(this->m_effectNameRec->m_fileName, 0);
@@ -429,7 +429,7 @@ void CEffect::AddEffect(int32_t attachType, int32_t spellId, const SpellVisualKi
     this->m_sourceGuid = *target;
     this->m_targetGuid = *source;
     this->m_kitRec = kit;
-    this->unk_00A0 = a10;
+    this->m_fadeTime = a10;
     this->m_attachRec = attach;
     this->m_spellId = spellId;
     this->m_effectNameRec = effectName;
@@ -478,17 +478,17 @@ void __stdcall CEffect::DestroyMatchingEffects(CGObject_C* object, const SpellVi
 
 // VERIFY: 25c89a39 manual
 // OFFSET: 0x006F7E40
-void CEffect::AddSoundEffect(int32_t soundId, int32_t a2, int32_t spellId, const C3Vector* position, CGObject_C* object, uint32_t a6) {
+void CEffect::AddSoundEffect(int32_t soundId, int32_t expireTime, int32_t spellId, const C3Vector* position, CGObject_C* object, uint32_t fadeTime) {
     if (!object) {
         return;
     }
 
     this->LinkTo(&object->m_effectList);
     this->m_refCount++;
-    this->m_expireTime = a2;
+    this->m_expireTime = expireTime;
     this->m_spellId = spellId;
     this->m_sourceGuid = object->m_obj->m_guid;
-    this->unk_00A0 = a6;
+    this->m_fadeTime = fadeTime;
 
     const C3Vector* soundPosition = position;
 
@@ -525,7 +525,7 @@ void CEffect::AddSoundEffect(int32_t soundId, int32_t a2, int32_t spellId, const
 
 // VERIFY: 561572d5 manual
 // OFFSET: 0x006F7FD0
-void CEffect::AddAnimKitEffect(int32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags, uint32_t a5) {
+void CEffect::AddAnimKitEffect(int32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags, uint32_t fadeTime) {
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
@@ -538,7 +538,7 @@ void CEffect::AddAnimKitEffect(int32_t spellId, const SpellVisualKitRec* kit, co
     this->m_sourceGuid = *guid;
     this->m_flags |= flags | 0x800;
     this->m_kitRec = kit;
-    this->unk_00A0 = a5;
+    this->m_fadeTime = fadeTime;
 }
 
 // STATIC: 0x00A32AF4
@@ -839,7 +839,7 @@ void CEffect::CleanUpStaticLists() {
     while (effect) {
         CEffect* next = effect->m_next;
 
-        if (!effect->unk_00C8 || static_cast<int32_t>(now - effect->unk_00C8) > 0) {
+        if (!effect->m_startTime || static_cast<int32_t>(now - effect->m_startTime) > 0) {
             effect->EffectUpdate();
         }
 
@@ -954,7 +954,7 @@ float __stdcall CEffect::ComputeModelScaleFromTarget(CGObject_C* object) {
 
 // VERIFY: cd786896 auto
 // OFFSET: 0x006F8040
-void CEffect::AddLightning(int32_t a2, uint32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags) {
+void CEffect::AddLightning(int32_t expireTime, uint32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags) {
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
@@ -964,7 +964,7 @@ void CEffect::AddLightning(int32_t a2, uint32_t spellId, const SpellVisualKitRec
     this->LinkTo(&unit->m_effectList);
     this->m_refCount++;
     this->m_kitRec = kit;
-    this->m_expireTime = a2;
+    this->m_expireTime = expireTime;
     this->m_spellId = spellId;
     this->m_sourceGuid = *guid;
     this->m_flags = flags;
@@ -1269,7 +1269,7 @@ void CEffect::EffectUpdate() {
 // VERIFY: eb25cf59 manual
 // OFFSET: 0x006F8970
 void CEffect::UpdateWorldObject(float elapsed, uint32_t flags) {
-    if ((!this->unk_00C8 || static_cast<int32_t>(FrameTime::s_curTimeMs - this->unk_00C8) > 0) && this->m_model) {
+    if ((!this->m_startTime || static_cast<int32_t>(FrameTime::s_curTimeMs - this->m_startTime) > 0) && this->m_model) {
         this->m_model->SetAnimating(1);
 
         if (!(this->m_flags & 0x100) && this->m_model->IsLoaded(0, 0)) {
@@ -1289,7 +1289,7 @@ void CEffect::UpdateWorldObject(float elapsed, uint32_t flags) {
                 model->m_fFlags = (model->m_fFlags & ~0x10000u) | (visible << 16);
             }
 
-            this->unk_00C8 = 0;
+            this->m_startTime = 0;
         }
     }
 
@@ -1329,7 +1329,7 @@ void CEffect::PostInitialize() {
         light.z = 1.0f;
         world = this->m_model->m_worldTransform;
         CMap::ObjectUpdate(this->m_mapEntity, world, box, sphere, light, false, 0xFFFFFFFF);
-        int32_t animating = !this->unk_00C8 || static_cast<int32_t>(FrameTime::s_curTimeMs - this->unk_00C8) > 0;
+        int32_t animating = !this->m_startTime || static_cast<int32_t>(FrameTime::s_curTimeMs - this->m_startTime) > 0;
         this->m_model->SetAnimating(animating);
         CM2Model* model = this->m_model;
         CM2Model* parent = model->m_attachParent;
@@ -1463,7 +1463,7 @@ void CEffect::InitAtPosition(int32_t spellId, const SpellVisualKitRec* kit, cons
     this->m_kitRec = kit;
     this->m_effectNameRec = effectName;
     this->m_flags = flags | 0x2;
-    this->unk_00A0 = a8;
+    this->m_fadeTime = a8;
     this->m_model = World::s_m2Scene->CreateModel(effectName->m_fileName, 0);
 
     if (this->m_model) {
@@ -1482,7 +1482,7 @@ void CEffect::InitAtPosition(int32_t spellId, const SpellVisualKitRec* kit, cons
 
 // VERIFY: a5956734 auto
 // OFFSET: 0x006F80B0
-void CEffect::CreateProceduralEffectImpl(int32_t a2, float param, uint32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags) {
+void CEffect::CreateProceduralEffectImpl(int32_t expireTime, float param, uint32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags) {
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
@@ -1537,7 +1537,7 @@ void CEffect::CreateProceduralEffectImpl(int32_t a2, float param, uint32_t spell
     }
 
     this->m_kitRec = kit;
-    this->m_expireTime = a2;
+    this->m_expireTime = expireTime;
     this->m_spellId = spellId;
     this->m_sourceGuid = *guid;
     this->m_flags |= flags | 0x4;
@@ -1615,14 +1615,14 @@ int32_t CEffect::LoadMountTransitionModel() {
 
 // VERIFY: b4754e47 auto
 // OFFSET: 0x006F8650
-void CEffect::InitProceduralEffect(int32_t a2, int32_t param, uint32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags) {
+void CEffect::InitProceduralEffect(int32_t expireTime, int32_t param, uint32_t spellId, const SpellVisualKitRec* kit, const WOWGUID* guid, uint32_t flags) {
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return;
     }
 
-    this->m_expireTime = a2;
+    this->m_expireTime = expireTime;
     this->m_spellId = spellId;
     this->m_kitRec = kit;
     this->m_sourceGuid = *guid;

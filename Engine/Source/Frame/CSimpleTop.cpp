@@ -1041,7 +1041,7 @@ void CSimpleTop::UnregisterForEvent(CSimpleFrame* frame, CSimpleEventType event,
                 this->m_mouseFocus = nullptr;
                 this->m_checkFocus = 1;
 
-                if (frame->unk_00AC != 3) {
+                if (frame->m_lifecycleState != 3) {
                     frame->OnLayerCursorExit(0, 1);
                 }
             }
@@ -1138,7 +1138,7 @@ CSimpleTop::CSimpleTop() {
     this->m_focusChangedCallback = nullptr;
     this->m_keyDownCallback = nullptr;
     this->m_allowProtectedActions = 1;
-    this->unk_1250 = 0;
+    this->unused_1250 = 0;
     this->m_actionBlockedCallback = nullptr;
 
     CSimpleTop::s_instance = this;

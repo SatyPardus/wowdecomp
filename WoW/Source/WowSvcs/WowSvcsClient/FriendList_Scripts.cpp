@@ -443,7 +443,7 @@ static int32_t Script_SortWho(lua_State* L) {
     }
 
     if (i < 7) {
-        int32_t reverse = FriendList::s_whoSort[i].unk_0004;
+        int32_t reverse = FriendList::s_whoSort[i].m_reverse;
 
         if (!i) {
             reverse = !reverse;
@@ -454,7 +454,7 @@ static int32_t Script_SortWho(lua_State* L) {
         }
 
         FriendList::s_whoSort[0].m_field = field;
-        FriendList::s_whoSort[0].unk_0004 = reverse;
+        FriendList::s_whoSort[0].m_reverse = reverse;
     }
 
     qsort(FriendList::s_whoResults, FriendList::s_numWhoResults, sizeof(WhoResult), CompareWhoResults);

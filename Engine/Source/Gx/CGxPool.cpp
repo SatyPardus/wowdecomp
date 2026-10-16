@@ -2,7 +2,7 @@
 #include "Engine/Source/Gx/CGxPool.h"
 
 // INLINED
-CGxPool::CGxPool(EGxPoolTarget target, EGxPoolUsage usage, int32_t size, EGxPoolHintBits hint, const char* name) : m_target(target), m_usage(usage), m_size(size), m_apiSpecific(nullptr), unk_001C(0), m_hint(hint), m_name(name) {
+CGxPool::CGxPool(EGxPoolTarget target, EGxPoolUsage usage, int32_t size, EGxPoolHintBits hint, const char* name) : m_target(target), m_usage(usage), m_size(size), m_apiSpecific(nullptr), m_offset(0), m_hint(hint), m_name(name) {
 }
 
 // VERIFY: 434bd8af manual
@@ -14,7 +14,7 @@ CGxPool::~CGxPool() {
 // OFFSET: 0x00688230
 void CGxPool::Invalidate() {
     for (CGxBuf* buf = this->m_bufList.Head(); buf; buf = this->m_bufList.Next(buf)) {
-        buf->unk_001C = 0;
+        buf->m_hasData = 0;
     }
 }
 
@@ -22,10 +22,10 @@ void CGxPool::Invalidate() {
 // OFFSET: 0x00688260
 void CGxPool::Discard() {
     for (CGxBuf* buf = this->m_bufList.Head(); buf; buf = this->m_bufList.Next(buf)) {
-        buf->unk_001C = 0;
+        buf->m_hasData = 0;
     }
 
-    this->unk_001C = 0;
+    this->m_offset = 0;
 }
 
 // VERIFY: 56739d8d auto

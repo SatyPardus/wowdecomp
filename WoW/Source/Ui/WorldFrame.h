@@ -30,39 +30,39 @@ namespace FFX {
 
 class CGWorldFrameUnkObjSomeElement {
     public:
-    /* 0000 */ uint32_t unk_0000;
-    /* 0004 */ uint32_t unk_0004;
-    /* 0008 */ uint32_t unk_0008;
-    /* 000C */ uint32_t unk_000C;
-    /* 0010 */ uint32_t unk_0010;
-    /* 0014 */ float unk_0014;
-    /* 0018 */ float unk_0018;
-    /* 001C */ float unk_001C;
-    /* 0020 */ float unk_0020;
-    /* 0024 */ float unk_0024;
-    /* 0028 */ float unk_0028;
-    /* 002C */ float unk_002C;
-    /* 0030 */ float unk_0030;
-    /* 0034 */ float unk_0034;
-    /* 0038 */ float unk_0038;
-    /* 003C */ uint32_t unk_003C;
-    /* 0040 */ uint32_t unk_0040;
-    /* 0044 */ uint32_t unk_0044;
-    /* 0048 */ uint32_t unk_0048;
-    /* 004C */ uint32_t unk_004C;
-    /* 0050 */ uint32_t unk_0050;
-    /* 0054 */ uint32_t unk_0054;
-    /* 0058 */ uint32_t unk_0058;
-    /* 005C */ uint32_t unk_005C;
-    /* 0060 */ uint32_t unk_0060;
-    /* 0064 */ uint32_t unk_0064;
-    /* 0068 */ uint32_t unk_0068;
+    /* 0000 */ uint32_t unused_0000;
+    /* 0004 */ uint32_t unused_0004;
+    /* 0008 */ uint32_t unused_0008;
+    /* 000C */ uint32_t unused_000C;
+    /* 0010 */ uint32_t unused_0010;
+    /* 0014 */ float unused_0014;
+    /* 0018 */ float unused_0018;
+    /* 001C */ float unused_001C;
+    /* 0020 */ float unused_0020;
+    /* 0024 */ float unused_0024;
+    /* 0028 */ float unused_0028;
+    /* 002C */ float unused_002C;
+    /* 0030 */ float unused_0030;
+    /* 0034 */ float unused_0034;
+    /* 0038 */ float unused_0038;
+    /* 003C */ uint32_t unused_003C;
+    /* 0040 */ uint32_t unused_0040;
+    /* 0044 */ uint32_t unused_0044;
+    /* 0048 */ uint32_t unused_0048;
+    /* 004C */ uint32_t unused_004C;
+    /* 0050 */ uint32_t unused_0050;
+    /* 0054 */ uint32_t unused_0054;
+    /* 0058 */ uint32_t unused_0058;
+    /* 005C */ uint32_t unused_005C;
+    /* 0060 */ uint32_t unused_0060;
+    /* 0064 */ uint32_t unused_0064;
+    /* 0068 */ uint32_t unused_0068;
 };
 
 class CGWorldFrameUnkObj {
     public:
     /* 0000 */ CGWorldFrameUnkObjSomeElement m_elements [16];
-    /* 06C0 */ uint8_t unk_06C0 [140];
+    /* 06C0 */ uint8_t unused_06C0 [140];
     /* 074C */ float m_tail [13];
 
     CGWorldFrameUnkObj();
@@ -74,7 +74,7 @@ class CModelRecord : public TSLinkedNode<CModelRecord> {
     /* 000C */ float m_distance;
     /* 0010 */ WOWGUID m_guid;
     /* 0018 */ CGObject_C* m_object;
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t unused_001C;
 
     CModelRecord() {
         this->m_model = nullptr;
@@ -123,35 +123,35 @@ class CGWorldFrame : public CSimpleFrame {
     static void UpdateScreenEffectParams();
     static int32_t Update(const void* data, void* param);
     static void RenderWorld(void* param);
-    static int32_t ObjectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t a4);
-    static int32_t MissileEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t a4);
-    static int32_t SpellEffectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t a4);
+    static int32_t ObjectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t param32);
+    static int32_t MissileEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t param32);
+    static int32_t SpellEffectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t param32);
 
     /* 029C */ TSList<CModelRecord, TSGetLink<CModelRecord> > m_modelList;
     /* 02A8 */ TSList<CModelRecord, TSGetLink<CModelRecord> > m_hitModelList;
     /* 02B4 */ TSList<CModelRecord, TSGetLink<CModelRecord> > m_freeModelList;
-    /* 02C0 */ uint32_t unk_02C0;
-    /* 02C4 */ uint32_t unk_02C4;
+    /* 02C0 */ uint32_t unused_02C0;
+    /* 02C4 */ uint32_t unused_02C4;
     /* 02C8 */ WOWGUID m_trackedGuid;
     /* 02D0 */ WOWGUID m_hitGuid;
     /* 02D8 */ uint32_t m_defaultActionHitKind;
-    /* 02DC */ uint32_t unk_02DC;
+    /* 02DC */ uint32_t unused_02DC;
     /* 02E0 */ HITTESTRESULT m_defaultActionHit;
     /* 0310 */ C2Vector m_defaultActionPointDDC;
-    /* 0318 */ uint32_t unk_0318;
+    /* 0318 */ uint32_t unused_0318;
     /* 031C */ uint32_t m_worldFlags;
     /* 0320 */ CRect m_viewportDDC;
     /* 0330 */ CRect m_viewportNDC;
     /* 0340 */ C44Matrix m_viewProjection;
     /* 0380 */ WOWGUID m_trackedEffectGuidA;
     /* 0388 */ WOWGUID m_trackedEffectGuidB;
-    /* 0390 */ CGWorldFrameUnkObj unk_0390;
+    /* 0390 */ CGWorldFrameUnkObj unused_0390;
     /* 0B10 */ uint32_t m_namePlateFlags;
     /* 0B14 */ float m_elapsedSec;
     /* 0B18 */ KEYDOWNSTATE m_keyDown [787];
     /* 79C4 */ KEYDOWNSTATE m_mouseDown [31];
     /* 7E20 */ CGCamera* m_camera;
-    /* 7E24 */ uint32_t unk_7E24;
+    /* 7E24 */ uint32_t unused_7E24;
 
     CGWorldFrame(CSimpleFrame* parent);
     ~CGWorldFrame() override;
@@ -159,7 +159,7 @@ class CGWorldFrame : public CSimpleFrame {
     int32_t OnLayerTrackUpdate(const CMouseEvent& evt) override;
     void OnFrameRender(CRenderBatch* batch, uint32_t layer) override;
     void OnFrameSizeChanged(const CRect& rect) override;
-    void OnLayerCursorExit(int32_t a2, int32_t a3) override;
+    void OnLayerCursorExit(int32_t motion, int32_t a3) override;
     int32_t OnLayerKeyDown(const CKeyEvent& evt) override;
     int32_t OnLayerKeyUp(const CKeyEvent& evt) override;
     int32_t OnLayerMouseDown(const CMouseEvent& evt, const char* btn) override;

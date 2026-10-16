@@ -19,12 +19,12 @@ struct CombatLogEntry : public TSLinkedNode<CombatLogEntry> {
     /* 0008 */ uint32_t m_timestamp;
     /* 000C */ int32_t m_event;
     /* 0010 */ uint32_t m_pendingMask;
-    /* 0014 */ uint32_t unk_0014;
+    /* 0014 */ uint32_t unused_0014;
     /* 0018 */ WOWGUID m_sourceGuid;
     /* 0020 */ const char* m_sourceName;
     /* 0024 */ const char* m_sourceRealm;
     /* 0028 */ uint32_t m_sourceFlags;
-    /* 002C */ uint32_t unk_002C;
+    /* 002C */ uint32_t unused_002C;
     /* 0030 */ WOWGUID m_destGuid;
     /* 0038 */ const char* m_destName;
     /* 003C */ const char* m_destRealm;
@@ -64,12 +64,12 @@ struct InvalidatedName : public TSLinkedNode<InvalidatedName> {
 
 struct PendingCombatLogData : public TSLinkedNode<PendingCombatLogData> {
     /* 0008 */ CombatLogEntry* m_entry;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ WOWGUID m_guid;
     /* 0018 */ int32_t m_id;
     /* 001C */ int32_t m_type;
     /* 0020 */ uint32_t m_mask;
-    /* 0024 */ uint32_t unk_0024;
+    /* 0024 */ uint32_t unused_0024;
 };
 
 struct CombatLogFilter : public TSLinkedNode<CombatLogFilter> {

@@ -32,7 +32,7 @@ int32_t CharacterSelectionDisplay::SetSelectedCharacterInfo(CHARACTER_INFO* info
         return 0;
     }
 
-    CGlueMgr::s_unk_AC4370 = CCharacterSelection::s_selectionIndex;
+    CGlueMgr::s_displayedCharacterIndex = CCharacterSelection::s_selectionIndex;
     return 1;
 }
 

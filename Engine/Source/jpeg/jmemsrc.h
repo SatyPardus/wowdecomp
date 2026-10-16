@@ -20,7 +20,7 @@ struct mem_source_struct {
   /* 0028 */ JDIMENSION height;
   /* 002C */ int bytes_per_pixel;
   /* 0030 */ j_compress_ptr cinfo;
-  /* 0034 */ int unk_0034;
+  /* 0034 */ int unused_0034;
   /* 0038 */ void (*read_pixel) (mem_source_ptr sinfo);
   /* 003C */ JOCTET pixel[4];
   /* 0040 */ JDIMENSION (*get_rows) (j_compress_ptr cinfo, mem_source_ptr sinfo);

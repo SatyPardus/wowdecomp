@@ -21,7 +21,7 @@ struct SimpleScriptIO;
 struct MissileCollisionData {
     /* 0000 */ WOWGUID m_casterGuid;
     /* 0008 */ uint8_t m_castID;
-    /* 0009 */ uint8_t unk_0009[3];
+    /* 0009 */ uint8_t unused_0009[3];
     /* 000C */ C3Vector m_position;
 };
 
@@ -59,7 +59,7 @@ class CMissile {
     /* 0018 */ CM2Model* m_model;
     /* 001C */ uint32_t m_spellID;
     /* 0020 */ uint8_t m_castID;
-    /* 0021 */ uint8_t unk_0021[3];
+    /* 0021 */ uint8_t unused_0021[3];
     /* 0024 */ float m_speed;
     /* 0028 */ float m_baseSpeed;
     /* 002C */ C3Vector m_position;
@@ -91,8 +91,8 @@ class CMissile {
     /* 0104 */ float m_followGroundRate;
     /* 0108 */ float m_followGroundStart;
     /* 010C */ uint32_t m_motionFlags;
-    /* 0110 */ int32_t unk_0110;
-    /* 0114 */ int32_t unk_0114;
+    /* 0110 */ int32_t m_missileIndex;
+    /* 0114 */ int32_t m_missileCount;
     /* 0118 */ float m_pitch;
     /* 011C */ float m_trajectorySpeed;
     /* 0120 */ C3Vector m_velocity;
@@ -110,7 +110,7 @@ class CMissile {
     /* 0160 */ CMissile** m_prevLink;
     /* 0164 */ CMissile* m_next;
     /* 0168 */ uint32_t m_memHandle;
-    /* 016C */ uint32_t unk_016C;
+    /* 016C */ uint32_t unused_016C;
     /* 0170 */ WOWGUID m_targetingUnit;
     /* 0178 */ uint32_t m_targetingEffectTime;
     /* 017C */ int32_t m_motionScriptFunction;
@@ -120,7 +120,7 @@ class CMissile {
     /* 0194 */ C3Vector m_smoothDirection;
     /* 01A0 */ C3Vector m_lastTransportPos;
     /* 01AC */ ChaserState m_transportOffset;
-    /* 01C4 */ uint32_t unk_01C4;
+    /* 01C4 */ uint32_t unused_01C4;
 
     void AdjustTrajectoryDuration(uint32_t duration);
     void ApplyMotionScriptFunctionRotationAndScale(const SimpleScriptIO& io, C44Matrix& matrix);

@@ -29,7 +29,7 @@ struct GuildMemberInfo {
     /* 0051 */ uint8_t unk_0051;
     /* 0052 */ char m_note[128];
     /* 00D2 */ char m_officerNote[128];
-    /* 0152 */ uint8_t unk_0152[2];
+    /* 0152 */ uint8_t unused_0152[2];
     /* 0154 */ float m_lastOnline;
 };
 
@@ -40,7 +40,7 @@ struct GuildRosterSortCriteria {
 
 struct GuildEventLogEntry {
     /* 0000 */ uint32_t m_type;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ WOWGUID m_player1;
     /* 0010 */ WOWGUID m_player2;
     /* 0018 */ uint32_t m_rank;

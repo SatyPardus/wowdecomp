@@ -19,7 +19,7 @@ namespace Grunt {
 struct CdKey {
     struct Info {
         /* 0000 */ uint16_t m_keyLength;
-        /* 0002 */ uint8_t unk_0002[2];
+        /* 0002 */ uint8_t unused_0002[2];
         /* 0004 */ uint32_t m_productId;
         /* 0008 */ uint8_t m_publicValue [4];
         /* 000C */ uint8_t m_hash [20];
@@ -32,7 +32,7 @@ struct CdKey {
 template <class T>
 struct Command {
     /* 0000 */ uint8_t m_cmd;
-    /* 0001 */ uint8_t unk_0001[3];
+    /* 0001 */ uint8_t unused_0001[3];
     /* 0004 */ const char* m_name;
     /* 0008 */ int32_t (T::*m_handler)(CDataStore& msg);
 
@@ -68,13 +68,13 @@ class Pending {
     public:
     struct Data {
         /* 0000 */ TSLink<Grunt::Pending::Data> m_link;
-        /* 0008 */ uint32_t unk_0008;
+        /* 0008 */ uint32_t unused_0008;
         /* 000C */ uint32_t m_id;
         /* 0010 */ uint32_t m_time;
     };
 
     /* 0004 */ uint32_t m_timeout;
-    /* 0008 */ uint32_t unk_0008;
+    /* 0008 */ uint32_t unused_0008;
     /* 000C */ SCritSect m_lock;
     /* 0034 */ TSExplicitList<Grunt::Pending::Data, offsetof(Grunt::Pending::Data, m_link)> m_list;
 
@@ -122,9 +122,9 @@ class ClientLink : public WowConnectionResponse, public Grunt::Pending, public G
         /* 0014 */ uint8_t m_versionMajor;
         /* 0015 */ uint8_t m_versionMinor;
         /* 0016 */ uint8_t m_versionPatch;
-        /* 0017 */ uint8_t unk_0017[1];
+        /* 0017 */ uint8_t unused_0017[1];
         /* 0018 */ uint16_t m_build;
-        /* 001A */ uint8_t unk_001A[2];
+        /* 001A */ uint8_t unused_001A[2];
         /* 001C */ uint32_t m_locale;
         /* 0020 */ int32_t m_timeZone;
     };
@@ -180,13 +180,13 @@ class ClientLink : public WowConnectionResponse, public Grunt::Pending, public G
 struct ServerHelloInfo {
     /* 0000 */ uint32_t m_realmType;
     /* 0004 */ uint32_t unk_0004;
-    /* 0008 */ uint32_t unk_0008;
+    /* 0008 */ uint32_t unused_0008;
     /* 000C */ uint32_t m_address;
     /* 0010 */ uint16_t m_port;
     /* 0012 */ uint8_t m_versionMajor;
     /* 0013 */ uint8_t m_versionMinor;
     /* 0014 */ uint8_t m_versionPatch;
-    /* 0015 */ uint8_t unk_0015;
+    /* 0015 */ uint8_t unused_0015;
     /* 0016 */ uint16_t m_build;
     /* 0018 */ uint32_t unk_0018;
     /* 001C */ uint32_t unk_001C;
@@ -195,14 +195,14 @@ struct ServerHelloInfo {
     /* 0028 */ uint32_t unk_0028;
     /* 002C */ char m_realmName [32];
     /* 004C */ uint8_t unk_004C;
-    /* 004D */ uint8_t unk_004D[3];
+    /* 004D */ uint8_t unused_004D[3];
     /* 0050 */ uint32_t m_linkType;
 };
 
 struct ServerLicense {
     /* 0000 */ uint32_t m_id;
     /* 0004 */ uint8_t m_hasExpiration;
-    /* 0005 */ uint8_t unk_0005[3];
+    /* 0005 */ uint8_t unused_0005[3];
     /* 0008 */ uint32_t m_expiration;
 };
 
@@ -210,13 +210,13 @@ struct ServerSessionInfo {
     /* 0000 */ uint32_t unk_0000;
     /* 0004 */ uint32_t m_accountId;
     /* 0008 */ uint32_t unk_0008;
-    /* 000C */ uint8_t unk_000C[4];
+    /* 000C */ uint8_t unused_000C[4];
     /* 0010 */ uint64_t unk_0010;
     /* 0018 */ uint16_t unk_0018;
-    /* 001A */ uint8_t unk_001A[2];
+    /* 001A */ uint8_t unused_001A[2];
     /* 001C */ uint32_t unk_001C;
     /* 0020 */ uint8_t m_timeOptions;
-    /* 0021 */ uint8_t unk_0021[3];
+    /* 0021 */ uint8_t unused_0021[3];
     /* 0024 */ uint32_t m_accountFlags;
     /* 0028 */ uint8_t unk_0028 [40];
     /* 0050 */ uint32_t unk_0050;
@@ -225,24 +225,24 @@ struct ServerSessionInfo {
     /* 005C */ uint8_t m_versionMajor;
     /* 005D */ uint8_t m_versionMinor;
     /* 005E */ uint8_t m_versionPatch;
-    /* 005F */ uint8_t unk_005F;
+    /* 005F */ uint8_t unused_005F;
     /* 0060 */ uint16_t m_build;
     /* 0062 */ uint16_t m_timePlayedMinutes;
     /* 0064 */ uint16_t unk_0064;
     /* 0066 */ uint8_t m_expansionLevel;
-    /* 0067 */ uint8_t unk_0067;
+    /* 0067 */ uint8_t unused_0067;
     /* 0068 */ int32_t unk_0068;
     /* 006C */ uint32_t unk_006C;
     /* 0070 */ uint32_t m_referrerAccountId;
     /* 0074 */ int32_t m_referralTime;
     /* 0078 */ uint16_t unk_0078;
-    /* 007A */ uint8_t unk_007A[2];
+    /* 007A */ uint8_t unused_007A[2];
     /* 007C */ uint32_t unk_007C;
     /* 0080 */ uint16_t m_bnetLicenseCount;
-    /* 0082 */ uint8_t unk_0082[2];
+    /* 0082 */ uint8_t unused_0082[2];
     /* 0084 */ Grunt::ServerLicense m_bnetLicenses [256];
     /* 0C84 */ uint16_t m_wowLicenseCount;
-    /* 0C86 */ uint8_t unk_0C86[2];
+    /* 0C86 */ uint8_t unused_0C86[2];
     /* 0C88 */ Grunt::ServerLicense m_wowLicenses [256];
 };
 
@@ -275,19 +275,19 @@ class ServerLink : public WowConnectionResponse, public Grunt::Pending, public G
     static void PutFeatures(CDataStore& msg);
 
     /* 0058 */ Grunt::Timer m_timer;
-    /* 0094 */ uint32_t unk_0094;
+    /* 0094 */ uint32_t unused_0094;
     /* 0098 */ uint32_t unk_0098;
     /* 009C */ uint32_t m_publicAddress;
     /* 00A0 */ uint32_t m_serverAddress;
-    /* 00A4 */ uint8_t unk_00A4[8];
+    /* 00A4 */ uint8_t unused_00A4[8];
     /* 00AC */ uint32_t m_lastPongTime;
     /* 00B0 */ int32_t m_state;
     /* 00B4 */ const char* m_serverName;
-    /* 00B8 */ uint8_t unk_00B8[8];
+    /* 00B8 */ uint8_t unused_00B8[8];
     /* 00C0 */ SCritSect m_lock;
-    /* 00E8 */ uint8_t unk_00E8[24];
+    /* 00E8 */ uint8_t unused_00E8[24];
     /* 0100 */ WowConnection* m_connection;
-    /* 0104 */ uint8_t unk_0104[96];
+    /* 0104 */ uint8_t unused_0104[96];
     /* 0164 */ uint32_t m_linkType;
     /* 0168 */ Grunt::ServerResponse* m_response;
 

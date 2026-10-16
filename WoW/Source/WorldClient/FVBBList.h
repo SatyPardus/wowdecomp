@@ -13,7 +13,7 @@ class FVBBList {
     public:
     struct Block {
         /* 0000 */ TSLink<Block> m_link;
-        /* 0008 */ uint32_t unk_0008;
+        /* 0008 */ uint32_t m_lastUsedFrame;
         /* 000C */ CGxBuf* m_buf;
         /* 0010 */ Block** m_owner;
     };

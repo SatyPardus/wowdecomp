@@ -23,7 +23,7 @@ struct ArenaTeamMember {
     /* 0058 */ uint32_t m_personalRating;
     /* 005C */ float m_matchmakerRatingBefore;
     /* 0060 */ float m_matchmakerRatingAfter;
-    /* 0064 */ uint32_t unk_0064;
+    /* 0064 */ uint32_t unused_0064;
 };
 
 struct ArenaTeam {

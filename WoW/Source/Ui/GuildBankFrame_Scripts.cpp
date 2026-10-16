@@ -211,7 +211,7 @@ static int32_t Script_GetGuildBankItemLink(lua_State* L) {
         return 0;
     }
 
-    lua_pushstring(L, CGTooltip::CreateItemLink(info->m_itemID, stats->m_quality, info->unk_0010, reinterpret_cast<const int32_t*>(info->m_enchants), info->m_randomPropertyID, info->m_suffixFactor));
+    lua_pushstring(L, CGTooltip::CreateItemLink(info->m_itemID, stats->m_quality, info->m_enchantId, reinterpret_cast<const int32_t*>(info->m_enchants), info->m_randomPropertyID, info->m_suffixFactor));
     return 1;
 }
 

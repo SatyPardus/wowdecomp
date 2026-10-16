@@ -22,7 +22,7 @@ struct LFGDungeonEntry : public TSLinkedNode<LFGDungeonEntry> {
     /* 0008 */ uint32_t m_slot;
     /* 000C */ uint8_t m_rewardDone;
     /* 000D */ uint8_t m_locked;
-    /* 000E */ uint8_t unk_000E[2];
+    /* 000E */ uint8_t unused_000E[2];
     /* 0010 */ int32_t m_lockReason;
     /* 0014 */ int32_t m_baseMoney;
     /* 0018 */ int32_t m_baseXP;
@@ -36,17 +36,17 @@ struct LFGDungeonEntry : public TSLinkedNode<LFGDungeonEntry> {
 
 struct LFGInfo {
     /* 0000 */ uint8_t m_joined;
-    /* 0001 */ uint8_t unk_0001;
+    /* 0001 */ uint8_t m_lfgJoined;
     /* 0002 */ uint8_t m_queued;
-    /* 0003 */ uint8_t unk_0003;
-    /* 0004 */ uint8_t unk_0004;
-    /* 0005 */ uint8_t unk_0005;
+    /* 0003 */ uint8_t m_dirty;
+    /* 0004 */ uint8_t m_noPartial;
+    /* 0005 */ uint8_t m_achievements;
     /* 0006 */ uint8_t m_roles[3];
-    /* 0009 */ uint8_t unk_0009[3];
+    /* 0009 */ uint8_t unused_0009[3];
     /* 000C */ TSList<LFGDungeonEntry, TSGetLink<LFGDungeonEntry>> m_dungeons;
     /* 0018 */ uint32_t m_numDungeons;
     /* 001C */ char m_comment[256];
-    /* 011C */ uint32_t unk_011C;
+    /* 011C */ uint32_t unused_011C;
 
     LFGInfo();
     ~LFGInfo();
@@ -59,8 +59,8 @@ struct LFGInfo {
 
 struct LFGLockInfo : public TSLinkedNode<LFGLockInfo> {
     /* 0008 */ uint8_t m_valid;
-    /* 0009 */ uint8_t unk_0009[3];
-    /* 000C */ uint32_t unk_000C;
+    /* 0009 */ uint8_t unused_0009[3];
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ WOWGUID m_guid;
     /* 0018 */ TSList<LFGDungeonEntry, TSGetLink<LFGDungeonEntry>> m_dungeons;
 
@@ -72,7 +72,7 @@ struct LFGLockInfo : public TSLinkedNode<LFGLockInfo> {
 
 struct LFGPartyLockInfo {
     /* 0000 */ uint8_t m_valid;
-    /* 0001 */ uint8_t unk_0001[3];
+    /* 0001 */ uint8_t unused_0001[3];
     /* 0004 */ TSList<LFGLockInfo, TSGetLink<LFGLockInfo>> m_members;
 
     void Clear();
@@ -97,19 +97,19 @@ struct LFGRewardInfo {
 struct LFGProposalMember {
     /* 0000 */ uint32_t m_roles;
     /* 0004 */ uint32_t m_isLocal;
-    /* 0008 */ uint32_t unk_0008;
-    /* 000C */ uint32_t unk_000C;
-    /* 0010 */ uint32_t m_accepted;
-    /* 0014 */ uint32_t unk_0014;
+    /* 0008 */ uint32_t m_inDungeon;
+    /* 000C */ uint32_t m_inSameGroup;
+    /* 0010 */ uint32_t m_answered;
+    /* 0014 */ uint32_t m_isAccepted;
 };
 
 struct LFGProposal {
-    /* 0000 */ uint32_t m_id;
+    /* 0000 */ uint32_t m_dungeonId;
     /* 0004 */ uint8_t m_state;
-    /* 0005 */ uint8_t unk_0005[3];
-    /* 0008 */ uint32_t unk_0008;
+    /* 0005 */ uint8_t unused_0005[3];
+    /* 0008 */ uint32_t m_proposalId;
     /* 000C */ uint32_t m_completedMask;
-    /* 0010 */ uint32_t unk_0010;
+    /* 0010 */ uint32_t m_silent;
     /* 0014 */ LFGProposalMember m_members[5];
 
     void Clear();
@@ -125,7 +125,7 @@ struct LFGQueueStatus {
     /* 0018 */ uint8_t m_tanksNeeded;
     /* 0019 */ uint8_t m_healersNeeded;
     /* 001A */ uint8_t m_damageNeeded;
-    /* 001B */ uint8_t unk_001B;
+    /* 001B */ uint8_t unused_001B;
     /* 001C */ uint32_t m_statusTime;
     /* 0020 */ int32_t m_queuedTime;
 
@@ -136,7 +136,7 @@ struct LFGBootProposal {
     /* 0000 */ uint32_t m_inProgress;
     /* 0004 */ uint32_t m_didVote;
     /* 0008 */ uint32_t m_myVote;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ WOWGUID m_target;
     /* 0018 */ uint32_t m_totalVotes;
     /* 001C */ uint32_t m_bootVotes;
@@ -150,8 +150,8 @@ struct LFGRoleCheckMember {
     /* 0008 */ int32_t m_confirmed;
     /* 000C */ uint32_t m_roles;
     /* 0010 */ uint8_t m_level;
-    /* 0011 */ uint8_t unk_0011[3];
-    /* 0014 */ uint32_t unk_0014;
+    /* 0011 */ uint8_t unused_0011[3];
+    /* 0014 */ uint32_t unused_0014;
 };
 
 class LfgDungeonsRec;

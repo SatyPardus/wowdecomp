@@ -48,7 +48,7 @@ class GruntFileDownload : public FileDownload {
     static void STORMAPI CalculateMD5(Storm::IOUnit* unit, uint64_t offset, uint64_t size, uint8_t* digest);
 
     /* 0120 */ Storm::IOUnit* m_unit;
-    /* 0124 */ uint32_t unk_0124;
+    /* 0124 */ uint32_t unused_0124;
     /* 0128 */ Header m_header;
 
     ~GruntFileDownload() override;

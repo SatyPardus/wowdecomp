@@ -228,7 +228,7 @@ int32_t Packet_SMSG_PLAY_DANCE(void* param, NETMESSAGE msgId, uint32_t time, CDa
     WOWGUID none = WOWGUID();
     DanceCache* record = g_danceCache.GetRecord(danceId, none, nullptr, nullptr, false);
 
-    if (record && record->unk_0098 == version) {
+    if (record && record->m_version == version) {
         DANCE_REQUEST request;
         request.m_danceId = danceId;
         InitializeRandomSeed(&request.m_seed, seed);

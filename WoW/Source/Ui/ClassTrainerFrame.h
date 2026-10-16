@@ -15,13 +15,13 @@ struct TrainerServiceInfo {
     /* 000C */ int32_t m_talentCost;
     /* 0010 */ int32_t m_professionCost;
     /* 0014 */ uint8_t m_levelReq;
-    /* 0015 */ uint8_t unk_0015[3];
+    /* 0015 */ uint8_t unused_0015[3];
     /* 0018 */ int32_t m_skillReq;
     /* 001C */ int32_t m_skillRankReq;
     /* 0020 */ int32_t m_stepSpellID;
     /* 0024 */ int32_t m_abilityReq[3];
     /* 0030 */ uint8_t m_state;
-    /* 0031 */ uint8_t unk_0031[3];
+    /* 0031 */ uint8_t unused_0031[3];
     /* 0034 */ int32_t m_visible;
 };
 

@@ -87,7 +87,7 @@ class UsingFile : public Blizzard::Using::Use {
 
 struct FileError {
     /* 0000 */ int32_t m_lastError;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ Blizzard::Debug::ErrorStackRecord* m_errorStack;
 
     FileError();

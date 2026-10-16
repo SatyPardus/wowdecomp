@@ -15,7 +15,7 @@ class CGUnit {
     static const uint32_t s_mirrorFieldIndices[123];
 
     static uint32_t MirrorIndexFromFieldIndex(uint32_t fieldIndex);
-    static uint32_t DescriptorToMirrorOffset(uint32_t offset, uint32_t a2, uint32_t a3, uint32_t base);
+    static uint32_t DescriptorToMirrorOffset(uint32_t offset, uint32_t unused_a2, uint32_t unused_a3, uint32_t base);
     static int32_t TotalFields();
     static float __stdcall GetPowerRegenBase(int32_t powerType, uint8_t inCombat);
 

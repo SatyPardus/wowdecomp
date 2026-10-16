@@ -26,7 +26,7 @@ class CGTabardModelFrame : public CGCharacterModelBase {
     static void RegisterScriptMethods(lua_State* L);
 
     /* 0380 */ int32_t m_variations [5];
-    /* 0394 */ uint32_t unk_0394;
+    /* 0394 */ uint32_t unused_0394;
 
     void Save();
     void ApplyGuildColorFromPlayer();

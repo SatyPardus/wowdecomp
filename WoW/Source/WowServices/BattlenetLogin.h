@@ -70,7 +70,7 @@ class BattlenetLogin : public Login {
     /* 1100 */ uint32_t m_realmCharacterCountCount;
     /* 1104 */ TSList<BattlenetLogin::BN_REALM> m_realms;
     /* 1110 */ bool m_realmListRequested;
-    /* 1111 */ uint8_t unk_1111[3];
+    /* 1111 */ uint8_t unused_1111[3];
     /* 1114 */ uint32_t m_joinRealmId;
     /* 1118 */ SCritSect m_realmLock;
     /* 1140 */ TSGrowableArray<BattlenetLogin::GameAccount> m_gameAccounts;
@@ -78,11 +78,11 @@ class BattlenetLogin : public Login {
     /* 1178 */ uint32_t m_gameAccountSelected;
     /* 117C */ TSGrowableArray<BattlenetLogin::PatchInstruction> m_patchInstructions;
     /* 118C */ SCritSect m_patchInstructionLock;
-    /* 11B4 */ uint32_t unk_11B4;
+    /* 11B4 */ uint32_t unused_11B4;
     /* 11B8 */ uint32_t m_accountFlags;
     /* 11BC */ uint32_t m_accountFlags2;
     /* 11C0 */ bool m_surveyPending;
-    /* 11C1 */ uint8_t unk_11C1[3];
+    /* 11C1 */ uint8_t unused_11C1[3];
     /* 11C4 */ uint32_t m_surveyTime;
     /* 11C8 */ TSList<BattlenetLogin::BN_EVENT> m_events [2];
     /* 11E0 */ SCritSect m_eventLock;

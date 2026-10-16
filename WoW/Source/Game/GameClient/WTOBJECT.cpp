@@ -155,7 +155,7 @@ bool SWING::BuildVertexBuffer(uint32_t time, const C3Vector& top, const C3Vector
         }
 
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
         GxPrimVertexPtr(buf, GxVBF_PC);
 
         CGxBatch batch;

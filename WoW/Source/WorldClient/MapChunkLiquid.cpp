@@ -66,7 +66,7 @@ void CChunkLiquid::GetAaBox(CAaBox& box) const {
 // VERIFY: ab9c5bab auto
 // OFFSET: 0x007CDF50
 bool CMapChunkLiquidBuf::Valid() const {
-    return this->m_vertexBuf && this->m_vertexBuf->unk_001C && this->m_vertexBuf->unk_001D && this->m_indexBuf && this->m_indexBuf->unk_001C && this->m_indexBuf->unk_001D;
+    return this->m_vertexBuf && this->m_vertexBuf->m_hasData && this->m_vertexBuf->m_valid && this->m_indexBuf && this->m_indexBuf->m_hasData && this->m_indexBuf->m_valid;
 }
 
 // VERIFY: 8f8e7321 manual
@@ -207,7 +207,7 @@ void CChunkLiquid::BuildIndices(uint16_t* indices, uint16_t baseVertex, CGxBatch
 // OFFSET: 0x007CE390
 void CChunkLiquid::BuildVertices(const C44Matrix* transform, uint32_t stride, C3Vector** position, C3Vector** normal, uint32_t** color, C2Vector** texCoord1, C2Vector** texCoord0) const {
     DepthCoordTable* depthCoords = CMap::GetDepthCoordTable(this->m_type);
-    bool customTexCoords = this->unk_0008 == 1;
+    bool customTexCoords = this->m_vertexFormat == 1;
     uint32_t index = 0;
     int32_t rows = this->m_tileEnd.x - this->m_tileBegin.x + 1;
     const C3Vector* vert = this->m_verts;
@@ -285,7 +285,7 @@ CAaSphere* CChunkLiquid::GetSphere() {
 
 // INLINED
 CMapChunkLiquidBuf::CMapChunkLiquidBuf() {
-    this->unk_0000 = 0;
+    this->m_flags = 0;
     this->m_flushTimer = 0.0f;
     this->m_vertexDataSize = 0;
     this->m_indexDataSize = 0;
@@ -364,7 +364,7 @@ CChunkLiquid::~CChunkLiquid() {
 
 // VERIFY: 86f2eb61 manual
 // OFFSET: 0x007CEFD0
-CMapChunkLiquidBuf* CMapChunkLiquidBuf::CreateBuf(uint32_t vertexCount, uint32_t indexCount, int32_t a3, uint32_t vertexSize) {
+CMapChunkLiquidBuf* CMapChunkLiquidBuf::CreateBuf(uint32_t vertexCount, uint32_t indexCount, int32_t flags, uint32_t vertexSize) {
     void* mem = SMemAlloc(sizeof(CMapChunkLiquidBuf), __FILE__, __LINE__, 0);
 
     if (!mem) {
@@ -380,7 +380,7 @@ CMapChunkLiquidBuf* CMapChunkLiquidBuf::CreateBuf(uint32_t vertexCount, uint32_t
 
     buf->m_flushTimer = 0.0f;
     buf->m_indexDataSize = 2 * indexCount;
-    buf->unk_0000 = a3;
+    buf->m_flags = flags;
     buf->m_vertexPool = vertexPool;
     buf->m_vertexDataSize = vertexSize * vertexCount;
     buf->m_indexBuf = indexBuf;
@@ -401,21 +401,21 @@ CMapChunkLiquid::~CMapChunkLiquid() {
 
 // VERIFY: ac9225a1 manual
 // OFFSET: 0x007CF140
-CMapChunkLiquidBuf* CMapChunkLiquidBuf::Alloc(uint32_t vertexCount, uint32_t indexCount, int32_t a3, EGxVertexBufferFormat format) {
+CMapChunkLiquidBuf* CMapChunkLiquidBuf::Alloc(uint32_t vertexCount, uint32_t indexCount, int32_t flags, EGxVertexBufferFormat format) {
     uint32_t vertexSize = GxVertexSize(format);
 
     for (CMapChunkLiquid* list = CMapChunkLiquidBuf::s_freeLists.Head(); list; list = CMapChunkLiquidBuf::s_freeLists.Next(list)) {
         if (list->m_vertexDataSize == vertexCount * vertexSize && list->m_indexDataSize == 2 * indexCount && list->m_liquids.Head()) {
             CMapChunkLiquidBuf* buf = list->m_liquids.Head();
             buf->m_link.Unlink();
-            buf->m_vertexBuf->unk_001C = 0;
-            buf->m_indexBuf->unk_001C = 0;
+            buf->m_vertexBuf->m_hasData = 0;
+            buf->m_indexBuf->m_hasData = 0;
 
             return buf;
         }
     }
 
-    return CMapChunkLiquidBuf::CreateBuf(vertexCount, indexCount, a3, vertexSize);
+    return CMapChunkLiquidBuf::CreateBuf(vertexCount, indexCount, flags, vertexSize);
 }
 
 // VERIFY: e344dd13 manual
@@ -543,7 +543,7 @@ void CMapChunkLiquidBuf::Update(float elapsed) {
         while (buf) {
             CMapChunkLiquidBuf* next = list->m_liquids.Next(buf);
 
-            if (!(buf->unk_0000 & 0x1)) {
+            if (!(buf->m_flags & 0x1)) {
                 buf->m_flushTimer += elapsed;
 
                 if (buf->m_flushTimer > 5.0f) {
@@ -642,11 +642,11 @@ bool CChunkLiquid::GetTris(World::TriData* triData, uint8_t* codes, const C2iVec
                         batch->m_def = reinterpret_cast<CMapObjDef*>(this->m_owner);
                         C44Matrix* matrix;
 
-                        if (World::TriData::unk_CB7538 + 1 >= 32) {
+                        if (World::TriData::matrixPoolCount + 1 >= 32) {
                             World::TriData::statusFlags |= 1;
                             matrix = nullptr;
                         } else {
-                            matrix = &World::TriData::matrixPool[World::TriData::unk_CB7538++];
+                            matrix = &World::TriData::matrixPool[World::TriData::matrixPoolCount++];
                         }
 
                         *matrix = C44Matrix();

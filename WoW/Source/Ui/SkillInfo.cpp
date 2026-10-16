@@ -123,7 +123,7 @@ void CGSkillInfo::InitializeGame() {
     for (uint32_t i = 0; i < numTypes; i++) {
         CGSkillInfo::m_types.m_data[i] = static_cast<SkillTypeInfo*>(SMemAlloc(sizeof(SkillTypeInfo), __FILE__, __LINE__, 0));
         CGSkillInfo::m_types.m_data[i]->m_categoryID = 0;
-        CGSkillInfo::m_types.m_data[i]->unk_0004 = 0;
+        CGSkillInfo::m_types.m_data[i]->m_collapsed = 0;
     }
 
     CGSkillInfo::m_numLines = 0;
@@ -219,7 +219,7 @@ void CGSkillInfo::UpdateSkillLines() {
     CGSkillInfo::m_numSkillLines = CGSkillInfo::m_numLines;
 
     for (uint32_t i = 0; i < CGSkillInfo::m_numTypes; i++) {
-        CGSkillInfo::m_types.m_data[i]->unk_0004 = !(CGSkillInfo::m_expandedTypes & (1 << i));
+        CGSkillInfo::m_types.m_data[i]->m_collapsed = !(CGSkillInfo::m_expandedTypes & (1 << i));
     }
 
     for (uint32_t i = 0; i < CGSkillInfo::m_numLines; i++) {
@@ -242,7 +242,7 @@ void CGSkillInfo::UpdateSkillLines() {
             continue;
         }
 
-        line->m_expanded = !CGSkillInfo::m_types.m_data[type]->unk_0004 && (!CGSkillInfo::unk_C22AFC || !line->unk_000C);
+        line->m_expanded = !CGSkillInfo::m_types.m_data[type]->m_collapsed && (!CGSkillInfo::unk_C22AFC || !line->unk_000C);
 
         if (!CGSkillInfo::m_lines.m_data[i]->m_expanded) {
             CGSkillInfo::m_numSkillLines--;
@@ -360,7 +360,7 @@ int32_t CGSkillInfo::GetSkillTypeCollapsed(uint32_t index) {
         SkillTypeInfo* type = CGSkillInfo::m_types.m_data[i];
 
         if (type->m_categoryID == CGSkillInfo::m_lines.m_data[index]->m_categoryID) {
-            return type->unk_0004;
+            return type->m_collapsed;
         }
     }
 

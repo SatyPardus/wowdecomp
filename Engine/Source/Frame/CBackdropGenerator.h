@@ -29,7 +29,7 @@ class CBackdropGenerator {
     /* 0030 */ RCString m_edgeFile;
     /* 003C */ uint32_t m_pieces;
     /* 0040 */ uint32_t m_tile;
-    /* 0044 */ uint32_t unk_0044;
+    /* 0044 */ uint32_t unused_0044;
     /* 0048 */ float m_edgeSize;
     /* 004C */ float m_tileSize;
     /* 0050 */ float m_insetTop;

@@ -83,9 +83,9 @@ CDataStore& operator>>(CDataStore& msg, CMoveSpline& spline) {
 // VERIFY: d9fccc9a manual
 // OFFSET: 0x006F1240
 CMoveSpline& CMoveSpline::CopyFrom(const CMoveSpline& source) {
-    this->unk_0008 = source.unk_0008;
+    this->unused_0008 = source.unused_0008;
     this->m_face = source.m_face;
-    this->unk_001C = source.unk_001C;
+    this->unused_001C = source.unused_001C;
     this->m_flags = source.m_flags;
     this->m_timePassed = source.m_timePassed;
     this->m_start = source.m_start;

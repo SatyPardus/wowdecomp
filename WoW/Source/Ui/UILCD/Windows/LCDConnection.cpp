@@ -14,7 +14,7 @@ CLCDConnection::CLCDConnection() {
     this->m_pGfxColor = nullptr;
     this->m_pMonoOutput = nullptr;
     this->m_pGfxMono = nullptr;
-    this->unk_0040 = 0;
+    this->unused_0040 = 0;
     this->m_pSoftbuttonsChangedCtx = nullptr;
     InitializeCriticalSection(&this->m_csCallback);
 }

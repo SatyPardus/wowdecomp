@@ -184,7 +184,7 @@ void CShaderEffect::InitShaderSystem(int32_t enableShaders, int32_t usePcfFilter
     CShaderEffect::s_enableShaders = enableShaders;
     CShaderEffect::SetUsePcfFiltering(usePcfFiltering);
     CShaderEffect::s_fogMul = 1.0f;
-    CShaderEffect::s_useAlphaRef = g_theGxDevicePtr->Caps().unk_0130;
+    CShaderEffect::s_useAlphaRef = g_theGxDevicePtr->Caps().m_shaderAlphaRef;
 }
 
 // VERIFY: fd7f8aba manual
@@ -205,7 +205,7 @@ void CShaderEffect::InitEffect(const char* vertexShader, const char* pixelShader
 // VERIFY: 9b6a2325 manual
 // OFFSET: 0x00872DE0
 uint32_t CShaderEffect::SelectShadowShader() {
-    if (!(CShaderEffect::s_fogColorAlphaRef.w > 0.0f) || (g_theGxDevicePtr->Caps().unk_0130 && !CShaderEffect::s_shadowValue)) {
+    if (!(CShaderEffect::s_fogColorAlphaRef.w > 0.0f) || (g_theGxDevicePtr->Caps().m_shaderAlphaRef && !CShaderEffect::s_shadowValue)) {
         return CShaderEffect::s_shadowValue + 4 * CShaderEffect::s_usePcfFiltering;
     }
 

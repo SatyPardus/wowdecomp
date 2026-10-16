@@ -8,8 +8,8 @@
 class TransportRotationRec;
 
 struct TransportFrame {
-    /* 0000 */ uint32_t unk_0000;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0000 */ uint32_t unused_0000;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ uint32_t m_time;
     /* 000C */ float m_pos[3];
     /* 0018 */ uint32_t m_sequenceId;
@@ -19,11 +19,11 @@ class CGGameObject_C_Type_Transport : public CGGameObject_C_Type_TransportBase {
     public:
     /* 0040 */ TransportFrame* m_frames;
     /* 0044 */ uint32_t m_frameCount;
-    /* 0048 */ uint32_t unk_0048;
+    /* 0048 */ uint32_t m_currentFrame;
     /* 004C */ TransportRotationRec* m_rotations;
     /* 0050 */ uint32_t m_rotationCount;
-    /* 0054 */ uint32_t unk_0054;
-    /* 0058 */ uint32_t unk_0058;
+    /* 0054 */ uint32_t m_currentRotation;
+    /* 0058 */ uint32_t m_lastSequence;
     /* 005C */ uint32_t m_stateChangeTime;
     /* 0060 */ uint32_t m_stateChangeSequenceTime;
 

@@ -18,7 +18,7 @@ struct CpuHardware {
 struct SoundHardware {
     /* 0000 */ uint32_t m_numChannels;
     /* 0004 */ bool m_fivePointOne;
-    /* 0005 */ uint8_t unk_0005[3];
+    /* 0005 */ uint8_t unused_0005[3];
 };
 
 extern WowClientDB<VideoHardwareRec> g_videoHardwareDB;

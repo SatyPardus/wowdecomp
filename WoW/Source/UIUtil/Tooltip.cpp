@@ -905,8 +905,8 @@ void CGTooltip::ClearTooltip() {
 
     this->m_unitGuid = WOWGUID();
     this->m_objectGuid = WOWGUID();
-    this->unk_0338 = 0;
-    this->unk_033C = 0;
+    this->unused_0338 = 0;
+    this->unused_033C = 0;
     this->m_corpseGuid.m_guid = 0;
     this->m_healthGuid = WOWGUID();
     this->m_itemId = 0;
@@ -1112,8 +1112,8 @@ CGTooltip::CGTooltip(CSimpleFrame* parent) : CSimpleFrame(parent) {
     this->m_numTextures = 0;
     this->m_unitGuid = WOWGUID();
     this->m_objectGuid = WOWGUID();
-    this->unk_0338 = 0;
-    this->unk_033C = 0;
+    this->unused_0338 = 0;
+    this->unused_033C = 0;
     this->m_itemGuid = WOWGUID();
     this->m_corpseGuid.m_guid = 0;
     this->m_healthGuid = WOWGUID();
@@ -2210,8 +2210,8 @@ void CGTooltip::SetCorpse(const WOWGUID& guid) {
     }
 
     this->m_corpseGuid = guid;
-    *reinterpret_cast<WOWGUID*>(&this->unk_0350) = corpse->m_corpse->m_corpseFieldOwner;
-    NameCache* name = g_nameDBCache.GetRecord(reinterpret_cast<WOWGUID*>(&this->unk_0350)->m_guid, *reinterpret_cast<WOWGUID*>(&this->unk_0350), TooltipCorpseCallback, this, true);
+    *reinterpret_cast<WOWGUID*>(&this->m_corpseOwnerGuid) = corpse->m_corpse->m_corpseFieldOwner;
+    NameCache* name = g_nameDBCache.GetRecord(reinterpret_cast<WOWGUID*>(&this->m_corpseOwnerGuid)->m_guid, *reinterpret_cast<WOWGUID*>(&this->m_corpseOwnerGuid), TooltipCorpseCallback, this, true);
 
     if (name) {
         char line[1024];

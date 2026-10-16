@@ -14,8 +14,8 @@ class CSimpleModel;
 class WorldMapContinentRec;
 
 struct DebugElement {
-    /* 0000 */ int32_t unk_0000;
-    /* 0004 */ int32_t unk_0004;
+    /* 0000 */ int32_t unused_0000;
+    /* 0004 */ int32_t unused_0004;
     /* 0008 */ int32_t m_array1 [6];
     /* 0020 */ int32_t m_array2 [4];
     /* 0030 */ int32_t m_computed48;
@@ -25,14 +25,14 @@ struct DebugElement {
     /* 0040 */ int32_t m_extra64;
     /* 0044 */ int32_t m_extra68;
     /* 0048 */ float m_extra76;
-    /* 004C */ void* unk_004C;
-    /* 0050 */ int32_t unk_0050;
-    /* 0054 */ int32_t unk_0054;
-    /* 0058 */ int32_t unk_0058;
-    /* 005C */ int32_t unk_005C;
-    /* 0060 */ int32_t unk_0060;
-    /* 0064 */ int32_t unk_0064;
-    /* 0068 */ int32_t unk_0068;
+    /* 004C */ void* unused_004C;
+    /* 0050 */ int32_t unused_0050;
+    /* 0054 */ int32_t unused_0054;
+    /* 0058 */ int32_t unused_0058;
+    /* 005C */ int32_t unused_005C;
+    /* 0060 */ int32_t unused_0060;
+    /* 0064 */ int32_t unused_0064;
+    /* 0068 */ int32_t unused_0068;
 };
 
 struct WorldMapContinentInfo {

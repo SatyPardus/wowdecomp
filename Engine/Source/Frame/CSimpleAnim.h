@@ -37,15 +37,15 @@ class CSimpleAnim : public CScriptObject {
 
     /* 0020 */ TSLink<CSimpleAnim> m_link;
     /* 0028 */ CSimpleAnimGroup* m_group;
-    /* 002C */ uint8_t unk_002C;
-    /* 002D */ uint8_t unk_002D[3];
+    /* 002C */ uint8_t unused_002C;
+    /* 002D */ uint8_t unused_002D[3];
     /* 0030 */ int8_t m_order;
     /* 0031 */ uint8_t m_flags;
-    /* 0032 */ uint8_t unk_0032[2];
+    /* 0032 */ uint8_t unused_0032[2];
     /* 0034 */ uint8_t m_playState;
     /* 0035 */ int8_t m_loopState;
-    /* 0036 */ uint8_t unk_0036[2];
-    /* 0038 */ uint32_t unk_0038;
+    /* 0036 */ uint8_t unused_0036[2];
+    /* 0038 */ uint32_t unused_0038;
     /* 003C */ FrameScript_Object::ScriptIx m_onLoad;
     /* 0044 */ FrameScript_Object::ScriptIx m_onPlay;
     /* 004C */ FrameScript_Object::ScriptIx m_onPause;

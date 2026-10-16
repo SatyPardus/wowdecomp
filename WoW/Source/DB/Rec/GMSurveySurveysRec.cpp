@@ -17,10 +17,10 @@ const char* GMSurveySurveysRec::GetFilename() {
 // OFFSET: 0x008AFE50
 bool GMSurveySurveysRec::Read(SFileImpl* file, const char* stringBuffer) {
     int32_t idRead = SFileReadFile(file, &this->m_id, sizeof(this->m_id), nullptr, nullptr, 0);
-    int32_t unk_0004Read = SFileReadFile(file, this->unk_0004, sizeof(this->unk_0004), nullptr, nullptr, 0);
+    int32_t questionIdsRead = SFileReadFile(file, this->m_questionIds, sizeof(this->m_questionIds), nullptr, nullptr, 0);
 
     if (!idRead
-        | !unk_0004Read) {
+        | !questionIdsRead) {
         return false;
     }
 

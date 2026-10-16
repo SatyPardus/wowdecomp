@@ -106,7 +106,7 @@ CSimpleFont* CSimpleFont::GetFont(const char* name, int32_t create) {
 // OFFSET: 0x00496870
 CSimpleFont::CSimpleFont() {
     this->m_name = nullptr;
-    this->unk_005C = 0;
+    this->m_attributeMask = 0;
     s_fontCount++;
 }
 
@@ -157,9 +157,9 @@ void CSimpleFont::UpdateObjects() {
 // VERIFY: de3bab57 manual
 // OFFSET: 0x00496440
 CSimpleFont& CSimpleFont::operator=(const CSimpleFont& source) {
-    this->unk_005C = source.unk_005C;
+    this->m_attributeMask = source.m_attributeMask;
     this->m_attributes = source.m_attributes;
-    this->m_attributes.m_flags &= this->unk_005C;
+    this->m_attributes.m_flags &= this->m_attributeMask;
     this->m_fontableFlags = source.m_fontableFlags;
 
     CSimpleFont* font = source.m_fontObject;

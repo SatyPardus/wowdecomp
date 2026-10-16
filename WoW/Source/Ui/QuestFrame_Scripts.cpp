@@ -243,7 +243,7 @@ static int32_t Script_GetNumQuestItems(lua_State* L) {
     uint32_t count = 0;
 
     for (uint32_t i = 0; i < 6; i++) {
-        if (!CGQuestInfo::m_questItems[i].m_required.unk_0004) {
+        if (!CGQuestInfo::m_questItems[i].m_required.m_displayID) {
             break;
         }
 
@@ -682,7 +682,7 @@ static int32_t Script_GetAvailableQuestInfo(lua_State* L) {
 
     index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (index < CGQuestInfo::m_numQuests && (CGQuestInfo::m_availableQuests[index].unk_0008 & 0x1000)) {
+    if (index < CGQuestInfo::m_numQuests && (CGQuestInfo::m_availableQuests[index].m_flags & 0x1000)) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -690,7 +690,7 @@ static int32_t Script_GetAvailableQuestInfo(lua_State* L) {
 
     index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (index < CGQuestInfo::m_numQuests && CGQuestInfo::m_availableQuests[index].unk_0210) {
+    if (index < CGQuestInfo::m_numQuests && CGQuestInfo::m_availableQuests[index].m_repeatable) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);

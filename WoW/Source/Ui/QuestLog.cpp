@@ -151,13 +151,13 @@ void CGQuestLog::InitializeGame() {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
         poi->m_questId = 0;
         poi->m_iconMapId = 0;
-        poi->m_iconFloor = 0;
-        poi->unk_001C = 0;
+        poi->m_iconObjectiveIndex = 0;
+        poi->m_iconMapFloor = 0;
         poi->m_iconX = 0;
         poi->m_iconY = 0;
-        poi->unk_0029 = 0;
-        poi->unk_0028 = 0;
-        poi->unk_002C = 0;
+        poi->unused_0029 = 0;
+        poi->m_visible = 0;
+        poi->m_objectiveMask = 0;
     }
 
     CGxTexFlags flags(GxTex_Linear, 0, 0, 0, 0, 0, 1, 0, 0, 0);
@@ -658,17 +658,17 @@ uint32_t IsDailyQuest(int32_t index) {
 
 // VERIFY: d701767c manual
 // OFFSET: 0x005DEEE0
-bool CGQuestLog::GetQuestPOIIcon(int32_t questId, bool* complete, int32_t* mapId, uint32_t* a4, int32_t* x, int32_t* y, int32_t* floor) {
+bool CGQuestLog::GetQuestPOIIcon(int32_t questId, bool* complete, int32_t* mapId, uint32_t* mapFloor, int32_t* x, int32_t* y, int32_t* objective) {
     for (uint32_t i = 0; i < 25; i++) {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
 
         if (poi->m_questId == questId) {
-            *complete = poi->unk_002C == 0xFFFFFFFF;
+            *complete = poi->m_objectiveMask == 0xFFFFFFFF;
             *mapId = poi->m_iconMapId;
-            *a4 = poi->unk_001C;
+            *mapFloor = poi->m_iconMapFloor;
             *x = poi->m_iconX;
             *y = poi->m_iconY;
-            *floor = poi->m_iconFloor;
+            *objective = poi->m_iconObjectiveIndex;
             return true;
         }
     }
@@ -1827,13 +1827,13 @@ void CGQuestLog::HandlePOIQueryResponse(CDataStore* msg) {
             poi->m_questId = questId;
             poi->m_blobs.SetCount(numBlobs);
             poi->m_iconMapId = 0;
-            poi->m_iconFloor = 0;
-            poi->unk_001C = 0;
+            poi->m_iconObjectiveIndex = 0;
+            poi->m_iconMapFloor = 0;
             poi->m_iconX = 0;
             poi->m_iconY = 0;
-            poi->unk_0029 = 0;
-            poi->unk_0028 = 0;
-            poi->unk_002C = 0;
+            poi->unused_0029 = 0;
+            poi->m_visible = 0;
+            poi->m_objectiveMask = 0;
         }
 
         for (int32_t j = 0; j < static_cast<int32_t>(numBlobs); j++) {
@@ -1849,13 +1849,13 @@ void CGQuestLog::HandlePOIQueryResponse(CDataStore* msg) {
 
             if (blob) {
                 blob->m_points.SetCount(numPoints);
-                blob->unk_0018 = values[0];
-                blob->unk_001C = values[1];
-                blob->unk_0020 = values[2];
-                blob->unk_0024 = values[3];
-                blob->unk_0028 = values[4];
-                blob->unk_002C = values[6];
-                blob->unk_0030 = values[5];
+                blob->m_blobId = values[0];
+                blob->m_objectiveIndex = values[1];
+                blob->m_mapId = values[2];
+                blob->m_worldMapAreaId = values[3];
+                blob->m_floor = values[4];
+                blob->m_flags = values[6];
+                blob->m_priority = values[5];
                 blob->m_centerX = 0;
                 blob->m_centerY = 0;
             }
@@ -2063,35 +2063,35 @@ int32_t CGQuestLog::UpdateAllQuestPOI() {
 
     for (uint32_t i = 0; i < 25; i++) {
         QuestPOIInfo& poi = CGQuestLog::m_questPOIs[i];
-        poi.unk_002C = CGQuestLog::ComputeBlobQuestObjectives(poi.m_questId);
-        poi.unk_0028 = 0;
+        poi.m_objectiveMask = CGQuestLog::ComputeBlobQuestObjectives(poi.m_questId);
+        poi.m_visible = 0;
 
         for (int32_t j = 0; j < static_cast<int32_t>(poi.m_blobs.Count()); j++) {
             QuestPOIBlob& blob = poi.m_blobs.m_data[j];
 
-            if (poi.unk_002C == 0xFFFFFFFF) {
-                if (blob.unk_001C != -1) {
+            if (poi.m_objectiveMask == 0xFFFFFFFF) {
+                if (blob.m_objectiveIndex != -1) {
                     continue;
                 }
-            } else if (blob.unk_001C == -1 || !((1 << blob.unk_001C) & poi.unk_002C)) {
+            } else if (blob.m_objectiveIndex == -1 || !((1 << blob.m_objectiveIndex) & poi.m_objectiveMask)) {
                 continue;
             }
 
             bool onMap;
 
             if (dungeonMap) {
-                onMap = CGQuestLog::IsPOIVisibleOnDungeonMap(&blob.m_centerX, blob.unk_0020, blob.unk_0028, dungeonMap->m_id);
+                onMap = CGQuestLog::IsPOIVisibleOnDungeonMap(&blob.m_centerX, blob.m_mapId, blob.m_floor, dungeonMap->m_id);
             } else {
-                if (!area || ((blob.unk_002C & 0x4) && blob.unk_0024 != area->m_id)) {
+                if (!area || ((blob.m_flags & 0x4) && blob.m_worldMapAreaId != area->m_id)) {
                     continue;
                 }
 
-                onMap = CGQuestLog::IsPOIOnCurrentMap(&blob.m_centerX, blob.unk_0020, area->m_mapID);
+                onMap = CGQuestLog::IsPOIOnCurrentMap(&blob.m_centerX, blob.m_mapId, area->m_mapID);
             }
 
             if (onMap) {
                 visible++;
-                poi.unk_0028 = 1;
+                poi.m_visible = 1;
                 break;
             }
         }
@@ -2279,29 +2279,29 @@ void CGQuestLog::UpdatePOIIcons() {
 
         for (int32_t j = 0; j < static_cast<int32_t>(poi->m_blobs.Count()); j++) {
             QuestPOIBlob* blob = &poi->m_blobs.m_data[j];
-            int32_t floor = blob->unk_001C;
+            int32_t floor = blob->m_objectiveIndex;
 
-            if (!((floor == -1 && poi->unk_002C == 0xFFFFFFFF) || (poi->unk_002C != 0xFFFFFFFF && ((1 << floor) & poi->unk_002C)))) {
+            if (!((floor == -1 && poi->m_objectiveMask == 0xFFFFFFFF) || (poi->m_objectiveMask != 0xFFFFFFFF && ((1 << floor) & poi->m_objectiveMask)))) {
                 continue;
             }
 
             bool visible;
 
             if (dungeonMap) {
-                visible = CGQuestLog::IsPOIVisibleOnDungeonMap(&blob->m_centerX, blob->unk_0020, blob->unk_0028, dungeonMap->m_id);
+                visible = CGQuestLog::IsPOIVisibleOnDungeonMap(&blob->m_centerX, blob->m_mapId, blob->m_floor, dungeonMap->m_id);
             } else {
-                if (!area || ((blob->unk_002C & 0x4) && blob->unk_0024 != area->m_id)) {
+                if (!area || ((blob->m_flags & 0x4) && blob->m_worldMapAreaId != area->m_id)) {
                     continue;
                 }
 
-                visible = CGQuestLog::IsPOIOnCurrentMap(&blob->m_centerX, blob->unk_0020, area->m_mapID);
+                visible = CGQuestLog::IsPOIOnCurrentMap(&blob->m_centerX, blob->m_mapId, area->m_mapID);
             }
 
             if (!visible) {
                 continue;
             }
 
-            int32_t priority = blob->unk_0030;
+            int32_t priority = blob->m_priority;
             float dy = fabs(position.y - blob->m_centerY);
             float dx = fabs(position.x - blob->m_centerX);
             float distance = dx * dx + dy * dy;
@@ -2315,17 +2315,17 @@ void CGQuestLog::UpdatePOIIcons() {
 
         if (best == -1) {
             poi->m_iconMapId = 0;
-            poi->m_iconFloor = 0;
-            poi->unk_001C = 0;
+            poi->m_iconObjectiveIndex = 0;
+            poi->m_iconMapFloor = 0;
             poi->m_iconX = 999999;
             poi->m_iconY = 999999;
             continue;
         }
 
         QuestPOIBlob* blob = &poi->m_blobs.m_data[best];
-        poi->m_iconMapId = blob->unk_0020;
-        poi->m_iconFloor = blob->unk_001C;
-        poi->unk_001C = blob->unk_0028;
+        poi->m_iconMapId = blob->m_mapId;
+        poi->m_iconObjectiveIndex = blob->m_objectiveIndex;
+        poi->m_iconMapFloor = blob->m_floor;
         poi->m_iconX = blob->m_centerX;
         poi->m_iconY = blob->m_centerY;
 
@@ -2533,7 +2533,7 @@ int32_t CGQuestLog::GetPOIQuestIDByVisibleIndex(int32_t index) {
     for (uint32_t i = 0; i < 25; i++) {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
 
-        if (!poi->unk_0028) {
+        if (!poi->m_visible) {
             continue;
         }
 
@@ -2553,7 +2553,7 @@ int32_t CGQuestLog::GetPOIQuestIDByVisibleIndex(int32_t index) {
 
         int32_t poi = CGQuestLog::GetQuestPOIIndex(questId);
 
-        if (poi >= 0 && CGQuestLog::m_questPOIs[poi].unk_0028 && index == visible++) {
+        if (poi >= 0 && CGQuestLog::m_questPOIs[poi].m_visible && index == visible++) {
             return CGQuestLog::m_questPOIs[poi].m_questId;
         }
     }
@@ -2561,7 +2561,7 @@ int32_t CGQuestLog::GetPOIQuestIDByVisibleIndex(int32_t index) {
     for (uint32_t i = 0; i < 25; i++) {
         QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[i];
 
-        if (!poi->unk_0028) {
+        if (!poi->m_visible) {
             continue;
         }
 
@@ -2669,7 +2669,7 @@ int32_t CGQuestLog::GetQuestWorldMapAreaID(int32_t questId, int32_t* floor) {
             QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[index];
             uint32_t objectives = CGQuestLog::ComputeBlobQuestObjectives(poi->m_questId);
             float bestDistance = 3.4028235e38f;
-            poi->unk_002C = objectives;
+            poi->m_objectiveMask = objectives;
             int32_t bestArea = 0;
             int32_t bestFloor = 0;
             int32_t bestFloorDelta = 0x7FFFFFFF;
@@ -2678,19 +2678,19 @@ int32_t CGQuestLog::GetQuestWorldMapAreaID(int32_t questId, int32_t* floor) {
                 QuestPOIBlob* blob = &poi->m_blobs.m_data[i];
 
                 if (objectives == 0xFFFFFFFF) {
-                    if (blob->unk_001C != -1) {
+                    if (blob->m_objectiveIndex != -1) {
                         continue;
                     }
-                } else if (blob->unk_001C == -1 || !((1 << blob->unk_001C) & objectives)) {
+                } else if (blob->m_objectiveIndex == -1 || !((1 << blob->m_objectiveIndex) & objectives)) {
                     continue;
                 }
 
-                if (current->m_id == blob->unk_0024 && currentFloor == blob->unk_0028) {
-                    *floor = poi->m_blobs.m_data[i].unk_0028;
-                    return poi->m_blobs.m_data[i].unk_0024;
+                if (current->m_id == blob->m_worldMapAreaId && currentFloor == blob->m_floor) {
+                    *floor = poi->m_blobs.m_data[i].m_floor;
+                    return poi->m_blobs.m_data[i].m_worldMapAreaId;
                 }
 
-                WorldMapAreaRec* area = g_worldMapAreaDB.GetRecord(blob->unk_0024);
+                WorldMapAreaRec* area = g_worldMapAreaDB.GetRecord(blob->m_worldMapAreaId);
 
                 if (!area) {
                     continue;
@@ -2700,18 +2700,18 @@ int32_t CGQuestLog::GetQuestWorldMapAreaID(int32_t questId, int32_t* floor) {
                     C3Vector position = player->GetPosition();
                     float dx = position.x - blob->m_centerX;
                     float dy = position.y - blob->m_centerY;
-                    int32_t floorDelta = abs(currentFloor - blob->unk_0028);
+                    int32_t floorDelta = abs(currentFloor - blob->m_floor);
                     float distance = dx * dx + dy * dy;
 
                     if (floorDelta < bestFloorDelta || (floorDelta == bestFloorDelta && bestDistance > distance)) {
                         bestDistance = distance;
                         bestFloorDelta = floorDelta;
-                        bestArea = blob->unk_0024;
-                        bestFloor = blob->unk_0028;
+                        bestArea = blob->m_worldMapAreaId;
+                        bestFloor = blob->m_floor;
                     }
                 } else if (!bestArea) {
-                    bestArea = blob->unk_0024;
-                    bestFloor = blob->unk_0028;
+                    bestArea = blob->m_worldMapAreaId;
+                    bestFloor = blob->m_floor;
                 }
             }
 
@@ -2824,20 +2824,20 @@ static float GetQuestPOIDistance(int32_t questId) {
     int32_t currentFloor = dungeonMap ? dungeonMap->m_floorIndex : 0;
     QuestPOIInfo* poi = &CGQuestLog::m_questPOIs[index];
     uint32_t objectives = CGQuestLog::ComputeBlobQuestObjectives(poi->m_questId);
-    poi->unk_002C = objectives;
+    poi->m_objectiveMask = objectives;
 
     for (int32_t i = 0; i < static_cast<int32_t>(poi->m_blobs.m_count); i++) {
         QuestPOIBlob* blob = &poi->m_blobs.m_data[i];
 
         if (objectives == 0xFFFFFFFF) {
-            if (blob->unk_001C != -1) {
+            if (blob->m_objectiveIndex != -1) {
                 continue;
             }
-        } else if (blob->unk_001C == -1 || !((1 << blob->unk_001C) & objectives)) {
+        } else if (blob->m_objectiveIndex == -1 || !((1 << blob->m_objectiveIndex) & objectives)) {
             continue;
         }
 
-        WorldMapAreaRec* area = g_worldMapAreaDB.GetRecord(blob->unk_0024);
+        WorldMapAreaRec* area = g_worldMapAreaDB.GetRecord(blob->m_worldMapAreaId);
 
         if (!area || area->m_mapID != continent) {
             continue;
@@ -2846,7 +2846,7 @@ static float GetQuestPOIDistance(int32_t questId) {
         C3Vector position = player->GetPosition();
         float dx = position.x - blob->m_centerX;
         float dy = position.y - blob->m_centerY;
-        int32_t floorDelta = abs(currentFloor - blob->unk_0028);
+        int32_t floorDelta = abs(currentFloor - blob->m_floor);
         float distance = dx * dx + dy * dy;
 
         if (floorDelta < bestFloorDelta || (floorDelta == bestFloorDelta && bestDistance > distance)) {
@@ -2906,13 +2906,13 @@ void CGQuestLog::UpdateQuestPOIFromUserServer() {
         poi->m_blobs.Clear();
         poi->m_questId = 0;
         poi->m_iconMapId = 0;
-        poi->m_iconFloor = 0;
-        poi->unk_001C = 0;
+        poi->m_iconObjectiveIndex = 0;
+        poi->m_iconMapFloor = 0;
         poi->m_iconX = 0;
         poi->m_iconY = 0;
-        poi->unk_0029 = 0;
-        poi->unk_0028 = 0;
-        poi->unk_002C = 0;
+        poi->unused_0029 = 0;
+        poi->m_visible = 0;
+        poi->m_objectiveMask = 0;
     }
 
     CGQuestLog::Update(1);

@@ -2398,20 +2398,20 @@ static int32_t Script_SetGuildBankItem(lua_State* L) {
 
     ItemLinkInfo& link = tooltip->m_itemLinkInfo;
     link.Clear();
-    link.m_enchants[0] = info->unk_0010;
+    link.m_enchants[0] = info->m_enchantId;
     link.m_enchants[2] = info->m_enchants[0];
     link.m_enchants[3] = info->m_enchants[1];
     link.m_enchants[4] = info->m_enchants[2];
     link.m_propertySeed = info->m_suffixFactor;
     link.m_randomPropertiesId = info->m_randomPropertyID;
-    link.m_spellCharges = static_cast<uint8_t>(info->unk_0014);
+    link.m_spellCharges = static_cast<uint8_t>(info->m_spellCharges);
     link.m_stackCount = info->m_count;
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
         WOWGUID itemGuid = player->m_obj->m_guid;
         WOWGUID requester = WOWGUID();
-        tooltip->SetItem(info->m_itemID, &requester, &itemGuid, 0, 0, 1, 0, WOWGUID(), 0, nullptr, 0, nullptr, 0, info->unk_0028 & 0x4, 0);
+        tooltip->SetItem(info->m_itemID, &requester, &itemGuid, 0, 0, 1, 0, WOWGUID(), 0, nullptr, 0, nullptr, 0, info->m_flags & 0x4, 0);
     }
 
     return 0;

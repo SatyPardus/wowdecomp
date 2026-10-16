@@ -321,11 +321,11 @@ LFGDungeonEntry::~LFGDungeonEntry() {
 // OFFSET: 0x00558E60
 void LFGInfo::Reset() {
     this->m_joined = 0;
-    this->unk_0001 = 0;
+    this->m_lfgJoined = 0;
     this->m_queued = 0;
-    this->unk_0003 = 0;
-    this->unk_0004 = 0;
-    this->unk_0005 = 0;
+    this->m_dirty = 0;
+    this->m_noPartial = 0;
+    this->m_achievements = 0;
     this->m_roles[0] = 0;
     this->m_roles[1] = 0;
     this->m_roles[2] = 0;
@@ -359,7 +359,7 @@ void CGLookingForGroup::ClearDungeonList() {
     }
 
     CGLookingForGroup::m_localInfo.m_numDungeons = 0;
-    CGLookingForGroup::m_localInfo.unk_0003 = 1;
+    CGLookingForGroup::m_localInfo.m_dirty = 1;
 }
 
 // VERIFY: ff1fe1c8 manual
@@ -429,11 +429,11 @@ void CGLookingForGroup::InitializeGame() {
     CGLookingForGroup::m_randomDungeons.Clear();
     CGLookingForGroup::UpdateLFDEntries();
     CGLookingForGroup::UpdateLFREntries();
-    CGLookingForGroup::m_proposal.m_id = 0;
+    CGLookingForGroup::m_proposal.m_dungeonId = 0;
     CGLookingForGroup::m_proposal.m_state = 0;
-    CGLookingForGroup::m_proposal.unk_0008 = 0;
+    CGLookingForGroup::m_proposal.m_proposalId = 0;
     CGLookingForGroup::m_proposal.m_completedMask = 0;
-    CGLookingForGroup::m_proposal.unk_0010 = 0;
+    CGLookingForGroup::m_proposal.m_silent = 0;
     memset(CGLookingForGroup::m_proposal.m_members, 0, sizeof(CGLookingForGroup::m_proposal.m_members));
     CGLookingForGroup::m_roleCheckState = 0;
     CGLookingForGroup::m_roleCheckSlots.m_count = 0;
@@ -492,11 +492,11 @@ LfgDungeonExpansionRec* GetLfgDungeonExpansionRec(int32_t dungeonID, int32_t exp
 // VERIFY: 9f6b8622 auto
 // OFFSET: 0x00552850
 void LFGProposal::Clear() {
-    this->m_id = 0;
+    this->m_dungeonId = 0;
     this->m_state = 0;
-    this->unk_0008 = 0;
+    this->m_proposalId = 0;
     this->m_completedMask = 0;
-    this->unk_0010 = 0;
+    this->m_silent = 0;
     memset(this->m_members, 0, sizeof(this->m_members));
 }
 
@@ -521,8 +521,8 @@ void LFGQueueStatus::Clear() {
 void CGLookingForGroup::ShowProposal(int32_t silent) {
     FrameScript_SignalEvent(SCRIPT_EVENT_LFG_PROPOSAL_UPDATE, nullptr);
 
-    if (CGLookingForGroup::m_lastProposalID != CGLookingForGroup::m_proposal.unk_0008) {
-        CGLookingForGroup::m_lastProposalID = CGLookingForGroup::m_proposal.unk_0008;
+    if (CGLookingForGroup::m_lastProposalID != CGLookingForGroup::m_proposal.m_proposalId) {
+        CGLookingForGroup::m_lastProposalID = CGLookingForGroup::m_proposal.m_proposalId;
 
         if (!silent) {
             FrameScript_SignalEvent(SCRIPT_EVENT_LFG_PROPOSAL_SHOW, nullptr);
@@ -545,7 +545,7 @@ LFGDungeonEntry* LFGInfo::FindDungeon(uint32_t slot) const {
 // VERIFY: dd19911d manual
 // OFFSET: 0x005570F0
 bool LFGInfo::Equals(const LFGInfo& other) const {
-    if ((this->m_joined != 0) != (other.m_joined != 0) || (this->unk_0001 != 0) != (other.unk_0001 != 0) || (this->m_queued != 0) != (other.m_queued != 0) || (this->unk_0004 != 0) != (other.unk_0004 != 0) || (this->unk_0005 != 0) != (other.unk_0005 != 0) || this->m_numDungeons != other.m_numDungeons) {
+    if ((this->m_joined != 0) != (other.m_joined != 0) || (this->m_lfgJoined != 0) != (other.m_lfgJoined != 0) || (this->m_queued != 0) != (other.m_queued != 0) || (this->m_noPartial != 0) != (other.m_noPartial != 0) || (this->m_achievements != 0) != (other.m_achievements != 0) || this->m_numDungeons != other.m_numDungeons) {
         return false;
     }
 
@@ -623,10 +623,10 @@ LFGDungeonEntry* LFGInfo::AddDungeon(uint32_t slot) {
 // OFFSET: 0x005599F0
 void LFGInfo::CopyFrom(const LFGInfo& other) {
     this->m_joined = other.m_joined;
-    this->unk_0001 = other.unk_0001;
+    this->m_lfgJoined = other.m_lfgJoined;
     this->m_queued = other.m_queued;
-    this->unk_0004 = other.unk_0004;
-    this->unk_0005 = other.unk_0005;
+    this->m_noPartial = other.m_noPartial;
+    this->m_achievements = other.m_achievements;
     memcpy(this->m_roles, other.m_roles, sizeof(this->m_roles));
     SStrCopy(this->m_comment, other.m_comment, sizeof(this->m_comment));
 
@@ -823,11 +823,11 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
         case SMSG_LFG_PROPOSAL_UPDATE: {
             LFGProposal& proposal = CGLookingForGroup::m_proposal;
-            msg->Get(proposal.m_id);
+            msg->Get(proposal.m_dungeonId);
             msg->Get(proposal.m_state);
-            msg->Get(proposal.unk_0008);
+            msg->Get(proposal.m_proposalId);
             msg->Get(proposal.m_completedMask);
-            msg->GetInt8(proposal.unk_0010);
+            msg->GetInt8(proposal.m_silent);
             uint8_t memberCount;
             msg->Get(memberCount);
             uint8_t declinedSelf = 0;
@@ -841,31 +841,31 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 LFGProposalMember& member = proposal.m_members[i];
                 msg->Get(member.m_roles);
                 msg->GetInt8(member.m_isLocal);
-                msg->GetInt8(member.unk_0008);
-                msg->GetInt8(member.unk_000C);
-                msg->GetInt8(member.m_accepted);
-                msg->GetInt8(member.unk_0014);
+                msg->GetInt8(member.m_inDungeon);
+                msg->GetInt8(member.m_inSameGroup);
+                msg->GetInt8(member.m_answered);
+                msg->GetInt8(member.m_isAccepted);
 
-                if (member.m_accepted && !member.unk_0014) {
+                if (member.m_answered && !member.m_isAccepted) {
                     if (member.m_isLocal) {
                         declinedSelf = 1;
-                    } else if (member.unk_000C) {
+                    } else if (member.m_inSameGroup) {
                         declinedParty = 1;
                     }
                 }
             }
 
-            DebugLog("LFGMessage: LFG_PROPOSAL_UPDATE - Slot: %u, State: %d, ID: %u, Last ID: %u, Completed Mask: %X, silent %d, I Declined: %d, Party Declined: %d", proposal.m_id, proposal.m_state, proposal.unk_0008, CGLookingForGroup::m_lastProposalID, proposal.m_completedMask, proposal.unk_0010, declinedSelf, declinedParty);
-            CGLookingForGroup::ShowProposal(proposal.unk_0010);
+            DebugLog("LFGMessage: LFG_PROPOSAL_UPDATE - Slot: %u, State: %d, ID: %u, Last ID: %u, Completed Mask: %X, silent %d, I Declined: %d, Party Declined: %d", proposal.m_dungeonId, proposal.m_state, proposal.m_proposalId, CGLookingForGroup::m_lastProposalID, proposal.m_completedMask, proposal.m_silent, declinedSelf, declinedParty);
+            CGLookingForGroup::ShowProposal(proposal.m_silent);
 
             if (declinedParty) {
                 SI2::PlayUISound(0x43BD);
                 CGGameUI::DisplayError(ERR_LFG_PROPOSAL_DECLINED_PARTY);
-                proposal.m_id = 0;
+                proposal.m_dungeonId = 0;
                 proposal.m_state = 0;
-                proposal.unk_0008 = 0;
+                proposal.m_proposalId = 0;
                 proposal.m_completedMask = 0;
-                proposal.unk_0010 = 0;
+                proposal.m_silent = 0;
                 memset(proposal.m_members, 0, sizeof(proposal.m_members));
                 FrameScript_SignalEvent(SCRIPT_EVENT_LFG_PROPOSAL_FAILED, nullptr);
             } else if (declinedSelf) {
@@ -1017,7 +1017,7 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
             uint8_t joined;
             msg->Get(joined);
             info.m_joined = joined != 0;
-            info.unk_0001 = joined != 0;
+            info.m_lfgJoined = joined != 0;
 
             if (joined) {
                 msg->Get(queued);
@@ -1028,8 +1028,8 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 uint8_t dungeonCount = 0;
                 msg->Get(dungeonCount);
                 info.m_queued = queued != 0;
-                info.unk_0004 = flag4 != 0;
-                info.unk_0005 = flag5 != 0;
+                info.m_noPartial = flag4 != 0;
+                info.m_achievements = flag5 != 0;
 
                 for (uint32_t i = 0; i < dungeonCount; i++) {
                     uint32_t slot;
@@ -1040,9 +1040,9 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 msg->GetString(info.m_comment, sizeof(info.m_comment));
             }
 
-            DebugLog("LFGMessage: LFG_UPDATE_PLAYER - Joined: %d, Queued: %d, Slot Count: %u, Proposal is valid: %d, In Party: %d", joined, queued, info.m_numDungeons, CGLookingForGroup::m_proposal.m_id, CGRaidInfo::m_numMembers);
+            DebugLog("LFGMessage: LFG_UPDATE_PLAYER - Joined: %d, Queued: %d, Slot Count: %u, Proposal is valid: %d, In Party: %d", joined, queued, info.m_numDungeons, CGLookingForGroup::m_proposal.m_dungeonId, CGRaidInfo::m_numMembers);
 
-            if (CGLookingForGroup::m_proposal.m_id && (!joined || queued) && !CGPartyInfo::InParty() && !CGRaidInfo::m_numMembers) {
+            if (CGLookingForGroup::m_proposal.m_dungeonId && (!joined || queued) && !CGPartyInfo::InParty() && !CGRaidInfo::m_numMembers) {
                 CGLookingForGroup::m_proposal.Clear();
 
                 if (joined) {
@@ -1064,14 +1064,14 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             bool left = false;
 
-            if (info.unk_0001) {
-                if (!current.unk_0001) {
+            if (info.m_lfgJoined) {
+                if (!current.m_lfgJoined) {
                     SI2::PlayUISound(0x210E);
                     CGGameUI::DisplayError(CGLookingForGroup::HasRaidDungeon(&info) ? ERR_LFG_JOINED_LIST : ERR_LFG_JOINED_QUEUE);
                 } else if (!info.m_queued && current.m_queued) {
                     left = true;
                 }
-            } else if (current.unk_0001 || (!info.m_queued && current.m_queued)) {
+            } else if (current.m_lfgJoined || (!info.m_queued && current.m_queued)) {
                 left = true;
             }
 
@@ -1111,10 +1111,10 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 msg->Get(flag4);
                 uint8_t flag5;
                 msg->Get(flag5);
-                info.unk_0001 = lfgJoined != 0;
+                info.m_lfgJoined = lfgJoined != 0;
                 info.m_queued = queued != 0;
-                info.unk_0004 = flag4 != 0;
-                info.unk_0005 = flag5 != 0;
+                info.m_noPartial = flag4 != 0;
+                info.m_achievements = flag5 != 0;
 
                 for (uint32_t i = 0; i < 3; i++) {
                     msg->Get(info.m_roles[i]);
@@ -1133,15 +1133,15 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
                 msg->GetString(info.m_comment, sizeof(info.m_comment));
             }
 
-            DebugLog("LFGMessage: LFG_UPDATE_PARTY - Joined: %d, LfgJoined: %d, Queued: %d, Slot Count: %u, Proposal is valid: %d, In Party: %d", joined, lfgJoined, queued, info.m_numDungeons, CGLookingForGroup::m_proposal.m_id, CGPartyInfo::InParty());
+            DebugLog("LFGMessage: LFG_UPDATE_PARTY - Joined: %d, LfgJoined: %d, Queued: %d, Slot Count: %u, Proposal is valid: %d, In Party: %d", joined, lfgJoined, queued, info.m_numDungeons, CGLookingForGroup::m_proposal.m_dungeonId, CGPartyInfo::InParty());
 
-            if (CGLookingForGroup::m_proposal.m_id && (!joined || queued) && (CGPartyInfo::InParty() || CGRaidInfo::m_numMembers)) {
+            if (CGLookingForGroup::m_proposal.m_dungeonId && (!joined || queued) && (CGPartyInfo::InParty() || CGRaidInfo::m_numMembers)) {
                 LFGProposal& proposal = CGLookingForGroup::m_proposal;
-                proposal.m_id = 0;
+                proposal.m_dungeonId = 0;
                 proposal.m_state = 0;
-                proposal.unk_0008 = 0;
+                proposal.m_proposalId = 0;
                 proposal.m_completedMask = 0;
-                proposal.unk_0010 = 0;
+                proposal.m_silent = 0;
                 memset(proposal.m_members, 0, sizeof(proposal.m_members));
 
                 if (joined) {
@@ -1163,14 +1163,14 @@ int32_t LFGPacketHandler(void* param, NETMESSAGE msgId, uint32_t time, CDataStor
 
             bool left = false;
 
-            if (info.unk_0001) {
-                if (!current.unk_0001 && dungeonCount) {
+            if (info.m_lfgJoined) {
+                if (!current.m_lfgJoined && dungeonCount) {
                     SI2::PlayUISound(0x210E);
                     CGGameUI::DisplayError(CGLookingForGroup::HasRaidDungeon(&info) ? ERR_LFG_JOINED_LIST : ERR_LFG_JOINED_QUEUE);
                 } else if (!info.m_queued && current.m_queued) {
                     left = true;
                 }
-            } else if (current.unk_0001 || (!info.m_queued && current.m_queued)) {
+            } else if (current.m_lfgJoined || (!info.m_queued && current.m_queued)) {
                 left = true;
             }
 
@@ -1472,7 +1472,7 @@ void CGLookingForGroup::SetLFGDungeon(uint32_t slot) {
     }
 
     CGLookingForGroup::m_localInfo.AddDungeon(slot);
-    CGLookingForGroup::m_localInfo.unk_0003 = 1;
+    CGLookingForGroup::m_localInfo.m_dirty = 1;
 }
 
 // VERIFY: 000b89b3 manual
@@ -1583,7 +1583,7 @@ void CGLookingForGroup::SetLFGComment(const char* comment) {
     SStrCopy(CGLookingForGroup::m_localInfo.m_comment, scrubbed, sizeof(CGLookingForGroup::m_localInfo.m_comment));
 
     if (!CGLookingForGroup::m_localInfo.m_joined) {
-        CGLookingForGroup::m_localInfo.unk_0003 = 1;
+        CGLookingForGroup::m_localInfo.m_dirty = 1;
         return;
     }
 

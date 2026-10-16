@@ -289,7 +289,7 @@ void System_SFile::BlockEntryTable::InitializeHashCheckTable(int32_t bits) {
 // VERIFY: db7caa48 manual
 // OFFSET: 0x00431780
 System_SFile::HashEntryTable::HashEntryTable(uint32_t count, int32_t hashBits) {
-    this->unk_0004 = 0;
+    this->unused_0004 = 0;
     this->m_indexBits = 0;
     this->unk_0000 = 0;
     this->m_tags = nullptr;
@@ -305,7 +305,7 @@ System_SFile::HashEntryTable::HashEntryTable(uint32_t count, int32_t hashBits) {
     this->m_indexBits = bits;
     this->unk_0000 = this->m_indexBits;
     this->m_entryBits = this->unk_0000;
-    this->unk_0004 = 0;
+    this->unused_0004 = 0;
     this->m_tags = static_cast<uint8_t*>(SMemAlloc(this->m_slotCount, __FILE__, __LINE__, SMEM_FLAG_ZEROMEMORY));
     this->SetHashBits(hashBits);
 }
@@ -386,9 +386,9 @@ System_SFile::BlockEntryTable::~BlockEntryTable() {
 // VERIFY: 8c7d6610 manual
 // OFFSET: 0x00437590
 System_SFile::ArchiveBuffers::~ArchiveBuffers() {
-    memset(this->unk_0000.m_data, 0, this->unk_0000.m_count);
-    memset(this->unk_000C.m_data, 0, this->unk_000C.m_count);
-    memset(this->unk_0114.m_data, 0, this->unk_0114.m_count);
+    memset(this->unused_0000.m_data, 0, this->unused_0000.m_count);
+    memset(this->unused_000C.m_data, 0, this->unused_000C.m_count);
+    memset(this->unused_0114.m_data, 0, this->unused_0114.m_count);
 }
 
 // VERIFY: e3eae1bf manual
@@ -1219,7 +1219,7 @@ void System_SFile::ARCHIVEREC::InitializeTables() {
     }
 
     for (int32_t i = 0; i < static_cast<int32_t>(this->m_header.m_hashTableSize); i++) {
-        this->m_hashTable[i].unk_000B = 0;
+        this->m_hashTable[i].m_reserved = 0;
     }
 
     this->m_blockTable.resize(this->m_header.m_blockTableSize);
@@ -2167,7 +2167,7 @@ bool Blizzard::Mopaq::SetFileSignature(const char* name, const Blizzard::Util::D
 struct BlockHash {
     /* 0000 */ uint64_t m_hash;
     /* 0008 */ bool m_listed;
-    /* 0009 */ uint8_t unk_0009[7];
+    /* 0009 */ uint8_t unused_0009[7];
 
     bool operator<(const BlockHash& other) const {
         return this->m_hash < other.m_hash;
@@ -2177,7 +2177,7 @@ struct BlockHash {
 struct NameHash {
     /* 0000 */ uint64_t m_hash;
     /* 0008 */ const char* m_name;
-    /* 000C */ uint8_t unk_000C[4];
+    /* 000C */ uint8_t unused_000C[4];
 
     bool operator<(const NameHash& other) const {
         return this->m_hash < other.m_hash;
@@ -2476,7 +2476,7 @@ bool System_SFile::RebuildHashTable(ARCHIVEREC* archive, uint32_t hashSize) {
     empty.m_hashB = 0xFFFFFFFF;
     empty.m_locale = 0xFFFF;
     empty.m_platform = 0xFF;
-    empty.unk_000B = 0xFF;
+    empty.m_reserved = 0xFF;
     empty.m_blockIndex = 0xFFFFFFFF;
 
     std::vector<HASHENTRY> table(hashSize, empty);
@@ -2667,7 +2667,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
         zero.m_hashB = 0;
         zero.m_locale = 0;
         zero.m_platform = 0;
-        zero.unk_000B = 0;
+        zero.m_reserved = 0;
         zero.m_blockIndex = 0;
 
         std::vector<HASHENTRY> hashes(hashCount, zero);
@@ -2677,7 +2677,7 @@ bool System_SFile::ARCHIVEREC::WriteArchiveChanges(ARCHIVEREC* archive) {
             hashes[i].m_hashB = archive->m_hashTable[i].m_hashB;
             hashes[i].m_locale = archive->m_hashTable[i].m_locale;
             hashes[i].m_platform = archive->m_hashTable[i].m_platform;
-            hashes[i].unk_000B = archive->m_hashTable[i].unk_000B;
+            hashes[i].m_reserved = archive->m_hashTable[i].m_reserved;
             hashes[i].m_blockIndex = archive->m_hashTable[i].m_blockIndex;
         }
 
@@ -3057,7 +3057,7 @@ bool Blizzard::Mopaq::SFileCreateFile(System_SFile::ARCHIVEREC* handle, const ch
     slot->m_locale = locale;
     slot->m_hashA = hashA;
     slot->m_platform = platform;
-    slot->unk_000B = 0;
+    slot->m_reserved = 0;
     slot->m_blockIndex = blockIndex;
 
     record->m_blockTable.push_back(entry);

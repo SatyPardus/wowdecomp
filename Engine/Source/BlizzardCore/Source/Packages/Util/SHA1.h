@@ -14,7 +14,7 @@ class SHA1 {
     /* 0000 */ uint64_t m_size;
     /* 0008 */ uint32_t m_hash [5];
     /* 001C */ uint8_t m_data [64];
-    /* 005C */ uint8_t unk_005C[4];
+    /* 005C */ uint8_t unused_005C[4];
 
     void Prepare();
     void Process(const void* data, uint32_t length);

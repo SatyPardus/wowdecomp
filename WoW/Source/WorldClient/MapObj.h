@@ -70,9 +70,9 @@ class CMapObj : public CMapObjIndex, public TSHashObject<CMapObj, HASHKEY_NONE> 
     static CShaderEffect* s_classicShaders[7];
     static CShaderEffect* s_unifiedShaders[7];
     static int32_t s_lightingMode;
-    static uint32_t s_unk_AEE008;
+    static uint32_t s_maxLiquidQueryDepth;
 
-    static void ClearCache(int32_t a1);
+    static void ClearCache(int32_t unused_a1);
     static void DestroyPools();
 
     int32_t IsAllLoaded();
@@ -81,7 +81,7 @@ class CMapObj : public CMapObjIndex, public TSHashObject<CMapObj, HASHKEY_NONE> 
     static void Destroy();
     static void Initialize();
     static void RenderMapObjGroupsColor(CMapObjGroup** groups, uint32_t count, C44Matrix** matrices, const C44Matrix* world, int32_t* a5);
-    static uint32_t CreateWmoIgnoreFlags(uint32_t a1);
+    static uint32_t CreateWmoIgnoreFlags(uint32_t flags);
     static void PrepareUpdate();
     static CMapObj* Create(char* fileName);
     static void PostloadCallback(void* arg);
@@ -139,7 +139,7 @@ class CMapObj : public CMapObjIndex, public TSHashObject<CMapObj, HASHKEY_NONE> 
     /* 0198 */ int32_t m_convexVolumePlaneCount;
     /* 019C */ int32_t m_materialsCount;
     /* 01A0 */ CImVector m_argbColor;
-    /* 01A4 */ int32_t unk_01A4;
+    /* 01A4 */ int32_t unused_01A4;
     /* 01A8 */ CAaBox m_bbox;
     /* 01C0 */ float m_distToCamera;
     /* 01C4 */ TSLink<CMapObj> m_asyncLoadLink;
@@ -150,7 +150,7 @@ class CMapObj : public CMapObjIndex, public TSHashObject<CMapObj, HASHKEY_NONE> 
     /* 01DC */ CAsyncObject* m_asyncObject;
     /* 01E0 */ int32_t m_isGroupLoaded;
     /* 01E4 */ uint16_t m_interiorGroupCount;
-    /* 01E6 */ uint8_t unk_01E6[2];
+    /* 01E6 */ uint8_t unused_01E6[2];
     /* 01E8 */ TSExplicitList<CMapObjGroup, offsetof(CMapObjGroup, m_asyncLoadLink)> m_mapObjGroupList;
     /* 01F4 */ int32_t m_mapObjGroupCount;
     /* 01F8 */ CMapObjGroup* m_mapObjGroupArray [512];

@@ -113,7 +113,7 @@ static int32_t Script_CalendarCloseEvent(lua_State* L) {
     CGCalendar::m_selectedEvent.m_startTime = 0;
     CGCalendar::m_selectedEvent.m_endTime = 0;
     CGCalendar::m_selectedEvent.m_holidayID = 0;
-    CGCalendar::m_selectedEvent.unk_0014 = 0;
+    CGCalendar::m_selectedEvent.m_eventType = 0;
     return 0;
 }
 
@@ -414,7 +414,7 @@ static int32_t Script_CalendarContextDeselectEvent(lua_State* L) {
     CGCalendar::m_contextEvent.m_startTime = 0;
     CGCalendar::m_contextEvent.m_endTime = 0;
     CGCalendar::m_contextEvent.m_holidayID = 0;
-    CGCalendar::m_contextEvent.unk_0014 = 0;
+    CGCalendar::m_contextEvent.m_eventType = 0;
     CGCalendar::m_contextEventInfo = nullptr;
     return 0;
 }

@@ -12,9 +12,9 @@ class PassNetherBlur : public FFX::Pass {
     public:
     /* 0030 */ uint32_t m_useRect;
     /* 0034 */ float m_noise[3][36];
-    /* 01E4 */ float unk_01E4[36];
+    /* 01E4 */ float m_blendedNoise[36];
     /* 0274 */ float* m_noiseTables[3];
-    /* 0280 */ float unk_0280;
+    /* 0280 */ float m_noiseBlend;
     /* 0284 */ CRndSeed m_seed;
     /* 028C */ CGxShader* m_vertexShader;
     /* 0290 */ CGxShader* m_pixelShaders[2];
@@ -30,7 +30,7 @@ class PassNetherCombine : public FFX::Pass {
     public:
     /* 0030 */ uint32_t m_useRect;
     /* 0034 */ CGxShader* m_pixelShaders[2];
-    /* 003C */ float unk_003C;
+    /* 003C */ float m_fade;
 
     ~PassNetherCombine() override;
     bool Valid() override;

@@ -104,7 +104,7 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
     *vertexBuf = this->m_mapObjGroup->m_liquidVertsBlock->m_buffer;
     *indexBuf = this->m_mapObjGroup->m_liquidIndicesBlock->m_buffer;
 
-    if (!(*vertexBuf)->unk_001C || !(*vertexBuf)->unk_001D || !(*indexBuf)->unk_001C || !(*indexBuf)->unk_001D) {
+    if (!(*vertexBuf)->m_hasData || !(*vertexBuf)->m_valid || !(*indexBuf)->m_hasData || !(*indexBuf)->m_valid) {
         char* vertices = g_theGxDevicePtr->BufLock(*vertexBuf);
         uint16_t* indices = reinterpret_cast<uint16_t*>(g_theGxDevicePtr->BufLock(*indexBuf));
         uint16_t* indexStart = indices;
@@ -113,13 +113,13 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
             if (vertices) {
                 CGxBuf* buf = *vertexBuf;
                 g_theGxDevicePtr->BufUnlock(buf, 0);
-                buf->unk_001C = 1;
+                buf->m_hasData = 1;
             }
 
             if (indices) {
                 CGxBuf* buf = *indexBuf;
                 g_theGxDevicePtr->BufUnlock(buf, 0);
-                buf->unk_001C = 1;
+                buf->m_hasData = 1;
             }
 
             return;
@@ -155,12 +155,12 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
 
         CGxBuf* buf = *vertexBuf;
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
 
         if (indices) {
             buf = *indexBuf;
             g_theGxDevicePtr->BufUnlock(buf, 0);
-            buf->unk_001C = 1;
+            buf->m_hasData = 1;
         }
 
         CGxBatch* meshBatch = this->m_batch;
@@ -213,7 +213,7 @@ Liquid::CMeshGeomFactory::CMeshGeomFactory() {
     *reinterpret_cast<int32_t*>(&this->m_diffuseColor) = -1;
     this->m_texCoord1ValueX = 0.0f;
     this->m_magma = 0;
-    this->unk_0024 = 0;
+    this->unused_0024 = 0;
 }
 
 // VERIFY: 634ede17 auto
@@ -274,13 +274,13 @@ void Liquid::CChunkGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf*
     *indexBuf = this->m_buf->m_indexBuf;
 
     if (this->m_dirty) {
-        (*vertexBuf)->unk_001C = 0;
-        (*indexBuf)->unk_001C = 0;
+        (*vertexBuf)->m_hasData = 0;
+        (*indexBuf)->m_hasData = 0;
     }
 
     CGxBuf* vb = *vertexBuf;
 
-    if (!vb->unk_001C || !vb->unk_001D) {
+    if (!vb->m_hasData || !vb->m_valid) {
         char* data = g_theGxDevicePtr->BufLock(vb);
 
         if (data) {
@@ -318,13 +318,13 @@ void Liquid::CChunkGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf*
             }
 
             g_theGxDevicePtr->BufUnlock(vb, 0);
-            vb->unk_001C = 1;
+            vb->m_hasData = 1;
         }
     }
 
     CGxBuf* ib = *indexBuf;
 
-    if (!ib->unk_001C || !ib->unk_001D) {
+    if (!ib->m_hasData || !ib->m_valid) {
         batch->m_primType = GxPrim_TriangleStrip;
         batch->m_start = 0;
         batch->m_count = 0;
@@ -340,7 +340,7 @@ void Liquid::CChunkGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf*
         }
 
         g_theGxDevicePtr->BufUnlock(ib, 0);
-        ib->unk_001C = 1;
+        ib->m_hasData = 1;
         this->m_batch = *batch;
     }
 

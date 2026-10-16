@@ -13,7 +13,7 @@ class SoundEntriesAdvancedRec;
 class SI2AdvancedSound {
     public:
     /* 0000 */ TSLink<SI2AdvancedSound> m_link;
-    /* 0008 */ int32_t unk_0008;
+    /* 0008 */ int32_t unused_0008;
     /* 000C */ int32_t m_stopped;
     /* 0010 */ int32_t m_finished;
     /* 0014 */ SE2SoundKitObject* m_object;

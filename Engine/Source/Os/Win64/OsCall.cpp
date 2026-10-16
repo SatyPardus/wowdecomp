@@ -120,7 +120,7 @@ void OsCallInitialize(const char* name) {
 void* OsCallInitializeContext(const char* name) {
     OsCallContext* context = new (SMemAlloc(sizeof(OsCallContext), __FILE__, __LINE__, SMEM_FLAG_ZEROMEMORY)) OsCallContext;
     SStrCopy(context->m_name, name, sizeof(context->m_name));
-    context->unk_000C = -1;
+    context->unused_000C = -1;
 
     s_critsect.Enter();
     s_contextList.LinkToTail(context);

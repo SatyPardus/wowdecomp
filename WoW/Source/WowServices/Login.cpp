@@ -173,13 +173,13 @@ Login::Login() {
     this->m_reconnect = false;
     memset(this->m_username, 0, sizeof(this->m_username));
     memset(this->m_rawUsername, 0, sizeof(this->m_rawUsername));
-    memset(this->unk_0A0D, 0, sizeof(this->unk_0A0D));
+    memset(this->unused_0A0D, 0, sizeof(this->unused_0A0D));
     memset(this->m_sessionKey, 0, sizeof(this->m_sessionKey));
     this->m_fileSize = 0;
     memset(this->m_fileMD5, 0, sizeof(this->m_fileMD5));
     memset(this->m_fileName, 0, sizeof(this->m_fileName));
-    memset(this->unk_105D, 0, sizeof(this->unk_105D));
-    memset(this->unk_1068, 0, sizeof(this->unk_1068));
+    memset(this->m_pinKeyMap, 0, sizeof(this->m_pinKeyMap));
+    memset(this->unused_1068, 0, sizeof(this->unused_1068));
     this->m_matrixEnabled = false;
     this->m_matrixWidth = 0;
     this->m_matrixHeight = 0;
@@ -188,13 +188,13 @@ Login::Login() {
     this->m_matrixFlipCoords = false;
     this->m_matrixChallengeCount = 0;
     this->m_matrixData = nullptr;
-    memset(this->unk_10A8, 0, sizeof(this->unk_10A8));
+    memset(this->unused_10A8, 0, sizeof(this->unused_10A8));
     this->m_matrixSeed = 0;
-    memset(this->unk_10C0, 0, sizeof(this->unk_10C0));
+    memset(this->unused_10C0, 0, sizeof(this->unused_10C0));
     this->m_tokenRequired = false;
-    this->unk_10D5 = 0;
-    memset(this->unk_10D6, 0, sizeof(this->unk_10D6));
-    this->unk_10E8 = 0;
+    this->unused_10D5 = 0;
+    memset(this->unused_10D6, 0, sizeof(this->unused_10D6));
+    this->unused_10E8 = 0;
 }
 
 // VERIFY: e35c45d9 manual

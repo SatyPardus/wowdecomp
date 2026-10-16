@@ -33,7 +33,7 @@ class CMovementShared : public CPassenger {
     /* 0044 */ uint32_t m_flags;
     /* 0048 */ uint16_t m_flags2;
     /* 004A */ uint8_t m_transportSeat;
-    /* 004B */ uint8_t unk_004B;
+    /* 004B */ uint8_t unused_004B;
     /* 004C */ C3Vector m_anchorPos;
     /* 0058 */ float m_anchorFacing;
     /* 005C */ float m_anchorPitch;

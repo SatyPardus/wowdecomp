@@ -412,7 +412,7 @@ bool CSimpleAnim::OnUpdate(float elapsedSec, float& consumed) {
 // OFFSET: 0x00499BB0
 CSimpleAnim::CSimpleAnim(CSimpleAnimGroup* group) {
     this->m_group = nullptr;
-    this->unk_002C = 0;
+    this->unused_002C = 0;
     this->m_order = -1;
     this->m_flags = 0;
     this->m_playState = 0;

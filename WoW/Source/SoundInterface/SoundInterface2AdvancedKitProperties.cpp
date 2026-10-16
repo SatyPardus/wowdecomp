@@ -740,7 +740,7 @@ int32_t SI2::AddAdvancedSound(SoundEntriesAdvancedRec* rec, int32_t soundKitId, 
     }
 
     sound->m_orientation = *orientation;
-    sound->unk_0008 = a7;
+    sound->unused_0008 = a7;
 
     sound->m_id = s_nextAdvancedId;
     sound->m_object->m_advancedId = s_nextAdvancedId;

@@ -299,15 +299,15 @@ void CGUnit_C::UpdateMissileTrajectory() {
     WOWGUID guid = this->m_obj->m_guid;
     PendingSpellCast* cast = GetPendingSpellCast(this->m_castCount, this->m_castSpellId, guid);
 
-    if (cast && !cast->unk_0139 && visual && visual->m_hasMissile && kit && kit->m_animID > 0 && !(visual->m_flags & 0x4)) {
+    if (cast && !cast->m_isTrajectoryCast && visual && visual->m_hasMissile && kit && kit->m_animID > 0 && !(visual->m_flags & 0x4)) {
         cast->m_data.m_targetFlags |= 0x40;
         cast->m_data.m_elevation = 0.0f;
         cast->m_data.m_destPos = C3Vector(0.0f, 0.0f, 0.0f);
-        cast->m_data.unk_0120 = 1.0f;
+        cast->m_data.m_missileSpeed = 1.0f;
         TSStackArray<CGUnit_C*> targets(static_cast<CGUnit_C**>(alloca(0)), 0, 0);
         Spell_C_PlayMissileTrajectoryCastVisuals(this, cast, &spell, visual, kit, &targets, 1.0f);
         this->m_missileTrajectoryReleased = cast->m_data.m_castCount;
-        cast->unk_0139 = 1;
+        cast->m_isTrajectoryCast = 1;
     } else {
         this->SendFinalMissileTrajectoryUpdate();
     }
@@ -1330,13 +1330,13 @@ void CGUnit_C::SendFinalMissileTrajectoryUpdate() {
     if (cast) {
         cast->m_data.m_targetFlags |= 0x40;
         cast->m_data.m_destPos = impact;
-        cast->unk_0139 = 1;
+        cast->m_isTrajectoryCast = 1;
 
         if (this->m_missileTrajectoryReleased) {
             this->RecordMissileTrajectoryUpdate(cast->m_data.m_castCount, &impact, pitch, speed, arrival);
         } else {
             cast->m_data.m_elevation = pitch;
-            cast->m_data.unk_0120 = speed;
+            cast->m_data.m_missileSpeed = speed;
             SpellVisualRec visualRec;
             const SpellVisualRec* visual = this->GetAppropriateSpellVisual(&spell, visualRec, 0, 0);
             SpellVisualKitRec* kit = g_spellVisualKitDB.GetRecord(visual ? visual->m_castKit : 0);
@@ -1389,13 +1389,13 @@ void CGUnit_C::StartMissileTrajectoryTargeting(CGUnit_C* unit, const VehicleRec*
 
 // VERIFY: 2a978a8c auto
 // OFFSET: 0x006FBFA0
-int32_t MissileTrajectoryObjectCallback(void* param, uint32_t a2, uint64_t a3, uintptr_t a4) {
-    if (s_trajectoryAlpha <= 0.0f && CGUnit_C::s_trajectoryWorldObjects[a4]) {
-        World::ObjectDestroy(CGUnit_C::s_trajectoryWorldObjects[a4]);
-        CGUnit_C::s_trajectoryWorldObjects[a4] = nullptr;
+int32_t MissileTrajectoryObjectCallback(void* param, uint32_t flags, uint64_t param64, uintptr_t param32) {
+    if (s_trajectoryAlpha <= 0.0f && CGUnit_C::s_trajectoryWorldObjects[param32]) {
+        World::ObjectDestroy(CGUnit_C::s_trajectoryWorldObjects[param32]);
+        CGUnit_C::s_trajectoryWorldObjects[param32] = nullptr;
     }
 
-    return CGUnit_C::s_trajectoryWorldObjects[a4] != nullptr;
+    return CGUnit_C::s_trajectoryWorldObjects[param32] != nullptr;
 }
 
 // VERIFY: 156171df auto

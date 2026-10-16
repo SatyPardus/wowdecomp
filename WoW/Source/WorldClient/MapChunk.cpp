@@ -46,10 +46,10 @@
 #include "Engine/Source/Model2/M2Light.h"
 
 // STATIC: 0x00A3FBB8
-static const uint16_t unk_A3FBB8[8] = { 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80 };
+static const uint16_t s_bitMask[8] = { 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80 };
 
 // STATIC: 0x00A3FBC8
-static const uint32_t unk_A3FBC8[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+static const uint32_t s_bitShift[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
 // STATIC: 0x00D25488
 float CMapChunk::s_geoToTex;
@@ -799,7 +799,7 @@ void CMapChunk::CreateLiquids(bool a3) {
                 this->m_liquidChunkLinkList.LinkToTail(chunkLiquid);
                 chunkLiquid->m_type = type;
                 chunkLiquid->m_owner = this;
-                chunkLiquid->unk_0008 = materialRec->m_lvf;
+                chunkLiquid->m_vertexFormat = materialRec->m_lvf;
                 chunkLiquid->m_topLeftCoords = this->m_topLeftCoords;
                 chunkLiquid->m_height = *reinterpret_cast<C2Vector*>(&mclq->m_minHeight);
 
@@ -810,7 +810,7 @@ void CMapChunk::CreateLiquids(bool a3) {
                 chunkLiquid->m_tileEnd.y = 8;
 
                 void* mem = SMemAlloc(sizeof(Liquid::CChunkVertexData), __FILE__, __LINE__, 0);
-                Liquid::CChunkVertexData* vertexData = mem ? new (mem) Liquid::CChunkVertexData(verts, chunkLiquid->unk_0008) : nullptr;
+                Liquid::CChunkVertexData* vertexData = mem ? new (mem) Liquid::CChunkVertexData(verts, chunkLiquid->m_vertexFormat) : nullptr;
                 chunkLiquid->m_tiles = reinterpret_cast<uint8_t*>(&mclq->m_tiles);
                 chunkLiquid->m_vertexData = vertexData;
                 mclq++;
@@ -836,7 +836,7 @@ void CMapChunk::CreateLiquids(bool a3) {
             this->m_liquidChunkLinkList.LinkToTail(chunkLiquid);
             chunkLiquid->m_owner = this;
             chunkLiquid->m_type = instance->m_liquidType;
-            chunkLiquid->unk_0008 = instance->m_vertexFormat;
+            chunkLiquid->m_vertexFormat = instance->m_vertexFormat;
             chunkLiquid->m_topLeftCoords = this->m_topLeftCoords;
             chunkLiquid->m_height = *reinterpret_cast<const C2Vector*>(&instance->m_minHeight);
 
@@ -1205,7 +1205,7 @@ void CMapChunk::CreateDetailDoodads() {
         int32_t x = s_cells[i].x;
         int32_t y = s_cells[i].y;
 
-        if ((this->m_predTexture[y] & unk_A3FBB8[x]) >> unk_A3FBC8[x]) {
+        if ((this->m_predTexture[y] & s_bitMask[x]) >> s_bitShift[x]) {
             continue;
         }
 
@@ -1360,7 +1360,7 @@ void CMapChunk::RenderPrep() {
         float dx = CWorldScene::s_activeWorldView.x - this->m_sphere.c.x;
 
         if (CWorld::shadowMipLevel || dx * dx + dz * dz + dy * dy > 603729.0f) {
-            this->m_renderChunk->unk_000A |= 0x10;
+            this->m_renderChunk->m_renderFlags |= 0x10;
         }
 
         this->m_renderChunk->RenderPrep();

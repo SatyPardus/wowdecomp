@@ -31,7 +31,7 @@ class CGCharacterModelBase : public CSimpleModel {
     /* 0370 */ uint32_t m_sequenceSet;
     /* 0374 */ uint32_t m_sequenceResetTime;
     /* 0378 */ CreatureStats_C* m_creatureStats;
-    /* 037C */ uint32_t unk_037C;
+    /* 037C */ uint32_t unused_037C;
 
     ~CGCharacterModelBase() override;
     int32_t GetScriptMetaTable() override;

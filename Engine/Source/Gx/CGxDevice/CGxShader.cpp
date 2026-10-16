@@ -3,7 +3,7 @@
 #include "Engine/Source/Gx/CGxDevice/CGxShader.h"
 
 // INLINED
-CGxShader::CGxShader() : m_refCount(0), m_apiSpecific(nullptr), m_target(0), unk_0028(0), m_valid(0), m_loaded(0), unk_0034(0), m_patched(0) {
+CGxShader::CGxShader() : m_refCount(0), m_apiSpecific(nullptr), m_target(0), unused_0028(0), m_valid(0), m_loaded(0), unused_0034(0), m_patched(0) {
 }
 
 // VERIFY: 089de908 manual

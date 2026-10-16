@@ -312,9 +312,9 @@ void Mists::Render() {
 // OFFSET: 0x0078C420
 Mists::Mists(float size, const C3Vector& extents, const char* textureName, float angle, float angleVariance, float speed, float speedVariance, uint32_t count) {
     this->m_extents = extents;
-    this->unk_0010.x = 0.0f;
-    this->unk_0010.y = 0.0f;
-    this->unk_0010.z = 0.0f;
+    this->unused_0010.x = 0.0f;
+    this->unused_0010.y = 0.0f;
+    this->unused_0010.z = 0.0f;
     this->m_fadeOut = 0;
     this->m_size = size;
     this->m_texture = nullptr;

@@ -44,8 +44,8 @@ class CGxTex {
     /* 003C */ void* m_apiSpecificData2;
     /* 0040 */ TSLink<CGxTex> m_link;
     /* 0048 */ TSLink<CGxTex> m_link2;
-    /* 0050 */ uint32_t unk_0050;
-    /* 0054 */ uint32_t unk_0054;
+    /* 0050 */ uint32_t m_lastUsedFrame;
+    /* 0054 */ uint32_t unused_0054;
     /* 0058 */ int8_t m_char58;
     /* 0059 */ int8_t m_char59;
     /* 005A */ int8_t m_needsUpdate;

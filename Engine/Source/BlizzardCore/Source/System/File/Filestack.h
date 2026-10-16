@@ -20,14 +20,14 @@ struct FileParms {
     /* 0058 */ int32_t m_mode;
     /* 005C */ void* m_buffer;
     /* 0060 */ int32_t m_amount;
-    /* 0064 */ uint8_t unk_0064[4];
+    /* 0064 */ uint8_t unused_0064[4];
     /* 0068 */ int64_t m_pos;
     /* 0070 */ int32_t m_posMode;
     /* 0074 */ char* m_cwdbuf;
     /* 0078 */ int32_t m_cwdbuflen;
     /* 007C */ bool m_recursive;
     /* 007D */ bool m_makeCanonical;
-    /* 007E */ uint8_t unk_007E[2];
+    /* 007E */ uint8_t unused_007E[2];
     /* 0080 */ void* m_cookie;
     /* 0084 */ Blizzard::File::ProcessDirCallback m_dircallback;
     /* 0088 */ bool m_sorted;
@@ -35,7 +35,7 @@ struct FileParms {
     /* 008A */ bool m_grantEveryone;
     /* 008B */ bool m_zeroFillAll;
     /* 008C */ bool m_supportsSparseFiles;
-    /* 008D */ uint8_t unk_008D[3];
+    /* 008D */ uint8_t unused_008D[3];
 };
 }
 }

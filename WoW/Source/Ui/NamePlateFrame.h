@@ -24,7 +24,7 @@ class CGNamePlateFrame : public TSLinkedNode<CGNamePlateFrame>, public CSimpleFr
     static CGNamePlateFrame* GetNamePlateFocus();
     static CGNamePlateFrame* GetNewNameplateFrame(CSimpleFrame* parent);
 
-    /* 02A4 */ uint32_t unk_02A4;
+    /* 02A4 */ uint32_t unused_02A4;
     /* 02A8 */ WOWGUID m_guid;
     /* 02B0 */ CSimpleTexture* m_namePlateGlow;
     /* 02B4 */ CSimpleTexture* m_targetingFrameSkull;

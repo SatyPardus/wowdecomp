@@ -350,7 +350,7 @@ int32_t CM2Shared::SetIndices() {
         }
     }
 
-    if (!this->m_indexBuf->unk_001C || !this->m_indexBuf->unk_001D) {
+    if (!this->m_indexBuf->m_hasData || !this->m_indexBuf->m_valid) {
         uint16_t* indices = reinterpret_cast<uint16_t*>(g_theGxDevicePtr->BufLock(this->m_indexBuf));
 
         if (!indices) {
@@ -380,7 +380,7 @@ int32_t CM2Shared::SetIndices() {
 
         CGxBuf* buf = this->m_indexBuf;
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
     }
 
     g_theGxDevicePtr->PrimIndexPtr(this->m_indexBuf);
@@ -401,7 +401,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
     }
 
     if (!CShaderEffect::s_enableShaders) {
-        if (!this->m_vertexBuf->unk_001C || !this->m_vertexBuf->unk_001D) {
+        if (!this->m_vertexBuf->m_hasData || !this->m_vertexBuf->m_valid) {
             M2VertexPNT2* vertices = reinterpret_cast<M2VertexPNT2*>(g_theGxDevicePtr->BufLock(this->m_vertexBuf));
 
             if (!vertices) {
@@ -424,7 +424,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
 
             CGxBuf* buf = this->m_vertexBuf;
             g_theGxDevicePtr->BufUnlock(buf, 0);
-            buf->unk_001C = 1;
+            buf->m_hasData = 1;
         }
 
         GxPrimVertexPtr(this->m_vertexBuf, GxVBF_PNT2);
@@ -432,7 +432,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
         return 1;
     }
 
-    if (!this->m_vertexBuf->unk_001C || !this->m_vertexBuf->unk_001D) {
+    if (!this->m_vertexBuf->m_hasData || !this->m_vertexBuf->m_valid) {
         M2Vertex* vertices = reinterpret_cast<M2Vertex*>(g_theGxDevicePtr->BufLock(this->m_vertexBuf));
 
         if (!vertices) {
@@ -456,7 +456,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
 
         CGxBuf* buf = this->m_vertexBuf;
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
     }
 
     GxPrimVertexPtr(this->m_vertexBuf, GxVBF_PBNT2);

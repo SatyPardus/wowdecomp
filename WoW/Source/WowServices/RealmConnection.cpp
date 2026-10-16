@@ -178,7 +178,7 @@ int32_t RealmConnection::MessageHandler(void* param, NETMESSAGE msgId, uint32_t 
 
 // VERIFY: 0d14ec4d manual
 // OFFSET: 0x004650E0
-RealmConnection::RealmConnection(RealmResponse* realmResponse) : m_realmResponse(realmResponse), m_authenticated(0), m_queuePosition(0), m_freeCharacterMigration(0), m_billingTimeRemaining(0), m_billingTimeRested(0), m_billingFlags(0), m_accountExpansion(0), unk_2F30(0), unk_2F34(0), unk_2F38(0) {
+RealmConnection::RealmConnection(RealmResponse* realmResponse) : m_realmResponse(realmResponse), m_authenticated(0), m_queuePosition(0), m_freeCharacterMigration(0), m_billingTimeRemaining(0), m_billingTimeRested(0), m_billingFlags(0), m_accountExpansion(0), m_regionId(0), m_battlegroupId(0), m_realmId(0) {
     this->Initialize();
 
     this->SetMessageHandler(SMSG_AUTH_CHALLENGE, RealmConnection::MessageHandler, this);
@@ -261,10 +261,10 @@ int32_t RealmConnection::HandleCharacterLoginFailed(uint32_t msgId, uint32_t tim
 
 // VERIFY: 197a26a8 auto
 // OFFSET: 0x00464490
-void RealmConnection::SetSelectedRealm(uint32_t a1, uint32_t a2, uint32_t a3) {
-    this->unk_2F30 = a1;
-    this->unk_2F34 = a2;
-    this->unk_2F38 = a3;
+void RealmConnection::SetSelectedRealm(uint32_t regionId, uint32_t battlegroupId, uint32_t realmId) {
+    this->m_regionId = regionId;
+    this->m_battlegroupId = battlegroupId;
+    this->m_realmId = realmId;
 }
 
 // VERIFY: b87ab906 auto
@@ -372,9 +372,9 @@ void RealmConnection::HandleAuthChallenge(AuthenticationChallenge* challenge) {
 
     uint32_t clientSeed = CRandom::uint32_(seed);
     msg.Put(clientSeed);
-    msg.Put(this->unk_2F30);
-    msg.Put(this->unk_2F34);
-    msg.Put(this->unk_2F38);
+    msg.Put(this->m_regionId);
+    msg.Put(this->m_battlegroupId);
+    msg.Put(this->m_realmId);
 
     uint32_t zero = 0;
     msg.Put(challenge->m_proof);

@@ -1021,7 +1021,7 @@ void CGActionBar::SetAction(int32_t slot, uint32_t action, int32_t sendToServer,
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
 
-    if (!player || player->unk_1954) {
+    if (!player || player->m_actionButtonsPending) {
         return;
     }
 
@@ -1686,7 +1686,7 @@ void CGActionBar::RemoveAction(uint32_t slot) {
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (!player || player->unk_1954) {
+    if (!player || player->m_actionButtonsPending) {
         return;
     }
 

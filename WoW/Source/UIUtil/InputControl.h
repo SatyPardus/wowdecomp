@@ -84,7 +84,7 @@ class CGInputControl {
     void VehicleAimChange(uint32_t time, float delta);
     void UpdateMoveStopped();
     void UpdatePlayer(uint32_t time, int32_t a2);
-    void ToggleControlBit(uint32_t bit, int32_t enable, uint32_t time, int32_t a5);
+    void ToggleControlBit(uint32_t bit, int32_t enable, uint32_t time, int32_t keepSmoothing);
     int32_t SetControlBit(uint32_t bit, uint32_t time);
     int32_t UnsetControlBit(uint32_t bit, uint32_t time, int32_t keepSmoothing);
     void OnTurnToAngleStop();

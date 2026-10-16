@@ -13,7 +13,7 @@ struct _STORMOPTIONS {
     /* 0018 */ int32_t crcenabled;
     /* 001C */ int32_t orderedprintfenabled;
     /* 0020 */ int32_t unicodeenabled;
-    /* 0024 */ int32_t unk_0024;
+    /* 0024 */ int32_t unused_0024;
     /* 0028 */ int32_t unk_0028;
 };
 

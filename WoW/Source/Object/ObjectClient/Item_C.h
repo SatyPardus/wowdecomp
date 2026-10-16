@@ -55,7 +55,7 @@ class CGItem_C : public CGObject_C, public CGItem {
     /* 03A4 */ uint32_t m_enchantmentExpiration [12];
     /* 03D4 */ ItemPurchaseData* m_itemPurchaseData;
     /* 03D8 */ const ItemGroupSoundsRec* m_groupSounds;
-    /* 03DC */ uint8_t unk_03DC [4];
+    /* 03DC */ uint8_t unused_03DC [4];
 
     ~CGItem_C() override;
     void PostReenable() override;
@@ -74,7 +74,7 @@ class CGItem_C : public CGObject_C, public CGItem {
     int32_t GetCurrentSpellCharges();
     uint32_t GetDisplayID() const;
     uint32_t GetEnchantmentTimeLeft(int32_t slot) const;
-    int32_t UseItem(WOWGUID* target, int32_t a2);
+    int32_t UseItem(WOWGUID* target, int32_t confirmed);
     static WOWGUID s_bindOnUseTarget;
     static WOWGUID s_bindOnUseItem;
     static void ConfirmBindOnUse();
@@ -124,7 +124,7 @@ class CGItem_C : public CGObject_C, public CGItem {
     int32_t GetItemEnchantmentVisualID() const;
     void UpdateEnchantmentTime(int32_t slot, int32_t seconds);
     void UpdateExpirationTime(int32_t seconds);
-    void UpdateSockets(uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);
+    void UpdateSockets(uint32_t gem1, uint32_t gem2, uint32_t gem3, uint32_t socketBonus);
 };
 
 #endif

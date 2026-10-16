@@ -263,11 +263,11 @@ void BATCHEDRENDERFONTDESC::Shutdown() {
 CGxVertexPCT* BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(CGxBuf*& buf, int32_t count) {
     GxBufUnlock(buf, sizeof(CGxVertexPCT) * count);
 
-    if (!BATCHEDRENDERFONTDESC::s_indexBuf->unk_001C || !BATCHEDRENDERFONTDESC::s_indexBuf->unk_001D) {
+    if (!BATCHEDRENDERFONTDESC::s_indexBuf->m_hasData || !BATCHEDRENDERFONTDESC::s_indexBuf->m_valid) {
         BATCHEDRENDERFONTDESC::InitializeIndexBuff();
     }
 
-    if (BATCHEDRENDERFONTDESC::s_indexBuf->unk_001C && BATCHEDRENDERFONTDESC::s_indexBuf->unk_001D) {
+    if (BATCHEDRENDERFONTDESC::s_indexBuf->m_hasData && BATCHEDRENDERFONTDESC::s_indexBuf->m_valid) {
         GxPrimVertexPtr(buf, GxVBF_PCT);
         g_theGxDevicePtr->PrimIndexPtr(BATCHEDRENDERFONTDESC::s_indexBuf);
 

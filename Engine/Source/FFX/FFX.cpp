@@ -121,7 +121,7 @@ FFX::Pass::Pass(Tex** inputs, uint32_t count, Tex* output, EGxBlend blend, bool 
 
     this->m_output = output;
     this->m_blend = blend;
-    this->unk_002C = unk;
+    this->m_flip = unk;
 }
 
 // VERIFY: 2d6c87ac manual

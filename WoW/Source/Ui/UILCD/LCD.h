@@ -68,7 +68,7 @@ class CGLCD {
     static void AuctionExpired(const char* name);
     static void AuctionSold(const char* name);
     static void AuctionWon(const char* name);
-    static void PushAlert(const char* text, int32_t a2);
+    static void PushAlert(const char* text, int32_t type);
     static void Login();
     static void* GetHandle(const char* name);
     static int32_t GetScreenFromName(const char* name);

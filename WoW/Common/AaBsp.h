@@ -32,7 +32,7 @@ class CAaBsp {
     /* 0044 */ uint32_t m_avgNodeFaces;
     /* 0048 */ int32_t m_bFree;
     /* 004C */ CAaBox m_aaBox;
-    /* 0064 */ int32_t unk_0064;
+    /* 0064 */ int32_t unused_0064;
 
     CAaBsp();
     ~CAaBsp();
@@ -45,7 +45,7 @@ class CAaBspNodeDigest {
     public:
     /* 0000 */ const CAaBspNode* m_node;
     /* 0004 */ uint8_t m_status;
-    /* 0005 */ uint8_t unk_0005[1];
+    /* 0005 */ uint8_t unused_0005[1];
     /* 0006 */ uint16_t m_nVertices;
     /* 0008 */ C3Vector m_vertices [450];
     /* 1520 */ uint16_t m_vertexIndices [450];
@@ -53,7 +53,7 @@ class CAaBspNodeDigest {
     /* 18A6 */ uint16_t m_faceVertexIndices [900];
     /* 1FAE */ uint16_t m_faceFlags [300];
     /* 2206 */ uint16_t m_faceIndices [300];
-    /* 245E */ uint8_t unk_245E[2];
+    /* 245E */ uint8_t unused_245E[2];
 };
 
 class CAaBspDigestCache {

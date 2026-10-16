@@ -33,7 +33,7 @@ class Sand {
     public:
     /* 0000 */ uint8_t m_useWeatherShaders;
     /* 0001 */ uint8_t m_fadeOut;
-    /* 0002 */ uint8_t unk_0002[2];
+    /* 0002 */ uint8_t unused_0002[2];
     /* 0004 */ CAaBox m_bbox;
     /* 001C */ Mists m_mists;
     /* 0070 */ PacketList<Packet<SandGrainParticleBuffer>> m_sandGrainPacketList;

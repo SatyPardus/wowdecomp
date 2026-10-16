@@ -148,9 +148,9 @@ WeatherGridBase::~WeatherGridBase() {
 // VERIFY: d6faa539 manual
 // OFFSET: 0x00784AB0
 WeatherGrid::WeatherGrid() {
-    this->unk_0004 = 0.0f;
-    this->unk_0008 = 0.0f;
-    this->unk_000C = 0.0f;
+    this->unused_0004 = 0.0f;
+    this->unused_0008 = 0.0f;
+    this->unused_000C = 0.0f;
     this->m_originX = 0;
     this->m_originY = 0;
     this->m_minCellX = 0;

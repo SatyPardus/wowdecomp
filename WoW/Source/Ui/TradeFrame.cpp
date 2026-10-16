@@ -468,7 +468,7 @@ void CGTradeInfo::OnTradeUpdated(const TRADE_ITEM* items) {
 
 // VERIFY: 6820d853 auto
 // OFFSET: 0x005870A0
-void CGTradeInfo::SetTradePartner(WOWGUID partner, int32_t a2) {
+void CGTradeInfo::SetTradePartner(WOWGUID partner, int32_t suppressMoneyEvent) {
     if (!partner) {
         if (CGTradeInfo::m_tradingPlayer) {
             if (CGTradeInfo::m_enchantingItem) {
@@ -476,7 +476,7 @@ void CGTradeInfo::SetTradePartner(WOWGUID partner, int32_t a2) {
                 CGTradeInfo::m_enchantingItem = WOWGUID();
             }
 
-            CGTradeInfo::m_supressMoneyEvent = a2;
+            CGTradeInfo::m_supressMoneyEvent = suppressMoneyEvent;
             CGGameUI::ClearInteractTarget(CGTradeInfo::m_tradingPlayer, 0);
             CGTradeInfo::m_tradingPlayer = WOWGUID();
             FrameScript_SignalEvent(SCRIPT_EVENT_TRADE_CLOSED, nullptr);

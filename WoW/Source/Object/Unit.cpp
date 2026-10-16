@@ -172,7 +172,7 @@ int32_t CGUnit::CanMove() const {
 
 // VERIFY: 68641d42 auto
 // OFFSET: 0x004D4240
-uint32_t CGUnit::DescriptorToMirrorOffset(uint32_t offset, uint32_t a2, uint32_t a3, uint32_t base) {
+uint32_t CGUnit::DescriptorToMirrorOffset(uint32_t offset, uint32_t unused_a2, uint32_t unused_a3, uint32_t base) {
     int32_t objectFields = CGObject::TotalFieldsSaved();
     return (offset & 3) + 4 * (objectFields + MirrorIndexFromFieldIndex((offset - base) >> 2));
 }

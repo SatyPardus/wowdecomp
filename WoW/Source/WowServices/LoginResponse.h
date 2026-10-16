@@ -16,7 +16,7 @@ class LoginResponse {
     public:
     /* 0004 */ TSFixedArray<REALM_INFO> m_realmList;
     /* 0010 */ uint16_t m_realmListTrailer;
-    /* 0012 */ uint8_t unk_0012[2];
+    /* 0012 */ uint8_t unused_0012[2];
     /* 0014 */ LOGIN_STATE m_loginState;
     /* 0018 */ LOGIN_RESULT m_loginResult;
 

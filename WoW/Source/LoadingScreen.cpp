@@ -153,7 +153,7 @@ static bool s_loadingWorld;
 static HLAYER s_miniLoadingLayer;
 
 // STATIC: 0x00B2FEC4
-static CTexture* unk_B2FEC4[2];
+static CTexture* s_miniTextures[2];
 
 // STATIC: 0x00B2FECC
 static CTexture* s_textures[2];
@@ -892,12 +892,12 @@ void LoadingScreenMiniDisable() {
 
     s_miniLoadingLayer = nullptr;
 
-    for (uint32_t i = 0; i < sizeof(unk_B2FEC4) / sizeof(unk_B2FEC4[0]); i++) {
-        if (unk_B2FEC4[i]) {
-            HandleClose(reinterpret_cast<HOBJECT>(unk_B2FEC4[i]));
+    for (uint32_t i = 0; i < sizeof(s_miniTextures) / sizeof(s_miniTextures[0]); i++) {
+        if (s_miniTextures[i]) {
+            HandleClose(reinterpret_cast<HOBJECT>(s_miniTextures[i]));
         }
 
-        unk_B2FEC4[i] = nullptr;
+        s_miniTextures[i] = nullptr;
     }
 }
 
@@ -993,7 +993,7 @@ static void LoadingScreenMiniPaint(void* param, const RECTF* rect, const RECTF* 
     }
 
     GxRsSet(GxRs_Fog, 0);
-    PaintLoadingBar(s_miniTextureInfo, 2, unk_B2FEC4);
+    PaintLoadingBar(s_miniTextureInfo, 2, s_miniTextures);
     g_theGxDevicePtr->RsPop();
     GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
 }
@@ -1007,10 +1007,10 @@ void LoadingScreenMiniEnable() {
 
     CStatus status;
 
-    for (uint32_t i = 0; i < sizeof(unk_B2FEC4) / sizeof(unk_B2FEC4[0]); i++) {
-        if (!unk_B2FEC4[i]) {
+    for (uint32_t i = 0; i < sizeof(s_miniTextures) / sizeof(s_miniTextures[0]); i++) {
+        if (!s_miniTextures[i]) {
             CGxTexFlags flags;
-            unk_B2FEC4[i] = TextureCreate(s_miniTextureInfo[i].m_path, flags, &status, 0);
+            s_miniTextures[i] = TextureCreate(s_miniTextureInfo[i].m_path, flags, &status, 0);
         }
     }
 

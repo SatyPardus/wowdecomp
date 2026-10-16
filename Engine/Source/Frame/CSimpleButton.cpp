@@ -763,9 +763,9 @@ int32_t CSimpleButton::OnLayerMouseDown(const CMouseEvent& evt, const char* btn)
             btn = GetMouseButtonName(evt.m_data.m_button);
         }
 
-        this->m_simpleTop->unk_1250 = 1;
+        this->m_simpleTop->unused_1250 = 1;
         this->OnClick(btn, 1);
-        this->m_simpleTop->unk_1250 = 0;
+        this->m_simpleTop->unused_1250 = 0;
     }
 
     if (!this->m_stateLocked && this->m_state != BUTTONSTATE_DISABLED) {
@@ -807,7 +807,7 @@ int32_t CSimpleButton::OnLayerMouseUp(const CMouseEvent& evt, const char* btn) {
             btn = GetMouseButtonName(evt.m_data.m_button);
         }
 
-        this->m_simpleTop->unk_1250 = 1;
+        this->m_simpleTop->unused_1250 = 1;
         uint32_t time = OsGetAsyncTimeMs();
 
         if (this->m_onDoubleClick.m_luaRef && this->m_lastClickTime && time - this->m_lastClickTime <= 300) {
@@ -818,7 +818,7 @@ int32_t CSimpleButton::OnLayerMouseUp(const CMouseEvent& evt, const char* btn) {
             this->m_lastClickTime = time;
         }
 
-        this->m_simpleTop->unk_1250 = 0;
+        this->m_simpleTop->unused_1250 = 0;
     }
 
     if (!this->m_stateLocked && this->m_state != BUTTONSTATE_DISABLED) {
@@ -830,9 +830,9 @@ int32_t CSimpleButton::OnLayerMouseUp(const CMouseEvent& evt, const char* btn) {
 
 // VERIFY: a6303e9e auto
 // OFFSET: 0x0096FCA0
-void CSimpleButton::OnLayerCursorEnter(int32_t a2) {
+void CSimpleButton::OnLayerCursorEnter(int32_t motion) {
     if (this->m_state != BUTTONSTATE_DISABLED) {
-        CSimpleFrame::OnLayerCursorEnter(a2);
+        CSimpleFrame::OnLayerCursorEnter(motion);
         this->UpdateTextState(this->m_state);
         return;
     }
@@ -842,15 +842,15 @@ void CSimpleButton::OnLayerCursorEnter(int32_t a2) {
             this->m_hoverFrame->Show();
         }
 
-        this->RunOnEnterScript(a2);
+        this->RunOnEnterScript(motion);
     }
 }
 
 // VERIFY: f683541a auto
 // OFFSET: 0x0096FD00
-void CSimpleButton::OnLayerCursorExit(int32_t a2, int32_t a3) {
+void CSimpleButton::OnLayerCursorExit(int32_t motion, int32_t a3) {
     if (this->m_state != BUTTONSTATE_DISABLED) {
-        CSimpleFrame::OnLayerCursorExit(a2, a3);
+        CSimpleFrame::OnLayerCursorExit(motion, a3);
         this->UpdateTextState(this->m_state);
         return;
     }
@@ -860,7 +860,7 @@ void CSimpleButton::OnLayerCursorExit(int32_t a2, int32_t a3) {
             this->m_hoverFrame->Hide();
         }
 
-        this->RunOnLeaveScript(a2);
+        this->RunOnLeaveScript(motion);
     }
 }
 

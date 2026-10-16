@@ -11,8 +11,8 @@ class CGPetition;
 
 struct PetitionSignerInfo {
     /* 0000 */ WOWGUID m_guid;
-    /* 0008 */ uint32_t unk_0008;
-    /* 000C */ uint32_t unk_000C;
+    /* 0008 */ uint32_t unused_0008;
+    /* 000C */ uint32_t unused_000C;
 };
 
 class CGPetitionInfo {

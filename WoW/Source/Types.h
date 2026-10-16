@@ -17,12 +17,12 @@ struct DefaultSettings {
     /* 000C */ uint32_t m_detailDoodadAlpha;
     /* 0010 */ bool m_animatingDoodads;
     /* 0011 */ bool m_trilinear;
-    /* 0012 */ uint8_t unk_0012[2];
+    /* 0012 */ uint8_t unused_0012[2];
     /* 0014 */ uint32_t m_numLights;
     /* 0018 */ bool m_specularity;
     /* 0019 */ bool unk_0019;
-    /* 001A */ bool unk_001A;
-    /* 001B */ uint8_t unk_001B[1];
+    /* 001A */ bool m_specular;
+    /* 001B */ uint8_t unused_001B[1];
     /* 001C */ uint32_t m_waterLOD;
     /* 0020 */ float m_particleDensity;
     /* 0024 */ float m_unitDrawDist;
@@ -32,7 +32,7 @@ struct DefaultSettings {
     /* 0034 */ uint32_t m_baseMipLevel;
     /* 0038 */ uint32_t m_numChannels;
     /* 003C */ bool m_fivePointOne;
-    /* 003D */ uint8_t unk_003D[3];
+    /* 003D */ uint8_t unused_003D[3];
 };
 
 struct Hardware {

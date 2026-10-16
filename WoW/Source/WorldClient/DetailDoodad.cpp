@@ -116,8 +116,8 @@ static void AcquireBuffers(uint32_t vertexCount, CGxBuf** vertexBuf, uint32_t in
         *vertexBuf = CDetailDoodad::s_freeGxBufs[count - 2];
         *indexBuf = CDetailDoodad::s_freeGxBufs[count - 1];
         CDetailDoodad::s_freeGxBufs.SetCount(count - 2);
-        (*vertexBuf)->unk_001C = 0;
-        (*indexBuf)->unk_001C = 0;
+        (*vertexBuf)->m_hasData = 0;
+        (*indexBuf)->m_hasData = 0;
     } else {
         *vertexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, sizeof(CGxVertexPNCT), vertexCount);
         *indexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), indexCount);
@@ -215,7 +215,7 @@ void CDetailDoodadInstBatch::FillIndices() {
 
     CGxBuf* buf = this->m_indexBuf;
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 039ae168 manual
@@ -432,7 +432,7 @@ void CDetailDoodadInstBatch::FillVertices() {
 
     buf = this->m_vertexBuf;
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: a2c3ec0e manual
@@ -724,13 +724,13 @@ void CDetailDoodadInstBatch::Draw() {
         AcquireBuffers(this->m_vertexCount, &this->m_vertexBuf, this->m_indexCount, &this->m_indexBuf);
     }
 
-    if (!this->m_vertexBuf->unk_001C || !this->m_vertexBuf->unk_001D) {
+    if (!this->m_vertexBuf->m_hasData || !this->m_vertexBuf->m_valid) {
         this->FillVertices();
     }
 
     GxPrimVertexPtr(this->m_vertexBuf, GxVBF_PNCT);
 
-    if (!this->m_indexBuf->unk_001C || !this->m_indexBuf->unk_001D) {
+    if (!this->m_indexBuf->m_hasData || !this->m_indexBuf->m_valid) {
         this->FillIndices();
     }
 

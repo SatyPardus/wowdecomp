@@ -17,8 +17,8 @@ class RCString : public TRefCnt {
 
 class CStringMemory : public TSGrowableArray<void*> {
     public:
-    /* 0010 */ char* unk_0010;
-    /* 0014 */ char* unk_0014;
+    /* 0010 */ char* m_cursor;
+    /* 0014 */ char* m_blockEnd;
 
     CStringMemory();
     ~CStringMemory();
@@ -28,8 +28,8 @@ class CStringMemory : public TSGrowableArray<void*> {
 
 class CStringManager {
     public:
-    /* 0000 */ char* unk_0000[521];
-    /* 0824 */ CStringMemory unk_0824;
+    /* 0000 */ char* m_buckets[521];
+    /* 0824 */ CStringMemory m_memory;
 
     static CStringManager* s_stringManager;
 

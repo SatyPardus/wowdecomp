@@ -39,7 +39,7 @@ struct CShadowCacheQueryData {
     /* 0024 */ CAaBox m_extents[3];
     /* 006C */ CFrustum m_frustums[3];
     /* 0348 */ CFrustum m_cullFrustums[3];
-    /* 0624 */ CFrustum unk_0624[3];
+    /* 0624 */ CFrustum m_bandFrustums[3];
     /* 0900 */ float m_cullRects[3][4];
     /* 0930 */ C3Vector m_pos[3];
     /* 0954 */ uint8_t m_textureIndex[3];

@@ -22,7 +22,7 @@ class CGRaidMember {
     /* 0320 */ int32_t m_readyCheckPending;
     /* 0324 */ int32_t m_readyCheckReady;
     /* 0328 */ uint8_t m_assignments;
-    /* 0329 */ uint8_t unk_0329[3];
+    /* 0329 */ uint8_t unused_0329[3];
     /* 032C */ uint32_t m_groupRole;
 };
 

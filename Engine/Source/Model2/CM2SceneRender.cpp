@@ -683,7 +683,7 @@ void CM2SceneRender::DrawBatchDoodad(M2Element* elements, uint32_t* indices) {
             }
 
             g_theGxDevicePtr->BufUnlock(buf, 0);
-            buf->unk_001C = 1;
+            buf->m_hasData = 1;
             GxPrimVertexPtr(buf, GxVBF_PNT);
             GxRsSet(GxRs_NormalizeNormals, normalize);
 
@@ -831,7 +831,7 @@ uint32_t CM2SceneRender::DrawBatchedParticle(uint32_t index, M2Element* elements
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 
     if (renderedVertices && renderedIndices) {
         this->RenderBatchedParticle(emitter, buf, format, renderedVertices, renderedIndices);

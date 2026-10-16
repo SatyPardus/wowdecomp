@@ -270,7 +270,7 @@ void NetClient::ResetHandler(NETMESSAGE msgId) {
 
 // VERIFY: 59f00590 auto
 // OFFSET: 0x00631FE0
-int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_t a4) {
+int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_t unused_a4) {
     s_stats[4]++;
 
     uint16_t msgId;

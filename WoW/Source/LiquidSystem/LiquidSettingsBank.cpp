@@ -13,7 +13,7 @@ TSGrowableArray<Liquid::CMaterialSettings*> Liquid::CSettingsBank::s_settings;
 // VERIFY: 1d70e7aa manual
 // OFFSET: 0x008A2380
 void Liquid::CSettingsBank::Destroy() {
-    if (!--Liquid::s_unk_D43AF8) {
+    if (!--Liquid::s_settingsBankRefCount) {
         for (uint32_t i = 0; i < Liquid::CSettingsBank::s_settings.Count(); i++) {
             if (Liquid::CSettingsBank::s_settings[i]) {
                 Liquid::CSettingsBank::s_settings[i]->Destroy();

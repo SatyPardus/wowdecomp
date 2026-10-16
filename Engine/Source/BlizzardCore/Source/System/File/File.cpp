@@ -304,7 +304,7 @@ bool System_File::Shutdown(Blizzard::File::Filesystem* fs, System_File::Stacked:
 System_File::FileError::FileError() {
     this->m_errorStack = nullptr;
     this->m_lastError = 0;
-    this->unk_0004 = 0;
+    this->unused_0004 = 0;
 }
 
 // INLINED

@@ -470,9 +470,9 @@ void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
     }
 
     g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-    vertexBuf->unk_001C = 1;
+    vertexBuf->m_hasData = 1;
     g_theGxDevicePtr->BufUnlock(indexBuf, 0);
-    indexBuf->unk_001C = 1;
+    indexBuf->m_hasData = 1;
     GxPrimVertexPtr(vertexBuf, GxVBF_PCT2);
     g_theGxDevicePtr->PrimIndexPtr(indexBuf);
     CGxBatch batch;

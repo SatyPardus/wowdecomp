@@ -333,7 +333,7 @@ void CGGuildBankInfo::EnterWorld() {
             CGGuildBankInfo::m_tabSlots[tab].m_data[i].m_itemID = 0;
         }
 
-        CGGuildBankInfo::m_guildBankTabInfo[tab].unk_2140 = 1;
+        CGGuildBankInfo::m_guildBankTabInfo[tab].m_needsFullUpdate = 1;
         CGGuildBankInfo::m_tabContentsDirty[tab] = 1;
     }
 
@@ -415,7 +415,7 @@ void CGGuildBankInfo::Unlock(int32_t itemId, uint32_t virtualSlot) {
 void CGGuildBankInfo::ClearAllTabs() {
     for (uint32_t i = 0; i < 6; i++) {
         CGGuildBankInfo::m_tabSlots[i].Clear();
-        CGGuildBankInfo::m_guildBankTabInfo[i].unk_2140 = 1;
+        CGGuildBankInfo::m_guildBankTabInfo[i].m_needsFullUpdate = 1;
         CGGuildBankInfo::m_tabContentsDirty[i] = 1;
     }
 
@@ -550,13 +550,13 @@ void CGGuildBankInfo::ClearGuildTabList(uint32_t tab) {
         slot.m_randomPropertyID = 0;
         slot.m_suffixFactor = 0;
         slot.m_count = 0;
-        slot.unk_0010 = 0;
-        slot.unk_0014 = 0;
+        slot.m_enchantId = 0;
+        slot.m_spellCharges = 0;
         slot.m_enchants[0] = 0;
         slot.m_enchants[1] = 0;
         slot.m_enchants[2] = 0;
         slot.m_locked = 0;
-        slot.unk_0028 = 0;
+        slot.m_flags = 0;
     }
 }
 
@@ -571,7 +571,7 @@ void SendGuildBankQueryTabOpcode(uint8_t tab) {
     msg.Put(static_cast<uint32_t>(CMSG_GUILD_BANK_QUERY_TAB));
     msg.Put(CGGuildBankInfo::m_banker.m_guid);
     msg.Put(tab);
-    msg.Put(static_cast<uint8_t>(CGGuildBankInfo::m_guildBankTabInfo[tab].unk_2140 != 0));
+    msg.Put(static_cast<uint8_t>(CGGuildBankInfo::m_guildBankTabInfo[tab].m_needsFullUpdate != 0));
     msg.Finalize();
     ClientServices::Send2(&msg);
 }
@@ -756,7 +756,7 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
             continue;
         }
 
-        msg->Get(slot->unk_0028);
+        msg->Get(slot->m_flags);
         msg->Get(reinterpret_cast<uint32_t&>(CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex].m_randomPropertyID));
         slot = &CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex];
 
@@ -767,8 +767,8 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
         }
 
         msg->Get(reinterpret_cast<uint32_t&>(CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex].m_count));
-        msg->Get(CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex].unk_0010);
-        msg->Get(CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex].unk_0014);
+        msg->Get(CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex].m_enchantId);
+        msg->Get(CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex].m_spellCharges);
         uint8_t numEnchants;
         msg->Get(numEnchants);
         slot = &CGGuildBankInfo::m_tabSlots[tab].m_data[slotIndex];
@@ -789,7 +789,7 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
         }
     }
 
-    CGGuildBankInfo::m_guildBankTabInfo[tab].unk_2140 = 0;
+    CGGuildBankInfo::m_guildBankTabInfo[tab].m_needsFullUpdate = 0;
 
     if (CGGuildBankInfo::m_banker == WOWGUID()) {
         if (CGGuildBankInfo::m_pendingBanker == WOWGUID()) {

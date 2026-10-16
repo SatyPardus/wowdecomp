@@ -14,11 +14,11 @@ struct lua_State;
 
 struct CLIENT_ACHIEVEMENT_CRITERIA : public TSLinkedNode<CLIENT_ACHIEVEMENT_CRITERIA> {
     /* 0008 */ int32_t m_id;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ uint64_t m_counter;
     /* 0018 */ uint32_t m_flags;
     /* 001C */ WowTime m_date;
-    /* 003C */ uint32_t unk_003C;
+    /* 003C */ uint32_t unused_003C;
     /* 0040 */ WOWGUID m_player;
     /* 0048 */ uint32_t m_timer1;
     /* 004C */ uint32_t m_timer2;

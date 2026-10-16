@@ -19,13 +19,13 @@ void CSimpleHyperlinkButton::operator delete(void* ptr) {
 
 // VERIFY: 5a02c721 auto
 // OFFSET: 0x00978540
-void CSimpleHyperlinkButton::OnLayerCursorEnter(int32_t a2) {
+void CSimpleHyperlinkButton::OnLayerCursorEnter(int32_t motion) {
     static_cast<CSimpleHyperlinkedFrame*>(this->m_parent)->OnHyperlinkEnter(this->m_linkData, this->m_linkText);
 }
 
 // VERIFY: e8af4768 auto
 // OFFSET: 0x00978570
-void CSimpleHyperlinkButton::OnLayerCursorExit(int32_t a2, int32_t a3) {
+void CSimpleHyperlinkButton::OnLayerCursorExit(int32_t motion, int32_t a3) {
     static_cast<CSimpleHyperlinkedFrame*>(this->m_parent)->OnHyperlinkLeave(this->m_linkData, this->m_linkText);
 }
 

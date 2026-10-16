@@ -15,12 +15,12 @@ class CMapChunkLiquidBuf {
     public:
     static TSList<CMapChunkLiquid, TSGetExplicitLink<CMapChunkLiquid> > s_freeLists;
 
-    static CMapChunkLiquidBuf* Alloc(uint32_t vertexCount, uint32_t indexCount, int32_t a3, EGxVertexBufferFormat format);
-    static CMapChunkLiquidBuf* CreateBuf(uint32_t vertexCount, uint32_t indexCount, int32_t a3, uint32_t vertexSize);
+    static CMapChunkLiquidBuf* Alloc(uint32_t vertexCount, uint32_t indexCount, int32_t flags, EGxVertexBufferFormat format);
+    static CMapChunkLiquidBuf* CreateBuf(uint32_t vertexCount, uint32_t indexCount, int32_t flags, uint32_t vertexSize);
     static void Free(CMapChunkLiquidBuf* buf);
     static void Update(float elapsed);
 
-    /* 0000 */ uint32_t unk_0000;
+    /* 0000 */ uint32_t m_flags;
     /* 0004 */ float m_flushTimer;
     /* 0008 */ uint32_t m_vertexDataSize;
     /* 000C */ uint32_t m_indexDataSize;

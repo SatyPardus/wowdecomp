@@ -50,7 +50,7 @@ struct DNInfo {
     /* 004C */ float m_weatherIntensity;
     /* 0050 */ uint8_t m_flashBlend;
     /* 0051 */ CImVector m_flashColor;
-    /* 0055 */ uint8_t unk_0055 [3];
+    /* 0055 */ uint8_t unused_0055 [3];
     /* 0058 */ uint32_t m_overrideLightParamsId;
     /* 005C */ DNOverrideSky* m_skybox;
     /* 0060 */ float m_skyboxWeight;
@@ -74,7 +74,7 @@ struct DNInfo {
     /* 01DC */ float m_curve0;
     /* 01E0 */ float m_curve1;
     /* 01E4 */ uint32_t m_nearLightCount;
-    /* 01E8 */ uint32_t unk_01E8;
+    /* 01E8 */ uint32_t unused_01E8;
     /* 01EC */ LightRec* m_nearLight [5];
     /* 0200 */ float m_nearLightBlend [5];
 

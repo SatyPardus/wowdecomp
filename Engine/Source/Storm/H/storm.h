@@ -171,10 +171,10 @@ void SLogWrite(HSLOG log, const char* format, ...);
 void SDebugPrintf(const char* format, ...);
 
 struct MEMREPORTENTRY {
-    /* 0000 */ uint8_t unk_0000[16];
+    /* 0000 */ uint8_t unused_0000[16];
     /* 0010 */ uint32_t unk_0010;
     /* 0014 */ uint32_t unk_0014;
-    /* 0018 */ uint8_t unk_0018[8];
+    /* 0018 */ uint8_t unused_0018[8];
     /* 0020 */ uint32_t unk_0020;
     /* 0024 */ char unk_0024[1];
 };

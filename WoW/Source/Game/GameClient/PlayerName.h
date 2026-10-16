@@ -24,7 +24,7 @@ class PLAYERNAMEDESC {
     /* 001C */ uint32_t m_renderFrame;
     /* 0020 */ WORLDTEXTSTRING* m_worldText [4];
     /* 0030 */ float m_zOffset;
-    /* 0034 */ uint32_t unk_0034;
+    /* 0034 */ uint32_t unused_0034;
 
     static int32_t ShouldRender(CGObject_C* object, uint32_t raidTarget);
 

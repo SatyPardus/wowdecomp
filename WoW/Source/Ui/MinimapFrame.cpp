@@ -154,7 +154,7 @@ static C2Vector s_classBlipTexCoords[16][4];
 static C2Vector s_blipTexCoords[32][4];
 
 // STATIC: 0x00BEBA40
-static int32_t s_unkBEBA40;
+static int32_t s_inWorld;
 
 // STATIC: 0x00BEB9A8
 static uint32_t s_hoverObjects[23];
@@ -494,16 +494,16 @@ void CGMinimapFrame::OnLayerUpdate(float elapsedSec) {
 
 // VERIFY: 44ce878d auto
 // OFFSET: 0x0057D580
-void CGMinimapFrame::OnLayerCursorExit(int32_t a2, int32_t a3) {
+void CGMinimapFrame::OnLayerCursorExit(int32_t motion, int32_t a3) {
     CGGameUI::m_gameTooltip->Hide();
-    CSimpleFrame::OnLayerCursorExit(a2, a3);
+    CSimpleFrame::OnLayerCursorExit(motion, a3);
 }
 
 // VERIFY: b41af30f auto
 // OFFSET: 0x0057DCA0
 CGMinimapFrame::CGMinimapFrame(CSimpleFrame* parent) : CSimpleFrame(parent) {
     this->m_facing = -10000.0f;
-    this->unk_02AC = 0;
+    this->m_lastUpdateTime = 0;
     CGMinimapFrame::s_rotateMinimap = g_rotateMinimapCVar->m_intValue;
     this->m_playerTexture = nullptr;
 
@@ -570,7 +570,7 @@ void CGMinimapFrame::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
 // VERIFY: 855d28c7 auto
 // OFFSET: 0x005831C0
 void CGMinimapFrame::EnterWorld() {
-    s_unkBEBA40 = 1;
+    s_inWorld = 1;
     MinimapInitialize(CGPlayer_C::GetNewContinentID());
     s_indoor.m_radius = 10.0f;
     EGxTexFormat format = GxTex_Unknown;
@@ -1714,7 +1714,7 @@ done:
 // VERIFY: 49439d70 manual
 // OFFSET: 0x00581E80
 void CGMinimapFrame::Render() {
-    if (!s_maskTexture || !(this->m_layoutFlags & 0x100) || !s_unkBEBA40) {
+    if (!s_maskTexture || !(this->m_layoutFlags & 0x100) || !s_inWorld) {
         return;
     }
 
@@ -1966,15 +1966,15 @@ void CGMinimapFrame::Render() {
         }
     }
 
-    uint32_t lastUpdate = this->unk_02AC;
+    uint32_t lastUpdate = this->m_lastUpdateTime;
     bool expired = OsGetAsyncTimeMs() - lastUpdate >= 1000;
 
     if (updated || s_rotateMinimap != g_rotateMinimapCVar->m_intValue || !lastUpdate || expired) {
         uint32_t now = OsGetAsyncTimeMs();
-        this->unk_02AC = now;
+        this->m_lastUpdateTime = now;
 
         if (!now) {
-            this->unk_02AC = 1;
+            this->m_lastUpdateTime = 1;
         }
 
         for (uint32_t i = 0; i < 23; i++) {
@@ -2660,7 +2660,7 @@ void CGMinimapFrame::LeaveWorld() {
         s_objInfo[i].Clear();
     }
 
-    s_unkBEBA40 = 0;
+    s_inWorld = 0;
 }
 
 // VERIFY: 5b02e890 manual

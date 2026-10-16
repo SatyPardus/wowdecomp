@@ -113,7 +113,7 @@ class IOMpqReadUnit : public IOUnit {
         /* 0018 */ uint32_t m_scratchLeft;
         /* 001C */ uint8_t* m_destCursor;
         /* 0020 */ bool m_success;
-        /* 0021 */ uint8_t unk_0021[3];
+        /* 0021 */ uint8_t unused_0021[3];
     };
 
     static IOUnit* Create(IOUnitContainer* container, uint32_t fileSize, uint32_t compressedSize, uint32_t sectorSize, uint32_t flags, uint32_t key, IOUnit* next);
@@ -163,7 +163,7 @@ class IOMpqWriteUnit : public IOUnit {
         /* 0014 */ uint32_t* m_sizes;
         /* 0018 */ uint32_t* m_checksums;
         /* 001C */ bool m_success;
-        /* 001D */ uint8_t unk_001D[3];
+        /* 001D */ uint8_t unused_001D[3];
     };
 
     static void CompressBlock(void* param);
@@ -173,7 +173,7 @@ class IOMpqWriteUnit : public IOUnit {
     /* 0010 */ uint32_t m_fileSize;
     /* 0014 */ Blizzard::Memory::TempBuffer<uint32_t, 8> m_checksums;
     /* 003C */ bool m_hasChecksums;
-    /* 003D */ uint8_t unk_003D[3];
+    /* 003D */ uint8_t unused_003D[3];
     /* 0040 */ Blizzard::Memory::TempBuffer<uint32_t, 10> m_sectorOffsets;
     /* 0070 */ uint32_t m_sectorSize;
     /* 0074 */ uint32_t m_sectorIndex;

@@ -155,7 +155,7 @@ struct SLTiles {
 };
 
 struct SLVert {
-    /* 0000 */ uint8_t unk_0000[8];
+    /* 0000 */ uint8_t unused_0000[8];
 };
 
 struct SMChunk {
@@ -174,7 +174,7 @@ struct SMChunk {
     /* 0034 */ uint32_t m_areaid;
     /* 0038 */ uint32_t m_nMapObjRefs;
     /* 003C */ uint16_t m_holes;
-    /* 003E */ uint16_t unk_003E;
+    /* 003E */ uint16_t unused_003E;
     /* 0040 */ uint8_t m_lowQualityTextureMap [16];
     /* 0050 */ uint32_t m_predTex;
     /* 0054 */ uint32_t m_nEffectDoodad;

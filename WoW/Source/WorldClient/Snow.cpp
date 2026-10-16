@@ -222,7 +222,7 @@ void Snow::UpdatePackets() {
             this->m_snowFlakePacketList.m_activePacketsCount--;
             this->m_snowFlakePacketList.m_freePacketsCount++;
             this->m_snowFlakePacketList.m_freePackets.LinkToTail(packet);
-        } else if (!packet->m_vertexBufHandle->unk_001C || !packet->m_vertexBufHandle->unk_001D) {
+        } else if (!packet->m_vertexBufHandle->m_hasData || !packet->m_vertexBufHandle->m_valid) {
             RealizeParticlePacket(packet);
         }
 
@@ -494,7 +494,7 @@ void Snow::RenderPacketsSW() {
         }
 
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
 
         if (vertexCount) {
             GxPrimVertexPtr(buf, GxVBF_PCT);

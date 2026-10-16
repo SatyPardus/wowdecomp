@@ -61,7 +61,7 @@ int32_t GatherAdditionalChecks(uint8_t* check1, uint8_t* check2, uint8_t* check3
     return 0;
 }
 
-uint8_t AdditionalCheck1Scan(const AdditionalCheckInterface* iface, int32_t a2) {
+uint8_t AdditionalCheck1Scan(const AdditionalCheckInterface* iface, int32_t unused_a2) {
     return 0;
 }
 

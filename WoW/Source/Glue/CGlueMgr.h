@@ -70,7 +70,7 @@ class CGlueMgr {
     static int32_t m_estimatedWaitTime;
     static int32_t m_displayingQueueDialog;
     static CHARACTER_INFO* m_characterInfo;
-    static int32_t s_unk_AC4370;
+    static int32_t s_displayedCharacterIndex;
     static int32_t m_rereadTOS;
     static int32_t m_acceptedTOS;
     static int32_t m_rereadEULA;

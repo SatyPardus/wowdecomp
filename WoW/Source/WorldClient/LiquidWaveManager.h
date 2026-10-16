@@ -20,7 +20,7 @@ namespace Liquid {
     };
 
     struct SWaveData {
-        /* 0000 */ uint8_t unk_0000[72];
+        /* 0000 */ uint8_t unused_0000[72];
         /* 0048 */ SWave m_waves[3];
     };
 

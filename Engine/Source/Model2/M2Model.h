@@ -141,7 +141,7 @@ class CM2Model {
     /* 000C */ CM2Model* m_sceneNext;
     /* 0010 */ uint32_t m_fFlags;
     /* 0014 */ uint16_t m_animListHead;
-    /* 0016 */ uint16_t unk_0016;
+    /* 0016 */ uint16_t unused_0016;
     /* 0018 */ CM2Model** m_callbackPrev;
     /* 001C */ CM2Model* m_callbackNext;
     /* 0020 */ void (*m_loadedCallback)(CM2Model*, void*);
@@ -167,7 +167,7 @@ class CM2Model {
     /* 0070 */ int32_t* m_loops;
     /* 0074 */ uint32_t m_loopOrigin;
     /* 0078 */ void* m_sequenceCallback;
-    /* 007C */ uint32_t unk_007C;
+    /* 007C */ uint32_t unused_007C;
     /* 0080 */ uint64_t m_sequenceCallbackParam;
     /* 0088 */ float m_scaleSq;
     /* 008C */ uint32_t m_lastEmitterTime;
@@ -220,7 +220,7 @@ class CM2Model {
     /* 02E0 */ void* m_hitTestOwner;
     /* 02E4 */ uint32_t m_hitTestGroup;
     /* 02E8 */ uint32_t m_handle;
-    /* 02EC */ uint32_t unk_02EC;
+    /* 02EC */ uint32_t unused_02EC;
 
     static void (*s_transformVertices[5])(CM2Model*, M2SkinSection*, uint8_t*, int32_t);
     static TSGrowableArray<M2ModelCallback> s_sequenceCallbacks;
@@ -465,7 +465,7 @@ class M2ModelParticle {
     /* 0084 */ uint8_t m_emitting;
     /* 0085 */ uint8_t m_active;
     /* 0086 */ uint8_t m_burstFired;
-    /* 0087 */ uint8_t unk_0087;
+    /* 0087 */ uint8_t unused_0087;
 
     M2ModelParticle();
 };

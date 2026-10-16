@@ -2091,7 +2091,7 @@ static int32_t Script_SetUIVisibility(lua_State* L) {
 // VERIFY: 0647bfed auto
 // OFFSET: 0x0051AC90
 static int32_t Script_CancelLogout(lua_State* L) {
-    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unk_1250) {
+    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
         CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
         return 0;
     }
@@ -2463,7 +2463,7 @@ static int32_t Script_GetXPExhaustion(lua_State* L) {
 // OFFSET: 0x00525FC0
 static int32_t Script_ClearTarget(lua_State* L) {
     int32_t hadTarget = CGGameUI::m_lockedTarget != WOWGUID();
-    CGGameUI::unk_BD08CC = 0;
+    CGGameUI::unused_BD08CC = 0;
 
     if (CGGameUI::m_lockedTarget) {
         CGGameUI::m_lastTarget = CGGameUI::m_lockedTarget;
@@ -4444,7 +4444,7 @@ static int32_t Script_GetMirrorTimerProgress(lua_State* L) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    lua_pushnumber(L, timer->m_value + timer->m_scale * static_cast<int32_t>(OsGetAsyncTimeMs() - timer->unk_0018));
+    lua_pushnumber(L, timer->m_value + timer->m_scale * static_cast<int32_t>(OsGetAsyncTimeMs() - timer->m_startTime));
     return 1;
 }
 
@@ -4601,7 +4601,7 @@ static int32_t Script_UninviteUnit(lua_State* L) {
         return 0;
     }
 
-    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unk_1250) {
+    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
         CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
         return 0;
     }
@@ -5429,7 +5429,7 @@ static int32_t Script_GameMovieFinished(lua_State* L) {
 // VERIFY: f280f677 auto
 // OFFSET: 0x005222E0
 static int32_t Script_ReloadUI(lua_State* L) {
-    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unk_1250) {
+    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
         CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
         return 0;
     }
@@ -5667,7 +5667,7 @@ static int32_t Script_SetCurrentTitle(lua_State* L) {
         return 0;
     }
 
-    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unk_1250) {
+    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
         CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
         return 0;
     }

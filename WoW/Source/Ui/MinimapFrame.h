@@ -82,7 +82,7 @@ struct OBJINFO {
     /* 001B */ uint8_t m_pad;
     /* 001C */ int32_t m_icon;
     /* 0020 */ float m_facing;
-    /* 0024 */ uint32_t unk_0024;
+    /* 0024 */ uint32_t unused_0024;
 };
 
 struct MEMBERINFO {
@@ -114,7 +114,7 @@ struct POIDIRECTIONDATA {
 
 struct POIINFO {
     /* 0000 */ int32_t m_icon;
-    /* 0004 */ uint8_t unk_0004[48];
+    /* 0004 */ uint8_t unused_0004[48];
     /* 0034 */ C2Vector m_position;
     /* 003C */ const char* m_name;
 };
@@ -180,7 +180,7 @@ class CGMinimapFrame : public CSimpleFrame {
     /* 02A0 */ CSimpleTexture* m_playerTexture;
     /* 02A4 */ float m_facing;
     /* 02A8 */ CScriptRegion* m_compassTexture;
-    /* 02AC */ uint32_t unk_02AC;
+    /* 02AC */ uint32_t m_lastUpdateTime;
 
     ~CGMinimapFrame() override;
     int32_t GetScriptMetaTable() override;
@@ -191,7 +191,7 @@ class CGMinimapFrame : public CSimpleFrame {
     void OnLayerUpdate(float elapsedSec) override;
     int32_t OnLayerTrackUpdate(const CMouseEvent& evt) override;
     void OnFrameRender(CRenderBatch* batch, uint32_t layer) override;
-    void OnLayerCursorExit(int32_t a2, int32_t a3) override;
+    void OnLayerCursorExit(int32_t motion, int32_t a3) override;
     bool UpdateScale(bool force) override;
 
     CGMinimapFrame(CSimpleFrame* parent);

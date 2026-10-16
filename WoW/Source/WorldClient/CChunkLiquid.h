@@ -32,7 +32,7 @@ class CChunkLiquid {
 
     /* 0000 */ int32_t m_objectIndex;
     /* 0004 */ int32_t m_type;
-    /* 0008 */ int32_t unk_0008;
+    /* 0008 */ int32_t m_vertexFormat;
     /* 000C */ C3Vector m_topLeftCoords;
     /* 0018 */ CAaSphere m_sphere;
     /* 0028 */ C2Vector m_height;

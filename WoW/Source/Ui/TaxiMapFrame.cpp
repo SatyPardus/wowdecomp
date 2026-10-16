@@ -78,7 +78,7 @@ static TSFixedArray<TSGrowableArray<TaxiPathRec*>> s_paths;
 static TSGrowableArray<TAXILINE> s_taxiLines;
 
 // STATIC: 0x00C0DC70
-static TSGrowableArray<uint8_t> s_unkC0DC70;
+static TSGrowableArray<uint8_t> s_unused_C0DC70;
 
 // VERIFY: cc1d814f auto
 // OFFSET: 0x00590690
@@ -643,7 +643,7 @@ void CGTaxiMap::InitializeGame() {
         }
     }
 
-    s_unkC0DC70.SetCount(CGTaxiMap::m_maxNodeID);
+    s_unused_C0DC70.SetCount(CGTaxiMap::m_maxNodeID);
     CGTaxiMap::m_routeLines.SetCount(CGTaxiMap::m_maxNodeID);
 
     for (int32_t i = g_taxiPathDB.m_numRecords - 1; i >= 0; i--) {

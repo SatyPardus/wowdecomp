@@ -508,7 +508,7 @@ void WorldTextRenderBatch() {
     }
 
     g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-    vertexBuf->unk_001C = 1;
+    vertexBuf->m_hasData = 1;
     GxPrimVertexPtr(vertexBuf, GxVBF_PT);
 
     CGxBuf* indexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), 6);
@@ -520,7 +520,7 @@ void WorldTextRenderBatch() {
     indices[4] = 1;
     indices[5] = 2;
     g_theGxDevicePtr->BufUnlock(indexBuf, 0);
-    indexBuf->unk_001C = 1;
+    indexBuf->m_hasData = 1;
     g_theGxDevicePtr->PrimIndexPtr(indexBuf);
 
     g_theGxDevicePtr->XformPush(GxXform_World);

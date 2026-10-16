@@ -130,7 +130,7 @@ class ManifestInfo {
     /* 0028 */ std::map<std::string, Manifests::ParameterItem> m_parameters;
     /* 0034 */ std::map<std::string, Manifests::TransportItem> m_transports;
     /* 0040 */ std::map<std::string, Manifests::FileItem> m_files;
-    /* 004C */ uint32_t unk_004C;
+    /* 004C */ uint32_t unused_004C;
 
     ManifestInfo();
     ~ManifestInfo();

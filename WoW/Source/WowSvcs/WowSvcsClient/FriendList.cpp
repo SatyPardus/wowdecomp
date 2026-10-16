@@ -136,7 +136,7 @@ void FriendList::Initialize() {
 
     for (int32_t i = 0; i < 7; i++) {
         FriendList::s_whoSort[i].m_field = i;
-        FriendList::s_whoSort[i].unk_0004 = 0;
+        FriendList::s_whoSort[i].m_reverse = 0;
     }
 
     FriendList::s_numWhoResults = 0;
@@ -454,7 +454,7 @@ bool FriendList::IsComplained(WOWGUID guid) {
 
 // VERIFY: 95f270e1 manual
 // OFFSET: 0x006B52E0
-bool FriendList::IsIgnored(WOWGUID guid, bool a2) {
+bool FriendList::IsIgnored(WOWGUID guid, bool includeComplained) {
     if (!guid) {
         return false;
     }
@@ -465,7 +465,7 @@ bool FriendList::IsIgnored(WOWGUID guid, bool a2) {
         }
     }
 
-    return a2 && CGChat::m_complaintsSystemStatus == 2 && this->IsComplained(guid);
+    return includeComplained && CGChat::m_complaintsSystemStatus == 2 && this->IsComplained(guid);
 }
 
 // VERIFY: de50a749 auto
@@ -539,7 +539,7 @@ int32_t CompareWhoResults(const void* a, const void* b) {
         }
 
         if (result) {
-            return FriendList::s_whoSort[i].unk_0004 ? -result : result;
+            return FriendList::s_whoSort[i].m_reverse ? -result : result;
         }
     }
 

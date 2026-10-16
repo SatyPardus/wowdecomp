@@ -190,7 +190,7 @@ void CGUnit_C::PlayVictimRound(const ATTACKROUNDINFO& info) {
 // VERIFY: e2e6478a manual
 // OFFSET: 0x00756040
 void CGUnit_C::PlayRangedItemPull() {
-    CM2Model* ranged = this->unk_0B40;
+    CM2Model* ranged = this->m_rangedWeaponModel;
 
     if (!ranged || !ranged->IsLoaded(0, 0) || !ranged->HasSequence(160)) {
         return;
@@ -226,8 +226,8 @@ void CGUnit_C::PlayRangedItemPull() {
 
     M2SequenceInfo sequence;
     sequence.Clear();
-    this->unk_0B40->GetSequenceInfo(160, 0, sequence);
-    this->unk_0B40->SetBoneSequence(0xFFFFFFFF, 160, 0, 0, static_cast<float>(static_cast<int32_t>(sequence.m_duration)) / remaining, 1, 1);
+    this->m_rangedWeaponModel->GetSequenceInfo(160, 0, sequence);
+    this->m_rangedWeaponModel->SetBoneSequence(0xFFFFFFFF, 160, 0, 0, static_cast<float>(static_cast<int32_t>(sequence.m_duration)) / remaining, 1, 1);
 }
 
 // VERIFY: ee364054 manual

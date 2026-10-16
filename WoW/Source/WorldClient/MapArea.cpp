@@ -362,7 +362,7 @@ CMapArea::CMapArea() {
     memset(this->m_mapChunks, 0, sizeof(this->m_mapChunks));
     this->m_fileBuffer = nullptr;
     this->m_fileSize = 0;
-    this->unk_008C = 0;
+    this->unused_008C = 0;
     this->m_doodadDef = nullptr;
     this->m_mapObjDef = nullptr;
     this->m_chunkInfo = nullptr;
@@ -606,7 +606,7 @@ CMapArea::~CMapArea() {
         CMapArea::FreeAsyncLoadBuffer(this->m_fileBuffer, this->m_fileSize);
     }
 
-    this->unk_008C = 0;
+    this->unused_008C = 0;
     this->m_doodadDef = nullptr;
     this->m_mapObjDef = nullptr;
     this->m_chunkInfo = nullptr;

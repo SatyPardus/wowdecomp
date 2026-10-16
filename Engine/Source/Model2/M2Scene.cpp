@@ -1490,7 +1490,7 @@ void __stdcall CM2Scene::ComputeElementShaders(M2Element* element) {
         }
     }
 
-    int32_t useAlphaTest = alphaTest && (!g_theGxDevicePtr->Caps().unk_0130 || shadow);
+    int32_t useAlphaTest = alphaTest && (!g_theGxDevicePtr->Caps().m_shaderAlphaRef || shadow);
     uint32_t shadowIndex = shadow > 2 ? 2 : shadow;
     uint32_t boneIndex = boneInfluences > 2 ? 2 : boneInfluences;
 

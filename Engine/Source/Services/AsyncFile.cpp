@@ -351,7 +351,7 @@ CAsyncObject* AsyncFileReadAllocObject() {
     object->m_isCurrent = 0;
     object->m_char24 = 0;
     object->m_char25 = 0;
-    object->unk_001C = 0;
+    object->m_queuedFrame = 0;
     object->m_priority = 126;
 
     return object;
@@ -416,7 +416,7 @@ uint32_t STORMAPI AsyncFileReadThread(void* param) {
             CAsyncObject* object = queue->m_readList.Head();
 
             if (object) {
-                if (queue->m_frameLimited && g_theGxDevicePtr->m_frameCount - object->unk_001C > 3) {
+                if (queue->m_frameLimited && g_theGxDevicePtr->m_frameCount - object->m_queuedFrame > 3) {
                     AsyncFileReadLinkStaleObject(object, 1);
                     g_queueLock.Leave();
                     continue;
@@ -549,7 +549,7 @@ void AsyncFileReadObject(CAsyncObject* object, int32_t urgent) {
 
     if (object == s_asyncWaitObject) {
         object->m_priority = object->m_priority > 127 ? 128 : 0;
-        object->unk_001C = g_theGxDevicePtr->m_frameCount;
+        object->m_queuedFrame = g_theGxDevicePtr->m_frameCount;
         queue->m_readList.LinkToHead(object);
         object->m_char25 = 0;
     } else if (queue->m_frameLimited) {
@@ -568,7 +568,7 @@ void AsyncFileReadObject(CAsyncObject* object, int32_t urgent) {
 // VERIFY: 2f496060 auto
 // OFFSET: 0x004BAC20
 void AsyncFileReadIncreasePriority(CAsyncObject* object) {
-    object->unk_001C = g_theGxDevicePtr->m_frameCount;
+    object->m_queuedFrame = g_theGxDevicePtr->m_frameCount;
 
     if (object->m_char25) {
         AsyncFileReadLinkObject(object, 1);

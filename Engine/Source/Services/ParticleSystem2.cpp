@@ -762,7 +762,7 @@ void __stdcall CParticleEmitter2::RenderIndices(CGxBuf* buf) {
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 7d50dd44 manual
@@ -839,7 +839,7 @@ void __stdcall CParticleEmitter2::RenderParticleVertices(CGxBuf* buf, EGxVertexB
         return;
     }
 
-    if (!CParticleEmitter2::s_indexBuf->unk_001C || !CParticleEmitter2::s_indexBuf->unk_001D) {
+    if (!CParticleEmitter2::s_indexBuf->m_hasData || !CParticleEmitter2::s_indexBuf->m_valid) {
         CParticleEmitter2::RenderIndices(CParticleEmitter2::s_indexBuf);
     }
 
@@ -2172,7 +2172,7 @@ CParticleEmitter2::CParticleEmitter2() : m_random(0) {
     this->m_indicesPerParticle = 0;
     this->m_alphaScale = 1.0f;
     this->m_texture = nullptr;
-    this->unk_012C = 0;
+    this->unused_012C = 0;
     this->m_twinkleFPS = 10.0f;
     this->m_flags = 0x6;
     this->m_textureRows = 1;
@@ -2201,7 +2201,7 @@ CParticleEmitter2::CParticleEmitter2() : m_random(0) {
     this->m_worldBounds.t.x = -3.4028235e38f;
     this->m_worldBounds.t.y = -3.4028235e38f;
     this->m_worldBounds.t.z = -3.4028235e38f;
-    this->unk_0230 = 0;
+    this->unused_0230 = 0;
 
     this->m_random.SetSeed((rand() << 16) | static_cast<uint16_t>(rand()));
     this->m_childEmitterCount = 0;
@@ -2374,7 +2374,7 @@ void CParticleEmitter2::RenderParticles(const C44Matrix* frameOfReference, void*
 
     if (buf) {
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
 
         if (this->m_renderedParticles) {
             CParticleEmitter2::RenderParticleVertices(buf, format, vertex.m_count, this->m_renderedParticles * this->m_indicesPerParticle);
@@ -2568,7 +2568,7 @@ CParticleEmitter2::CParticleEmitter2(const CParticleEmitter2& source, int32_t co
     this->m_indicesPerParticle = source.m_indicesPerParticle;
     this->m_textureRows = source.m_textureRows;
     this->m_textureCols = source.m_textureCols;
-    this->unk_012C = source.unk_012C;
+    this->unused_012C = source.unused_012C;
     this->m_alphaScale = source.m_alphaScale;
     this->m_flags = source.m_flags;
     this->m_twinkleFPS = source.m_twinkleFPS;
@@ -2596,7 +2596,7 @@ CParticleEmitter2::CParticleEmitter2(const CParticleEmitter2& source, int32_t co
     this->m_worldBounds.t.x = 0.0f;
     this->m_worldBounds.t.y = 0.0f;
     this->m_worldBounds.t.z = 0.0f;
-    this->unk_0230 = 0;
+    this->unused_0230 = 0;
 
     this->m_random.SetSeed((rand() << 16) | static_cast<uint16_t>(rand()));
     this->m_childEmitterCount = source.m_childEmitterCount;

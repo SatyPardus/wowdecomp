@@ -10,7 +10,7 @@ struct SPIRIT_IPMR_TABLES {
     /* 4600 */ float unk_4600[3200];
     /* 7800 */ float unk_7800[3200];
     /* AA00 */ float unk_AA00[240];
-    /* ADC0 */ uint8_t unk_ADC0[192];
+    /* ADC0 */ uint8_t unused_ADC0[192];
     /* AE80 */ float unk_AE80[11][12];
     /* B090 */ float unk_B090[11][12];
     /* B2A0 */ float unk_B2A0[5][12];
@@ -18,7 +18,7 @@ struct SPIRIT_IPMR_TABLES {
     /* B480 */ float unk_B480[5][12];
     /* B570 */ float unk_B570[5][12];
     /* B660 */ float unk_B660[61];
-    /* B754 */ uint8_t unk_B754[12];
+    /* B754 */ uint8_t unused_B754[12];
     /* B760 */ float unk_B760[12];
     /* B790 */ float unk_B790[12];
     /* B7C0 */ float unk_B7C0[12];
@@ -28,7 +28,7 @@ struct SPIRIT_IPMR_TABLES {
     /* B880 */ float unk_B880[11];
     /* B8AC */ int32_t unk_B8AC[40][5];
     /* BBCC */ int16_t m_initialized;
-    /* BBCE */ uint8_t unk_BBCE[2];
+    /* BBCE */ uint8_t unused_BBCE[2];
 };
 
 struct SPIRIT_IPMR_UNK114 {
@@ -51,29 +51,29 @@ struct SPIRIT_IPMR_ENC_UNK0020 {
     /* 0162 */ int16_t unk_0162;
     /* 0164 */ int16_t unk_0164;
     /* 0166 */ int16_t unk_0166;
-    /* 0168 */ uint8_t unk_0168[2968];
+    /* 0168 */ uint8_t unused_0168[2968];
 };
 
 struct SPIRIT_IPMR_ENC_UNK0D20 {
     /* 0000 */ float unk_0000[4];
     /* 0010 */ float unk_0010[360];
     /* 05B0 */ float unk_05B0[303];
-    /* 0A6C */ uint8_t unk_0A6C[4];
+    /* 0A6C */ uint8_t unused_0A6C[4];
     /* 0A70 */ float unk_0A70[314];
-    /* 0F58 */ uint8_t unk_0F58[8];
+    /* 0F58 */ uint8_t unused_0F58[8];
     /* 0F60 */ float unk_0F60[314];
-    /* 1448 */ uint8_t unk_1448[8];
+    /* 1448 */ uint8_t unused_1448[8];
     /* 1450 */ float unk_1450[314];
     /* 1938 */ float unk_1938[10];
     /* 1960 */ float unk_1960[10];
     /* 1988 */ float unk_1988[10];
     /* 19B0 */ float unk_19B0[10];
-    /* 19D8 */ uint8_t unk_19D8[40];
+    /* 19D8 */ uint8_t unused_19D8[40];
     /* 1A00 */ float unk_1A00[10];
-    /* 1A28 */ uint8_t unk_1A28[40];
+    /* 1A28 */ uint8_t unused_1A28[40];
     /* 1A50 */ float unk_1A50[330];
     /* 1F78 */ float unk_1F78;
-    /* 1F7C */ uint8_t unk_1F7C[24];
+    /* 1F7C */ uint8_t unused_1F7C[24];
     /* 1F94 */ int32_t unk_1F94;
     /* 1F98 */ float* unk_1F98;
     /* 1F9C */ float* unk_1F9C;
@@ -83,9 +83,9 @@ struct SPIRIT_IPMR_ENC_UNK0D20 {
     /* 1FAC */ float* unk_1FAC;
     /* 1FB0 */ int16_t unk_1FB0;
     /* 1FB2 */ int16_t unk_1FB2;
-    /* 1FB4 */ uint8_t unk_1FB4[4];
+    /* 1FB4 */ uint8_t unused_1FB4[4];
     /* 1FB8 */ int32_t unk_1FB8;
-    /* 1FBC */ uint8_t unk_1FBC[4];
+    /* 1FBC */ uint8_t unused_1FBC[4];
 };
 
 struct SPIRIT_IPMR_ENCODER {
@@ -95,11 +95,11 @@ struct SPIRIT_IPMR_ENCODER {
     /* 000C */ int32_t unk_000C;
     /* 0010 */ int32_t unk_0010;
     /* 0014 */ uint8_t unk_0014[10];
-    /* 001E */ uint8_t unk_001E[2];
+    /* 001E */ uint8_t unused_001E[2];
     /* 0020 */ SPIRIT_IPMR_ENC_UNK0020 unk_0020;
     /* 0D20 */ SPIRIT_IPMR_ENC_UNK0D20 unk_0D20;
     /* 2CE0 */ SPIRIT_IPMR_TABLES* m_tables;
-    /* 2CE4 */ uint8_t unk_2CE4[12];
+    /* 2CE4 */ uint8_t unused_2CE4[12];
 };
 
 struct SPIRIT_IPMR_POSTFILTER {
@@ -121,27 +121,27 @@ struct SPIRIT_IPMR_UNK158 {
 
 struct SPIRIT_IPMR_DEC_UNK0020 {
     /* 0000 */ float unk_0000[194];
-    /* 0308 */ uint8_t unk_0308[8];
+    /* 0308 */ uint8_t unused_0308[8];
     /* 0310 */ float unk_0310[12];
     /* 0340 */ float unk_0340[12];
     /* 0370 */ float unk_0370[10];
     /* 0398 */ SPIRIT_IPMR_UNK158 unk_0398;
     /* 03B4 */ float* unk_03B4;
     /* 03B8 */ SPIRIT_IPMR_POSTFILTER unk_03B8;
-    /* 0698 */ uint8_t unk_0698[16];
+    /* 0698 */ uint8_t unused_0698[16];
     /* 06A8 */ SPIRIT_IPMR_UNK114 unk_06A8;
-    /* 070C */ uint8_t unk_070C[4];
+    /* 070C */ uint8_t unused_070C[4];
 };
 
 struct SPIRIT_IPMR_DEC_UNK0730 {
-    /* 0000 */ uint8_t unk_0000[4];
+    /* 0000 */ uint8_t unused_0000[4];
     /* 0004 */ float unk_0004;
     /* 0008 */ float unk_0008;
-    /* 000C */ uint8_t unk_000C[40];
+    /* 000C */ uint8_t unused_000C[40];
     /* 0034 */ float unk_0034[10];
     /* 005C */ float unk_005C[10];
     /* 0084 */ int16_t unk_0084;
-    /* 0086 */ uint8_t unk_0086[2];
+    /* 0086 */ uint8_t unused_0086[2];
     /* 0088 */ int32_t unk_0088;
 };
 
@@ -170,17 +170,17 @@ struct SPIRIT_IPMR_SUBFRAME {
 
 struct SPIRIT_IPMR_TRACK {
     /* 0000 */ int16_t unk_0000;
-    /* 0002 */ uint8_t unk_0002[2];
+    /* 0002 */ uint8_t unused_0002[2];
     /* 0004 */ float unk_0004[5];
     /* 0018 */ int16_t unk_0018[6];
     /* 0024 */ int32_t unk_0024;
     /* 0028 */ int16_t unk_0028;
     /* 002A */ int16_t unk_002A;
-    /* 002C */ uint8_t unk_002C[160];
+    /* 002C */ uint8_t unused_002C[160];
     /* 00CC */ float unk_00CC[40];
-    /* 016C */ uint8_t unk_016C[160];
+    /* 016C */ uint8_t unused_016C[160];
     /* 020C */ float unk_020C[40];
-    /* 02AC */ uint8_t unk_02AC[160];
+    /* 02AC */ uint8_t unused_02AC[160];
 };
 
 struct SPIRIT_IPMR_FRAME {
@@ -194,7 +194,7 @@ struct SPIRIT_IPMR_FRAME {
     /* 0294 */ int16_t unk_0294;
     /* 0296 */ int16_t unk_0296;
     /* 0298 */ int16_t unk_0298;
-    /* 029A */ uint8_t unk_029A[2];
+    /* 029A */ uint8_t unused_029A[2];
     /* 029C */ int32_t unk_029C;
     /* 02A0 */ int16_t unk_02A0;
     /* 02A2 */ int16_t unk_02A2;
@@ -208,12 +208,12 @@ struct SPIRIT_IPMR_FRAME {
     /* 02B4 */ int16_t unk_02B4;
     /* 02B6 */ int16_t unk_02B6[4];
     /* 02BE */ int16_t unk_02BE[4];
-    /* 02C6 */ uint8_t unk_02C6[2];
+    /* 02C6 */ uint8_t unused_02C6[2];
     /* 02C8 */ int32_t unk_02C8[4];
     /* 02D8 */ SPIRIT_IPMR_SUBFRAME unk_02D8[4];
     /* 0308 */ SPIRIT_IPMR_TRACK unk_0308[4][11];
     /* 9418 */ int16_t unk_9418;
-    /* 941A */ uint8_t unk_941A[2];
+    /* 941A */ uint8_t unused_941A[2];
     /* 941C */ float unk_941C;
     /* 9420 */ int16_t unk_9420;
     /* 9422 */ int16_t unk_9422;
@@ -223,7 +223,7 @@ struct SPIRIT_IPMR_FRAME {
     /* 942A */ int16_t unk_942A;
     /* 942C */ int16_t unk_942C[2];
     /* 9430 */ uint8_t unk_9430[2][500];
-    /* 9818 */ uint8_t unk_9818[8];
+    /* 9818 */ uint8_t unused_9818[8];
 };
 
 struct SPIRIT_IPMR_STATE {

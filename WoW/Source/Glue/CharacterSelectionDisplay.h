@@ -15,7 +15,7 @@ class CharacterSelectionDisplay {
     /* 0188 */ CCharacterComponent* m_component;
     /* 018C */ CM2Model* m_petModel;
     /* 0190 */ float m_petAlpha;
-    /* 0194 */ uint32_t unk_0194;
+    /* 0194 */ uint32_t unused_0194;
 
     static void SetCharacterFacing(float rotation);
     static int32_t SetSelectedCharacterInfo(CHARACTER_INFO* info);

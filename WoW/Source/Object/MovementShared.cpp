@@ -84,7 +84,7 @@ CMovementShared::CMovementShared(const WOWGUID& transportGuid, const C3Vector& p
     this->m_fallTimeMs = 0;
     this->m_pitchSin = 0.0f;
     this->m_pitchCos = 1.0f;
-    this->unk_002C |= 1;
+    this->m_passengerFlags |= 1;
     this->m_fallStartZ = position.z;
     this->m_spline = nullptr;
     this->m_currentSpeed = 0.0f;

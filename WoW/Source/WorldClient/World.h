@@ -111,7 +111,7 @@ struct OcclusionVolume {
 
 struct SPortalExt {
     /* 0000 */ uint16_t m_flags;
-    /* 0002 */ uint16_t unk_0002;
+    /* 0002 */ uint16_t unused_0002;
     /* 0004 */ CRect m_rect;
     /* 0014 */ uint32_t m_stamp;
     /* 0018 */ uint32_t m_pad;
@@ -126,7 +126,7 @@ struct SWModelFadeout {
     /* 0000 */ CMapEntity* m_entity;
     /* 0004 */ uint32_t m_startTime;
     /* 0008 */ float m_alpha;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ WOWGUID m_transportGuid;
     /* 0018 */ C44Matrix m_localTransform;
     /* 0058 */ TSLink<SWModelFadeout> m_link;
@@ -148,7 +148,7 @@ class CWorldScene {
     static GxuScene s_unk_B2EB68;
     static CTexture* s_defaultBlendTexture;
     static CTexture* s_defaultTexture;
-    static int32_t s_unk_CD8778;
+    static int32_t s_hasPendingExteriorGroups;
     static int32_t s_fogPermute;
     static float s_fogFovPadding;
     static CMapEntity* camTargetEntity;
@@ -199,8 +199,8 @@ class CWorldScene {
     static int32_t s_cullPassStamp;
 
     static void ClearObjectFadeoutList();
-    static uint32_t s_unk_CD8624;
-    static uint32_t s_unk_CD8774;
+    static uint32_t s_unused_CD8624;
+    static uint32_t s_unused_CD8774;
 
     static void BuildViewMatrices(const C3Vector& position);
     static void RenderHorizon();
@@ -253,7 +253,7 @@ class CWorldScene {
     static void PrepareLiquidInstances();
     static void AddChunkToSortList(CDetailDoodadInst* inst);
     static void AddToDistanceBucket(CChunkLiquid* liquid, const C3Vector& pos);
-    static void AddDoodadDefModelToModelScene(CMapDoodadDef* a1);
+    static void AddDoodadDefModelToModelScene(CMapDoodadDef* doodadDef);
     static void AddDoodadDefs(TSList<CMapBaseObjLink, TSGetExplicitLink<CMapBaseObjLink> >* linkList, uint32_t index);
     static void CullDoodadsExterior(TSList<CMapBaseObjLink, TSGetExplicitLink<CMapBaseObjLink> >* linkList, uint8_t fadeLevel);
     static void CullMapObjDefGroup();
@@ -288,34 +288,34 @@ class CWorldScene {
     static void SetupLighting(CM2Lighting* lighting, C3Vector* view);
     static void SetCameraTarget(CMapEntity* entity, WOWGUID transportGuid);
 
-    /* 0000 */ uint8_t unk_0000[16];
-    /* 0010 */ uint32_t unk_0010;
-    /* 0014 */ uint8_t unk_0014[24];
-    /* 002C */ uint32_t unk_002C;
-    /* 0030 */ uint8_t unk_0030[28];
-    /* 004C */ uint32_t unk_004C;
-    /* 0050 */ uint8_t unk_0050[32];
-    /* 0070 */ uint32_t unk_0070;
-    /* 0074 */ uint8_t unk_0074[4];
-    /* 0078 */ uint32_t unk_0078;
-    /* 007C */ uint32_t unk_007C;
-    /* 0080 */ uint8_t unk_0080[8];
-    /* 0088 */ uint32_t unk_0088;
-    /* 008C */ uint8_t unk_008C[36];
-    /* 00B0 */ uint32_t unk_00B0;
-    /* 00B4 */ uint8_t unk_00B4[64];
-    /* 00F4 */ uint32_t unk_00F4;
-    /* 00F8 */ uint8_t unk_00F8[36];
-    /* 011C */ uint32_t unk_011C;
-    /* 0120 */ uint8_t unk_0120[16];
-    /* 0130 */ uint32_t unk_0130;
-    /* 0134 */ uint32_t unk_0134;
-    /* 0138 */ uint8_t unk_0138[52];
-    /* 016C */ uint32_t unk_016C;
-    /* 0170 */ uint8_t unk_0170[84];
-    /* 01C4 */ uint32_t unk_01C4;
-    /* 01C8 */ uint8_t unk_01C8[28];
-    /* 01E4 */ uint32_t unk_01E4;
+    /* 0000 */ uint8_t unused_0000[16];
+    /* 0010 */ uint32_t unused_0010;
+    /* 0014 */ uint8_t unused_0014[24];
+    /* 002C */ uint32_t unused_002C;
+    /* 0030 */ uint8_t unused_0030[28];
+    /* 004C */ uint32_t unused_004C;
+    /* 0050 */ uint8_t unused_0050[32];
+    /* 0070 */ uint32_t unused_0070;
+    /* 0074 */ uint8_t unused_0074[4];
+    /* 0078 */ uint32_t unused_0078;
+    /* 007C */ uint32_t unused_007C;
+    /* 0080 */ uint8_t unused_0080[8];
+    /* 0088 */ uint32_t unused_0088;
+    /* 008C */ uint8_t unused_008C[36];
+    /* 00B0 */ uint32_t unused_00B0;
+    /* 00B4 */ uint8_t unused_00B4[64];
+    /* 00F4 */ uint32_t unused_00F4;
+    /* 00F8 */ uint8_t unused_00F8[36];
+    /* 011C */ uint32_t unused_011C;
+    /* 0120 */ uint8_t unused_0120[16];
+    /* 0130 */ uint32_t unused_0130;
+    /* 0134 */ uint32_t unused_0134;
+    /* 0138 */ uint8_t unused_0138[52];
+    /* 016C */ uint32_t unused_016C;
+    /* 0170 */ uint8_t unused_0170[84];
+    /* 01C4 */ uint32_t unused_01C4;
+    /* 01C8 */ uint8_t unused_01C8[28];
+    /* 01E4 */ uint32_t unused_01E4;
 };
 
 extern C3Vector s_camPosLocal;
@@ -561,7 +561,7 @@ class CWorld {
     static int32_t ConsoleCommand_WaterRipples(const char* command, const char* arguments);
     static void Destroy();
     static void Initialize();
-    static void LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t a4);
+    static void LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4);
     static void ObjectDestroy(CMapBaseObj* object);
     static CMapBaseObj* ObjectCreate(const char* name, const C3Vector& position, float facing, int32_t waitLoad, int32_t snap, uint64_t guid, uint32_t doodadSetCount, const int16_t* doodadSets, float* radius, uint32_t id);
     static void Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position);

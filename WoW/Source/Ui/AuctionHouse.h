@@ -19,7 +19,7 @@ struct AuctionSortCriteria {
 struct AuctionSellItem {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ uint32_t m_count;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
 };
 
 struct OutbidItemInfo {
@@ -51,7 +51,7 @@ struct AuctionItemInfo {
     /* 0068 */ uint32_t m_count;
     /* 006C */ uint32_t m_spellCharges;
     /* 0070 */ uint32_t m_flags;
-    /* 0074 */ uint32_t unk_0074;
+    /* 0074 */ uint32_t unused_0074;
     /* 0078 */ WOWGUID m_owner;
     /* 0080 */ uint32_t m_minBid;
     /* 0084 */ uint32_t m_minIncrement;

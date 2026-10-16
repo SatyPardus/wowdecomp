@@ -397,7 +397,7 @@ static void ProjectTexBuildVertexBuffer(World::TriData::Batch* triBatch, CGxBatc
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
     GxPrimVertexPtr(buf, GxVBF_PN);
 }
 
@@ -453,7 +453,7 @@ static void ProjectTexBuildVertexBufferVariant(World::TriData::Batch* triBatch, 
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
     GxPrimVertexPtr(buf, GxVBF_PC);
 }
 
@@ -468,7 +468,7 @@ static void ProjectTexRenderIndices(World::TriData::Batch* triBatch) {
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
     g_theGxDevicePtr->PrimIndexPtr(buf);
 }
 
@@ -494,7 +494,7 @@ static int32_t ProjectTexRenderGetQuery2d(const CAaBox& box, uint32_t flags, uin
         World::TriData::nBatches = 0;
         World::TriData::faceIndexCursor = 0;
         World::TriData::indexCursor = 0;
-        World::TriData::unk_CB7538 = 0;
+        World::TriData::matrixPoolCount = 0;
         World::GetTris(box, &s_queryTriData, triFlags);
     }
 

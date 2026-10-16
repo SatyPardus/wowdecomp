@@ -15,20 +15,20 @@ class CMapLight : public CMapBaseObj {
     /* 0030 */ CAaBox m_bbox;
     /* 0048 */ CAaSphere m_sphere;
     /* 0058 */ CM2Light m_light;
-    /* 00C4 */ float unk_00C4;
+    /* 00C4 */ float unused_00C4;
     /* 00C8 */ float m_radius;
     /* 00CC */ float unk_00CC;
-    /* 00D0 */ uint8_t unk_00D0;
+    /* 00D0 */ uint8_t unused_00D0;
     /* 00D1 */ uint8_t unk_00D1;
-    /* 00D2 */ uint8_t unk_00D2;
-    /* 00D3 */ uint8_t unk_00D3;
+    /* 00D2 */ uint8_t unused_00D2;
+    /* 00D3 */ uint8_t unused_00D3;
 
     CMapLight();
 };
 
 class CMapCacheLight {
     public:
-    /* 0000 */ uint8_t unk_0000[132];
+    /* 0000 */ uint8_t unused_0000[132];
 };
 
 #endif

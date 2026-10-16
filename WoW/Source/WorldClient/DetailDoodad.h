@@ -77,7 +77,7 @@ struct CDetailDoodad::SShaderConstants {
 
 class CDetailDoodadInstAdd {
     public:
-    /* 0000 */ uint16_t unk_0000;
+    /* 0000 */ uint16_t unused_0000;
     /* 0002 */ uint16_t m_triIndex;
     /* 0004 */ uint32_t m_doodadId;
     /* 0008 */ C3Vector m_position;

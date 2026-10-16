@@ -58,7 +58,7 @@ class QuestCache {
     /* 28A4 */ uint32_t m_rewardReputationFaction[5];
     /* 28B8 */ uint32_t m_factionRewardId[5];
     /* 28CC */ int32_t m_rewardReputationOverride[5];
-    /* 28E0 */ uint32_t unk_28E0;
+    /* 28E0 */ uint32_t m_rewardReputationMask;
 
     QuestCache();
     QuestCache& operator=(const QuestCache& source);

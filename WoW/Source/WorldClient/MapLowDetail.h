@@ -25,7 +25,7 @@ class CMapAreaLow {
     /* 0048 */ uint16_t* m_holes;
     /* 004C */ TSLink<CMapAreaLow> m_horizonLink;
     /* 0054 */ FVBBList::Block* m_block;
-    /* 0058 */ uint32_t unk_0058;
+    /* 0058 */ uint32_t m_flags;
 
     CMapAreaLow();
 };

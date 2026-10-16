@@ -13,7 +13,7 @@ struct lua_State;
 struct UniqueSignal {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ int32_t m_signal;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
 };
 
 struct ScriptAuraInfo {

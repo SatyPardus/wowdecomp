@@ -27,14 +27,14 @@ struct SOVERLAPPED {
 };
 
 struct SArchive {
-    /* 0000 */ uint32_t unk_0000;
+    /* 0000 */ uint32_t m_type;
     /* 0004 */ System_SFile::ARCHIVEREC* m_archive;
 };
 
 struct SFileLock {
     /* 0000 */ Blizzard::Lock::Mutex m_mutex;
-    /* 0018 */ uint32_t unk_0018;
-    /* 001C */ uint8_t unk_001C[16];
+    /* 0018 */ uint32_t unused_0018;
+    /* 001C */ uint8_t unused_001C[16];
 
     SFileLock();
     ~SFileLock();
@@ -54,13 +54,13 @@ class SFileImpl {
     /* 0004 */ Blizzard::File::StreamRecord* m_stream;
     /* 0008 */ SArchive* m_archive;
     /* 000C */ char* m_name;
-    /* 0010 */ void* unk_0010;
+    /* 0010 */ void* m_actualName;
     /* 0014 */ uint32_t m_size;
     /* 0018 */ uint8_t* m_data;
     /* 001C */ uint32_t m_position;
     /* 0020 */ IOMpqUnit* m_file;
-    /* 0024 */ uint32_t unk_0024;
-    /* 0028 */ uint32_t unk_0028;
+    /* 0024 */ uint32_t unused_0024;
+    /* 0028 */ uint32_t unused_0028;
     /* 002C */ SFileLock* m_lock;
 
     SFileImpl(uint32_t type);
@@ -111,7 +111,7 @@ class SFile {
     static void STORMAPI SetReadFatal(bool fatal);
     static int32_t STORMAPI Unload(void* data);
 
-    /* 0000 */ uint8_t unk_0000[1];
+    /* 0000 */ uint8_t unused_0000[1];
 };
 
 namespace System_SFile2 {
@@ -137,7 +137,7 @@ typedef std::map<std::string, FileHashEntry, FileHashCompare> FileHash;
 typedef bool (*SOUNDCACHECALLBACK)(const void* data, uint32_t size, Blizzard::Memory::TempBuffer<uint8_t, 0x400000>* buffer);
 
 struct ScanDirCookie {
-    /* 0000 */ uint32_t unk_0000;
+    /* 0000 */ uint32_t unused_0000;
     /* 0004 */ const char* m_root;
     /* 0008 */ uint32_t m_rootLength;
     /* 000C */ const char* m_prefix;

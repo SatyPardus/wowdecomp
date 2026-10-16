@@ -11,7 +11,7 @@ class SFileImpl;
 namespace Chunk {
 
 struct Data {
-    /* 0000 */ uint8_t unk_0000[0x8000];
+    /* 0000 */ uint8_t unused_0000[0x8000];
 };
 
 }
@@ -26,11 +26,11 @@ struct CacheChunk {
 struct CacheData : public TSHashObject<struct CacheData, HASHKEY_NONE> {
     /* 0018 */ SFileImpl* m_file;
     /* 001C */ CacheChunk* m_chunks;
-    /* 0020 */ uint32_t unk_0020;
-    /* 0024 */ uint32_t unk_0024;
-    /* 0028 */ uint32_t unk_0028;
+    /* 0020 */ uint32_t unused_0020;
+    /* 0024 */ uint32_t unused_0024;
+    /* 0028 */ uint32_t unused_0028;
     /* 002C */ uint32_t m_chunkCount;
-    /* 0030 */ uint32_t unk_0030;
+    /* 0030 */ uint32_t unused_0030;
     /* 0034 */ int32_t m_refCount;
     /* 0038 */ void* unk_0038;
 

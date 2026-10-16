@@ -30,7 +30,7 @@ struct ThreadRecord {
     /* 0014 */ Blizzard::Lock::Atomic m_refCount;
     /* 0018 */ uint32_t m_result;
     /* 001C */ System_Thread::ThreadWorker* m_worker;
-    /* 0020 */ uint8_t unk_0020[16];
+    /* 0020 */ uint8_t unused_0020[16];
     /* 0030 */ char m_name[8];
 };
 

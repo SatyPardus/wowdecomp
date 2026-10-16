@@ -37,7 +37,7 @@ class ConstructOnce {
     static void Construct(void* param);
 
     /* 0000 */ bool m_constructed;
-    /* 0001 */ uint8_t unk_0001[3];
+    /* 0001 */ uint8_t unused_0001[3];
     /* 0004 */ Atomic m_count;
     /* 0008 */ alignas(T) uint8_t m_storage[sizeof(T)];
 

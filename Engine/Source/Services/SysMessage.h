@@ -9,7 +9,7 @@ struct SYSMSGSEVERITY {
     /* 0000 */ uint8_t m_red;
     /* 0001 */ uint8_t m_green;
     /* 0002 */ uint8_t m_blue;
-    /* 0003 */ uint8_t unk_0003;
+    /* 0003 */ uint8_t unused_0003;
     /* 0004 */ float m_duration;
 };
 

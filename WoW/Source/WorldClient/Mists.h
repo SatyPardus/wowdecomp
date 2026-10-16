@@ -24,7 +24,7 @@ class Mists {
     };
 
     /* 0004 */ C3Vector m_extents;
-    /* 0010 */ C3Vector unk_0010;
+    /* 0010 */ C3Vector unused_0010;
     /* 001C */ float m_size;
     /* 0020 */ float m_spawnRate;
     /* 0024 */ float m_angle;

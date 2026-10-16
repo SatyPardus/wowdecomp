@@ -13,9 +13,9 @@ class CMovementGlobals {
     /* 0000 */ char m_logFileName [260];
     /* 0104 */ FILE* m_movementLog;
     /* 0108 */ FILE* m_fallingLog;
-    /* 010C */ uint32_t unk_010C;
-    /* 0110 */ uint32_t unk_0110;
-    /* 0114 */ uint32_t unk_0114;
+    /* 010C */ uint32_t unused_010C;
+    /* 0110 */ uint32_t unused_0110;
+    /* 0114 */ uint32_t unused_0114;
     /* 0118 */ TSList<CMovement_C, TSGetExplicitLink<CMovement_C> > m_movers;
     /* 0124 */ uint32_t m_flags;
     /* 0128 */ uint32_t m_lastUpdateTime;

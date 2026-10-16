@@ -277,7 +277,7 @@ static void LoadItemCacheCallback(int32_t id, const WOWGUID& guid, void* param, 
     CGPlayer_C* owner = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(item->m_item->m_itemFieldOwner, TYPEMASK_PLAYER, __FILE__, __LINE__));
 
     if (owner) {
-        owner->unk_18B8--;
+        owner->m_pendingItemCacheCount--;
     }
 }
 
@@ -338,7 +338,7 @@ void CGItem_C::RequestItemCacheInfo() {
     CGPlayer_C* owner = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(this->m_item->m_itemFieldOwner, TYPEMASK_PLAYER, __FILE__, __LINE__));
 
     if (owner) {
-        owner->unk_18B8++;
+        owner->m_pendingItemCacheCount++;
     }
 }
 
@@ -1499,7 +1499,7 @@ WOWGUID CGItem_C::s_bindOnUseItem;
 
 // VERIFY: 92b5a602 manual
 // OFFSET: 0x00708C20
-int32_t CGItem_C::UseItem(WOWGUID* target, int32_t a2) {
+int32_t CGItem_C::UseItem(WOWGUID* target, int32_t confirmed) {
     if ((this->m_obj->m_type & TYPEMASK_CONTAINER) || (this->m_itemFlags & 1)) {
         return 0;
     }
@@ -1706,7 +1706,7 @@ int32_t CGItem_C::UseItem(WOWGUID* target, int32_t a2) {
         }
     }
 
-    if (stats->m_bonding != 3 || this->IsBound() || a2) {
+    if (stats->m_bonding != 3 || this->IsBound() || confirmed) {
         return Spell_C::CastSpell(spellId, this, *target, false);
     }
 
@@ -1940,21 +1940,21 @@ int32_t CGItem_C::GetItemEnchantmentVisualID() const {
 
 // VERIFY: 8be7f81c auto
 // OFFSET: 0x007081B0
-void CGItem_C::UpdateSockets(uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5) {
-    if (a2) {
-        this->m_item->m_itemFieldEnchantment[2].m_id = a2;
+void CGItem_C::UpdateSockets(uint32_t gem1, uint32_t gem2, uint32_t gem3, uint32_t socketBonus) {
+    if (gem1) {
+        this->m_item->m_itemFieldEnchantment[2].m_id = gem1;
     }
 
-    if (a3) {
-        this->m_item->m_itemFieldEnchantment[3].m_id = a3;
+    if (gem2) {
+        this->m_item->m_itemFieldEnchantment[3].m_id = gem2;
     }
 
-    if (a4) {
-        this->m_item->m_itemFieldEnchantment[4].m_id = a4;
+    if (gem3) {
+        this->m_item->m_itemFieldEnchantment[4].m_id = gem3;
     }
 
-    if (a5) {
-        this->m_item->m_itemFieldEnchantment[5].m_id = a5;
+    if (socketBonus) {
+        this->m_item->m_itemFieldEnchantment[5].m_id = socketBonus;
     }
 
     this->UpdateEnchantments();
@@ -1985,7 +1985,7 @@ void CGItem_C::Disable() {
         CGPlayer_C* owner = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(this->m_item->m_itemFieldOwner, TYPEMASK_PLAYER, __FILE__, __LINE__));
 
         if (owner) {
-            owner->unk_18B8--;
+            owner->m_pendingItemCacheCount--;
         }
     }
 

@@ -57,18 +57,18 @@ class CVehiclePassenger_C {
     /* 0010 */ uint32_t m_flags;
     /* 0014 */ uint32_t m_state;
     /* 0018 */ uint32_t m_prevState;
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t unused_001C;
     /* 0020 */ WOWGUID m_vehicleGuid;
     /* 0028 */ WOWGUID m_transitionVehicleGuid;
     /* 0030 */ uint8_t m_seat;
     /* 0031 */ uint8_t m_transitionSeat;
-    /* 0032 */ uint8_t unk_0032 [2];
+    /* 0032 */ uint8_t unused_0032 [2];
     /* 0034 */ uint32_t m_startTime;
     /* 0038 */ uint32_t m_endTime;
-    /* 003C */ uint32_t unk_003C;
+    /* 003C */ uint32_t unused_003C;
     /* 0040 */ WOWGUID m_startRelativeGuid;
     /* 0048 */ float m_facingBlend;
-    /* 004C */ uint32_t unk_004C;
+    /* 004C */ uint32_t m_stopMovementTime;
     /* 0050 */ VehicleRec* m_vehicleRec;
     /* 0054 */ VehicleSeatRec* m_seatRec;
     /* 0058 */ WOWGUID m_rootVehicleGuid;
@@ -90,7 +90,7 @@ class CVehiclePassenger_C {
     /* 00C8 */ float m_arcScale;
     /* 00CC */ C3Vector m_seatOffset;
     /* 00D8 */ float m_lockedWorldFacing;
-    /* 00DC */ uint32_t unk_00DC;
+    /* 00DC */ uint32_t unused_00DC;
 
     CVehiclePassenger_C();
     void ClearFlag8();
@@ -122,7 +122,7 @@ class CVehiclePassenger_C {
     int32_t UpdateState(CGUnit_C* vehicle, VehicleSeatRec* seatRec, uint32_t time);
     C3Vector ComputeStartWorldPosition(const C3Vector& offset, const C3Vector& fallback) const;
     void OnAnimEnd(uint32_t anim);
-    int32_t PickHighPriorityAnimation(int32_t a2, uint32_t* anim) const;
+    int32_t PickHighPriorityAnimation(int32_t unused_a2, uint32_t* anim) const;
     C3Vector ComputeInterpolatedUnitPosition() const;
     int32_t OverridesModelAnimation() const;
 

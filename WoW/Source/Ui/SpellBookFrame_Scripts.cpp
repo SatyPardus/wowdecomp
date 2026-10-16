@@ -78,8 +78,8 @@ static int32_t Script_GetKnownSlotFromHighestRankSlot(lua_State* L) {
     uint32_t slot = lua_tointeger(L, 1) - 1;
     int32_t index = -1;
 
-    if (slot < s_unkBE8D9C) {
-        int32_t spell = s_unkBE5D88[slot];
+    if (slot < s_displayedSpellCount) {
+        int32_t spell = s_displayedSpells[slot];
 
         for (uint32_t i = 0; i < s_numSpells; i++) {
             if (s_spellList[i] == spell) {

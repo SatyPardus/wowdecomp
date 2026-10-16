@@ -19,7 +19,7 @@ struct TaxiNodeInfo {
     /* 0008 */ float m_y;
     /* 000C */ uint8_t m_noDirectPath;
     /* 000D */ uint8_t m_reachable;
-    /* 000E */ uint8_t unk_000E[2];
+    /* 000E */ uint8_t unused_000E[2];
     /* 0010 */ int32_t m_costs[5];
     /* 0024 */ uint32_t* m_path;
     /* 0028 */ uint32_t m_numHops;

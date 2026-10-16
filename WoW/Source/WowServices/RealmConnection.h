@@ -40,7 +40,7 @@ class CHARACTER_INFO {
     /* 017F */ uint8_t m_facialHairStyleID;
     /* 0180 */ uint8_t m_experienceLevel;
     /* 0181 */ uint8_t m_firstLogin;
-    /* 0182 */ uint8_t unk_0182[6];
+    /* 0182 */ uint8_t unused_0182[6];
 };
 
 class RealmConnection : public NetClient {
@@ -70,17 +70,17 @@ class RealmConnection : public NetClient {
     /* 2F08 */ uint32_t m_restrictBloodElf;
     /* 2F0C */ TSFixedArray<CHARACTER_INFO> m_characterList;
     /* 2F18 */ uint8_t m_authenticated;
-    /* 2F19 */ uint8_t unk_2F19[3];
+    /* 2F19 */ uint8_t unused_2F19[3];
     /* 2F1C */ uint32_t m_queuePosition;
     /* 2F20 */ uint32_t m_freeCharacterMigration;
     /* 2F24 */ uint32_t m_billingTimeRemaining;
     /* 2F28 */ uint32_t m_billingTimeRested;
     /* 2F2C */ uint8_t m_billingFlags;
     /* 2F2D */ uint8_t m_accountExpansion;
-    /* 2F2E */ uint8_t unk_2F2E[2];
-    /* 2F30 */ uint32_t unk_2F30;
-    /* 2F34 */ uint32_t unk_2F34;
-    /* 2F38 */ uint32_t unk_2F38;
+    /* 2F2E */ uint8_t unused_2F2E[2];
+    /* 2F30 */ uint32_t m_regionId;
+    /* 2F34 */ uint32_t m_battlegroupId;
+    /* 2F38 */ uint32_t m_realmId;
 
     ~RealmConnection() override;
     void HandleAuthChallenge(AuthenticationChallenge* challenge) override;
@@ -105,7 +105,7 @@ class RealmConnection : public NetClient {
     int32_t HandleLogoutResponse(uint32_t msgId, uint32_t time, CDataStore* msg);
     void RequestCharacterEnum();
     void RequestCharacterLogin(WOWGUID guid, int32_t a2);
-    void SetSelectedRealm(uint32_t a1, uint32_t a2, uint32_t a3);
+    void SetSelectedRealm(uint32_t regionId, uint32_t battlegroupId, uint32_t realmId);
 };
 
 class RealmResponse {

@@ -12,9 +12,9 @@ struct CGxBuf : public TSLinkedNode<CGxBuf> {
     /* 0010 */ uint32_t m_itemCount;
     /* 0014 */ uint32_t m_size;
     /* 0018 */ uint32_t m_index;
-    /* 001C */ uint8_t unk_001C;
-    /* 001D */ uint8_t unk_001D;
-    /* 001E */ uint8_t unk_001E;
+    /* 001C */ uint8_t m_hasData;
+    /* 001D */ uint8_t m_valid;
+    /* 001E */ uint8_t m_dirty;
     /* 001F */ uint8_t unk_001F;
 
     CGxBuf(CGxPool* pool, uint32_t itemSize, uint32_t itemCount, uint32_t index);

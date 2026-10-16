@@ -652,7 +652,7 @@ bool CGCalendar::ComputeEventIndex(const CalendarEventSelection* selection, int3
                 continue;
             }
 
-            if (selection->unk_0014 < 0) {
+            if (selection->m_eventType < 0) {
                 match = selection->m_endTime == event->m_endTime;
             }
         }
@@ -1774,7 +1774,7 @@ void CGCalendar::GetEvent(uint32_t offset, uint32_t day, uint32_t index) {
     CGCalendar::m_selectedEvent.m_startTime = event->m_startTime;
     CGCalendar::m_selectedEvent.m_endTime = event->m_endTime;
     CGCalendar::m_selectedEvent.m_holidayID = event->m_holidayID;
-    CGCalendar::m_selectedEvent.unk_0014 = event->m_type;
+    CGCalendar::m_selectedEvent.m_eventType = event->m_type;
     FrameScript_SignalEvent(SCRIPT_EVENT_CALENDAR_OPEN_EVENT, "%s", CGCalendar::GetCalendarTypeString(event->m_type));
 }
 
@@ -1962,7 +1962,7 @@ void CGCalendar::SelectContextEvent(uint32_t offset, uint32_t day, uint32_t inde
     CGCalendar::m_contextEvent.m_startTime = event->m_startTime;
     CGCalendar::m_contextEvent.m_endTime = event->m_endTime;
     CGCalendar::m_contextEvent.m_holidayID = event->m_holidayID;
-    CGCalendar::m_contextEvent.unk_0014 = event->m_type;
+    CGCalendar::m_contextEvent.m_eventType = event->m_type;
     CGCalendar::m_contextEventInfo = event;
 }
 
@@ -2091,7 +2091,7 @@ void CGCalendar::CreatePlayerEvent() {
     CGCalendar::m_selectedEvent.m_startTime = 0;
     CGCalendar::m_selectedEvent.m_endTime = 0;
     CGCalendar::m_selectedEvent.m_holidayID = 0;
-    CGCalendar::m_selectedEvent.unk_0014 = 0;
+    CGCalendar::m_selectedEvent.m_eventType = 0;
 
     if (CGCalendar::m_curEvent) {
         FrameScript_SignalEvent(SCRIPT_EVENT_CALENDAR_UPDATE_INVITE_LIST, "%b", 1);
@@ -2122,7 +2122,7 @@ void CGCalendar::CreateGuildAnnouncement() {
     CGCalendar::m_selectedEvent.m_startTime = 0;
     CGCalendar::m_selectedEvent.m_endTime = 0;
     CGCalendar::m_selectedEvent.m_holidayID = 0;
-    CGCalendar::m_selectedEvent.unk_0014 = 0;
+    CGCalendar::m_selectedEvent.m_eventType = 0;
 }
 
 // VERIFY: 8c223278 manual
@@ -2149,7 +2149,7 @@ void CGCalendar::CreateGuildEvent() {
     CGCalendar::m_selectedEvent.m_startTime = 0;
     CGCalendar::m_selectedEvent.m_endTime = 0;
     CGCalendar::m_selectedEvent.m_holidayID = 0;
-    CGCalendar::m_selectedEvent.unk_0014 = 0;
+    CGCalendar::m_selectedEvent.m_eventType = 0;
 }
 
 // VERIFY: f0dee297 manual
@@ -2646,7 +2646,7 @@ void CGCalendar::ProcessGetEvent(CDataStore* msg) {
     CGCalendar::m_selectedEvent.m_startTime = 0;
     CGCalendar::m_selectedEvent.m_endTime = 0;
     CGCalendar::m_selectedEvent.m_holidayID = 0;
-    CGCalendar::m_selectedEvent.unk_0014 = 0;
+    CGCalendar::m_selectedEvent.m_eventType = 0;
     CGCalendar::m_selectedEvent.m_eventID = eventID;
     WowTime::WowEncodeTime(CGCalendar::m_selectedEvent.m_startTime, &CGCalendar::m_curEvent->m_date);
 
@@ -3024,7 +3024,7 @@ void CGCalendar::ProcessInviteRemovedAlert(CDataStore* msg) {
             CGCalendar::m_selectedEvent.m_startTime = 0;
             CGCalendar::m_selectedEvent.m_endTime = 0;
             CGCalendar::m_selectedEvent.m_holidayID = 0;
-            CGCalendar::m_selectedEvent.unk_0014 = 0;
+            CGCalendar::m_selectedEvent.m_eventType = 0;
         }
 
         if (CGCalendar::m_curEvent && CGCalendar::m_curEvent->m_eventID == eventID) {
@@ -3038,7 +3038,7 @@ void CGCalendar::ProcessInviteRemovedAlert(CDataStore* msg) {
             CGCalendar::m_contextEvent.m_startTime = 0;
             CGCalendar::m_contextEvent.m_endTime = 0;
             CGCalendar::m_contextEvent.m_holidayID = 0;
-            CGCalendar::m_contextEvent.unk_0014 = 0;
+            CGCalendar::m_contextEvent.m_eventType = 0;
             CGCalendar::m_contextEventInfo = nullptr;
         }
     }
@@ -3075,7 +3075,7 @@ void CGCalendar::ProcessEventRemovedAlert(CDataStore* msg, uint8_t* clearPending
         CGCalendar::m_selectedEvent.m_startTime = 0;
         CGCalendar::m_selectedEvent.m_endTime = 0;
         CGCalendar::m_selectedEvent.m_holidayID = 0;
-        CGCalendar::m_selectedEvent.unk_0014 = 0;
+        CGCalendar::m_selectedEvent.m_eventType = 0;
     }
 
     if (CGCalendar::m_curEvent && eventID == CGCalendar::m_curEvent->m_eventID) {
@@ -3089,7 +3089,7 @@ void CGCalendar::ProcessEventRemovedAlert(CDataStore* msg, uint8_t* clearPending
         CGCalendar::m_contextEvent.m_startTime = 0;
         CGCalendar::m_contextEvent.m_endTime = 0;
         CGCalendar::m_contextEvent.m_holidayID = 0;
-        CGCalendar::m_contextEvent.unk_0014 = 0;
+        CGCalendar::m_contextEvent.m_eventType = 0;
         CGCalendar::m_contextEventInfo = nullptr;
     }
 

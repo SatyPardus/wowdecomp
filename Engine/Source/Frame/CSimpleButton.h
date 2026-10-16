@@ -61,8 +61,8 @@ class CSimpleButton : public CSimpleFrame {
     virtual void GetScriptTime(lua_State* L, double* time, uint32_t* count, int32_t recurse);
     virtual void UnregisterRegion(CSimpleRegion* region);
     virtual void OnLayerHide();
-    virtual void OnLayerCursorEnter(int32_t a2);
-    virtual void OnLayerCursorExit(int32_t a2, int32_t a3);
+    virtual void OnLayerCursorEnter(int32_t motion);
+    virtual void OnLayerCursorExit(int32_t motion, int32_t a3);
     virtual int32_t OnLayerMouseDown(const CMouseEvent& evt, const char* btn);
     virtual int32_t OnLayerMouseUp(const CMouseEvent& evt, const char* btn);
     virtual void OnDragStart(const CMouseEvent& evt);

@@ -40,7 +40,7 @@ TSList<CLIENT_ACHIEVEMENTS, TSGetLink<CLIENT_ACHIEVEMENTS>> s_trackedAchievement
 TSList<COMPLETED_QUESTS, TSGetLink<COMPLETED_QUESTS>> s_completedQuests;
 
 // STATIC: 0x00C1F450
-static int32_t s_unkC1F450;
+static int32_t s_unused_C1F450;
 
 // STATIC: 0x00C1F460
 static TSHashTable<ACHIEVEMENTCRITERIALIST, HASHKEY_NONE> s_criteriaByType[124];
@@ -87,7 +87,7 @@ void CGAchievementInfo::InitializeGame() {
     ClientServices::SetMessageHandler(SMSG_ACHIEVEMENT_DELETED, Packet_SMSG_ACHIEVEMENT_DELETED, nullptr);
     ClientServices::SetMessageHandler(SMSG_QUERY_QUESTS_COMPLETED_RESPONSE, Packet_SMSG_QUERY_QUESTS_COMPLETED_RESPONSE, nullptr);
 
-    s_unkC1F450 = 1;
+    s_unused_C1F450 = 1;
     CGAchievementInfo::m_showAchievementUI = 0;
     s_criteria.Clear();
     s_recentCriteria.Clear();
@@ -468,7 +468,7 @@ void CGAchievementInfo::ShutdownGame() {
     ClientServices::ClearMessageHandler(SMSG_ACHIEVEMENT_DELETED);
     ClientServices::ClearMessageHandler(SMSG_CRITERIA_DELETED);
     ClientServices::ClearMessageHandler(SMSG_QUERY_QUESTS_COMPLETED_RESPONSE);
-    s_unkC1F450 = 0;
+    s_unused_C1F450 = 0;
     s_criteria.Clear();
     s_recentCriteria.Clear();
     s_completedAchievements.Clear();

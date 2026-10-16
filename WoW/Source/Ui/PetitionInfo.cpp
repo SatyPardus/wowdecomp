@@ -161,7 +161,7 @@ void CGPetitionInfo::SetSignatures(uint8_t count, const WOWGUID* guids, const ui
 
     for (uint32_t i = 0; i < count; i++) {
         CGPetitionInfo::m_signers.m_data[i].m_guid = guids[i];
-        CGPetitionInfo::m_signers.m_data[i].unk_0008 = choices[i];
+        CGPetitionInfo::m_signers.m_data[i].unused_0008 = choices[i];
 
         if (!g_nameDBCache.GetRecord(guids[i].m_guid, guids[i], SignatureNameQueryCallback, nullptr, false)) {
             CGPetitionInfo::m_pendingNameQueries++;

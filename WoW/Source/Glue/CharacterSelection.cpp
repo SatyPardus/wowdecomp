@@ -84,7 +84,7 @@ void CCharacterSelection::Shutdown() {
 
         CM2Model* model = CCharacterSelection::s_characterList[i].m_component->m_data.m_model;
 
-        if (!model || i != static_cast<uint32_t>(CGlueMgr::s_unk_AC4370)) {
+        if (!model || i != static_cast<uint32_t>(CGlueMgr::s_displayedCharacterIndex)) {
             continue;
         }
 

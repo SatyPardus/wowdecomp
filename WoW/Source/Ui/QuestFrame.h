@@ -7,8 +7,8 @@
 
 struct QuestItemInfo {
     /* 0000 */ int32_t m_itemID;
-    /* 0004 */ int32_t unk_0004;
-    /* 0008 */ int32_t unk_0008;
+    /* 0004 */ int32_t m_displayID;
+    /* 0008 */ int32_t m_count;
 };
 
 struct QuestItemSlot {
@@ -20,10 +20,10 @@ struct QuestItemSlot {
 struct QuestGiverQuest {
     /* 0000 */ int32_t m_questID;
     /* 0004 */ int32_t m_level;
-    /* 0008 */ int32_t unk_0008;
+    /* 0008 */ int32_t m_flags;
     /* 000C */ char m_title[512];
-    /* 020C */ int32_t unk_020C;
-    /* 0210 */ int32_t unk_0210;
+    /* 020C */ int32_t m_turnIn;
+    /* 0210 */ int32_t m_repeatable;
 };
 
 class CGQuestInfo {

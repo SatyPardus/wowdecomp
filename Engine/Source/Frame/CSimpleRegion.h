@@ -28,8 +28,8 @@ class CSimpleRegion : public CScriptRegion {
     /* 00CC */ uint8_t m_animating : 1;
     /* 00CC */ uint8_t m_animAlpha : 1;
     /* 00CD */ uint8_t m_animSavedAlpha;
-    /* 00CE */ uint8_t unk_00CE[2];
-    /* 00D0 */ uint32_t unk_00D0;
+    /* 00CE */ uint8_t unused_00CE[2];
+    /* 00D0 */ uint32_t unused_00D0;
 
     virtual ~CSimpleRegion();
     virtual void SetParent(CSimpleFrame* parent);

@@ -577,7 +577,7 @@ void CGMailInfo::UpdateRecentSenders() {
         }
 
         if (j >= CGMailInfo::m_numInboxItems) {
-            sender.unk_0014 = 0.0f;
+            sender.m_timeLeft = 0.0f;
             sender.m_guid = WOWGUID();
             sender.m_entry = 0;
             sender.m_messageType = 0;
@@ -597,11 +597,11 @@ void CGMailInfo::UpdatePendingMail(float elapsed) {
     for (int32_t i = 0; i < 3; i++) {
         MailSenderInfo& sender = s_recentSenders[i];
 
-        if ((sender.m_guid || sender.m_entry) && sender.unk_0014 > 0.0f) {
-            float remaining = sender.unk_0014 - elapsed;
-            sender.unk_0014 = remaining > 0.0f ? remaining : 0.0f;
+        if ((sender.m_guid || sender.m_entry) && sender.m_timeLeft > 0.0f) {
+            float remaining = sender.m_timeLeft - elapsed;
+            sender.m_timeLeft = remaining > 0.0f ? remaining : 0.0f;
 
-            if (fabs(sender.unk_0014) < 0.00000023841858f) {
+            if (fabs(sender.m_timeLeft) < 0.00000023841858f) {
                 FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_PENDING_MAIL, nullptr);
             }
         }
@@ -1443,12 +1443,12 @@ int32_t Packet_MSG_QUERY_NEXT_MAIL_TIME(void* param, NETMESSAGE msgId, uint32_t 
         msg->Get(reinterpret_cast<uint32_t&>(sender.m_entry));
         msg->Get(reinterpret_cast<uint32_t&>(sender.m_messageType));
         msg->Get(reinterpret_cast<uint32_t&>(sender.m_stationery));
-        msg->Get(sender.unk_0014);
+        msg->Get(sender.m_timeLeft);
     }
 
     for (uint32_t i = count; i < 3; i++) {
         MailSenderInfo& sender = s_recentSenders[i];
-        sender.unk_0014 = 0.0f;
+        sender.m_timeLeft = 0.0f;
         sender.m_guid = WOWGUID();
         sender.m_entry = 0;
         sender.m_messageType = 0;

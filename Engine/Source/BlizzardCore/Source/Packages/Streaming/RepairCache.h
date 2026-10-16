@@ -26,7 +26,7 @@ struct RepairEntry {
     /* 0004 */ uint32_t m_size;
     /* 0008 */ void* m_data;
     /* 000C */ bool m_valid;
-    /* 000D */ uint8_t unk_000D[3];
+    /* 000D */ uint8_t unused_000D[3];
 };
 
 class RepairCache {

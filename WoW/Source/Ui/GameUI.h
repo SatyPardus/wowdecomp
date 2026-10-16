@@ -131,7 +131,7 @@ struct CinematicInfo {
     /* 0018 */ uint32_t m_cameraIndex;
     /* 001C */ CinematicCameraRec* m_camera;
     /* 0020 */ SE2SoundKitObject m_cameraMusic;
-    /* 0034 */ uint32_t unk_0034;
+    /* 0034 */ uint32_t unused_0034;
 };
 
 class CGGameUI {
@@ -194,10 +194,10 @@ class CGGameUI {
     static WOWGUID m_cursorItemContainer;
     static WOWGUID m_cursorItem;
     static WOWGUID m_lastTarget;
-    static int32_t unk_BD08CC;
+    static int32_t unused_BD08CC;
     static void InitClientControlState(const WOWGUID& guid);
     static void StartCinematic(int32_t cinematic);
-    static void SetInstanceLockTime(uint32_t time, uint32_t a2, uint32_t a3);
+    static void SetInstanceLockTime(uint32_t time, uint32_t completedMask, uint32_t extending);
     static void SetInstanceBootTime(uint32_t time);
     static void DisplayNameError(uint32_t error);
     static void UpdateActivePlayer();
@@ -463,7 +463,7 @@ struct MirrorTimerInfo {
     /* 000C */ int32_t m_scale;
     /* 0010 */ int32_t m_paused;
     /* 0014 */ int32_t m_spellId;
-    /* 0018 */ uint32_t unk_0018;
+    /* 0018 */ uint32_t m_startTime;
 };
 
 struct CapturePointUIManagerNode : public TSLinkedNode<CapturePointUIManagerNode> {

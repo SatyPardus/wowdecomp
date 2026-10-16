@@ -34,7 +34,7 @@ struct WowTlsBlock {
     /* 0000 */ uint32_t m_tlsStart;
     /* 0004 */ uint32_t m_unused04;
     /* 0008 */ ObjectMgr* m_pObjMgr;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ WOWGUID m_loginCharacterGuid;
 };
 

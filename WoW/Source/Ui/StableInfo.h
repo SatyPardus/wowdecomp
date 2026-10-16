@@ -13,7 +13,7 @@ struct StablePetInfo {
     /* 0008 */ int32_t m_entry;
     /* 000C */ char m_name[80];
     /* 005C */ uint8_t m_state;
-    /* 005D */ uint8_t unk_005D[3];
+    /* 005D */ uint8_t unused_005D[3];
 };
 
 class CGStableInfo {

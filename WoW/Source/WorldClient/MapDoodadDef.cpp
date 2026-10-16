@@ -143,32 +143,32 @@ void CMapDoodadDef::SelectLights(CM2Lighting* lighting) {
 CMapDoodadDef::CMapDoodadDef() {
     this->m_type |= 0x40;
     this->m_model = nullptr;
-    this->unk_00B8 = WOWGUID();
-    this->unk_016C = 0;
+    this->m_collisionGuid = WOWGUID();
+    this->m_doodadSet = 0;
 }
 
 // VERIFY: cf40d12f manual
 // OFFSET: 0x007C23F0
 void CMapDoodadDef::SelectUnderwater(CM2Lighting* lighting) {
-    if (!(this->unk_007C & 0x80)) {
-        this->unk_007C = (this->unk_007C & ~0xE0u) | 0x80;
+    if (!(this->m_staticFlags & 0x80)) {
+        this->m_staticFlags = (this->m_staticFlags & ~0xE0u) | 0x80;
 
         for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
             CMapBaseObj* parent = link->m_ref;
 
             if (!(parent->m_type & 0x10)) {
-                this->unk_007C |= 0x80;
+                this->m_staticFlags |= 0x80;
                 C3Vector pos(this->m_position.x, this->m_position.y, this->m_bbox.b.z);
                 int32_t liquidType;
 
                 if (CMap::QueryLiquidTerrain(&pos, &liquidType, &this->m_liquidHeight, 0)) {
                     this->m_diffuseLightScale = 1.0f;
-                    this->unk_007C = (this->unk_007C & ~0x28u) | 0x20;
+                    this->m_staticFlags = (this->m_staticFlags & ~0x28u) | 0x20;
 
                     if (this->m_liquidHeight <= this->m_bbox.t.z) {
-                        this->unk_007C |= 0x40;
+                        this->m_staticFlags |= 0x40;
                     } else {
-                        this->unk_007C &= ~0x40u;
+                        this->m_staticFlags &= ~0x40u;
                     }
                 }
 
@@ -180,7 +180,7 @@ void CMapDoodadDef::SelectUnderwater(CM2Lighting* lighting) {
             CMapObjGroup* group = mapObjDef->m_owner->GetGroup(defGroup->m_groupNum, 0);
 
             if (!group) {
-                this->unk_007C &= ~0x80u;
+                this->m_staticFlags &= ~0x80u;
                 continue;
             }
 
@@ -189,17 +189,17 @@ void CMapDoodadDef::SelectUnderwater(CM2Lighting* lighting) {
             float level;
 
             if (group->QueryLiquid(localPos, &liquidType, &level)) {
-                this->unk_007C |= 0x20;
+                this->m_staticFlags |= 0x20;
                 C3Vector surface = C3Vector(localPos.x, localPos.y, level) * mapObjDef->m_mat;
                 this->m_liquidHeight = surface.z;
 
                 if (this->m_liquidHeight <= this->m_bbox.t.z) {
-                    this->unk_007C |= 0x40;
+                    this->m_staticFlags |= 0x40;
                 } else {
-                    this->unk_007C &= ~0x40u;
+                    this->m_staticFlags &= ~0x40u;
                 }
 
-                this->unk_007C |= 0x80;
+                this->m_staticFlags |= 0x80;
                 break;
             }
         }
@@ -328,7 +328,7 @@ bool CMapDoodadDef::QueryInteriorLighting(CMapObjDef* mapObjDef, int32_t groupNu
     this->AdjustLightmap(&color, &this->m_m2DiffuseColor, limit, &this->m_m2AmbientColor, 96);
 
     if (!flag) {
-        this->unk_007C &= ~0x1000;
+        this->m_staticFlags &= ~0x1000;
         return result;
     }
 
@@ -340,7 +340,7 @@ bool CMapDoodadDef::QueryInteriorLighting(CMapObjDef* mapObjDef, int32_t groupNu
         this->m_m2AmbientColor.InterpColor(alpha, &info->m_light1.m_ambient);
     }
 
-    this->unk_007C |= 0x1000;
+    this->m_staticFlags |= 0x1000;
     this->m_m2DiffuseColor.a = color.a;
     return result;
 }

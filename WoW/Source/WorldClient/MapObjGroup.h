@@ -67,9 +67,9 @@ struct BspQuery_Segment : public BspQuery {
     /* 0048 */ float m_oosegMag;
     /* 004C */ float m_maxT;
     /* 0050 */ SMOMaterial* m_materials;
-    /* 0054 */ int32_t unk_0054;
+    /* 0054 */ int32_t unused_0054;
     /* 0058 */ uint16_t m_faceIgnoreFlags;
-    /* 005A */ uint8_t unk_005A[2];
+    /* 005A */ uint8_t unused_005A[2];
 
     BspQuery_Segment(SMOPoly* faces, C3Vector* vertexList, uint16_t* indices, const C3Segment& seg, float* hitT, uint16_t faceIgnoreFlags, SMOMaterial* materials);
     void operator()(uint16_t face);
@@ -80,7 +80,7 @@ template <class T>
 struct BspQuery_Volume : public BspQuery {
     /* 0010 */ const T* m_volume;
     /* 0014 */ uint16_t m_faceIgnoreFlags;
-    /* 0016 */ uint8_t unk_0016[2];
+    /* 0016 */ uint8_t unused_0016[2];
 
     void operator()(uint16_t face);
     bool GetFaceIndicesUsingCache(const CAaBsp& aaBsp, const CAaBspNode* node);
@@ -167,10 +167,10 @@ class CMapObjGroup {
     /* 005C */ uint16_t m_transparencyBatchesCount;
     /* 005E */ uint16_t m_intBatchCount;
     /* 0060 */ uint16_t m_extBatchCount;
-    /* 0062 */ uint8_t unk_0062[2];
+    /* 0062 */ uint8_t unused_0062[2];
     /* 0064 */ CAaBsp m_cAaBspNodePtr1;
     /* 00CC */ int32_t m_unkFlags;
-    /* 00D0 */ int32_t unk_00D0;
+    /* 00D0 */ int32_t unused_00D0;
     /* 00D4 */ int32_t m_minimapTag;
     /* 00D8 */ char* m_groupName;
     /* 00DC */ SMOPoly* m_polyList;
@@ -191,14 +191,14 @@ class CMapObjGroup {
     /* 011C */ C2iVector m_liquidTiles;
     /* 0124 */ C3Vector m_liquidCorner;
     /* 0130 */ uint16_t m_liquidMaterialId;
-    /* 0132 */ uint8_t unk_0132[2];
+    /* 0132 */ uint8_t unused_0132[2];
     /* 0134 */ SMOLiquidVert* m_liquidVertexList;
     /* 0138 */ SMOLTile* m_liquidTileList;
     /* 013C */ float m_liquidHeight;
     /* 0140 */ float m_liquidMaxHeight;
     /* 0144 */ int32_t m_liquidType;
     /* 0148 */ int32_t m_numSharedTiles;
-    /* 014C */ int32_t unk_014C;
+    /* 014C */ int32_t unused_014C;
     /* 0150 */ int32_t m_polyListSize;
     /* 0154 */ int32_t m_indicesCount;
     /* 0158 */ int32_t m_stripIndexCount;
@@ -215,7 +215,7 @@ class CMapObjGroup {
     /* 0184 */ void* m_filePtr;
     /* 0188 */ int32_t m_fileSize;
     /* 018C */ CMapObj* m_parent;
-    /* 0190 */ float unk_0190;
+    /* 0190 */ float unused_0190;
     /* 0194 */ CAsyncObject* m_asyncObjPtr;
     /* 0198 */ uint32_t m_unkLoadedFlag;
     /* 019C */ uint32_t m_indexMin;
@@ -285,8 +285,8 @@ struct SMOGroupHeader {
     /* 0030 */ uint8_t m_fogIds [4];
     /* 0034 */ uint32_t m_groupLiquid;
     /* 0038 */ uint32_t m_uniqueID;
-    /* 003C */ uint32_t unk_003C;
-    /* 0040 */ uint32_t unk_0040;
+    /* 003C */ uint32_t unused_003C;
+    /* 0040 */ uint32_t unused_0040;
 };
 
 struct SMOLTile {
@@ -315,7 +315,7 @@ union SMOLiquidVert {
 class VBBList_Block {
     public:
     /* 0000 */ TSLink<VBBList_Block> m_link;
-    /* 0008 */ float unk_0008;
+    /* 0008 */ float unused_0008;
     /* 000C */ uint32_t m_offset;
     /* 0010 */ uint32_t m_capacity;
     /* 0014 */ CGxPool* m_pool;
@@ -362,7 +362,7 @@ namespace World {
         static uint32_t nBatches;
         static uint32_t faceIndexCursor;
         static uint32_t indexCursor;
-        static uint32_t unk_CB7538;
+        static uint32_t matrixPoolCount;
         static uint16_t faceIndexPool[0x4000];
         static uint16_t indexPool[0xC000];
         static Batch batches[32];
@@ -376,10 +376,10 @@ namespace World {
 
 class WMOGroup {
     public:
-    /* 0000 */ uint8_t unk_0000[284];
-    /* 011C */ uint32_t unk_011C;
-    /* 0120 */ uint8_t unk_0120[24];
-    /* 0138 */ uint32_t unk_0138;
+    /* 0000 */ uint8_t unused_0000[284];
+    /* 011C */ uint32_t unused_011C;
+    /* 0120 */ uint8_t unused_0120[24];
+    /* 0138 */ uint32_t unused_0138;
 };
 
 // VERIFY: d3f8a7cc auto

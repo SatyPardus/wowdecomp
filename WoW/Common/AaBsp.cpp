@@ -99,7 +99,7 @@ void CAaBspDigestCache::GenerateDigest(CAaBspNodeDigest* digest, const CAaBsp& b
 // VERIFY: f0141529 auto
 // OFFSET: 0x0079B070
 CAaBsp::CAaBsp() {
-    this->unk_0064 = 0;
+    this->unused_0064 = 0;
     this->m_rootNode = nullptr;
     this->m_nodes = nullptr;
     this->m_nodeFaceIndices = nullptr;

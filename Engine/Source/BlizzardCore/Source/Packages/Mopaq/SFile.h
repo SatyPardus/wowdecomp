@@ -24,10 +24,10 @@ struct ListfileParser {
     /* 0004 */ uint32_t m_pos;
     /* 0008 */ uint32_t m_size;
     /* 000C */ uint32_t m_special;
-    /* 0010 */ char unk_0010[260];
+    /* 0010 */ char unused_0010[260];
     /* 0114 */ const char* m_token;
     /* 0118 */ bool m_isSpecial;
-    /* 0119 */ uint8_t unk_0119[3];
+    /* 0119 */ uint8_t unused_0119[3];
 
     ~ListfileParser();
     bool Next();

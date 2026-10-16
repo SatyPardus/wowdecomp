@@ -17,7 +17,7 @@ struct CGxPool : public TSLinkedNode<CGxPool> {
     /* 0010 */ int32_t m_size;
     /* 0014 */ void* m_apiSpecific;
     /* 0018 */ void* m_mem;
-    /* 001C */ int32_t unk_001C;
+    /* 001C */ int32_t m_offset;
     /* 0020 */ TSList<CGxBuf> m_bufList;
     /* 002C */ EGxPoolHintBits m_hint;
     /* 0030 */ const char* m_name;

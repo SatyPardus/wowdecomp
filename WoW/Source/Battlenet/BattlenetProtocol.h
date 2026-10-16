@@ -50,7 +50,7 @@ struct ModuleRequest {
 };
 
 struct Complete {
-    /* 0000 */ uint8_t unk_0000[284];
+    /* 0000 */ uint8_t unused_0000[284];
     /* 011C */ BSN::AsciiString<39> m_accountName;
     /* 0148 */ uint32_t m_accountFlags;
     /* 014C */ uint32_t m_accountFlags2;
@@ -266,7 +266,7 @@ struct FriendInviteContainer {
 
 struct FriendList {
     /* 0000 */ BSN::Array<uint32_t, 100> m_friends;
-    /* 0194 */ BSN::Array<uint32_t, 100> unk_0194;
+    /* 0194 */ BSN::Array<uint32_t, 100> unused_0194;
 };
 
 struct FriendsOfFriendList {
@@ -287,7 +287,7 @@ struct Portal : public BSN::Choice {
 };
 
 struct Logoff {
-    /* 0000 */ uint32_t unk_0000[3];
+    /* 0000 */ uint32_t unused_0000[3];
 };
 
 struct Invoke : public BSN::Choice {

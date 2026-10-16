@@ -49,7 +49,7 @@ class CGGameObject_C_TypeBase {
     virtual void OnUpdateAnimProgress();
     virtual void UpdateState(int32_t oldState, int32_t newState);
     virtual int32_t Animate(float elapsed);
-    virtual void ShouldRender(uint32_t flags, int32_t& render, int32_t& a3);
+    virtual void ShouldRender(uint32_t flags, int32_t& render, int32_t& hidden);
     virtual float GetBaseAlpha() const;
     virtual void HandleAnimEvent(uint32_t eventId, uint32_t data, const C3Vector& position, uint32_t time);
     virtual int32_t HandleAnimInterrupted();
@@ -151,8 +151,8 @@ class CGGameObject_C_Type_TransportBase : public CGGameObject_C_Type_WorldObj {
     /* 0020 */ C3Vector m_position;
     /* 002C */ float m_speed;
     /* 0030 */ uint32_t m_pathTime;
-    /* 0034 */ uint32_t unk_0034;
-    /* 0038 */ int32_t unk_0038;
+    /* 0034 */ uint32_t m_worldObjectReady;
+    /* 0038 */ int32_t m_currentState;
     /* 003C */ uint32_t m_transportUpdateTime;
 
     virtual ~CGGameObject_C_Type_TransportBase();
@@ -196,7 +196,7 @@ struct DestructibleBuildingState {
     /* 0008 */ CMapEntity* m_object;
     /* 000C */ uint8_t m_loading;
     /* 000D */ uint8_t m_animate;
-    /* 000E */ uint8_t unk_000E[2];
+    /* 000E */ uint8_t unused_000E[2];
 };
 
 class CGGameObject_C_Type_DestructibleBuilding : public CGGameObject_C_Type_WorldObj {
@@ -312,10 +312,10 @@ class CGGameObject_C : public CGObject_C, public CGGameObject {
     virtual void UpdateInteractIconAttach();
     virtual int32_t Animate(float elapsed);
     virtual int32_t IsSolidSelectable() const;
-    virtual int32_t IsCollidable(int32_t a1) const;
+    virtual int32_t IsCollidable(int32_t flags) const;
     virtual int32_t IsHighlightSuppressed() const;
     virtual int32_t GetModelFileName(const char** name) const;
-    virtual void ShouldRender(uint32_t flags, int32_t& render, int32_t& a3);
+    virtual void ShouldRender(uint32_t flags, int32_t& render, int32_t& hidden);
     virtual C44Matrix GetMatrix() const;
     virtual const char* GetObjectName() const;
     virtual int32_t ShouldFadeIn() const;

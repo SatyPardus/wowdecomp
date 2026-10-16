@@ -173,7 +173,7 @@ C3Vector CGCamera::Up() const {
 CGCamera::CGCamera() : CSimpleCamera(World::s_nearClip, World::s_farClip, 1.5707964f) {
     this->m_model = nullptr;
     this->m_someTime = OsGetAsyncTimeMs();
-    this->unk_0050 = nullptr;
+    this->m_modelCameraHandle = nullptr;
 
     this->m_modelMatrix.a0 = 1.0f;
     this->m_modelMatrix.a1 = 0.0f;
@@ -220,10 +220,10 @@ CGCamera::CGCamera() : CSimpleCamera(World::s_nearClip, World::s_farClip, 1.5707
     this->m_targetPosition.x = 0.0f;
     this->m_targetPosition.y = 0.0f;
     this->m_targetPosition.z = 0.0f;
-    this->unk_01D0 = 0.0f;
+    this->unused_01D0 = 0.0f;
     this->m_targetFacing = 0.0f;
     this->m_terrainTiltTime = 0;
-    this->unk_01DC = 0.0f;
+    this->m_freeLookYaw = 0.0f;
 
     this->m_smoothDistance.m_startTimeMs = 0;
     this->m_smoothDistance.m_rate = 0.0f;
@@ -279,7 +279,7 @@ CGCamera::CGCamera() : CSimpleCamera(World::s_nearClip, World::s_farClip, 1.5707
     this->m_bobStart.x = 0.0f;
     this->m_bobStart.y = 0.0f;
     this->m_bobStart.z = 0.0f;
-    this->unk_029C = 1;
+    this->unused_029C = 1;
     this->m_underwater = 0;
     this->m_wasFlying = 0;
 
@@ -337,8 +337,8 @@ CGCamera::CGCamera() : CSimpleCamera(World::s_nearClip, World::s_farClip, 1.5707
     this->m_state |= 0x50;
     this->m_prevViewIndex = 2;
     this->m_prevDistance = 1.8315002f;
-    this->unk_0314 = 1.8315002f;
-    this->unk_0318 = 0.0f;
+    this->m_preTelescopeDistance = 1.8315002f;
+    this->m_telescopePitchOffset = 0.0f;
 
     if (g_cvAutoInteract->m_intValue) {
         this->m_flags |= 0x1;
@@ -355,9 +355,9 @@ CGCamera::~CGCamera() {
     if (this->m_model) {
         this->m_state &= ~0x4;
 
-        if (this->unk_0050) {
-            HandleClose(this->unk_0050);
-            this->unk_0050 = nullptr;
+        if (this->m_modelCameraHandle) {
+            HandleClose(this->m_modelCameraHandle);
+            this->m_modelCameraHandle = nullptr;
         }
 
         this->m_model->Release();
@@ -503,7 +503,7 @@ void CGCamera::DecIgnoreFacing() {
             if (this->m_vehicleCamera && this->m_vehicleCamera->IsHierarchyChasingFacing()) {
                 facing = this->GetChaseFacing(unit);
             } else if (this->m_state & 0x4000) {
-                facing = this->unk_01DC;
+                facing = this->m_freeLookYaw;
             } else if (this->m_vehicleCamera) {
                 facing = this->GetChaseFacing(unit);
             } else {
@@ -1041,9 +1041,9 @@ int32_t CGCamera::SetModelCamera(const char* fileName, const C3Vector* position,
     if (this->m_model) {
         this->m_state &= ~0x4;
 
-        if (this->unk_0050) {
-            HandleClose(this->unk_0050);
-            this->unk_0050 = nullptr;
+        if (this->m_modelCameraHandle) {
+            HandleClose(this->m_modelCameraHandle);
+            this->m_modelCameraHandle = nullptr;
         }
 
         this->m_model->Release();
@@ -1122,7 +1122,7 @@ void CGCamera::SetTarget(CGObject_C* target, int32_t freeLook) {
     }
 
     this->UpdateInebriation(drunkness, immediate);
-    this->unk_01D0 = 0.0f;
+    this->unused_01D0 = 0.0f;
 
     if (target) {
         this->m_targetGUID = target->m_obj->m_guid;
@@ -1596,9 +1596,9 @@ void CGCamera::ClearModelCamera() {
 
     this->m_state &= ~0x4;
 
-    if (this->unk_0050) {
-        HandleClose(this->unk_0050);
-        this->unk_0050 = nullptr;
+    if (this->m_modelCameraHandle) {
+        HandleClose(this->m_modelCameraHandle);
+        this->m_modelCameraHandle = nullptr;
     }
 
     this->m_model->Release();
@@ -1679,7 +1679,7 @@ C3Vector CGCamera::GetCameraPosition(const C3Vector& target, float distance, con
 // VERIFY: 94f5ae4c auto
 // OFFSET: 0x005FE310
 int32_t CGCamera::HasModelCamera() {
-    return this->unk_0050 != nullptr;
+    return this->m_modelCameraHandle != nullptr;
 }
 
 // VERIFY: 0bbc9b0f manual
@@ -1799,7 +1799,7 @@ void CGCamera::SaveCameraSettings() {
     float distance;
 
     if (this->m_state & 0x8) {
-        distance = this->unk_0314;
+        distance = this->m_preTelescopeDistance;
     } else if (this->m_flags & 0x20) {
         distance = this->m_vehicleExitZoomDistance;
     } else {
@@ -2799,12 +2799,12 @@ void CGCamera::SyncFreeLookFacing() {
     if (!unit || !unit->ClampRawAngleToLegalFacingRange(yaw)) {
         this->m_state |= 0x4000;
         this->m_flags |= 0x4;
-        this->unk_01DC = this->m_yaw;
+        this->m_freeLookYaw = this->m_yaw;
     } else if (this->m_flags & 0x4) {
         this->m_state |= 0x4000;
         this->m_smoothYaw.m_target = yaw;
         this->m_yaw = yaw;
-        this->unk_01DC = yaw;
+        this->m_freeLookYaw = yaw;
     } else {
         this->m_state &= ~0x4000;
     }
@@ -3053,7 +3053,7 @@ void CGCamera::SetView(int32_t view, int32_t blendStyle, int32_t transition) {
     uint32_t state = this->m_state;
 
     if (transition == 1) {
-        this->unk_0314 = this->m_smoothDistance.m_target;
+        this->m_preTelescopeDistance = this->m_smoothDistance.m_target;
     }
 
     this->m_smoothDistance.m_target = this->m_distance;
@@ -4094,11 +4094,11 @@ void CGCamera::SetTelescope(int32_t telescope) {
             this->StartSmoothFoV(0.0f, 0.5f, time);
             this->m_state = (this->m_state & 0x7FFF7FF7) | 0x80000000;
             this->SetView(this->m_prevViewIndex, 2, 2);
-            this->StartSmoothDistance(this->unk_0314, 0.5f, time);
+            this->StartSmoothDistance(this->m_preTelescopeDistance, 0.5f, time);
 
-            if (fabsf(this->unk_0318) >= 2.3841858e-7f) {
-                this->StartSmoothTargetOffset(offset - this->unk_0318, 0.5f, time);
-                this->unk_0318 = 0.0f;
+            if (fabsf(this->m_telescopePitchOffset) >= 2.3841858e-7f) {
+                this->StartSmoothTargetOffset(offset - this->m_telescopePitchOffset, 0.5f, time);
+                this->m_telescopePitchOffset = 0.0f;
             }
         }
 
@@ -4148,7 +4148,7 @@ void CGCamera::SetTelescope(int32_t telescope) {
 
     float angle = UnwrapAngleToward(0.0f, -atan2f(dir.z, sqrtf(1.0f - dir.z * dir.z)) - base, -3.1415927f, 3.1415927f);
     this->StartSmoothTargetOffset(angle + offset, 0.5f, time);
-    this->unk_0318 = angle;
+    this->m_telescopePitchOffset = angle;
 }
 
 // VERIFY: 6665d6c2 auto
@@ -4189,12 +4189,12 @@ int32_t CGCamera::FinishLoadingModel() {
         return 0;
     }
 
-    this->unk_0050 = HandleDuplicate(static_cast<HOBJECT>(camera));
+    this->m_modelCameraHandle = HandleDuplicate(static_cast<HOBJECT>(camera));
     C3Vector position;
     C3Vector target;
-    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->unk_0050), 7, &position);
-    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->unk_0050), 8, &target);
-    this->SetPositionAndTargetWithRoll(position, target, CameraGetFloat(reinterpret_cast<CCamera*>(this->unk_0050), 5));
+    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->m_modelCameraHandle), 7, &position);
+    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->m_modelCameraHandle), 8, &target);
+    this->SetPositionAndTargetWithRoll(position, target, CameraGetFloat(reinterpret_cast<CCamera*>(this->m_modelCameraHandle), 5));
     return 1;
 }
 
@@ -4213,9 +4213,9 @@ void CGCamera::CalcModelCamera(uint32_t time) {
     C3Vector position;
     C3Vector target;
     this->m_someTime = now;
-    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->unk_0050), 7, &position);
-    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->unk_0050), 8, &target);
-    this->SetPositionAndTargetWithRoll(position, target, CameraGetFloat(reinterpret_cast<CCamera*>(this->unk_0050), 5));
+    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->m_modelCameraHandle), 7, &position);
+    DataMgrGetCoord(reinterpret_cast<CDataMgr*>(this->m_modelCameraHandle), 8, &target);
+    this->SetPositionAndTargetWithRoll(position, target, CameraGetFloat(reinterpret_cast<CCamera*>(this->m_modelCameraHandle), 5));
 }
 
 // VERIFY: 399367f6 auto

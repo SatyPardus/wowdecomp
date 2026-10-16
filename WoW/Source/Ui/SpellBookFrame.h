@@ -15,7 +15,7 @@ struct SpellUsableInfo {
     /* 0000 */ int32_t m_spellId;
     /* 0004 */ uint8_t m_usable;
     /* 0005 */ uint8_t m_noMana;
-    /* 0006 */ uint8_t unk_0006[2];
+    /* 0006 */ uint8_t unused_0006[2];
 };
 
 struct SpellBookSkillInfo {
@@ -56,7 +56,7 @@ class CGSpellBook {
     static TSGrowableArray<int32_t> m_companions[2];
 
     static void AddKnownSpell(int32_t spellId, int32_t notify, int32_t replaceSpell);
-    static void AddSpellToNameCache(int32_t spellId, int32_t a2);
+    static void AddSpellToNameCache(int32_t spellId, int32_t isPet);
     static void CompanionCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
     static int32_t GetSpellProgressionRank(const SpellRec* spell);
     static int32_t GetCompanionType(const SpellRec* spell);
@@ -106,10 +106,10 @@ void ClearPetSpellInfo();
 extern const char* s_companionTypes[2];
 extern TSGrowableArray<SpellUsableInfo> s_shapeshiftSpells;
 extern uint32_t s_numSkillInfos;
-extern uint32_t s_unkBE5D88[1024];
+extern uint32_t s_displayedSpells[1024];
 extern int32_t s_spellList[1024];
 extern uint32_t s_numSpells;
-extern uint32_t s_unkBE8D9C;
+extern uint32_t s_displayedSpellCount;
 extern TSGrowableArray<SpellBookSkillInfo*> s_skillInfos;
 void PrefetchSpellVisuals(int32_t spellId);
 

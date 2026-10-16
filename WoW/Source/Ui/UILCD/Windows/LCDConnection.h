@@ -32,7 +32,7 @@ class CLCDConnection {
     /* 0034 */ CLCDGfxBase* m_pGfxColor;
     /* 0038 */ CLCDOutput* m_pMonoOutput;
     /* 003C */ CLCDGfxBase* m_pGfxMono;
-    /* 0040 */ uint32_t unk_0040;
+    /* 0040 */ uint32_t unused_0040;
     /* 0044 */ lgLcdSoftbuttonsChangedContext* m_pSoftbuttonsChangedCtx;
     /* 0048 */ CRITICAL_SECTION m_csCallback;
     /* 0060 */ TSList<CB_EVENT_NODE, TSGetLink<CB_EVENT_NODE> > m_callbackEvents;

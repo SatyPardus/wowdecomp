@@ -32,7 +32,7 @@ HidDevice::HidDevice(DWORD devInst) : m_thread(nullptr), m_threadId(0), m_thread
 // VERIFY: ad56d01b manual
 // OFFSET: 0x008C3E40
 HidDevice::HidDevice(const HidDevice& device) : m_thread(nullptr), m_threadId(0), m_threadProc(nullptr), m_interfaceDetail(std::move(const_cast<HidDevice&>(device).m_interfaceDetail)), m_file(device.m_file), m_openRead(device.m_openRead), m_openWrite(device.m_openWrite), m_openOverlapped(device.m_openOverlapped), m_openExclusive(device.m_openExclusive), m_preparsedData(device.m_preparsedData), m_attributes(device.m_attributes), m_caps(device.m_caps), m_writeOverlapped(device.m_writeOverlapped), m_readOverlapped(device.m_readOverlapped), m_readBuffer(std::move(const_cast<HidDevice&>(device).m_readBuffer)), m_readBufferSize(device.m_readBufferSize), m_readEvent(device.m_readEvent), m_writeEvent(device.m_writeEvent), m_readPending(device.m_readPending), m_hardwareId(device.m_hardwareId), m_manager(device.m_manager), m_readSignal(device.m_readSignal), m_stopEvent(device.m_stopEvent), m_stale(device.m_stale), m_devInst(device.m_devInst) {
-    memcpy(this->unk_0040, device.unk_0040, sizeof(this->unk_0040));
+    memcpy(this->unused_0040, device.unused_0040, sizeof(this->unused_0040));
     const_cast<HidDevice&>(device).m_file = nullptr;
     const_cast<HidDevice&>(device).m_preparsedData = nullptr;
     strcpy_s(this->m_productString, sizeof(this->m_productString), device.m_productString);
@@ -407,7 +407,7 @@ bool HidDevice::EnumerateInterface(HDEVINFO deviceInfoSet, PSP_DEVINFO_DATA devi
 
 // VERIFY: 9699ba4f manual
 // OFFSET: 0x008C4F90
-HidManagerImpl::HidManagerImpl() : unk_0010(0), unk_0014(0), m_window(nullptr), m_inputDevInst(0), m_outputDevInst(0) {
+HidManagerImpl::HidManagerImpl() : unused_0010(0), unused_0014(0), m_window(nullptr), m_inputDevInst(0), m_outputDevInst(0) {
 }
 
 // VERIFY: 90088bd5 manual

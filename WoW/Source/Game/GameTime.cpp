@@ -47,12 +47,12 @@ float CGameTime::GameTimeSetMinutesPerSecond(float minutesPerSecond) {
 CGameTime::CGameTime() {
     this->m_minutesPerSecond = 1.0f / 60.0f;
     this->m_fracMinutes = 0.0f;
-    this->unk_0020 = 0;
+    this->unused_0020 = 0;
     this->m_baseMinuteOfDay = 0.0f;
     this->m_minuteOffset = 0;
-    this->unk_0048 = 0.0f;
+    this->unused_0048 = 0.0f;
     this->m_dayOffset = 0;
-    this->unk_004C = 0.0f;
+    this->unused_004C = 0.0f;
     this->m_minuteTicks = 0;
     this->m_elapsedMinutes = 0;
     this->m_lastTickMs = 0;

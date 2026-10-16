@@ -54,7 +54,7 @@ class CVehicle_C {
     /* 016C */ uint8_t m_mirroringAnimsMask;
     /* 016D */ uint8_t m_freeSeatMask;
     /* 0170 */ TSExplicitList<CPassenger, offsetof(CPassenger, m_link)> m_passengers;
-    /* 017C */ uint32_t unk_017C;
+    /* 017C */ uint32_t unused_017C;
 
     CVehicle_C();
     VehicleSeatRec* GetVehicleSeatRec(uint8_t seat) const;

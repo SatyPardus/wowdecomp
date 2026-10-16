@@ -103,7 +103,7 @@ struct CMapFootprint {
     /* 0000 */ C3Vector m_position;
     /* 000C */ uint32_t m_alpha;
     /* 0010 */ uint32_t m_textureIndex;
-    /* 0014 */ uint32_t unk_0014;
+    /* 0014 */ uint32_t unused_0014;
     /* 0018 */ uint32_t m_startTime;
     /* 001C */ TSGrowableArray<CGxVertexPT0T1> m_vertices;
     /* 002C */ TSLink<CMapFootprint> m_link;
@@ -114,7 +114,7 @@ class CMapObj;
 class CMapFootprintTexture {
     public:
     /* 0000 */ CTexture* m_texture;
-    /* 0004 */ TSGrowableArray<uint32_t> unk_0004;
+    /* 0004 */ TSGrowableArray<uint32_t> m_footprintIndices;
     /* 0014 */ uint32_t m_vertexCount;
 
     CMapFootprintTexture();
@@ -141,7 +141,7 @@ class CDestructibleProxy {
     static void FindOrCreate(CDestructibleProxy* proxy);
     static void FreeMatching(CDestructibleProxy* proxy);
 
-    /* 0000 */ uint32_t unk_0000;
+    /* 0000 */ uint32_t unused_0000;
     /* 0004 */ TSLink<CDestructibleProxy> m_link;
     /* 000C */ CAaSphere m_sphere;
     /* 001C */ uint32_t m_uniqueId;
@@ -214,7 +214,7 @@ class CMap {
     static uint32_t* chunkLiquidHeap;
     static FVBBList s_vbbList;
     static TSExplicitList<CMapRenderChunk, offsetof(CMapRenderChunk, m_renderChunkLink)> s_mapRenderChunkFreeList;
-    static TSExplicitList<CMapChunkBuf, offsetof(CMapChunkBuf, unk_0014)> s_chunkBufFreeList;
+    static TSExplicitList<CMapChunkBuf, offsetof(CMapChunkBuf, m_freeLink)> s_chunkBufFreeList;
     static TSList<CMapArea, TSGetExplicitLink<CMapArea> > s_allocatedAreas;
     static TSList<CMapChunk, TSGetExplicitLink<CMapChunk> > s_mapChunkList;
     static TSList<CMapChunk, TSGetExplicitLink<CMapChunk> > s_mapChunkSortList;
@@ -310,7 +310,7 @@ class CMap {
     static CMapLight* AllocLight();
     static CMapObjDef* CreateMapObjDef(char* fileName, SMMapObjDef* mapObjectDef, C3Vector* center, bool cached);
     static CMapDoodadDef* CreateDoodadDef(const char* fileName, SMDoodadDef* doodadDef, C3Vector* center);
-    static CMapDoodadDef* CreateDoodadDef(const char* fileName, const C3Vector* position, float facing, int32_t a4);
+    static CMapDoodadDef* CreateDoodadDef(const char* fileName, const C3Vector* position, float facing, int32_t waitForLoad);
     static CMapLight* CreateLight(uint8_t a1, uint8_t a2);
     static CMapDoodadDef* CreateDoodadDef(uint32_t doodadRef, SMODoodadDef* doodadDef, char* name, uint32_t key, C44Matrix* mat, uint16_t doodadSet);
     static void FreeBaseObjLinksInBounds(CAaBox* box);
@@ -319,15 +319,15 @@ class CMap {
     static void Preload();
     static CMapArea* PrepareArea(int32_t areaIndexX, int32_t areaIndexY);
     static void LoadArea(CMapArea* area);
-    static void PrepareUpdate(bool a1);
+    static void PrepareUpdate(bool addToScene);
     static uint32_t ComputeDoodadLoadProgress(CMapChunk* chunk, float* progress, uint32_t total);
     static uint32_t ComputeMapObjLoadProgress(CMapChunk* chunk, float* progress, uint32_t total);
     static void PurgeMaps();
     static void ClearAllFootprints();
     static void RenderFootprints();
-    static void PreUpdateAreas(bool a1);
+    static void PreUpdateAreas(bool addToScene);
     static void UpdateArea(int32_t addToScene, CMapArea* area, CiRect* chunkRect, int32_t depth);
-    static void PrepareMapObjDefs(bool a1);
+    static void PrepareMapObjDefs(bool addToScene);
     static void PrepareMapObjDef(CMapObjDef* mapObjDef, CMapObj* mapObj);
     static void CreateMapObjDefGroups(CMapObj* mapObj, CMapObjDef* mapObjDef);
     static bool QueryShadow(C3Vector* pos);
@@ -343,7 +343,7 @@ class CMap {
     static void ProcessChunkLiquidUpdateList();
     static void PrepareMapDoodadDefs();
     static void ProcessRenderChunkUpdateList();
-    static CMapEntity* ObjectCreate(CM2Model* model, MAP_OBJECT_FUNC func, void* funcParam, uint64_t param64, uintptr_t param32, uint32_t a7);
+    static CMapEntity* ObjectCreate(CM2Model* model, MAP_OBJECT_FUNC func, void* funcParam, uint64_t param64, uintptr_t param32, uint32_t flags);
     static CMapEntity* ObjectCreateStatic(CM2Model* model, const C44Matrix& matrix, MAP_OBJECT_FUNC func, void* funcParam, uintptr_t param32);
     static CMapEntity* ObjectCreateStaticEx(CM2Model* model, const C44Matrix& matrix, MAP_OBJECT_FUNC func, void* funcParam, uint64_t param64, uintptr_t param32, const char* file, int32_t line);
     static void ObjectUpdate(CMapEntity* entity, C44Matrix& mat, CAaBox& box, CAaSphere& sphere, C3Vector& vec, bool a6, uint32_t a7);
@@ -390,7 +390,7 @@ class CMap {
     static bool QueryLiquidStatusMapObjsExt(C3Vector* pos, int32_t* liquidType, float* height);
     static bool GetFacets(CAaBox* a1, CAaBox* a2, World::FacetData* a3, uint32_t a4, uint32_t* a5);
     static bool GetMapObjFacets(CAaBox* queryBox, CAaBox* box, World::FacetData* facets, uint32_t flags, uint32_t* status);
-    static bool QueryFacets(CFrustum* frustum, World::FacetData* facets, uint32_t flags, uint32_t* a4);
+    static bool QueryFacets(CFrustum* frustum, World::FacetData* facets, uint32_t flags, uint32_t* count);
     static bool GetChunkFacets(int32_t chunkX, int32_t chunkY, CiRect* subRect, CAaBox* queryBox, CAaBox* box, World::FacetData* facets, uint32_t flags);
     static bool GetChunkLiquidFacets(CMapChunk* chunk, CAaBox* box, CiRect* rect, CChunkLiquid* liquid, World::FacetData* facets);
     static bool GetChunkLiquidFacets(CMapChunk* chunk, CWFrustum* frustum, CiRect* rect, CChunkLiquid* liquid, World::FacetData* facets);
@@ -406,8 +406,8 @@ class CMap {
     static int32_t GetFlightBounds(const C3Vector& pos, float* height, int32_t which);
     static int32_t QueryFlightBounds(const C3Vector& pos, float* height);
 
-    /* 0000 */ uint8_t unk_0000[180];
-    /* 00B4 */ uint32_t unk_00B4;
+    /* 0000 */ uint8_t unused_0000[180];
+    /* 00B4 */ uint32_t unused_00B4;
 };
 
 extern int32_t s_mapId;

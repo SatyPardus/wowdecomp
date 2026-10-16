@@ -25,7 +25,7 @@ class CGxFormat {
     /* 0006 */ int8_t m_fixLag;
     /* 0007 */ int8_t m_window;
     /* 0008 */ bool m_aspect;
-    /* 0009 */ uint8_t unk_0009[3];
+    /* 0009 */ uint8_t unused_0009[3];
     /* 000C */ int32_t m_maximize;
     /* 0010 */ CGxFormat::Format m_depthFormat;
     /* 0014 */ C2iVector m_size;
@@ -36,7 +36,7 @@ class CGxFormat {
     /* 002C */ uint32_t m_refreshRate;
     /* 0030 */ uint32_t m_vsync;
     /* 0034 */ bool m_stereoEnabled;
-    /* 0035 */ uint8_t unk_0035[3];
+    /* 0035 */ uint8_t unused_0035[3];
     /* 0038 */ int32_t m_fixedFunction [6];
     /* 0050 */ C2iVector m_pos;
 

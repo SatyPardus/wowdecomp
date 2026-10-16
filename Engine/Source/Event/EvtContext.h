@@ -37,10 +37,10 @@ struct EvtTimer {
     /* 0018 */ EVENTHANDLERFUNC m_handler;
     /* 001C */ void* m_param;
     /* 0020 */ EVENTHANDLERGUIDFUNC m_guidHandler;
-    /* 0024 */ uint32_t unk_0024;
+    /* 0024 */ uint32_t unused_0024;
     /* 0028 */ uint64_t m_guidParam;
     /* 0030 */ void* m_guidParam2;
-    /* 0034 */ uint32_t unk_0034;
+    /* 0034 */ uint32_t unused_0034;
 };
 
 template <class T>

@@ -90,7 +90,7 @@ void CWorldParam::SetDefaults(OPTION_PAGE page) {
     }
 
     if (CWorldParam::cvar_specular) {
-        SStrPrintf(value, sizeof(value), defaults->unk_001A ? "1" : "0");
+        SStrPrintf(value, sizeof(value), defaults->m_specular ? "1" : "0");
         CWorldParam::cvar_specular->Set(value, true, false, false, true);
     }
 

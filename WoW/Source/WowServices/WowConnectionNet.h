@@ -24,7 +24,7 @@ class WowConnectionNet {
         /* 0010 */ SEvent m_event;
         /* 0014 */ bool m_quit;
         /* 0015 */ SCritSect m_lock;
-        /* 003D */ uint8_t unk_003D[3];
+        /* 003D */ uint8_t unused_003D[3];
         /* 0040 */ uint32_t m_lastTime;
 
         WORKER();
@@ -36,20 +36,20 @@ class WowConnectionNet {
     /* 0000 */ SThread m_thread;
     /* 0004 */ SEvent m_stopEvent;
     /* 0008 */ bool m_stop;
-    /* 0009 */ uint8_t unk_0009[3];
+    /* 0009 */ uint8_t unused_0009[3];
     /* 000C */ int32_t m_numWorkers;
     /* 0010 */ WowConnectionNet::WORKER m_workers[32];
     /* 0890 */ SCritSect m_connectionsLock;
     /* 08B8 */ TSExplicitList<WowConnection, offsetof(WowConnection, m_netLink)> m_connections;
     /* 08C4 */ SSemaphore m_workerSemaphore;
-    /* 08C8 */ TSList<WowConnection::SENDNODE> unk_08C8;
-    /* 08D4 */ TSList<WowConnection::SENDNODE> unk_08D4;
+    /* 08C8 */ TSList<WowConnection::SENDNODE> unused_08C8;
+    /* 08D4 */ TSList<WowConnection::SENDNODE> unused_08D4;
     /* 08E0 */ SSemaphore m_serviceSemaphore;
     /* 08E4 */ void (*m_threadInit)();
     /* 08E8 */ void* m_event;
-    /* 08EC */ uint8_t unk_08EC;
+    /* 08EC */ uint8_t unused_08EC;
     /* 08ED */ bool m_networkStarted;
-    /* 08EE */ uint8_t unk_08EE[2];
+    /* 08EE */ uint8_t unused_08EE[2];
 
     WowConnectionNet(int32_t numThreads, void (*threadInit)());
     ~WowConnectionNet();

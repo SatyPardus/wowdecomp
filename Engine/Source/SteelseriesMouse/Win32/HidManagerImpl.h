@@ -30,7 +30,7 @@ class HidDevice {
     /* 002C */ int32_t m_openExclusive;
     /* 0030 */ PHIDP_PREPARSED_DATA m_preparsedData;
     /* 0034 */ HIDD_ATTRIBUTES m_attributes;
-    /* 0040 */ uint8_t unk_0040[16];
+    /* 0040 */ uint8_t unused_0040[16];
     /* 0050 */ HIDP_CAPS m_caps;
     /* 0090 */ OVERLAPPED m_writeOverlapped;
     /* 00A4 */ OVERLAPPED m_readOverlapped;
@@ -44,7 +44,7 @@ class HidDevice {
     /* 00EC */ HidManagerImpl* m_manager;
     /* 00F0 */ HANDLE m_readSignal;
     /* 00F4 */ HANDLE m_stopEvent;
-    /* 00F8 */ uint8_t unk_00F8[3];
+    /* 00F8 */ uint8_t unused_00F8[3];
     /* 00FB */ uint8_t m_stale;
     /* 00FC */ DWORD m_devInst;
     /* 0100 */ char m_productString[256];
@@ -70,8 +70,8 @@ class HidDevice {
 class HidManagerImpl : public HidManager {
     public:
     /* 0004 */ std::set<HidDevice> m_devices;
-    /* 0010 */ uint32_t unk_0010;
-    /* 0014 */ uint32_t unk_0014;
+    /* 0010 */ uint32_t unused_0010;
+    /* 0014 */ uint32_t unused_0014;
     /* 0018 */ HidDevice m_nullDevice;
     /* 0318 */ HWND m_window;
     /* 031C */ DWORD m_inputDevInst;

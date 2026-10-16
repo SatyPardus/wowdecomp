@@ -11,7 +11,7 @@ class CDataStore;
 class CMovementStatus {
     public:
     /* 0000 */ uint32_t m_gameTime;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ WOWGUID m_transportGuid;
     /* 0010 */ uint32_t m_moveFlags;
     /* 0014 */ uint16_t m_moveExtraFlags;
@@ -30,7 +30,7 @@ class CMovementStatus {
     /* 0050 */ float m_splineElevation;
     /* 0054 */ uint32_t m_transportTime;
     /* 0058 */ uint32_t m_transportTime2;
-    /* 005C */ float unk_005C;
+    /* 005C */ float unused_005C;
 
     static uint32_t Skip(CDataStore* msg);
 

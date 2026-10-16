@@ -16,14 +16,14 @@ DWORD WINAPI CEzLcd::OnSoftButtonCB(int device, DWORD dwButtons, const PVOID pCo
 // VERIFY: 5306e66e manual
 // OFFSET: 0x00959940
 CEzLcd::CEzLcd() {
-    this->unk_01D4 = -1;
-    this->unk_01D8 = -1;
+    this->unused_01D4 = -1;
+    this->unused_01D8 = -1;
     this->m_output = nullptr;
     this->m_currentColorPage = nullptr;
     this->m_currentMonoPage = nullptr;
     this->m_colorGlobalPage = nullptr;
     this->m_monoGlobalPage = nullptr;
-    this->unk_01AC = 0;
+    this->unused_01AC = 0;
     this->unk_01A8 = 0;
     this->m_currentColorPageIndex = 0;
     this->m_currentMonoPageIndex = 0;
@@ -90,15 +90,15 @@ void CEzLcd::OnSoftButtons(uint32_t buttons) {
 // VERIFY: 3a32c162 auto
 // OFFSET: 0x009592F0
 int32_t CEzLcd::Initialize(const char* friendlyName, int32_t lcdType, int32_t isAutoStartable, int32_t isPersistent, lgLcdConfigureContext* configContext, lgLcdSoftbuttonsChangedContext* softbuttonsChangedContext) {
-    if (this->unk_01A8 || this->unk_01AC) {
+    if (this->unk_01A8 || this->unused_01AC) {
         return E_FAIL;
     }
 
     SStrCopy(this->m_friendlyName, friendlyName, STORM_MAX_STR);
 
-    this->unk_01CC = 0x80000000;
-    this->unk_01D0 = 0x80000000;
-    this->unk_01B8 = 1;
+    this->unused_01CC = 0x80000000;
+    this->unused_01D0 = 0x80000000;
+    this->unused_01B8 = 1;
     this->m_initialized = 0;
     this->m_configContext = configContext;
     this->m_isPersistent = isPersistent;
@@ -164,7 +164,7 @@ int32_t CEzLcd::Initialize(const char* friendlyName, int32_t lcdType, int32_t is
         this->m_output = this->m_connection.MonoOutput();
     }
 
-    this->unk_01B8 = 0;
+    this->unused_01B8 = 0;
 
     return S_OK;
 }

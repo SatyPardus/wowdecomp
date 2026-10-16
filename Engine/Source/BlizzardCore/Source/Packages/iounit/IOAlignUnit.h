@@ -9,7 +9,7 @@ class IOAlignUnit : public IOUnit {
     struct CacheBlock {
         /* 0000 */ int64_t m_offset;
         /* 0008 */ bool m_dirty;
-        /* 0009 */ uint8_t unk_0009[3];
+        /* 0009 */ uint8_t unused_0009[3];
         /* 000C */ uint8_t* m_data;
 
         bool operator<(const CacheBlock& other) const;
@@ -21,10 +21,10 @@ class IOAlignUnit : public IOUnit {
     /* 0028 */ uint32_t m_blockSize;
     /* 002C */ bool m_largeTransfers;
     /* 002D */ bool m_exactSize;
-    /* 002E */ uint8_t unk_002E[2];
+    /* 002E */ uint8_t unused_002E[2];
     /* 0030 */ uint32_t m_bufferAlign;
     /* 0034 */ bool m_skipCleanOnWrite;
-    /* 0035 */ uint8_t unk_0035[3];
+    /* 0035 */ uint8_t unused_0035[3];
     /* 0038 */ uint32_t m_blockCount;
     /* 003C */ CacheBlock* m_blocks;
     /* 0040 */ CacheBlock m_block;

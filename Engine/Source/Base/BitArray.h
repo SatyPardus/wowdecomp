@@ -7,7 +7,7 @@ class CBitArray {
     public:
     /* 0000 */ char* m_array;
     /* 0004 */ uint32_t m_size;
-    /* 0008 */ bool unk_0008;
+    /* 0008 */ bool m_ownsArray;
 
     CBitArray();
     ~CBitArray();

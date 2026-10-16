@@ -220,9 +220,9 @@ void CMap::RenderWaterRipples() {
         }
 
         g_theGxDevicePtr->BufUnlock(indexBuf, 0);
-        indexBuf->unk_001C = 1;
+        indexBuf->m_hasData = 1;
         g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-        vertexBuf->unk_001C = 1;
+        vertexBuf->m_hasData = 1;
 
         if (index) {
             GxPrimVertexPtr(vertexBuf, GxVBF_PCT);
@@ -321,7 +321,7 @@ void CWaterRipple::InitRipple(const C3Vector& pos, float rotation, float size, f
     World::TriData::nBatches = 0;
     World::TriData::faceIndexCursor = 0;
     World::TriData::indexCursor = 0;
-    World::TriData::unk_CB7538 = 0;
+    World::TriData::matrixPoolCount = 0;
     World::TriData triData;
 
     if (!World::GetTris(box, &triData, 0x20000)) {

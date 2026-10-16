@@ -19,7 +19,7 @@ namespace Blizzard {
 namespace Util {
 template <int N, class T>
 struct Buffer {
-    /* 0000 */ Blizzard::Util::BufferData<T, N> unk_0000;
+    /* 0000 */ Blizzard::Util::BufferData<T, N> unused_0000;
 };
 }
 }

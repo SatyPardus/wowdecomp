@@ -6,8 +6,8 @@
 
 class DBItemCache {
     public:
-    /* 0000 */ uint8_t unk_0000[500];
-    /* 01F4 */ uint32_t unk_01F4;
+    /* 0000 */ uint8_t unused_0000[500];
+    /* 01F4 */ uint32_t unused_01F4;
 };
 
 #endif

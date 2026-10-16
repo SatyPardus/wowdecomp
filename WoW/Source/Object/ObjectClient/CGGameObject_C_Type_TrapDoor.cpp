@@ -99,8 +99,8 @@ void CGGameObject_C_Type_TrapDoor::UpdateMovement(uint32_t time, uint32_t elapse
         return;
     }
 
-    if (!this->unk_0034 && World::ObjectIsLoaded(this->m_worldObject)) {
-        this->unk_0034 = 1;
+    if (!this->m_worldObjectReady && World::ObjectIsLoaded(this->m_worldObject)) {
+        this->m_worldObjectReady = 1;
         int32_t moved;
         this->MovePassengers(&moved);
         return;

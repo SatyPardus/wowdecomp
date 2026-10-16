@@ -154,12 +154,12 @@ struct REALM_INFO {
     /* 0005 */ uint8_t m_flags;
     /* 0006 */ char m_realmName [256];
     /* 0106 */ char m_realmAddress [32];
-    /* 0126 */ uint8_t unk_0126[2];
+    /* 0126 */ uint8_t unused_0126[2];
     /* 0128 */ float m_population;
     /* 012C */ uint8_t m_numCharacters;
     /* 012D */ uint8_t m_category;
-    /* 012E */ uint8_t unk_012E;
-    /* 012F */ uint8_t unk_012F;
+    /* 012E */ uint8_t unused_012E;
+    /* 012F */ uint8_t unused_012F;
     /* 0130 */ uint32_t m_regionId;
     /* 0134 */ uint32_t m_battlegroupId;
     /* 0138 */ uint32_t m_realmId;
@@ -169,7 +169,7 @@ struct REALM_INFO {
     /* 0142 */ uint8_t m_versionMinor;
     /* 0143 */ uint8_t m_versionRevision;
     /* 0144 */ uint16_t m_versionBuild;
-    /* 0146 */ uint8_t unk_0146[2];
+    /* 0146 */ uint8_t unused_0146[2];
 };
 
 #endif

@@ -32,8 +32,8 @@ class PendingSpellCast : public TSLinkedNode<PendingSpellCast> {
     public:
     /* 0008 */ PendingSpellCastData m_data;
     /* 0138 */ uint8_t m_hidden;
-    /* 0139 */ uint8_t unk_0139;
-    /* 013A */ uint8_t unk_013A [2];
+    /* 0139 */ uint8_t m_isTrajectoryCast;
+    /* 013A */ uint8_t unused_013A [2];
     /* 013C */ uint32_t m_dwordC;
     /* 0140 */ WOWGUID m_petGuid;
 
@@ -53,17 +53,17 @@ struct SPELLHISTORY : public TSLinkedNode<SPELLHISTORY> {
     /* 001C */ uint32_t m_categoryTime;
     /* 0020 */ uint32_t m_categoryRecoveryTime;
     /* 0024 */ uint8_t m_onHold;
-    /* 0025 */ uint8_t unk_0025[3];
+    /* 0025 */ uint8_t unused_0025[3];
     /* 0028 */ int32_t m_startRecoveryCategory;
     /* 002C */ uint32_t m_startRecoveryTime;
 };
 
 struct SpellCastTargetPoint {
     /* 0000 */ C3Vector m_position;
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ WOWGUID m_transport;
     /* 0018 */ C3Vector m_worldPosition;
-    /* 0024 */ uint32_t unk_0024;
+    /* 0024 */ uint32_t unused_0024;
 };
 
 struct NotifyDestLocSpellCastData {
@@ -73,11 +73,11 @@ struct NotifyDestLocSpellCastData {
     /* 0014 */ C3Vector m_destLocation;
     /* 0020 */ C3Vector m_destPosition;
     /* 002C */ float m_elevation;
-    /* 0030 */ float unk_0030;
-    /* 0034 */ uint32_t unk_0034;
+    /* 0030 */ float m_missileSpeed;
+    /* 0034 */ uint32_t m_delay;
     /* 0038 */ uint8_t unk_0038;
     /* 0039 */ uint8_t m_castCount;
-    /* 003A */ uint8_t unk_003A[2];
+    /* 003A */ uint8_t unused_003A[2];
 };
 
 struct SpellInTransit : public TSLinkedNode<SpellInTransit> {
@@ -85,7 +85,7 @@ struct SpellInTransit : public TSLinkedNode<SpellInTransit> {
     /* 0010 */ int32_t m_spellId;
     /* 0014 */ uint32_t m_serverTime;
     /* 0018 */ uint32_t m_arrivalTime;
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t unused_001C;
 };
 
 class SpellHistory {
@@ -121,7 +121,7 @@ struct PeriodicClientTrigger : public TSLinkedNode<PeriodicClientTrigger> {
 
 struct DESTLOCSPELLCASTINDEXHASHNODE : public TSHashObject<DESTLOCSPELLCASTINDEXHASHNODE, CHashKeyGUID> {
     /* 0020 */ uint8_t m_castCount;
-    /* 0021 */ uint8_t unk_0021[3];
+    /* 0021 */ uint8_t unused_0021[3];
     /* 0024 */ uint32_t m_time;
 };
 
@@ -129,13 +129,13 @@ struct ITEMCOOLDOWNHASHNODE : public TSHashObject<ITEMCOOLDOWNHASHNODE, HASHKEY_
     /* 0018 */ int32_t m_spellId;
     /* 001C */ uint32_t m_time;
     /* 0020 */ bool m_onHold;
-    /* 0021 */ uint8_t unk_0021[3];
+    /* 0021 */ uint8_t unused_0021[3];
 };
 
 class Spell_C {
     public:
-    /* 0000 */ uint8_t unk_0000[8];
-    /* 0008 */ uint32_t unk_0008;
+    /* 0000 */ uint8_t unused_0000[8];
+    /* 0008 */ uint32_t unused_0008;
 
     static void SendPendingCast(PendingSpellCast* cast, bool hideVisuals);
     static void GetSpellRange(CGUnit_C* caster, int32_t spellId, float* minRange, float* maxRange, CGObject_C* target);
@@ -236,7 +236,7 @@ bool Spell_C_CancelsConfuse(const CGUnit_C* unit, const SpellRec* spell, int32_t
 bool Spell_C_CancelsCharm(const CGUnit_C* unit, const SpellRec* spell, int32_t* reason);
 bool Spell_C_HaveSpellTokens(CGUnit_C* unit, const SpellRec* spell, bool report, PendingSpellCast* cast);
 bool Spell_C_HaveEquippedSpellItems(CGUnit_C* unit, const SpellRec* spell, bool checkAmmo, bool report, PendingSpellCast* cast);
-float GetGameTableValue(int32_t table, int32_t index, int32_t a3);
+float GetGameTableValue(int32_t table, int32_t index, int32_t row);
 void ItemCheckCooldownCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
 
 class QuestTextParser {

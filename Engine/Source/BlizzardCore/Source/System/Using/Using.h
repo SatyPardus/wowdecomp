@@ -12,7 +12,7 @@ namespace System_Using {
 
 struct Depends {
     /* 0000 */ int16_t id;
-    /* 0002 */ uint8_t unk_0002[2];
+    /* 0002 */ uint8_t unused_0002[2];
     /* 0004 */ Depends* next;
 };
 
@@ -22,7 +22,7 @@ struct UsingRec {
     /* 0006 */ int16_t refCount;
     /* 0008 */ void (*shutdownproc)();
     /* 000C */ int16_t dependCount;
-    /* 000E */ uint8_t unk_000E[2];
+    /* 000E */ uint8_t unused_000E[2];
     /* 0010 */ Depends* depends;
 };
 
@@ -31,7 +31,7 @@ class UsingHashTable {
     struct Entry {
         /* 0000 */ uint32_t m_hash;
         /* 0004 */ uint16_t m_value;
-        /* 0006 */ uint8_t unk_0006[2];
+        /* 0006 */ uint8_t unused_0006[2];
     };
 
     static uint32_t Hash(const char* name);

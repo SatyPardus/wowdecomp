@@ -31,7 +31,7 @@ struct IWJpegParams {
     /* 0014 */ uint32_t m_quality;
     /* 0018 */ int32_t m_subsample;
     /* 001C */ const char* m_comment;
-    /* 0020 */ int32_t unk_0020;
+    /* 0020 */ int32_t unused_0020;
 };
 
 class IWBitMatrix {
@@ -74,9 +74,9 @@ struct IWCheckNode;
 
 struct IWBitNode {
     /* 0000 */ uint16_t m_index;
-    /* 0002 */ uint8_t unk_0002;
+    /* 0002 */ uint8_t unused_0002;
     /* 0003 */ uint8_t m_checkCount;
-    /* 0004 */ uint8_t unk_0004[16];
+    /* 0004 */ uint8_t unused_0004[16];
     /* 0014 */ IWCheckNode* m_checks[6];
 };
 

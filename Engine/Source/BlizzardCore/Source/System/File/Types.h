@@ -24,16 +24,16 @@ namespace Blizzard {
 namespace File {
 struct FileInfo {
     /* 0000 */ char* m_path;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ int64_t m_size;
     /* 0010 */ int32_t m_attributes;
-    /* 0014 */ uint8_t unk_0014[4];
+    /* 0014 */ uint8_t unused_0014[4];
     /* 0018 */ Blizzard::Time::Timestamp m_createTime;
     /* 0020 */ Blizzard::Time::Timestamp m_modTime;
     /* 0028 */ Blizzard::Time::Timestamp m_accessTime;
     /* 0030 */ int32_t m_existence;
     /* 0034 */ bool m_regularFile;
-    /* 0035 */ uint8_t unk_0035[3];
+    /* 0035 */ uint8_t unused_0035[3];
 };
 }
 }
@@ -41,7 +41,7 @@ struct FileInfo {
 namespace Blizzard {
 namespace File {
 union FileInfoMask {
-    /* 0000 */ uint8_t unk_0000[4];
+    /* 0000 */ uint8_t unused_0000[4];
     /* 0000 */ uint32_t m_all;
 };
 }
@@ -123,8 +123,8 @@ struct StreamRecord {
     /* 0000 */ void* m_fileHandle;
     /* 0004 */ int32_t m_mode;
     /* 0008 */ bool m_infoValid;
-    /* 0009 */ uint8_t unk_0009[3];
-    /* 000C */ uint32_t unk_000C;
+    /* 0009 */ uint8_t unused_0009[3];
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ Blizzard::File::FileInfo m_info;
     /* 0048 */ Blizzard::File::StreamingInfo* m_streaming;
     /* 004C */ char* m_pathname;
@@ -139,7 +139,7 @@ struct ProcessDirParms {
     /* 0004 */ const char* m_filename;
     /* 0008 */ void* m_cookie;
     /* 000C */ bool m_isDir;
-    /* 000D */ uint8_t unk_000D[3];
+    /* 000D */ uint8_t unused_000D[3];
 };
 }
 }

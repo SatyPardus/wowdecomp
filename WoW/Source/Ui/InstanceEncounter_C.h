@@ -12,19 +12,19 @@ struct ENCOUNTER_UNIT {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ uint8_t m_priority;
     /* 0009 */ uint8_t m_index;
-    /* 000A */ uint8_t unk_000A[6];
+    /* 000A */ uint8_t unused_000A[6];
 
     bool operator<(const ENCOUNTER_UNIT& other) const;
     static int32_t Compare(const void* a, const void* b);
 };
 
 struct ENCOUNTER_TIMER : public TSLinkedNode<ENCOUNTER_TIMER> {
-    /* 0008 */ uint32_t unk_0008;
+    /* 0008 */ uint32_t unused_0008;
     /* 000C */ uint32_t m_expireTime;
 };
 
 struct ENCOUNTER_OBJECTIVE : public TSLinkedNode<ENCOUNTER_OBJECTIVE> {
-    /* 0008 */ uint32_t unk_0008;
+    /* 0008 */ uint32_t unused_0008;
     /* 000C */ uint8_t m_id;
     /* 0010 */ int32_t m_progress;
 };

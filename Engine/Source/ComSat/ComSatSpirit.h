@@ -21,7 +21,7 @@ struct SPIRIT_IPMR_INFO {
     /* 0002 */ int16_t unk_0002[7];
     /* 0010 */ int16_t unk_0010[4];
     /* 0018 */ int16_t unk_0018;
-    /* 001A */ uint8_t unk_001A[2];
+    /* 001A */ uint8_t unused_001A[2];
 };
 
 extern "C" int32_t SPIRIT_IP_MR_V3_1_GenerateTables(void* tables);

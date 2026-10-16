@@ -31,10 +31,10 @@ class CMapObjDefGroup : public CMapBaseObj {
     /* 004C */ float m_distanceToCamera;
     /* 0050 */ uint32_t m_groupNum;
     /* 0054 */ uint32_t m_unkFlags;
-    /* 0058 */ int32_t unk_0058;
+    /* 0058 */ int32_t unused_0058;
     /* 005C */ uint32_t m_ambientColor;
     /* 0060 */ const char* m_subzoneName;
-    /* 0064 */ int32_t unk_0064;
+    /* 0064 */ int32_t unused_0064;
     /* 0068 */ Liquid::CInstance* m_liquidInstance;
     /* 006C */ TSExplicitList<CWFrustum, offsetof(CWFrustum, m_link)> m_frustumList;
     /* 0078 */ TSList<CMapBaseObjLink, TSGetExplicitLink<CMapBaseObjLink> > m_doodadDefLinkList;
@@ -73,11 +73,11 @@ class CMapObjDef : public CMapBaseObj, public TSHashObject<CMapObjDef, HASHKEY_N
     /* 00B0 */ C44Matrix m_invMat;
     /* 00F0 */ int32_t m_nameId;
     /* 00F4 */ CMapObj* m_owner;
-    /* 00F8 */ int32_t unk_00F8;
+    /* 00F8 */ int32_t unused_00F8;
     /* 00FC */ uint32_t m_unkFlags;
     /* 0100 */ int32_t m_doodadSet;
     /* 0104 */ int32_t m_nameSet;
-    /* 0108 */ int32_t unk_0108;
+    /* 0108 */ int32_t unused_0108;
     /* 010C */ TSLink<CMapObjDef> m_horizonLink;
     /* 0114 */ TSExplicitList<CMapBaseObjLink, offsetof(CMapBaseObjLink, m_refLink)> m_mapObjDefGroupLinkList;
     /* 0120 */ TSCGrowableArray<CMapObjDefGroup*, 4> m_defGroups;
@@ -85,7 +85,7 @@ class CMapObjDef : public CMapBaseObj, public TSHashObject<CMapObjDef, HASHKEY_N
     /* 0144 */ uint32_t m_argbColor;
     /* 0148 */ WOWGUID m_objectGuid;
     /* 0150 */ uint16_t m_doodadSetOverrides[3];
-    /* 0156 */ uint8_t unk_0156[2];
+    /* 0156 */ uint8_t unused_0156[2];
 
     virtual ~CMapObjDef();
 

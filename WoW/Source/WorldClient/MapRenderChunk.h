@@ -32,7 +32,7 @@ class CMapChunkBuf {
     /* 0008 */ CMapRenderChunk* m_renderChunk;
     /* 000C */ CMapChunkBufBlock* m_block;
     /* 0010 */ uint32_t m_unkFlags;
-    /* 0014 */ TSLink<CMapChunkBuf> unk_0014;
+    /* 0014 */ TSLink<CMapChunkBuf> m_freeLink;
 
     CMapChunkBuf();
 };
@@ -73,7 +73,7 @@ class CMapRenderChunk {
     static CGxPool* s_gxVertexPool;
     static CGxPool* s_gxIndexPool;
     static TSGrowableArray<CMapChunkBufBlock> s_chunkBlockArray;
-    static TSExplicitList<CMapChunkBuf, offsetof(CMapChunkBuf, unk_0014)> s_renderChunkBufFreeList;
+    static TSExplicitList<CMapChunkBuf, offsetof(CMapChunkBuf, m_freeLink)> s_renderChunkBufFreeList;
     static TSExplicitList<CMapChunkBufBlock, offsetof(CMapChunkBufBlock, m_blockLink)> s_chunkBufBlockFreeList;
     static TSExplicitList<CMapChunkBufBlock, offsetof(CMapChunkBufBlock, m_bufLink)> s_bufList;
     static CGxBatch s_chunkBatch;
@@ -130,7 +130,7 @@ class CMapRenderChunk {
     /* 0000 */ TSLink<CMapRenderChunk> m_renderChunkLink;
     /* 0008 */ uint8_t m_unkFlags;
     /* 0009 */ uint8_t m_layersCount;
-    /* 000A */ int16_t unk_000A;
+    /* 000A */ int16_t m_renderFlags;
     /* 000C */ float m_lastUpdateTime;
     /* 0010 */ CMapChunk* m_mapChunks [2];
     /* 0018 */ C3Vector m_vec1;

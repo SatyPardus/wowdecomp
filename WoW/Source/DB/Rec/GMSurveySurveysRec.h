@@ -13,7 +13,7 @@ class GMSurveySurveysRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t unk_0004 [10];
+    /* 0004 */ int32_t m_questionIds [10];
 
     GMSurveySurveysRec();
     ~GMSurveySurveysRec();

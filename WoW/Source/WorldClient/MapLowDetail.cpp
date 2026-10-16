@@ -26,7 +26,7 @@ CMapAreaLow::CMapAreaLow() {
     this->m_horizonLink.m_next = nullptr;
     this->m_indexCount = 0;
     this->m_block = nullptr;
-    this->unk_0058 = 0;
+    this->m_flags = 0;
     this->m_heights = nullptr;
     this->m_holes = nullptr;
 }
@@ -272,11 +272,11 @@ void CMap::RenderLowDetail(CMapAreaLow* area) {
     if (area->m_block) {
         CGxBuf* buf = area->m_block->m_buf;
 
-        if (!buf->unk_001C || !buf->unk_001D) {
+        if (!buf->m_hasData || !buf->m_valid) {
             CMap::BuildLowDetailGridVertices(area, buf);
         }
 
-        area->m_block->unk_0008 = CWorld::frameCnt;
+        area->m_block->m_lastUsedFrame = CWorld::frameCnt;
         GxPrimVertexPtr(area->m_block->m_buf, GxVBF_PC);
     } else {
         CGxBuf* buf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, 16, 545);
@@ -286,11 +286,11 @@ void CMap::RenderLowDetail(CMapAreaLow* area) {
 
     uint32_t count;
 
-    if (!(area->unk_0058 & 0x1) && area->m_indexCount == 3072) {
+    if (!(area->m_flags & 0x1) && area->m_indexCount == 3072) {
         GxRsSet(GxRs_Culling, 0);
         CGxBuf* indexBuf = CMap::lowDetailIndexBuf;
 
-        if (!indexBuf->unk_001C || !indexBuf->unk_001D) {
+        if (!indexBuf->m_hasData || !indexBuf->m_valid) {
             CMap::BuildLowDetailGridIndices(nullptr, 0, CMap::lowDetailIndexBuf);
             indexBuf = CMap::lowDetailIndexBuf;
         }
@@ -370,7 +370,7 @@ void CMap::BuildLowDetailGridVertices(CMapAreaLow* area, CGxBuf* buf) {
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 7d2e0b07 manual
@@ -405,7 +405,7 @@ void CMap::BuildLowDetailGridIndices(uint16_t* holes, int32_t pass, CGxBuf* buf)
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: f803b515 manual

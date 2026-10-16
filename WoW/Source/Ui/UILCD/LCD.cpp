@@ -1145,7 +1145,7 @@ void CGLCD::UpdateBattlefieldStats() {
 
 // VERIFY: 3476656c manual
 // OFFSET: 0x0084A450
-void CGLCD::PushAlert(const char* text, int32_t a2) {
+void CGLCD::PushAlert(const char* text, int32_t type) {
     if (!CGLCD::m_lcd || !CGLCD::m_lcd->IsConnected() || !IsLCDAvailable() || !CGLCD::initComplete) {
         return;
     }
@@ -1161,7 +1161,7 @@ void CGLCD::PushAlert(const char* text, int32_t a2) {
     }
 
     SStrCopy(s_chatMessages[i].m_text, text, sizeof(s_chatMessages[i].m_text));
-    s_chatMessages[i].m_type = a2;
+    s_chatMessages[i].m_type = type;
     CGLCD::SetAlertText();
 }
 

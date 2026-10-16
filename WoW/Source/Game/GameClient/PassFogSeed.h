@@ -9,8 +9,8 @@ class PassFogSeed : public FFX::Pass {
     public:
     static void __fastcall DeviceRestoredCallback();
 
-    /* 0030 */ uint32_t unk_0030;
-    /* 0034 */ uint32_t unk_0034;
+    /* 0030 */ uint32_t m_row;
+    /* 0034 */ uint32_t m_color;
 
     ~PassFogSeed() override;
     bool Valid() override;

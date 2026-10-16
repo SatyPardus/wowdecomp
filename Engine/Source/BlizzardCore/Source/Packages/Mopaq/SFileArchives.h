@@ -85,13 +85,13 @@ class HashEntryTable {
     static uint64_t CalculateHash(const char* name);
 
     /* 0000 */ uint32_t unk_0000;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ uint32_t m_indexBits;
     /* 000C */ uint8_t* m_tags;
     /* 0010 */ BitPacked* m_indices;
     /* 0014 */ uint32_t m_slotCount;
     /* 0018 */ int32_t m_hashBits;
-    /* 001C */ uint8_t unk_001C[4];
+    /* 001C */ uint8_t unused_001C[4];
     /* 0020 */ uint64_t m_hashMask;
     /* 0028 */ uint64_t m_hashTopBit;
     /* 0030 */ uint32_t m_entryBits;
@@ -108,7 +108,7 @@ struct HASHENTRY {
     /* 0004 */ uint32_t m_hashB;
     /* 0008 */ uint16_t m_locale;
     /* 000A */ uint8_t m_platform;
-    /* 000B */ uint8_t unk_000B;
+    /* 000B */ uint8_t m_reserved;
     /* 000C */ uint32_t m_blockIndex;
 };
 
@@ -130,10 +130,10 @@ struct MPQHEADER {
 #pragma pack(pop)
 
 struct ArchiveBuffers {
-    /* 0000 */ Blizzard::Memory::TempBuffer<uint8_t, 4> unk_0000;
-    /* 000C */ Blizzard::Memory::TempBuffer<uint8_t, 256> unk_000C;
-    /* 0114 */ Blizzard::Memory::TempBuffer<uint8_t, 256> unk_0114;
-    /* 021C */ std::string unk_021C;
+    /* 0000 */ Blizzard::Memory::TempBuffer<uint8_t, 4> unused_0000;
+    /* 000C */ Blizzard::Memory::TempBuffer<uint8_t, 256> unused_000C;
+    /* 0114 */ Blizzard::Memory::TempBuffer<uint8_t, 256> unused_0114;
+    /* 021C */ std::string unused_021C;
 
     ~ArchiveBuffers();
 };
@@ -148,7 +148,7 @@ class ARCHIVEREC {
     /* 0020 */ int32_t m_id;
     /* 0024 */ ARCHIVEREC* m_parent;
     /* 0028 */ MPQHEADER m_header;
-    /* 0054 */ uint32_t unk_0054;
+    /* 0054 */ uint32_t unused_0054;
     /* 0058 */ int64_t m_archiveOffset;
     /* 0060 */ int64_t m_archiveEnd;
     /* 0068 */ int64_t m_userDataOffset;
@@ -157,7 +157,7 @@ class ARCHIVEREC {
     /* 0078 */ uint32_t m_sectorSize;
     /* 007C */ uint32_t unk_007C;
     /* 0080 */ bool m_compressedTables;
-    /* 0081 */ uint8_t unk_0081[3];
+    /* 0081 */ uint8_t unused_0081[3];
     /* 0084 */ char m_name[260];
     /* 0188 */ std::string m_directPath;
     /* 01A4 */ BlockEntryTable* m_blockEntryTable;
@@ -169,16 +169,16 @@ class ARCHIVEREC {
     /* 01D9 */ bool m_tablesInitialized;
     /* 01DA */ uint16_t m_locale;
     /* 01DC */ uint8_t m_platform;
-    /* 01DD */ uint8_t unk_01DD[3];
+    /* 01DD */ uint8_t unused_01DD[3];
     /* 01E0 */ uint32_t m_attributeFlags;
     /* 01E4 */ std::vector<Blizzard::Mopaq::CompressionAlgorithm> m_compression;
-    /* 01F4 */ uint32_t unk_01F4;
+    /* 01F4 */ uint32_t unused_01F4;
     /* 01F8 */ ArchiveBuffers* m_buffers;
     /* 01FC */ bool (*m_closeCallback)(ARCHIVEREC* archive);
     /* 0200 */ uint32_t unk_0200;
     /* 0204 */ std::map<std::string, bool> m_listfile;
     /* 0210 */ bool m_listfileLoaded;
-    /* 0211 */ uint8_t unk_0211[3];
+    /* 0211 */ uint8_t unused_0211[3];
     /* 0214 */ int32_t m_listfileRefcount;
     /* 0218 */ int64_t m_dataEnd;
     /* 0220 */ Blizzard::Lock::Atomic m_internalRefs;
@@ -207,7 +207,7 @@ class ARCHIVEREC {
 
 struct FileLookup {
     /* 0000 */ bool m_checkedDisk;
-    /* 0001 */ uint8_t unk_0001[3];
+    /* 0001 */ uint8_t unused_0001[3];
     /* 0004 */ ARCHIVEREC* m_archive;
     /* 0008 */ uint32_t m_hashIndex;
     /* 000C */ uint32_t m_blockIndex;
@@ -218,7 +218,7 @@ class ArchivePtr {
     public:
     /* 0000 */ ARCHIVEREC* m_archive;
     /* 0004 */ bool m_locked;
-    /* 0005 */ uint8_t unk_0005[3];
+    /* 0005 */ uint8_t unused_0005[3];
 
     ArchivePtr(ARCHIVEREC* archive);
     ~ArchivePtr();
@@ -270,7 +270,7 @@ struct ArchiveOptions {
     /* 0000 */ uint32_t m_sectorSize;
     /* 0004 */ uint32_t unk_0004;
     /* 0008 */ bool m_compressedTables;
-    /* 0009 */ uint8_t unk_0009[3];
+    /* 0009 */ uint8_t unused_0009[3];
 };
 
 bool SFileCloseArchive(System_SFile::ARCHIVEREC* handle);

@@ -395,11 +395,11 @@ static void ProcessComSatCallbacks() {
                 break;
 
             case 2:
-                Comsat::VoicePlateStart(callback.unk_0008, callback.unk_0010);
+                Comsat::VoicePlateStart(callback.m_sessionId, callback.m_guid);
                 break;
 
             case 3:
-                Comsat::VoicePlateStop(callback.unk_0008, callback.unk_0010);
+                Comsat::VoicePlateStop(callback.m_sessionId, callback.m_guid);
                 break;
 
             default:
@@ -1577,13 +1577,13 @@ int32_t VoiceChat_TickWrapper(const void* data, void* param) {
 
 // VERIFY: 77a116ad manual
 // OFFSET: 0x007DCB90
-void AddComSatCallback(uint32_t type, uint64_t a2, uint64_t a3) {
+void AddComSatCallback(uint32_t type, uint64_t sessionId, uint64_t guid) {
     ComSatCallback* callback = s_comsatCallbacks.New();
 
     if (callback) {
         callback->m_type = type;
-        callback->unk_0008 = a2;
-        callback->unk_0010 = a3;
+        callback->m_sessionId = sessionId;
+        callback->m_guid = guid;
     }
 }
 

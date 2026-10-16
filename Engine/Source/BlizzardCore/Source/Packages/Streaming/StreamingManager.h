@@ -18,7 +18,7 @@ class StreamingFileEntry {
     /* 001C */ std::vector<std::string> m_files;
     /* 002C */ uint32_t m_cursor;
     /* 0030 */ uint32_t m_next;
-    /* 0034 */ uint32_t unk_0034;
+    /* 0034 */ uint32_t unused_0034;
     /* 0038 */ int64_t m_localAmount;
     /* 0040 */ bool m_complete;
     /* 0044 */ int32_t m_priority;
@@ -47,8 +47,8 @@ class StreamingManager {
     /* 0028 */ int32_t m_area;
     /* 002C */ int32_t m_areaChunk;
     /* 0030 */ bool m_dirty;
-    /* 0031 */ bool unk_0031;
-    /* 0034 */ uint8_t unk_0034[260];
+    /* 0031 */ bool unused_0031;
+    /* 0034 */ uint8_t unused_0034[260];
     /* 0138 */ StreamingFileEntry* m_current;
     /* 013C */ Blizzard::Lock::Event m_event;
     /* 0140 */ Blizzard::Thread::ThreadRecord* m_thread;

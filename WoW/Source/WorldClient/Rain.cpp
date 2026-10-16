@@ -344,7 +344,7 @@ void Rain::UpdatePackets() {
             this->m_rainDropPacketList.m_activePacketsCount--;
             this->m_rainDropPacketList.m_freePacketsCount++;
             this->m_rainDropPacketList.m_freePackets.LinkToTail(packet);
-        } else if (!packet->m_vertexBufHandle->unk_001C || !packet->m_vertexBufHandle->unk_001D) {
+        } else if (!packet->m_vertexBufHandle->m_hasData || !packet->m_vertexBufHandle->m_valid) {
             Rain::RealizePacket(packet);
         }
 
@@ -360,7 +360,7 @@ void Rain::UpdatePackets() {
             this->m_rainPatterPacketList.m_activePacketsCount--;
             this->m_rainPatterPacketList.m_freePacketsCount++;
             this->m_rainPatterPacketList.m_freePackets.LinkToTail(patter);
-        } else if (!patter->m_vertexBufHandle->unk_001C || !patter->m_vertexBufHandle->unk_001D) {
+        } else if (!patter->m_vertexBufHandle->m_hasData || !patter->m_vertexBufHandle->m_valid) {
             Rain::RealizePacket(patter);
         }
 
@@ -483,7 +483,7 @@ void Rain::RenderPatterPacketsSW() {
         }
 
         g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-        vertexBuf->unk_001C = 1;
+        vertexBuf->m_hasData = 1;
 
         if (vertexCount) {
             GxPrimVertexPtr(vertexBuf, GxVBF_PT);
@@ -588,7 +588,7 @@ void Rain::RenderDropPacketsSW() {
         }
 
         g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-        vertexBuf->unk_001C = 1;
+        vertexBuf->m_hasData = 1;
 
         if (vertexCount) {
             GxPrimVertexPtr(vertexBuf, GxVBF_PT);
@@ -866,6 +866,6 @@ RainPatterParticleBuffer::RainPatterParticleBuffer() {
         this->m_particles[i].m_position.x = 0.0f;
         this->m_particles[i].m_position.y = 0.0f;
         this->m_particles[i].m_position.z = 0.0f;
-        this->m_particles[i].unk_000C = 0.0f;
+        this->m_particles[i].unused_000C = 0.0f;
     }
 }

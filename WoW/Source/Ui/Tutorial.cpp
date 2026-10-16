@@ -205,7 +205,7 @@ int32_t CGTutorial::GetNextCompletedTutorial(int32_t tutorial) {
 int32_t CGTutorial::GetPrevCompletedTutorial(int32_t tutorial) {
     bool found = false;
 
-    for (int32_t i = 60; i >= 0; i--) {
+    for (int32_t i = 59; i >= 0; i--) {
         if (found && s_tutorialsCompleted[i]) {
             return s_tutorialsCompleted[i];
         }

@@ -62,7 +62,7 @@ class ShipPath {
     /* 0038 */ uint32_t m_timeOffset;
     /* 003C */ uint8_t m_waiting;
     /* 003D */ uint8_t m_waitReached;
-    /* 003E */ uint8_t unk_003E;
+    /* 003E */ uint8_t unused_003E;
 
     ShipPath();
     void SetTimeOffsetToPoint(uint32_t time, uint32_t point);

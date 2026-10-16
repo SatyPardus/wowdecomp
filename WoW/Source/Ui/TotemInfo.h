@@ -8,7 +8,7 @@
 class TotemInfo {
     public:
     /* 0000 */ int32_t m_slot;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ WOWGUID m_guid;
     /* 0010 */ const char* m_name;
     /* 0014 */ int32_t m_duration;

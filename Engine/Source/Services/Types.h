@@ -18,7 +18,7 @@ class CAsyncObject {
     /* 0010 */ void* m_userPostloadCallback;
     /* 0014 */ void* m_userPostUnloadCallback;
     /* 0018 */ CAsyncQueue* m_queue;
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t m_queuedFrame;
     /* 0020 */ uint8_t m_priority;
     /* 0021 */ int8_t m_isProcessed;
     /* 0022 */ int8_t m_isRead;

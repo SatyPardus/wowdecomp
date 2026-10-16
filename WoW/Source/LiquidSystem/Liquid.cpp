@@ -5,7 +5,7 @@
 CDataAllocator Liquid::s_instanceAllocator(sizeof(Liquid::CInstance), 0x20);
 
 // STATIC: 0x00B23F64
-float Liquid::s_unk_B23F64 = 1.0f;
+float Liquid::s_worldCoordScale = 1.0f;
 
 // STATIC: 0x00B23F68
 int32_t Liquid::s_specularEnabled = 1;
@@ -23,13 +23,13 @@ char Liquid::s_shaderPath[256];
 int32_t Liquid::s_shadersEnabled;
 
 // STATIC: 0x00D43AF4
-int32_t Liquid::s_unk_D43AF4;
+int32_t Liquid::s_useCameraRelativeCoords;
 
 // STATIC: 0x00D43AF8
-int32_t Liquid::s_unk_D43AF8;
+int32_t Liquid::s_settingsBankRefCount;
 
 // STATIC: 0x00D43AFC
-int32_t Liquid::s_unk_D43AFC;
+int32_t Liquid::s_materialBankRefCount;
 
 // VERIFY: 96a38663 manual
 // OFFSET: 0x008A32C0
@@ -50,13 +50,13 @@ Liquid::IMaterial::~IMaterial() {
 
 // VERIFY: afda035c auto
 // OFFSET: 0x008A1770
-int32_t Liquid::Initialize(int32_t a1, float a2, int32_t a3, const char* a4, IDatabase<LiquidTypeRec>* liquidTypeDB, IDatabase<LiquidMaterialRec>* liquidMaterialDB) {
-    SStrCopy(Liquid::s_shaderPath, a4, sizeof(Liquid::s_shaderPath));
-    Liquid::s_unk_B23F64 = a2;
-    Liquid::s_unk_D43AF8++;
-    Liquid::s_unk_D43AFC++;
-    Liquid::s_unk_D43AF4 = a1;
-    Liquid::s_shadersEnabled = a3;
+int32_t Liquid::Initialize(int32_t useCameraRelativeCoords, float worldCoordScale, int32_t shadersEnabled, const char* shaderPath, IDatabase<LiquidTypeRec>* liquidTypeDB, IDatabase<LiquidMaterialRec>* liquidMaterialDB) {
+    SStrCopy(Liquid::s_shaderPath, shaderPath, sizeof(Liquid::s_shaderPath));
+    Liquid::s_worldCoordScale = worldCoordScale;
+    Liquid::s_settingsBankRefCount++;
+    Liquid::s_materialBankRefCount++;
+    Liquid::s_useCameraRelativeCoords = useCameraRelativeCoords;
+    Liquid::s_shadersEnabled = shadersEnabled;
     Liquid::s_specularEnabled = 1;
     Liquid::s_liquidTypeDB = liquidTypeDB;
     Liquid::s_liquidMaterialDB = liquidMaterialDB;
@@ -66,7 +66,7 @@ int32_t Liquid::Initialize(int32_t a1, float a2, int32_t a3, const char* a4, IDa
 // VERIFY: 6bde3ced manual
 // OFFSET: 0x008A2400
 void Liquid::Shutdown() {
-    int32_t count = Liquid::s_unk_D43AFC--;
+    int32_t count = Liquid::s_materialBankRefCount--;
     Liquid::s_liquidTypeDB = nullptr;
     Liquid::s_liquidMaterialDB = nullptr;
 
@@ -107,13 +107,13 @@ void Liquid::SetSpecularEnabled(int32_t enabled) {
 // VERIFY: e803d76a auto
 // OFFSET: 0x008A1740
 int32_t Liquid::UseCameraRelativeCoords() {
-    return Liquid::s_unk_D43AF4;
+    return Liquid::s_useCameraRelativeCoords;
 }
 
 // VERIFY: d02f3d04 auto
 // OFFSET: 0x008A1750
 float Liquid::WorldCoordScale() {
-    return Liquid::s_unk_B23F64;
+    return Liquid::s_worldCoordScale;
 }
 
 // VERIFY: 2174e15a auto

@@ -40,10 +40,10 @@ class CSimpleAnimGroup : public CScriptObject {
     /* 0078 */ FrameScript_Object::ScriptIx m_onUpdate;
     /* 0080 */ FrameScript_Object::ScriptIx m_onLoop;
     /* 0088 */ uint16_t m_flags;
-    /* 008A */ uint8_t unk_008A[2];
+    /* 008A */ uint8_t unused_008A[2];
     /* 008C */ int8_t m_loopType;
     /* 008D */ int8_t m_loopState;
-    /* 008E */ uint8_t unk_008E[2];
+    /* 008E */ uint8_t unused_008E[2];
     /* 0090 */ int32_t m_currentOrder;
     /* 0094 */ float m_elapsed;
     /* 0098 */ float m_duration;

@@ -20,10 +20,10 @@ struct TRADE_ITEM {
     /* 0008 */ int32_t m_count;
     /* 000C */ int32_t m_enchant;
     /* 0010 */ int32_t m_socketEnchants[3];
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t unused_001C;
     /* 0020 */ WOWGUID m_creator;
     /* 0028 */ int32_t m_wrapped;
-    /* 002C */ uint32_t unk_002C;
+    /* 002C */ uint32_t unused_002C;
     /* 0030 */ WOWGUID m_giftCreator;
     /* 0038 */ int32_t m_spellCharges;
     /* 003C */ int32_t m_suffixFactor;
@@ -35,7 +35,7 @@ struct TRADE_ITEM {
 
 class CGTradeInfo {
     public:
-    static void SetTradePartner(WOWGUID partner, int32_t a2);
+    static void SetTradePartner(WOWGUID partner, int32_t suppressMoneyEvent);
     static void SetEnchantingItem(CGItem_C* item);
     static bool IsItemBeingTraded(WOWGUID item);
     static bool AddPlayerItem(WOWGUID item, WOWGUID container, uint8_t slot);
@@ -77,7 +77,7 @@ class CGTradeInfo {
 
     static void UpdatePlayerItem(WOWGUID guid);
     static void AddCursorItem(int32_t bound);
-    static void InitiateTrade(WOWGUID guid, int32_t a2);
+    static void InitiateTrade(WOWGUID guid, int32_t useCursorItem);
     static void UnlockTradeItems();
     static void DenyPlayerItem(int32_t slot);
     static int32_t GetGameError(int32_t error, int32_t target);

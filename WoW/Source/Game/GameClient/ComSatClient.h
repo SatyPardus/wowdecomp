@@ -13,20 +13,20 @@ struct lua_State;
 
 struct ComSatEvent {
     /* 0000 */ uint32_t m_type;
-    /* 0004 */ uint32_t unk_0004;
+    /* 0004 */ uint32_t unused_0004;
     /* 0008 */ uint64_t m_guid;
     /* 0010 */ union {
         uint32_t m_uintValue;
         float m_floatValue;
     };
-    /* 0014 */ uint32_t unk_0014;
+    /* 0014 */ uint32_t unused_0014;
 };
 
 struct ComSatCallback {
     /* 0000 */ uint32_t m_type;
-    /* 0004 */ uint32_t unk_0004;
-    /* 0008 */ uint64_t unk_0008;
-    /* 0010 */ uint64_t unk_0010;
+    /* 0004 */ uint32_t unused_0004;
+    /* 0008 */ uint64_t m_sessionId;
+    /* 0010 */ uint64_t m_guid;
 };
 
 struct MUTEDPLAYER : public TSHashObject<MUTEDPLAYER, CHashKeyGUID> {
@@ -75,7 +75,7 @@ void VoiceStop();
 struct COMSATMEMBER {
     /* 0000 */ WOWGUID m_guid;
     /* 0008 */ uint8_t m_flags;
-    /* 0009 */ uint8_t unk_0009[7];
+    /* 0009 */ uint8_t unused_0009[7];
 };
 
 struct COMSATDATA {
@@ -106,7 +106,7 @@ extern int32_t s_voiceChatWasEnabled;
 extern const char* s_sessionTypeNames[3];
 
 void AddComSatEvent(uint32_t type, uint32_t value, uint64_t guid);
-void AddComSatCallback(uint32_t type, uint64_t a2, uint64_t a3);
+void AddComSatCallback(uint32_t type, uint64_t sessionId, uint64_t guid);
 void ComSatClient_SendEvent(int32_t event, WOWGUID guid);
 int32_t ComSatClient_SetCurrentSession(int32_t type, const char* name);
 void ComSatClient_DisableCurrentSession();
@@ -146,7 +146,7 @@ struct VoiceRosterMember {
     /* 0009 */ char m_address[32];
     /* 0029 */ uint8_t m_talkerPriority;
     /* 002A */ uint8_t m_flags;
-    /* 002B */ uint8_t unk_002B[5];
+    /* 002B */ uint8_t unused_002B[5];
 };
 
 int32_t ComSatClient_IsCurrentSession(uint64_t session);

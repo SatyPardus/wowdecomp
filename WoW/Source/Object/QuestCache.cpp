@@ -43,7 +43,7 @@ QuestCache::QuestCache() {
         this->m_rewardReputationOverride[i] = 0;
     }
 
-    this->unk_28E0 = 0;
+    this->m_rewardReputationMask = 0;
 
     for (uint32_t i = 0; i < 4; i++) {
         this->m_rewardItem[i] = 0;
@@ -113,7 +113,7 @@ void QuestCache::Pack(CDataStore* msg) {
     msg->Put(this->m_requiredPlayersKilled);
     msg->Put(this->m_rewardTalentPoints);
     msg->Put(this->m_rewardArenaPoints);
-    msg->Put(this->unk_28E0);
+    msg->Put(this->m_rewardReputationMask);
 
     uint32_t count = 0;
 
@@ -212,7 +212,7 @@ void QuestCache::Unpack(CDataStore* msg) {
     msg->Get(this->m_requiredPlayersKilled);
     msg->Get(this->m_rewardTalentPoints);
     msg->Get(this->m_rewardArenaPoints);
-    msg->Get(this->unk_28E0);
+    msg->Get(this->m_rewardReputationMask);
 
     for (uint32_t i = 0; i < 4; i++) {
         msg->Get(this->m_rewardItem[i]);
@@ -291,7 +291,7 @@ QuestCache& QuestCache::operator=(const QuestCache& source) {
     this->m_requiredPlayersKilled = source.m_requiredPlayersKilled;
     this->m_rewardTalentPoints = source.m_rewardTalentPoints;
     this->m_rewardArenaPoints = source.m_rewardArenaPoints;
-    this->unk_28E0 = source.unk_28E0;
+    this->m_rewardReputationMask = source.m_rewardReputationMask;
 
     for (uint32_t i = 0; i < 5; i++) {
         this->m_rewardReputationFaction[i] = source.m_rewardReputationFaction[i];

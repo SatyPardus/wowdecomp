@@ -26,7 +26,7 @@ class WDataStore : public CDataStore {
     static void StaticInitialize();
 
     /* 0018 */ WDATASTOREBUFFER* m_bufferObj;
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t unused_001C;
     /* 0020 */ uint32_t m_chunkSize;
 
     void InternalInitialize(uint8_t*& data, uint32_t& base, uint32_t& alloc) override;

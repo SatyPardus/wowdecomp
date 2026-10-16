@@ -22,7 +22,7 @@ class CGDynamicObject_C : public CGObject_C, public CGDynamicObject {
 
     /* 00D8 */ CPassenger m_passenger;
     /* 0108 */ TSList<void> m_dynamicObjectMirrorLists [6];
-    /* 0150 */ uint32_t unk_0150;
+    /* 0150 */ uint32_t m_stateFlags;
     /* 0154 */ float m_scale;
     /* 0158 */ BlizzardObject* m_blizzardVisual;
     /* 015C */ SE2SoundKitObject m_soundKit;
@@ -35,7 +35,7 @@ class CGDynamicObject_C : public CGObject_C, public CGDynamicObject {
     float GetScale() const override;
     uint64_t GetTransportGUID() const override;
     virtual C44Matrix GetMatrix() const;
-    virtual void ShouldRender(uint32_t flags, int32_t& render, int32_t& a3);
+    virtual void ShouldRender(uint32_t flags, int32_t& render, int32_t& hidden);
     void SetFrameOfReference(const C44Matrix* matrix) override;
     void Disable() override;
     void Reenable() override;

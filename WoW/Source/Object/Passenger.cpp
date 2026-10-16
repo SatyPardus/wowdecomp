@@ -9,7 +9,7 @@ CPassenger::CPassenger(const WOWGUID& transportGuid, const C3Vector& position, c
     this->m_facing = 0.0f;
     this->m_pitch = 0.0f;
     this->m_ownerGuid = &ownerGuid;
-    this->unk_002C = 0;
+    this->m_passengerFlags = 0;
 }
 
 // VERIFY: 3f84735d auto
@@ -123,7 +123,7 @@ float CPassenger::RemoveFromTransportFinish(const C44Matrix& matrix) {
     float facing = MovementGetTransportFacing(this->m_transportGuid);
     this->m_position *= matrix;
 
-    if (this->unk_002C & 0x2) {
+    if (this->m_passengerFlags & 0x2) {
         C4Quaternion rotation(*reinterpret_cast<const C4QuaternionCompressed*>(&this->m_facing));
         C4Quaternion transport;
         transport.x = 0.0f;
@@ -162,7 +162,7 @@ float CPassenger::AddToTransport(WOWGUID transport, C44Matrix* inverse, C44Matri
 
     this->m_position *= *inverse;
 
-    if (this->unk_002C & 0x2) {
+    if (this->m_passengerFlags & 0x2) {
         C4Quaternion rotation;
         rotation.x = 0.0f;
         rotation.y = 0.0f;

@@ -23,7 +23,7 @@ class NvCombinerStage {
     /* 0044 */ GLboolean m_abDotProduct;
     /* 0045 */ GLboolean m_cdDotProduct;
     /* 0046 */ GLboolean m_muxSum;
-    /* 0047 */ uint8_t unk_0047;
+    /* 0047 */ uint8_t unused_0047;
 
     void Apply(GLenum stage, GLenum portion);
 };
@@ -47,7 +47,7 @@ class NvTextureShaderStage {
 
 class NvTextureShader {
     public:
-    /* 0000 */ uint32_t unk_0000;
+    /* 0000 */ uint32_t unused_0000;
     /* 0004 */ NvTextureShaderStage m_stages [4];
 
     void Apply();
@@ -55,11 +55,11 @@ class NvTextureShader {
 
 class NvPixelShader {
     public:
-    /* 0000 */ uint32_t unk_0000;
+    /* 0000 */ uint32_t unused_0000;
     /* 0004 */ GLint m_numGeneralCombiners;
     /* 0008 */ GLboolean m_colorSumClamp;
     /* 0009 */ GLboolean m_perStageConstants;
-    /* 000A */ uint16_t unk_000A;
+    /* 000A */ uint16_t unused_000A;
     /* 000C */ NvGeneralCombiner m_generalCombiners [8];
     /* 058C */ NvCombinerInput m_finalInputs [7];
     /* 05E0 */ GLfloat m_constants [2][4];

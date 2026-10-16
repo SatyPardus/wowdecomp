@@ -472,7 +472,7 @@ int32_t CVehicle_C::GetVehicleAndSeatFromVirtualSeat(int32_t virtualSeat, const 
 // VERIFY: bfa3b17f manual
 // OFFSET: 0x00757980
 int32_t CVehicle_C::AddPassenger(CPassenger* passenger) {
-    if (!(passenger->unk_002C & 0x1)) {
+    if (!(passenger->m_passengerFlags & 0x1)) {
         return 0;
     }
 

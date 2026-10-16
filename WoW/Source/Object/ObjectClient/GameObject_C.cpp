@@ -746,9 +746,9 @@ int32_t CGGameObject_C::ShouldFadeIn() const {
 
 // VERIFY: 9a0a90f2 manual
 // OFFSET: 0x0070B960
-void CGGameObject_C::ShouldRender(uint32_t flags, int32_t& render, int32_t& a3) {
-    CGObject_C::ShouldRender(flags, render, a3);
-    this->m_typeData->ShouldRender(flags, render, a3);
+void CGGameObject_C::ShouldRender(uint32_t flags, int32_t& render, int32_t& hidden) {
+    CGObject_C::ShouldRender(flags, render, hidden);
+    this->m_typeData->ShouldRender(flags, render, hidden);
 }
 
 // VERIFY: 981f9d46 manual
@@ -759,8 +759,8 @@ void CGGameObject_C::StartInteraction() {
 
 // VERIFY: ac212d62 auto
 // OFFSET: 0x0070F550
-int32_t CGGameObject_C::IsCollidable(int32_t a1) const {
-    if ((a1 & 0x8000) && !this->m_gameObject->m_typeID) {
+int32_t CGGameObject_C::IsCollidable(int32_t flags) const {
+    if ((flags & 0x8000) && !this->m_gameObject->m_typeID) {
         return 0;
     }
 
@@ -1069,8 +1069,8 @@ int32_t CGGameObject_C_Type_GuildBank::CanChangeCursor() const {
 // VERIFY: 1e1b3af8 auto
 // OFFSET: 0x0070C540
 void CGGameObject_C_Type_TransportBase::Reenable() {
-    this->unk_0038 = -1;
-    this->unk_0034 = 0;
+    this->m_currentState = -1;
+    this->m_worldObjectReady = 0;
 }
 
 // VERIFY: ed8aebb4 auto
@@ -1589,10 +1589,10 @@ void CGGameObject_C::Disable() {
 CGGameObject_C_Type_TransportBase::CGGameObject_C_Type_TransportBase(CGGameObject_C* owner) : CGGameObject_C_Type_WorldObj(owner) {
     this->m_position = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_pathTime = 0;
-    this->unk_0034 = 0;
+    this->m_worldObjectReady = 0;
     this->m_speed = 0.0f;
     this->m_transportUpdateTime = 0;
-    this->unk_0038 = -1;
+    this->m_currentState = -1;
     this->m_position = owner->m_passenger.GetPosition(owner->m_passenger.m_position);
 }
 
@@ -1727,7 +1727,7 @@ int32_t CGGameObject_C_TypeBase::Animate(float elapsed) {
 
 // VERIFY: 13be4357 auto
 // OFFSET: 0x0047ADD0
-void CGGameObject_C_TypeBase::ShouldRender(uint32_t flags, int32_t& render, int32_t& a3) {
+void CGGameObject_C_TypeBase::ShouldRender(uint32_t flags, int32_t& render, int32_t& hidden) {
 }
 
 // VERIFY: 849dbeae auto
@@ -1889,7 +1889,7 @@ CGGameObject_C::CGGameObject_C(uint32_t time, const CClientObjCreate& create) : 
     this->m_lootEffect = nullptr;
     this->m_displayState = this->m_gameObject->m_state;
     *reinterpret_cast<uint64_t*>(&this->m_passenger.m_facing) = create.m_packedRotation;
-    this->m_passenger.unk_002C |= 0x2;
+    this->m_passenger.m_passengerFlags |= 0x2;
 
     ClntObjMgrHideObject(this->m_obj->m_guid);
 
@@ -2839,7 +2839,7 @@ void CGGameObject_C_Type_TransportBase::AddPassenger(CPassenger* passenger, int3
     passenger->m_link.Unlink();
     this->m_passengers.LinkToTail(passenger);
 
-    if (a2 && (passenger->unk_002C & 1) && (!this->m_worldObject || !World::ObjectIsLoaded(this->m_worldObject))) {
+    if (a2 && (passenger->m_passengerFlags & 1) && (!this->m_worldObject || !World::ObjectIsLoaded(this->m_worldObject))) {
         static_cast<CMovementShared*>(passenger)->SetSplineEnabled();
     }
 
@@ -3250,7 +3250,7 @@ void CGGameObject_C_Type_TransportBase::Disable() {
             camera->MakeRelativeTo(WOWGUID());
         }
 
-        if (passenger->unk_002C & 0x1) {
+        if (passenger->m_passengerFlags & 0x1) {
             CMovement_C* movement = static_cast<CMovement_C*>(passenger);
             movement->ClearSplineEnabled();
 
@@ -3460,7 +3460,7 @@ void GameObject_C_ProcessAnimEvent(uint32_t eventId, uint32_t displayId, uint32_
 void CGGameObject_C_Type_MapObjTransport::UpdateMovement(uint32_t time, uint32_t elapsed) {
     C3Vector position(0.0f, 0.0f, 0.0f);
     int32_t mapId = -1;
-    int32_t initial = this->unk_0038 == -1;
+    int32_t initial = this->m_currentState == -1;
     uint32_t pathTime = this->m_owner->m_transportTimeOffset + time;
     uint32_t sequence;
     float facing;
@@ -3514,19 +3514,19 @@ void CGGameObject_C_Type_MapObjTransport::UpdateMovement(uint32_t time, uint32_t
     rotation.w = 0.0f;
     rotation.FromRotationMatrix(owner->m_matrix);
     reinterpret_cast<C4QuaternionCompressed&>(owner->m_passenger.m_facing) = rotation;
-    owner->m_passenger.unk_002C |= 0x2;
+    owner->m_passenger.m_passengerFlags |= 0x2;
 
     if (this->m_worldObject) {
         World::ObjectUpdate(this->m_worldObject, matrix);
 
-        if (!this->unk_0034 && World::ObjectIsLoaded(this->m_worldObject)) {
+        if (!this->m_worldObjectReady && World::ObjectIsLoaded(this->m_worldObject)) {
             World::ObjectSetSequenceFinishedCallback(this->m_worldObject, CGGameObject_C_Type_WorldObj::SequenceFinishedHandler, 0, 0);
-            this->unk_0034 = 1;
+            this->m_worldObjectReady = 1;
         }
 
-        if (this->unk_0034 && this->unk_0038 != static_cast<int32_t>(sequence)) {
+        if (this->m_worldObjectReady && this->m_currentState != static_cast<int32_t>(sequence)) {
             World::ObjectSetSequence(this->m_worldObject, sequence, 0, 0);
-            this->unk_0038 = sequence;
+            this->m_currentState = sequence;
             this->UpdateObjectEffectState(sequence);
         }
     }
@@ -3580,7 +3580,7 @@ void CGGameObject_C_Type_TransportBase::MovePassengers(int32_t* moved) {
     for (CPassenger* passenger = this->m_passengers.Head(); passenger; passenger = this->m_passengers.Next(passenger)) {
         CMovementShared* movement = static_cast<CMovementShared*>(passenger);
 
-        if (this->unk_0034 && (passenger->unk_002C & 0x1) && (movement->m_flags & 0x8000000)) {
+        if (this->m_worldObjectReady && (passenger->m_passengerFlags & 0x1) && (movement->m_flags & 0x8000000)) {
             movement->ClearSplineEnabled();
         }
 

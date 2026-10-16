@@ -2891,9 +2891,9 @@ int32_t CSimpleEditBox::OnLayerKeyDown(const CKeyEvent& evt) {
 
         case KEY_ENTER:
             if (!(this->m_editBoxFlags & 0x2) || this->m_onEnterPressed.m_luaRef) {
-                this->m_simpleTop->unk_1250 = 1;
+                this->m_simpleTop->unused_1250 = 1;
                 this->RunOnEnterPressedScript();
-                this->m_simpleTop->unk_1250 = 0;
+                this->m_simpleTop->unused_1250 = 0;
             } else {
                 this->Insert("\n", nullptr, 1, 0, 0);
             }

@@ -1148,7 +1148,7 @@ int32_t CGGameUI::m_threatWarningEnabled;
 uint16_t CGGameUI::m_accountDataGeneration;
 
 // STATIC: 0x00BD08CC
-int32_t CGGameUI::unk_BD08CC;
+int32_t CGGameUI::unused_BD08CC;
 
 // STATIC: 0x00BD0B00
 TotemInfo CGGameUI::m_totems[4];
@@ -1630,7 +1630,7 @@ int32_t CGGameUI::CanPerformAction(uint32_t action) {
                     return 1;
                 }
 
-                if (!CGGameUI::m_simpleTop->unk_1250) {
+                if (!CGGameUI::m_simpleTop->unused_1250) {
                     CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
                     return 0;
                 }
@@ -1659,7 +1659,7 @@ int32_t CGGameUI::CanPerformAction(uint32_t action) {
     }
 
     if (CGGameUI::m_simpleTop && !action) {
-        CGGameUI::m_simpleTop->unk_1250 = 0;
+        CGGameUI::m_simpleTop->unused_1250 = 0;
     }
 
     return 1;
@@ -1952,7 +1952,7 @@ void CGGameUI::InitializeGame() {
     for (int32_t i = 0; i < 3; i++) {
         MirrorTimerInfo& timer = CGGameUI::m_mirrorTimerInfo[i];
         timer.m_type = 3;
-        timer.unk_0018 = 0;
+        timer.m_startTime = 0;
         timer.m_spellId = 0;
         timer.m_paused = 0;
         timer.m_scale = 0;
@@ -2213,7 +2213,7 @@ void CGGameUI::ScaleToScreenSize(int32_t width, int32_t height, int32_t force) {
     }
 
     if (fabs(CGGameUI::m_aspect - aspect) >= 0.001f) {
-        if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unk_1250) {
+        if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
             CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
             CGGameUI::m_aspect = aspect;
         } else {
@@ -2366,7 +2366,7 @@ int32_t CGGameUI::HandleWorldClick(const CWorldClickEvent& evt) {
         }
 
         if (noCursorItem && g_deselectOnClickCVar->m_intValue) {
-            CGGameUI::unk_BD08CC = 0;
+            CGGameUI::unused_BD08CC = 0;
 
             if (CGGameUI::m_lockedTarget) {
                 CGGameUI::m_lastTarget = CGGameUI::m_lockedTarget;
@@ -2758,7 +2758,7 @@ void CGGameUI::AcceptAreaSpiritHeal() {
 // OFFSET: 0x00524BF0
 void CGGameUI::Target(WOWGUID guid) {
     if (!guid) {
-        CGGameUI::unk_BD08CC = 0;
+        CGGameUI::unused_BD08CC = 0;
 
         if (CGGameUI::m_lockedTarget) {
             CGGameUI::m_lastTarget = CGGameUI::m_lockedTarget;
@@ -2876,7 +2876,7 @@ int32_t CGGameUI::OnTerrainClick(const CTerrainClickEvent& evt) {
             }
 
             if (g_deselectOnClickCVar->m_intValue) {
-                CGGameUI::unk_BD08CC = 0;
+                CGGameUI::unused_BD08CC = 0;
 
                 if (CGGameUI::m_lockedTarget) {
                     CGGameUI::m_lastTarget = CGGameUI::m_lockedTarget;
@@ -4401,7 +4401,7 @@ int32_t CGGameUI::OnMirrorTimerEvent(void* param, NETMESSAGE msgId, uint32_t tim
             info->m_scale = scale;
             info->m_paused = paused;
             info->m_spellId = spellId;
-            CGGameUI::m_mirrorTimerInfo[type].unk_0018 = OsGetAsyncTimeMs();
+            CGGameUI::m_mirrorTimerInfo[type].m_startTime = OsGetAsyncTimeMs();
         }
 
         return 1;
@@ -4429,7 +4429,7 @@ int32_t CGGameUI::OnMirrorTimerEvent(void* param, NETMESSAGE msgId, uint32_t tim
             info->m_scale = 0;
             info->m_paused = 0;
             info->m_spellId = 0;
-            info->unk_0018 = 0;
+            info->m_startTime = 0;
         }
     }
 
@@ -7223,7 +7223,7 @@ void CGGameUI::ShutdownGame() {
     for (int32_t i = 0; i < 3; i++) {
         MirrorTimerInfo& timer = CGGameUI::m_mirrorTimerInfo[i];
         timer.m_type = 3;
-        timer.unk_0018 = 0;
+        timer.m_startTime = 0;
         timer.m_spellId = 0;
         timer.m_paused = 0;
         timer.m_scale = 0;
@@ -7461,7 +7461,7 @@ void CGGameUI::Shutdown() {
     g_theGxDevicePtr->RemoveTextureRecreationCallback(UpdateAllPortraits);
     g_theGxDevicePtr->RemoveDeviceRestoredCallback(UpdateAllPortraits);
     CGChat::Pause();
-    CGGameUI::unk_BD08CC = 0;
+    CGGameUI::unused_BD08CC = 0;
 
     if (CGGameUI::m_lockedTarget != WOWGUID()) {
         CGGameUI::m_lastTarget = CGGameUI::m_lockedTarget;
@@ -7790,7 +7790,7 @@ const char* CGGameUI::GetErrorToken(int32_t error) {
 // VERIFY: d1aeabdd auto
 // OFFSET: 0x0051D960
 void CGGameUI::Reload() {
-    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unk_1250) {
+    if (lua_tainted && CGGameUI::m_simpleTop && !CGGameUI::m_simpleTop->unused_1250) {
         CGGameUI::ShowBlockedActionFeedback(nullptr, 1);
         return;
     }
@@ -7811,7 +7811,7 @@ void CGGameUI::CancelMirrorTimers() {
         FrameScript_SignalEvent(SCRIPT_EVENT_MIRROR_TIMER_STOP, "%s", MirrorTimerTypeToken(i));
         MirrorTimerInfo* info = &CGGameUI::m_mirrorTimerInfo[i];
         info->m_type = 3;
-        info->unk_0018 = 0;
+        info->m_startTime = 0;
         info->m_spellId = 0;
         info->m_paused = 0;
         info->m_scale = 0;
@@ -7840,7 +7840,7 @@ void CGGameUI::SetInstanceBootTime(uint32_t time) {
 
 // VERIFY: a656407b manual
 // OFFSET: 0x00513B20
-void CGGameUI::SetInstanceLockTime(uint32_t time, uint32_t a2, uint32_t a3) {
+void CGGameUI::SetInstanceLockTime(uint32_t time, uint32_t completedMask, uint32_t extending) {
     if (static_cast<int32_t>(time) <= 0) {
         CGGameUI::m_instanceLockTime = 0;
         CGGameUI::m_instanceLockCompletedMask = 0;
@@ -7848,8 +7848,8 @@ void CGGameUI::SetInstanceLockTime(uint32_t time, uint32_t a2, uint32_t a3) {
         FrameScript_SignalEvent(SCRIPT_EVENT_INSTANCE_LOCK_STOP, nullptr);
     } else {
         CGGameUI::m_instanceLockTime = time + OsGetAsyncTimeMs();
-        CGGameUI::m_instanceLockCompletedMask = a2;
-        CGGameUI::m_instanceLockExtending = a3;
+        CGGameUI::m_instanceLockCompletedMask = completedMask;
+        CGGameUI::m_instanceLockExtending = extending;
         FrameScript_SignalEvent(SCRIPT_EVENT_INSTANCE_LOCK_START, nullptr);
     }
 }
@@ -8183,7 +8183,7 @@ void CGGameUI::LeaveWorld() {
     CGGameUI::CloseInteraction();
 
     if (CGGameUI::m_lockedTarget && !CGGameUI::IsRaidMemberOrPet(CGGameUI::m_lockedTarget)) {
-        CGGameUI::unk_BD08CC = 0;
+        CGGameUI::unused_BD08CC = 0;
 
         if (CGGameUI::m_lockedTarget) {
             CGGameUI::m_lastTarget = CGGameUI::m_lockedTarget;

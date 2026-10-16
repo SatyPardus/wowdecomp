@@ -441,6 +441,6 @@ CM2Cache::CM2Cache() : m_threadStart(0, 0), m_threadDone(0, 0) {
     memset(this->m_shared, 0, sizeof(this->m_shared));
     this->m_threadFunc = nullptr;
     this->m_threadParam = nullptr;
-    this->unk_101C[0] = '\0';
-    this->unk_105C[0] = '\0';
+    this->unused_101C[0] = '\0';
+    this->unused_105C[0] = '\0';
 }

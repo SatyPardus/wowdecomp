@@ -13,7 +13,7 @@ class FactionRec;
 struct FactionStanding {
     /* 0000 */ int32_t m_factionId;
     /* 0004 */ uint8_t m_flags;
-    /* 0005 */ uint8_t unk_0005[3];
+    /* 0005 */ uint8_t unused_0005[3];
     /* 0008 */ int32_t m_base;
     /* 000C */ int32_t m_standing;
 };

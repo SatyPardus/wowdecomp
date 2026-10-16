@@ -112,7 +112,7 @@ void CGEquipmentManager::CreateEquipmentSet(const char* name, const char* icon) 
     EQUIPMENT_SET_NODE* node = CGEquipmentManager::s_equipmentSets.NewNode(2, 0, 8);
     node->m_set = set;
     CGEquipmentManager::SaveSet(set, name, icon);
-    set->unk_0230 = 1;
+    set->m_isNew = 1;
 }
 
 // VERIFY: beee0c68 auto
@@ -263,7 +263,7 @@ const EQUIPMENT_SET* CGEquipmentManager::GetSetByID(int32_t id) {
 EQUIPMENT_SET::EQUIPMENT_SET() {
     this->m_guid = WOWGUID{ 0 };
     memset(this->m_items, 0, sizeof(this->m_items));
-    this->unk_0230 = 0;
+    this->m_isNew = 0;
 }
 
 // VERIFY: 10e1d2c8 manual
@@ -461,7 +461,7 @@ static void OnEquipmentSetSaved(int32_t id, WOWGUID guid) {
 
     if (guid.m_guid) {
         set->m_guid = guid;
-        set->unk_0230 = 0;
+        set->m_isNew = 0;
         return;
     }
 
@@ -627,7 +627,7 @@ bool CGEquipmentManager::UseEquipmentSet(const EQUIPMENT_SET* set) {
 // VERIFY: 2e59ab5d manual
 // OFFSET: 0x005ADE50
 void CGEquipmentManager::SaveSet(EQUIPMENT_SET* set, const char* name, const char* icon) {
-    if (set->unk_0230) {
+    if (set->m_isNew) {
         return;
     }
 

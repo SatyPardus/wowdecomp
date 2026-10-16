@@ -109,7 +109,7 @@ bool PassDeathNVRC::Valid() {
 // OFFSET: 0x007E99A0
 void PassDeathNVRC::Execute() {
     FFX::SetupGx(this->m_output);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, this->m_flip);
 
     CImVector color;
     color.b = 0xA8;
@@ -207,10 +207,10 @@ PassPropagateFog::~PassPropagateFog() {
 // VERIFY: 06969c1d auto
 // OFFSET: 0x007E81B0
 PassFogCombine::PassFogCombine(FFX::Tex** inputs, uint32_t count, FFX::Tex* output, EGxBlend blend, bool unk) : FFX::Pass(inputs, count, output, blend, unk) {
-    this->unk_004C = 0;
-    this->unk_0050 = 0;
-    this->unk_0054 = 0.0f;
-    this->unk_0058 = 0.0f;
+    this->m_lastWidth = 0;
+    this->m_lastHeight = 0;
+    this->m_density = 0.0f;
+    this->m_fadeTime = 0.0f;
     this->m_vertexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Vertex, GxPoolUsage_Static, 34848, GxPoolHintBit_Unk0, nullptr);
     this->m_indexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Static, 12288, GxPoolHintBit_Unk0, nullptr);
     this->m_vertexBuf = g_theGxDevicePtr->BufCreate(this->m_vertexPool, 32, 1089, 0);
@@ -241,7 +241,7 @@ PassNetherBlur::PassNetherBlur(FFX::Tex** inputs, uint32_t count, FFX::Tex* outp
     }
 
     this->m_noiseTables[0] = this->m_noise[0];
-    this->unk_0280 = 0.0f;
+    this->m_noiseBlend = 0.0f;
     this->m_noiseTables[1] = this->m_noise[1];
     this->m_noiseTables[2] = this->m_noise[2];
 }
@@ -284,7 +284,7 @@ PassNetherCombine::PassNetherCombine(FFX::Tex** inputs, uint32_t count, FFX::Tex
     }
 
     g_theGxDevicePtr->ShaderCreate(this->m_pixelShaders, GxSh_Pixel, "Shaders\\Pixel", "FFXNetherCombine", 2);
-    this->unk_003C = 0.0f;
+    this->m_fade = 0.0f;
 }
 
 // VERIFY: e5b4d009 manual
@@ -458,8 +458,8 @@ void PassNetherBlur::Execute() {
 
     angle = static_cast<float>(cos(s_netherBlurPhase) * 0.5f + angle);
 
-    if (this->unk_0280 > 1.0f) {
-        this->unk_0280 = static_cast<float>(fmod(this->unk_0280, 1.0));
+    if (this->m_noiseBlend > 1.0f) {
+        this->m_noiseBlend = static_cast<float>(fmod(this->m_noiseBlend, 1.0));
         float* oldest = this->m_noiseTables[0];
         this->m_noiseTables[0] = this->m_noiseTables[1];
         this->m_noiseTables[1] = this->m_noiseTables[2];
@@ -473,16 +473,16 @@ void PassNetherBlur::Execute() {
     }
 
     for (uint32_t i = 0; i < 36; i++) {
-        this->unk_01E4[i] = (1.0f - this->unk_0280) * this->m_noiseTables[0][i] + this->m_noiseTables[1][i] * this->unk_0280;
+        this->m_blendedNoise[i] = (1.0f - this->m_noiseBlend) * this->m_noiseTables[0][i] + this->m_noiseTables[1][i] * this->m_noiseBlend;
     }
 
-    this->unk_0280 = elapsed * 1.5f + this->unk_0280;
+    this->m_noiseBlend = elapsed * 1.5f + this->m_noiseBlend;
 
     FFX::SetupGx(this->m_output);
 
     if (!FFX::s_useRECT) {
-        FFX::SetupGeo_Grid(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, 6, this->unk_002C);
-        FFX::SetupVB_PCT(36, FFX::s_gridPos, FFX::s_gridTex, this->unk_01E4);
+        FFX::SetupGeo_Grid(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, 6, this->m_flip);
+        FFX::SetupVB_PCT(36, FFX::s_gridPos, FFX::s_gridTex, this->m_blendedNoise);
     }
 
     g_theGxDevicePtr->PrimVertexMask(0x51);
@@ -525,8 +525,8 @@ void PassNetherBlur::Execute() {
     g_theGxDevicePtr->RsSet(GxRs_Texture3, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
 
     if (FFX::s_useRECT) {
-        FFX::SetupGeo_Grid(FFX::s_quart[1].m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, 6, this->unk_002C);
-        FFX::SetupVB_PCT(36, FFX::s_gridPos, FFX::s_gridTex, this->unk_01E4);
+        FFX::SetupGeo_Grid(FFX::s_quart[1].m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, 6, this->m_flip);
+        FFX::SetupVB_PCT(36, FFX::s_gridPos, FFX::s_gridTex, this->m_blendedNoise);
     }
 
     g_theGxDevicePtr->Draw(&FFX::s_gridBatch, 1);
@@ -552,8 +552,8 @@ void PassNetherBlur::Execute() {
         constants[2] = 0.0f;
         constants[3] = 0.0f;
         g_theGxDevicePtr->ShaderConstantsSet(GxSh_Vertex, 1, constants, 1);
-        FFX::SetupGeo_Grid(this->m_output->m_size, FFX::s_quart[1].m_size, FFX::s_quart[1].m_texSize, FFX::s_gridPos, FFX::s_gridTex, 6, this->unk_002C);
-        FFX::SetupVB_PCT(36, FFX::s_gridPos, FFX::s_gridTex, this->unk_01E4);
+        FFX::SetupGeo_Grid(this->m_output->m_size, FFX::s_quart[1].m_size, FFX::s_quart[1].m_texSize, FFX::s_gridPos, FFX::s_gridTex, 6, this->m_flip);
+        FFX::SetupVB_PCT(36, FFX::s_gridPos, FFX::s_gridTex, this->m_blendedNoise);
     }
 
     g_theGxDevicePtr->Draw(&FFX::s_gridBatch, 1);
@@ -571,7 +571,7 @@ bool PassPropagateFog::Valid() {
 // OFFSET: 0x007E9080
 void PassPropagateFog::Execute() {
     FFX::SetupGx(this->m_output);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, FFX::s_gridTex, this->m_flip);
     CImVector white;
     *reinterpret_cast<uint32_t*>(&white) = 0xFFFFFFFF;
     FFX::SetupVB_PCT4(FFX::s_gridPos, white, FFX::s_gridTex, this->m_params, this->m_inputs[0]->m_texelSize);
@@ -602,18 +602,18 @@ void PassPropagateFog::Execute() {
 // VERIFY: 7f8524f4 auto
 // OFFSET: 0x007E9010
 void EffectSwirlingFog::SetParameters(int32_t count, const int32_t* params) {
-    static_cast<PassFogSeed*>(this->m_passes[0])->unk_0034 = params[0];
+    static_cast<PassFogSeed*>(this->m_passes[0])->m_color = params[0];
     static_cast<PassPropagateFog*>(this->m_passes[1])->unk_005C = params[1] * 0.0039215689f;
     PassFogCombine* combine = static_cast<PassFogCombine*>(this->m_passes[2]);
-    combine->unk_0054 = params[2] * 0.0099999998f;
-    combine->unk_0058 = 3.0f;
+    combine->m_density = params[2] * 0.0099999998f;
+    combine->m_fadeTime = 3.0f;
 }
 
 // VERIFY: d2fd534c auto
 // OFFSET: 0x007E8E20
 void EffectNetherWorld::End() {
     if (this->m_passes.Count() >= 2) {
-        static_cast<PassNetherCombine*>(this->m_passes[1])->unk_003C = 0.0f;
+        static_cast<PassNetherCombine*>(this->m_passes[1])->m_fade = 0.0f;
     }
 }
 
@@ -654,7 +654,7 @@ void PassFogCombine::BuildVertices(const C2iVector& size, FFX::Tex* tex0, FFX::T
     float scaleU1 = tex1->m_size.x * tex1->m_texelSize.x;
     float scaleV1 = tex1->m_size.y * tex1->m_texelSize.y;
 
-    bool flip = this->unk_002C && !g_theGxDevicePtr->DeviceApi();
+    bool flip = this->m_flip && !g_theGxDevicePtr->DeviceApi();
 
     FFX::VertexPCT2* vertex = reinterpret_cast<FFX::VertexPCT2*>(g_theGxDevicePtr->BufLock(this->m_vertexBuf));
 
@@ -692,7 +692,7 @@ void PassFogCombine::BuildVertices(const C2iVector& size, FFX::Tex* tex0, FFX::T
 
     CGxBuf* buf = this->m_vertexBuf;
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: 7f8f703f manual
@@ -715,7 +715,7 @@ void PassFogCombine::BuildIndices() {
 
     CGxBuf* buf = this->m_indexBuf;
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
 }
 
 // VERIFY: d096b4ea manual
@@ -732,8 +732,8 @@ void PassDeath::Execute() {
     C2Vector texCoords1[4];
 
     FFX::SetupGx(this->m_output);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, texCoords0, this->unk_002C);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, texCoords1, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, texCoords0, this->m_flip);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, texCoords1, this->m_flip);
 
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
     g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(this->m_inputs[1]->m_texture, 1, nullptr));
@@ -766,8 +766,8 @@ void PassNetherCombine::Execute() {
     C2Vector texCoords1[4];
 
     FFX::SetupGx(this->m_output);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, texCoords0, this->unk_002C);
-    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, texCoords1, this->unk_002C);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[0]->m_size, this->m_inputs[0]->m_texSize, FFX::s_gridPos, texCoords0, this->m_flip);
+    FFX::SetupGeo_Quad(this->m_output->m_size, this->m_inputs[1]->m_size, this->m_inputs[1]->m_texSize, FFX::s_gridPos, texCoords1, this->m_flip);
 
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(this->m_inputs[0]->m_texture, 1, nullptr));
     g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(this->m_inputs[1]->m_texture, 1, nullptr));
@@ -776,12 +776,12 @@ void PassNetherCombine::Execute() {
     CImVector color;
     *reinterpret_cast<uint32_t*>(&color) = 0xFFFFFFFF;
 
-    if (this->unk_003C < 0.75f) {
-        float fade = this->unk_003C + FrameTime::s_tickTimeSec;
-        this->unk_003C = fade >= 0.75f ? 0.75f : fade;
+    if (this->m_fade < 0.75f) {
+        float fade = this->m_fade + FrameTime::s_tickTimeSec;
+        this->m_fade = fade >= 0.75f ? 0.75f : fade;
     }
 
-    s_netherCombineConstants[3] = this->unk_003C;
+    s_netherCombineConstants[3] = this->m_fade;
     g_theGxDevicePtr->ShaderConstantsSet(GxSh_Pixel, 0, s_netherCombineConstants, 1);
 
     GxPrimVertexPtr(4, FFX::s_gridPos, sizeof(C3Vector), nullptr, 0, &color, 0, texCoords0, sizeof(C2Vector), texCoords1, sizeof(C2Vector));
@@ -803,13 +803,13 @@ bool PassFogCombine::Valid() {
 void PassFogCombine::Execute() {
     FFX::SetupGx(this->m_output);
 
-    bool rebuildVertices = !(this->m_vertexBuf->unk_001C && this->m_vertexBuf->unk_001D);
-    bool rebuildIndices = !(this->m_indexBuf->unk_001C && this->m_indexBuf->unk_001D);
+    bool rebuildVertices = !(this->m_vertexBuf->m_hasData && this->m_vertexBuf->m_valid);
+    bool rebuildIndices = !(this->m_indexBuf->m_hasData && this->m_indexBuf->m_valid);
     const C2iVector& size = this->m_output->m_size;
 
-    if (this->unk_004C != size.x || this->unk_0050 != size.y) {
-        this->unk_004C = size.x;
-        this->unk_0050 = size.y;
+    if (this->m_lastWidth != size.x || this->m_lastHeight != size.y) {
+        this->m_lastWidth = size.x;
+        this->m_lastHeight = size.y;
         this->BuildVertices(size, this->m_inputs[0], this->m_inputs[1]);
     } else if (rebuildVertices) {
         this->BuildVertices(size, this->m_inputs[0], this->m_inputs[1]);
@@ -831,18 +831,18 @@ void PassFogCombine::Execute() {
     float density;
     float minimum;
 
-    if (this->unk_0058 <= 0.0f) {
-        density = this->unk_0054;
+    if (this->m_fadeTime <= 0.0f) {
+        density = this->m_density;
         minimum = 0.1f;
     } else {
-        float fade = 1.0f - this->unk_0058 * 0.33333334f;
-        this->unk_0058 = this->unk_0058 - FrameTime::s_tickTimeSec;
+        float fade = 1.0f - this->m_fadeTime * 0.33333334f;
+        this->m_fadeTime = this->m_fadeTime - FrameTime::s_tickTimeSec;
 
-        if (this->unk_0058 < 0.0f) {
-            this->unk_0058 = 0.0f;
+        if (this->m_fadeTime < 0.0f) {
+            this->m_fadeTime = 0.0f;
         }
 
-        density = this->unk_0054 * fade;
+        density = this->m_density * fade;
         minimum = fade * 0.1f;
     }
 

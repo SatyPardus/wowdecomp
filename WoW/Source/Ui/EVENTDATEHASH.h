@@ -6,8 +6,8 @@
 
 class EVENTDATEHASH {
     public:
-    /* 0000 */ uint8_t unk_0000[24];
-    /* 0018 */ uint32_t unk_0018[6];
+    /* 0000 */ uint8_t unused_0000[24];
+    /* 0018 */ uint32_t unused_0018[6];
 };
 
 #endif

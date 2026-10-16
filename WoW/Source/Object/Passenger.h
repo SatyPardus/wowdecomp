@@ -16,11 +16,11 @@ class CPassenger {
     /* 0000 */ TSLink<void> m_link;
     /* 0008 */ WOWGUID m_transportGuid;
     /* 0010 */ C3Vector m_position;
-    /* 001C */ uint32_t unk_001C;
+    /* 001C */ uint32_t unused_001C;
     /* 0020 */ float m_facing;
     /* 0024 */ float m_pitch;
     /* 0028 */ const WOWGUID* m_ownerGuid;
-    /* 002C */ uint8_t unk_002C;
+    /* 002C */ uint8_t m_passengerFlags;
 
     CPassenger(const WOWGUID& transportGuid, const C3Vector& position, const WOWGUID& ownerGuid);
     void PostInit(const C3Vector& position);

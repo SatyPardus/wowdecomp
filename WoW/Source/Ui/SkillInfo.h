@@ -17,8 +17,8 @@ struct SkillLineInfo {
 
 struct SkillTypeInfo {
     /* 0000 */ int32_t m_categoryID;
-    /* 0004 */ int32_t unk_0004;
-    /* 0008 */ int32_t unk_0008;
+    /* 0004 */ int32_t m_collapsed;
+    /* 0008 */ int32_t unused_0008;
 };
 
 class CGSkillInfo {

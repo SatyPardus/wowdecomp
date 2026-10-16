@@ -1007,7 +1007,7 @@ int32_t CGUIBindings::ExecKey(uint32_t modifiers, const char* key, int32_t isDow
     CGUIBindings::StripModifiers(this->m_heldModifiers, reducedKey);
 
     CSimpleTop* top = CSimpleTop::s_instance;
-    top->unk_1250 = 1;
+    top->unused_1250 = 1;
 
     int32_t result = 0;
     const char* command = this->GetBindingCommand(binding, mode);
@@ -1098,7 +1098,7 @@ int32_t CGUIBindings::ExecKey(uint32_t modifiers, const char* key, int32_t isDow
         result = this->ExecCommand(command, isDown, isDown ? 1.0f : 0.0f, allowPressure, 0, 0, -1.0f, 0.0f, nullptr);
     }
 
-    top->unk_1250 = 0;
+    top->unused_1250 = 0;
     this->m_keyStateOverride = 0;
 
     return result;

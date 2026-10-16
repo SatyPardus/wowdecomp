@@ -10,7 +10,7 @@ class IOUnit {
     public:
     /* 0004 */ IOUnit* m_next;
     /* 0008 */ bool m_ownsMemory;
-    /* 0009 */ uint8_t unk_0009[3];
+    /* 0009 */ uint8_t unused_0009[3];
     /* 000C */ Blizzard::Lock::Atomic m_refCount;
 
     virtual uint32_t GetType() = 0;

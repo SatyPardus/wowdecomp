@@ -496,7 +496,7 @@ StreamingManager::StreamingManager() {
 
     this->m_entries.insert(std::make_pair(std::string(), static_cast<StreamingFileEntry*>(nullptr)));
 
-    this->unk_0031 = false;
+    this->unused_0031 = false;
 }
 
 // VERIFY: fefe834e manual

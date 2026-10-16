@@ -6,7 +6,7 @@
 CBitArray::CBitArray() {
     this->m_array = nullptr;
     this->m_size = 0;
-    this->unk_0008 = false;
+    this->m_ownsArray = false;
 }
 
 // VERIFY: 24197791 auto
@@ -31,7 +31,7 @@ void CBitArray::Set(uint32_t bitIdx, bool value) {
 // VERIFY: 93b36a31 manual
 // OFFSET: 0x0095DA80
 CBitArray::~CBitArray() {
-    if (this->m_array && this->unk_0008) {
+    if (this->m_array && this->m_ownsArray) {
         delete[] this->m_array;
     }
 }
@@ -39,11 +39,11 @@ CBitArray::~CBitArray() {
 // VERIFY: 0d9be8fd manual
 // OFFSET: 0x0095DAA0
 void CBitArray::SetRawData(char* data, uint32_t size, bool owned) {
-    if (this->m_array && this->unk_0008) {
+    if (this->m_array && this->m_ownsArray) {
         delete[] this->m_array;
     }
 
     this->m_array = data;
     this->m_size = size;
-    this->unk_0008 = owned;
+    this->m_ownsArray = owned;
 }

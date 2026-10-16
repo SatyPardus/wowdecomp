@@ -54,7 +54,7 @@ class SE2SoundKitObject {
     /* 0000 */ TSLink<SE2SoundKitObject> m_link;
     /* 0008 */ SESound m_sound;
     /* 000C */ uint32_t m_advancedId;
-    /* 0010 */ uint32_t unk_0010;
+    /* 0010 */ uint32_t unused_0010;
 
     SE2SoundKitObject();
     ~SE2SoundKitObject();
@@ -66,7 +66,7 @@ class SI2SoundUserData : public SESoundUserData {
     /* 0008 */ int32_t m_soundKitId;
     /* 000C */ VSOUNDKITDEF* m_def;
     /* 0010 */ int32_t m_group;
-    /* 0014 */ uint32_t unk_0014;
+    /* 0014 */ uint32_t unused_0014;
     /* 0018 */ uint32_t m_advancedId;
 
     virtual ~SI2SoundUserData();

@@ -206,7 +206,7 @@ class CGxDeviceD3d : public CGxDevice {
 
     /* 3968 */ HWND m_hwnd;
     /* 396C */ ATOM m_hwndClass;
-    /* 396E */ uint16_t unk_396E;
+    /* 396E */ uint16_t unused_396E;
     /* 3970 */ int32_t m_ownhwnd;
     /* 3974 */ HINSTANCE m_d3dLib;
     /* 3978 */ LPDIRECT3D9 m_d3d;

@@ -25,7 +25,7 @@ class CWorldOccluder {
 
 class CWorldAntiOccluder {
     public:
-    /* 0000 */ uint8_t unk_0000[16];
+    /* 0000 */ uint8_t unused_0000[16];
     /* 0010 */ TSLink<CWorldAntiOccluder> m_link;
 };
 

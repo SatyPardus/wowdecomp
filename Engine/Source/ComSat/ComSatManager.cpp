@@ -649,7 +649,7 @@ bool ComSat::Manager::SessionSetTalkerNetworkIdRemote(uint64_t session, uint64_t
 // OFFSET: 0x00880BB0
 ComSat::Manager::Manager(ComSat::Sound::Manager& soundManager, ComSat::Network::Manager& networkManager, const ComSat::Initialization& init, ComSat::Allocator& allocator) : m_sessions(allocator) {
     this->m_maxLocalPlayers = init.m_maxLocalPlayers;
-    this->unk_0010 = init.unk_0004;
+    this->unused_0010 = init.unk_0004;
     this->m_soundManager = &soundManager;
     this->m_networkManager = &networkManager;
     this->m_allocator = &allocator;

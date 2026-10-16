@@ -32,7 +32,7 @@ struct Pref {
     /* 0008 */ char* (*m_dayHeader)();
     /* 000C */ bool m_disabled;
     /* 000D */ bool m_noTimestamp;
-    /* 000E */ uint8_t unk_000E[2];
+    /* 000E */ uint8_t unused_000E[2];
     /* 0010 */ uint32_t m_maxOpenTime;
     /* 0014 */ uint32_t m_maxIdleTime;
     /* 0018 */ char* m_directory;
@@ -47,7 +47,7 @@ struct LogFile {
     /* 0014 */ uint32_t m_lastWrite;
     /* 0018 */ bool m_headerWritten;
     /* 0019 */ bool m_binary;
-    /* 001A */ uint8_t unk_001A[2];
+    /* 001A */ uint8_t unused_001A[2];
 };
 
 extern bool s_threadRunning;

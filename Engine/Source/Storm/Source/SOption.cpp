@@ -99,7 +99,7 @@ int32_t STORMAPI StormSetOption(int32_t optname, void* optval, uint32_t optlen) 
             return 0;
         }
 
-        g_opt.unk_0024 = *value != 0;
+        g_opt.unused_0024 = *value != 0;
         break;
     case STORM_OPTION_UNK_0028:
         if (optlen != sizeof(int32_t)) {

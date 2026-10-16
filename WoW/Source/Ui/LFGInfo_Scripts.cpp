@@ -459,8 +459,8 @@ static int32_t Script_GetLFRChoiceOrder(lua_State* L) {
 // OFFSET: 0x00552E90
 static int32_t Script_GetLFGInfoLocal(lua_State* L) {
     lua_pushboolean(L, CGLookingForGroup::m_localInfo.m_joined);
-    lua_pushboolean(L, CGLookingForGroup::m_localInfo.unk_0004);
-    lua_pushboolean(L, CGLookingForGroup::m_localInfo.unk_0005);
+    lua_pushboolean(L, CGLookingForGroup::m_localInfo.m_noPartial);
+    lua_pushboolean(L, CGLookingForGroup::m_localInfo.m_achievements);
     lua_pushstring(L, CGLookingForGroup::m_localInfo.m_comment);
     lua_pushnumber(L, CGLookingForGroup::m_localInfo.m_numDungeons);
 
@@ -488,8 +488,8 @@ static int32_t Script_GetLFGInfoServer(lua_State* L) {
     lua_pushboolean(L, inParty);
     lua_pushboolean(L, info->m_joined);
     lua_pushboolean(L, info->m_queued);
-    lua_pushboolean(L, info->unk_0004);
-    lua_pushboolean(L, info->unk_0005);
+    lua_pushboolean(L, info->m_noPartial);
+    lua_pushboolean(L, info->m_achievements);
     lua_pushstring(L, info->m_comment);
     lua_pushnumber(L, info->m_numDungeons);
 
@@ -788,19 +788,19 @@ static int32_t Script_GetLFGRoleUpdateSlot(lua_State* L) {
 // VERIFY: 667e80c2 auto
 // OFFSET: 0x00554170
 static int32_t PushLFGProposalInfo(lua_State* L) {
-    if (!CGLookingForGroup::m_proposal.m_id) {
+    if (!CGLookingForGroup::m_proposal.m_dungeonId) {
         return 0;
     }
 
-    LfgDungeonsRec* dungeon = g_lfgDungeonsDB.GetRecord(CGLookingForGroup::m_proposal.m_id & 0xFFFFFF);
+    LfgDungeonsRec* dungeon = g_lfgDungeonsDB.GetRecord(CGLookingForGroup::m_proposal.m_dungeonId & 0xFFFFFF);
 
     if (!dungeon) {
         return 0;
     }
 
     lua_pushboolean(L, 1);
-    lua_pushnumber(L, CGLookingForGroup::m_proposal.m_id >> 24);
-    lua_pushnumber(L, CGLookingForGroup::m_proposal.m_id & 0xFFFFFF);
+    lua_pushnumber(L, CGLookingForGroup::m_proposal.m_dungeonId >> 24);
+    lua_pushnumber(L, CGLookingForGroup::m_proposal.m_dungeonId & 0xFFFFFF);
     lua_pushstring(L, dungeon->m_name);
     lua_pushstring(L, dungeon->m_textureFilename);
 
@@ -810,7 +810,7 @@ static int32_t PushLFGProposalInfo(lua_State* L) {
     for (uint32_t i = 0; i < 5; i++) {
         if (CGLookingForGroup::m_proposal.m_members[i].m_isLocal) {
             roles = CGLookingForGroup::m_proposal.m_members[i].m_roles;
-            accepted = CGLookingForGroup::m_proposal.m_members[i].m_accepted;
+            accepted = CGLookingForGroup::m_proposal.m_members[i].m_answered;
             break;
         }
     }

@@ -28,10 +28,10 @@ static AccountDataInfo s_accountData[] = {
 static uint32_t s_accountDataTime;
 
 // STATIC: 0x00C7BFF8
-static int32_t unk_C7BFF8;
+static int32_t s_clearGlobalConfig;
 
 // STATIC: 0x00C7BFFC
-static int32_t unk_C7BFFC;
+static int32_t s_clearCharacterConfig;
 
 // VERIFY: 4934bdac auto
 // OFFSET: 0x006B8AB0
@@ -244,8 +244,8 @@ void LoadAccountData(int32_t type, ACCOUNTDATALOADFUNC func, void* param) {
 // VERIFY: ac27b46e auto
 // OFFSET: 0x006B90E0
 void SetClearConfigData(int32_t clear) {
-    unk_C7BFF8 = clear;
-    unk_C7BFFC = clear;
+    s_clearGlobalConfig = clear;
+    s_clearCharacterConfig = clear;
 }
 
 // VERIFY: 61aba3c9 manual
@@ -337,7 +337,7 @@ static int32_t SaveTimerHandler(const void* data, void* param) {
         UploadAccountData(type);
     }
 
-    info.unk_0020 = 0;
+    info.m_saveTimer = 0;
     return 1;
 }
 
@@ -357,12 +357,12 @@ static void ScheduleAccountDataSave(int32_t type) {
         return;
     }
 
-    if (info.unk_0020) {
-        ClientKillTimer(info.unk_0020, SaveTimerHandler, "SaveTimerHandler");
-        info.unk_0020 = 0;
+    if (info.m_saveTimer) {
+        ClientKillTimer(info.m_saveTimer, SaveTimerHandler, "SaveTimerHandler");
+        info.m_saveTimer = 0;
     }
 
-    info.unk_0020 = ClientSetTimer(30000, SaveTimerHandler, reinterpret_cast<void*>(static_cast<intptr_t>(type)));
+    info.m_saveTimer = ClientSetTimer(30000, SaveTimerHandler, reinterpret_cast<void*>(static_cast<intptr_t>(type)));
 }
 
 // VERIFY: fe34ba05 manual
@@ -567,7 +567,7 @@ void AccountDataInitialize(bool global) {
     uint32_t bytesWritten;
 
     if (global) {
-        if (unk_C7BFF8) {
+        if (s_clearGlobalConfig) {
             HOSFILE file = OpenAccountFile(s_accountData[0].m_global, s_accountData[0].m_cacheFile, true);
 
             if (file != OS_INVALID_FILE) {
@@ -578,7 +578,7 @@ void AccountDataInitialize(bool global) {
             s_accountData[0].m_changed = true;
             s_accountData[0].m_downloading = false;
         }
-    } else if (unk_C7BFFC) {
+    } else if (s_clearCharacterConfig) {
         HOSFILE file = OpenAccountFile(s_accountData[1].m_global, s_accountData[1].m_cacheFile, true);
 
         if (file != OS_INVALID_FILE) {
@@ -595,8 +595,8 @@ void AccountDataInitialize(bool global) {
 // OFFSET: 0x006B9B90
 void AccountDataFlush() {
     for (int32_t i = 0; i < static_cast<int32_t>(sizeof(s_accountData) / sizeof(s_accountData[0])); i++) {
-        if (s_accountData[i].unk_0020) {
-            ClientKillTimer(s_accountData[i].unk_0020, SaveTimerHandler, "SaveTimerHandler");
+        if (s_accountData[i].m_saveTimer) {
+            ClientKillTimer(s_accountData[i].m_saveTimer, SaveTimerHandler, "SaveTimerHandler");
             SaveTimerHandler(nullptr, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
         }
     }

@@ -9,15 +9,15 @@ struct EventReg {
     struct EVENTCALLBACKREG;
     struct EVENTDISPATCHREG;
 
-    /* 0000 */ uint8_t unk_0000[0x34];
+    /* 0000 */ uint8_t unused_0000[0x34];
 };
 
 struct EventReg::EVENTCALLBACKREG {
-    /* 0000 */ uint8_t unk_0000[0x10];
+    /* 0000 */ uint8_t unused_0000[0x10];
 };
 
 struct EventReg::EVENTDISPATCHREG {
-    /* 0000 */ uint8_t unk_0000[0x10];
+    /* 0000 */ uint8_t unused_0000[0x10];
 };
 
 struct LockedDataAllocator {

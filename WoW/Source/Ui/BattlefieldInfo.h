@@ -53,7 +53,7 @@ struct BattlefieldStatus {
     /* 0030 */ uint32_t m_queueStartTime;
     /* 0034 */ uint32_t m_teamSize;
     /* 0038 */ int32_t m_rated;
-    /* 003C */ uint32_t unk_003C;
+    /* 003C */ uint32_t unused_003C;
 };
 
 class CDataStore;

@@ -21,7 +21,7 @@ struct AccountDataInfo {
     /* 0015 */ bool m_downloading;
     /* 0018 */ ACCOUNTDATALOADFUNC m_loadFunc;
     /* 001C */ void* m_loadParam;
-    /* 0020 */ uint32_t unk_0020;
+    /* 0020 */ uint32_t m_saveTimer;
     /* 0024 */ uint8_t m_md5[16];
     /* 0034 */ bool m_changed;
     /* 0038 */ int32_t m_time;

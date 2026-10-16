@@ -56,7 +56,7 @@ class CMapArea : public CMapBaseObj {
     /* 0080 */ void* m_fileBuffer;
     /* 0084 */ int32_t m_fileSize;
     /* 0088 */ SMChunkInfo* m_chunkInfo;
-    /* 008C */ int32_t unk_008C;
+    /* 008C */ int32_t unused_008C;
     /* 0090 */ SMDoodadDef* m_doodadDef;
     /* 0094 */ SMMapObjDef* m_mapObjDef;
     /* 0098 */ int32_t m_doodadDefCount;
@@ -106,12 +106,12 @@ struct SMChunkInfo {
     /* 0000 */ uint32_t m_offset;
     /* 0004 */ uint32_t m_size;
     /* 0008 */ uint32_t m_flags;
-    /* 000C */ uint8_t unk_000C[4];
+    /* 000C */ uint8_t unused_000C[4];
 };
 
 class CMapAreaMed : public CMapBaseObj {
     public:
-    /* 0024 */ uint8_t unk_0024[33368];
+    /* 0024 */ uint8_t unused_0024[33368];
 };
 
 #endif

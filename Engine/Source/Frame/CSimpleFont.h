@@ -34,7 +34,7 @@ class CSimpleFont : public FrameScript_Object, public CSimpleFontable {
 
     /* 0028 */ CSimpleFontStringAttributes m_attributes;
     /* 0058 */ const char* m_name;
-    /* 005C */ uint32_t unk_005C;
+    /* 005C */ uint32_t m_attributeMask;
     /* 0060 */ TSExplicitList<CSimpleFontable, offsetof(CSimpleFontable, m_fontableLink)> m_fontableList;
 
     virtual ~CSimpleFont();

@@ -62,7 +62,7 @@
 #include "Engine/Source/Gx/CGxMatrixStack.h"
 
 // STATIC: 0x00AEE008
-uint32_t CMapObj::s_unk_AEE008 = 2;
+uint32_t CMapObj::s_maxLiquidQueryDepth = 2;
 
 // STATIC: 0x00ADFF50
 static int32_t s_portalExtCount = 2048;
@@ -2249,7 +2249,7 @@ void CMapObj::Destroy() {
 
 // VERIFY: e6f8b5e3 manual
 // OFFSET: 0x007B0040
-void CMapObj::ClearCache(int32_t a1) {
+void CMapObj::ClearCache(int32_t unused_a1) {
     CMapObj* mapObj = CMapObj::mapObjHash.m_fulllist.Head();
 
     while (mapObj) {
@@ -2303,20 +2303,20 @@ void CMapObj::SetRenderModeLight() {
 
 // VERIFY: 51ea4524 manual
 // OFFSET: 0x007AE140
-uint32_t CMapObj::CreateWmoIgnoreFlags(uint32_t a1) {
+uint32_t CMapObj::CreateWmoIgnoreFlags(uint32_t flags) {
     uint32_t result = 0xEE;
-    if ((a1 & 0x80u) != 0)
+    if ((flags & 0x80u) != 0)
         return 0x2CA;
-    if ((a1 & 0x10) != 0)
+    if ((flags & 0x10) != 0)
         result = 0xC6;
-    if ((a1 & 0x20) != 0)
+    if ((flags & 0x20) != 0)
         result &= 0xDBu;
-    if ((a1 & 0x40) == 0)
+    if ((flags & 0x40) == 0)
         result &= ~2u;
-    if ((a1 & 0x4000) == 0)
+    if ((flags & 0x4000) == 0)
         result &= ~0x40u;
-    if ((a1 & 0x1000000) != 0) {
-        if ((a1 & 0x40000000) != 0)
+    if ((flags & 0x1000000) != 0) {
+        if ((flags & 0x40000000) != 0)
             return 0xFFFFFCDB;
         else
             return result | 0x100;
@@ -2353,7 +2353,7 @@ uint32_t CMapObj::CreateWmoIgnoreFlags(uint32_t a1) {
 // VERIFY: 688ff659 manual
 // OFFSET: 0x0079BBF0
 void CMapObj::QueryLiquidSounds(uint32_t groupIndex, uint32_t fromGroup, uint32_t depth, uint32_t* minDepth, const C3Vector& pos, TSGrowableArray<World::LiquidQueryResult>& results) {
-    if (depth > CMapObj::s_unk_AEE008) {
+    if (depth > CMapObj::s_maxLiquidQueryDepth) {
         return;
     }
 
@@ -2831,7 +2831,7 @@ bool CMapObj::QueryLighting(uint32_t groupNum, const C3Segment& seg, CImVector* 
     World::TriData::nBatches = 0;
     World::TriData::faceIndexCursor = 0;
     World::TriData::indexCursor = 0;
-    World::TriData::unk_CB7538 = 0;
+    World::TriData::matrixPoolCount = 0;
 
     if (!group->GetTris(seg, &dist, 0, 8, &triData, nullptr)) {
         return false;
@@ -3257,12 +3257,12 @@ void CMapObj::RenderMapObjGroupsColor(CMapObjGroup** groups, uint32_t count, C44
         }
 
         g_theGxDevicePtr->BufUnlock(vertexBuf, 0);
-        vertexBuf->unk_001C = 1;
+        vertexBuf->m_hasData = 1;
         GxPrimVertexPtr(vertexBuf, GxVBF_PNC);
         CGxBuf* indexBuf = g_theGxDevicePtr->BufStream(GxPoolTarget_Index, sizeof(uint16_t), group->m_indicesCount);
         memcpy(g_theGxDevicePtr->BufLock(indexBuf), group->m_indices, sizeof(uint16_t) * group->m_indicesCount);
         g_theGxDevicePtr->BufUnlock(indexBuf, 0);
-        indexBuf->unk_001C = 1;
+        indexBuf->m_hasData = 1;
         g_theGxDevicePtr->PrimIndexPtr(indexBuf);
 
         if (group->m_unkLoadedFlag & 0x4) {
@@ -3333,7 +3333,7 @@ bool CMapObj::VectorIntersect(C3Vector& start, C3Vector& end, uint32_t flags, ui
         World::TriData::nBatches = 0;
         World::TriData::faceIndexCursor = 0;
         World::TriData::indexCursor = 0;
-        World::TriData::unk_CB7538 = 0;
+        World::TriData::matrixPoolCount = 0;
         World::TriData triData;
 
         if (!group->GetTris(seg, t, flags, ignoreFlags, &triData, mapObjDef)) {

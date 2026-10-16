@@ -186,7 +186,7 @@ void Sand::UpdatePackets() {
             this->m_sandGrainPacketList.m_activePacketsCount--;
             this->m_sandGrainPacketList.m_freePacketsCount++;
             this->m_sandGrainPacketList.m_freePackets.LinkToTail(packet);
-        } else if (!packet->m_vertexBufHandle->unk_001C || !packet->m_vertexBufHandle->unk_001D) {
+        } else if (!packet->m_vertexBufHandle->m_hasData || !packet->m_vertexBufHandle->m_valid) {
             RealizeParticlePacket(packet);
         }
 

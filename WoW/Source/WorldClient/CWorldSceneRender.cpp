@@ -77,13 +77,13 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
     g_theGxDevicePtr->RsPush();
     g_theGxDevicePtr->XformPush(GxXform_World);
 
-    CWorldScene::s_unk_CD8774 = 0;
+    CWorldScene::s_unused_CD8774 = 0;
     CWorldScene::s_chunksRendered = 0;
     CWorldScene::nDoodadsRendered = 0;
-    CWorldScene::s_unk_CD8624 = 0;
+    CWorldScene::s_unused_CD8624 = 0;
     CWorldScene::frustumStack[CWorldScene::frustumIndex].CalcPlanesFromCorners(CWorldScene::s_frustumCorners);
     CWorldScene::s_occlusionFarDepth = World::s_farClip - 33.333332f;
-    CWorldScene::s_unk_CD8778 = CWorldScene::sortTable.m_pendingExteriorGroupList.Head() != nullptr;
+    CWorldScene::s_hasPendingExteriorGroups = CWorldScene::sortTable.m_pendingExteriorGroupList.Head() != nullptr;
 
     CGCamera* camera = CGWorldFrame::GetActiveCamera();
     CWorldScene::s_fogFovPadding = CWorld::farFog / cosf(camera->FOV() * 0.5f) - CWorld::farFog;

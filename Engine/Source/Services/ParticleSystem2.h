@@ -161,12 +161,12 @@ class CParticleEmitter2 {
     /* 0088 */ CM2Model* m_childModel;
     /* 008C */ uint32_t m_vertsPerParticle;
     /* 0090 */ uint32_t m_indicesPerParticle;
-    /* 0094 */ uint32_t unk_0094;
+    /* 0094 */ uint32_t unused_0094;
     /* 0098 */ CParticleEmitter2::Params m_params;
     /* 0120 */ uint32_t m_textureRows;
     /* 0124 */ uint32_t m_textureCols;
     /* 0128 */ CTexture* m_texture;
-    /* 012C */ uint32_t unk_012C;
+    /* 012C */ uint32_t unused_012C;
     /* 0130 */ float m_alphaScale;
     /* 0134 */ uint32_t m_flags;
     /* 0138 */ uint32_t m_batchFlags;
@@ -194,12 +194,12 @@ class CParticleEmitter2 {
     /* 01DC */ float m_ivelTimer;
     /* 01E0 */ C3Vector m_parentVelocity;
     /* 01EC */ float m_xformScale;
-    /* 01F0 */ uint32_t unk_01F0;
+    /* 01F0 */ uint32_t unused_01F0;
     /* 01F4 */ C3Vector m_followOffset;
     /* 0200 */ C3Vector m_burstOffset;
     /* 020C */ C3Vector m_billboardAxis;
     /* 0218 */ CAaBox m_worldBounds;
-    /* 0230 */ uint32_t unk_0230;
+    /* 0230 */ uint32_t unused_0230;
 
     virtual void Sync();
     virtual void CreateParticle(CParticle2& particle, float time, const C44Matrix& transform);

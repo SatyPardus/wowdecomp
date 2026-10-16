@@ -74,7 +74,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
             break;
 
         case 'TWE$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->unk_00B8, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(2, 1, 0);
@@ -87,7 +87,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
         }
 
         case 'CAE$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->unk_00B8, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(3, 1, 0);
@@ -100,7 +100,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
         }
 
         case 'VME$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->unk_00B8, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(4, 1, 0);
@@ -113,7 +113,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
         }
 
         case 'CDE$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->unk_00B8, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(5, 1, 0);
@@ -133,9 +133,9 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
 // VERIFY: f8dfe4b0 manual
 // OFFSET: 0x007C10C0
 void CMapStaticEntity::SelectUnderwater(CM2Lighting* lighting) {
-    if (!(this->unk_007C & 0x20)) {
+    if (!(this->m_staticFlags & 0x20)) {
         lighting->m_flags = (lighting->m_flags & ~0x60) | 0x20;
-    } else if (!(this->unk_007C & 0x40)) {
+    } else if (!(this->m_staticFlags & 0x40)) {
         lighting->m_flags = (lighting->m_flags & ~0x60) | 0x40;
     } else {
         float d = -this->m_liquidHeight;

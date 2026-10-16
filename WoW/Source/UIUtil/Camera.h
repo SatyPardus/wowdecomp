@@ -83,9 +83,9 @@ class CGCamera : public CSimpleCamera {
 
     /* 0048 */ CM2Model* m_model;
     /* 004C */ uint32_t m_someTime;
-    /* 0050 */ HOBJECT unk_0050;
+    /* 0050 */ HOBJECT m_modelCameraHandle;
     /* 0054 */ C34Matrix m_modelMatrix;
-    /* 0084 */ uint32_t unk_0084;
+    /* 0084 */ uint32_t unused_0084;
     /* 0088 */ WOWGUID m_targetGUID;
     /* 0090 */ WOWGUID m_guid0090;
     /* 0098 */ uint32_t m_state;
@@ -118,10 +118,10 @@ class CGCamera : public CSimpleCamera {
     /* 0194 */ uint32_t m_motionEndTime [6];
     /* 01AC */ float m_motionSpeed [6];
     /* 01C4 */ C3Vector m_targetPosition;
-    /* 01D0 */ float unk_01D0;
+    /* 01D0 */ float unused_01D0;
     /* 01D4 */ float m_targetFacing;
     /* 01D8 */ uint32_t m_terrainTiltTime;
-    /* 01DC */ float unk_01DC;
+    /* 01DC */ float m_freeLookYaw;
     /* 01E0 */ CAMERA_SMOOTH m_smoothDistance;
     /* 01F8 */ CAMERA_SMOOTH m_smoothGroundTilt;
     /* 0210 */ CAMERA_SMOOTH m_smoothHeight;
@@ -132,7 +132,7 @@ class CGCamera : public CSimpleCamera {
     /* 0288 */ uint32_t m_bobTime;
     /* 028C */ float m_bobDuration;
     /* 0290 */ C3Vector m_bobStart;
-    /* 029C */ uint32_t unk_029C;
+    /* 029C */ uint32_t unused_029C;
     /* 02A0 */ int32_t m_underwater;
     /* 02A4 */ uint32_t m_wasFlying;
     /* 02A8 */ CAMERA_SMOOTH m_smoothFlyingHeight;
@@ -155,8 +155,8 @@ class CGCamera : public CSimpleCamera {
     /* 0300 */ TSList<CameraShake> m_cameraShakeList;
     /* 030C */ uint32_t m_prevViewIndex;
     /* 0310 */ float m_prevDistance;
-    /* 0314 */ float unk_0314;
-    /* 0318 */ float unk_0318;
+    /* 0314 */ float m_preTelescopeDistance;
+    /* 0318 */ float m_telescopePitchOffset;
     /* 031C */ CVehicleCamera_C* m_vehicleCamera;
 
     float FOV() const override;

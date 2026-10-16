@@ -26,7 +26,7 @@ struct HASHKEY_INT {
 
 struct DBCACHECALLBACK : public TSLinkedNode<DBCACHECALLBACK> {
     /* 0008 */ void (*m_callback)(int32_t id, const WOWGUID& guid, void* param, bool success);
-    /* 000C */ uint32_t unk_000C;
+    /* 000C */ uint32_t unused_000C;
     /* 0010 */ WOWGUID m_guid;
     /* 0018 */ void* m_param;
 };

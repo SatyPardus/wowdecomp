@@ -99,7 +99,7 @@ class CSimpleTop : public CLayoutFrame {
     /* 1244 */ void (*m_focusChangedCallback)(const CFocusEvent& evt);
     /* 1248 */ void (*m_keyDownCallback)(const CKeyEvent& evt);
     /* 124C */ int32_t m_allowProtectedActions;
-    /* 1250 */ uint32_t unk_1250;
+    /* 1250 */ uint32_t unused_1250;
     /* 1254 */ void (*m_actionBlockedCallback)(CScriptRegion* region);
 
     virtual ~CSimpleTop();

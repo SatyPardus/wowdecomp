@@ -36,8 +36,8 @@ class CM2Cache {
     /* 1010 */ HPROPCONTEXT m_propContext;
     /* 1014 */ void (*m_threadFunc)(void*);
     /* 1018 */ void* m_threadParam;
-    /* 101C */ char unk_101C [64];
-    /* 105C */ char unk_105C [64];
+    /* 101C */ char unused_101C [64];
+    /* 105C */ char unused_105C [64];
     /* 109C */ uint32_t m_updateTime;
     /* 10A0 */ TSExplicitList<CM2Shared, offsetof(CM2Shared, m_updateLink)> m_sharedUpdateList;
 

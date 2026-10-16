@@ -6,8 +6,8 @@
 
 class CSimpleTooltip {
     public:
-    /* 0000 */ uint8_t unk_0000[668];
-    /* 029C */ uint32_t unk_029C[167];
+    /* 0000 */ uint8_t unused_0000[668];
+    /* 029C */ uint32_t unused_029C[167];
 };
 
 #endif

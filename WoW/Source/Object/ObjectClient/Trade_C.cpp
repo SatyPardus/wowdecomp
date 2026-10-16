@@ -20,10 +20,10 @@ uint32_t s_clientStateIndex;
 static TRADE_ITEM s_tradeItems[2][7];
 
 // STATIC: 0x00CA0FE0
-static int32_t s_unk_CA0FE0;
+static int32_t s_tradeRequested;
 
 // STATIC: 0x00CA0FE4
-static int32_t s_unk_CA0FE4;
+static int32_t s_tradeUseCursorItem;
 
 // STATIC: 0x00CA0FE8
 static WOWGUID s_tradeTarget;
@@ -43,13 +43,13 @@ WOWGUID Trade_C_GetTradeTarget() {
 // VERIFY: 522e8804 auto
 // OFFSET: 0x00703C20
 int32_t Trade_C_IsTradeRequested() {
-    return s_unk_CA0FE0;
+    return s_tradeRequested;
 }
 
 // VERIFY: 714e84f5 auto
 // OFFSET: 0x00703C30
 int32_t Trade_C_UseCursorItem() {
-    return s_unk_CA0FE0 && s_unk_CA0FE4;
+    return s_tradeRequested && s_tradeUseCursorItem;
 }
 
 // VERIFY: 71c6ebe1 auto
@@ -82,7 +82,7 @@ void Trade_C_Destroy() {
 
 // VERIFY: efe27afc manual
 // OFFSET: 0x00703CF0
-void CGTradeInfo::InitiateTrade(WOWGUID target, int32_t a2) {
+void CGTradeInfo::InitiateTrade(WOWGUID target, int32_t useCursorItem) {
     if (s_tradeTarget) {
         CGGameUI::DisplayError(ERR_ALREADY_TRADING);
         return;
@@ -98,9 +98,9 @@ void CGTradeInfo::InitiateTrade(WOWGUID target, int32_t a2) {
     msg.Put(target.m_guid);
     msg.Finalize();
     ClientServices::Send2(&msg);
-    s_unk_CA0FE4 = a2;
+    s_tradeUseCursorItem = useCursorItem;
     s_tradeTarget = target;
-    s_unk_CA0FE0 = 1;
+    s_tradeRequested = 1;
     NameCache* name = g_nameDBCache.GetRecord(target.m_guid, target, &TradeNameCallback, nullptr, false);
 
     if (name) {
@@ -243,8 +243,8 @@ bool CGTradeInfo::SetMoney(uint32_t amount) {
 // VERIFY: 895d61e1 auto
 // OFFSET: 0x007048D0
 void Trade_C_Initialize() {
-    s_unk_CA0FE0 = 0;
-    s_unk_CA0FE4 = 0;
+    s_tradeRequested = 0;
+    s_tradeUseCursorItem = 0;
     s_tradeTarget = WOWGUID();
     ClientServices::SetMessageHandler(SMSG_TRADE_STATUS, Packet_SMSG_TRADE_STATUS, nullptr);
     ClientServices::SetMessageHandler(SMSG_TRADE_STATUS_EXTENDED, Packet_SMSG_TRADE_STATUS_EXTENDED, nullptr);
@@ -282,7 +282,7 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
             uint64_t guid;
             msg->Get(guid);
 
-            if (s_unk_CA0FE0) {
+            if (s_tradeRequested) {
                 Trade_C_PlayerBusy();
             } else {
                 s_tradeTarget.m_guid = guid;
@@ -338,7 +338,7 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
     CGTradeInfo::HandleTradeMessage(status, bagResult, target != 0, itemId, slot);
 
     if (reset) {
-        s_unk_CA0FE0 = 0;
+        s_tradeRequested = 0;
         s_tradeTarget = WOWGUID();
     }
 

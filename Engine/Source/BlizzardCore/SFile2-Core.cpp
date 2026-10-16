@@ -162,7 +162,7 @@ bool STORMAPI SFile::FileGetIsLocalAmount(const char* name, int64_t& local, int6
 // VERIFY: eb299239 auto
 // OFFSET: 0x00421850
 int32_t STORMAPI SFile::GetActualFileName(SFileImpl* file, char* buffer, uint32_t size) {
-    const char* name = static_cast<const char*>(file->unk_0010);
+    const char* name = static_cast<const char*>(file->m_actualName);
 
     if (!name) {
         name = file->m_name;
@@ -198,7 +198,7 @@ int32_t STORMAPI SFile::OpenArchive(const char* path, int32_t priority, uint32_t
     System_SFile::ARCHIVEREC* handle;
 
     if (Blizzard::String::EqualI(Blizzard::String::FindExtension(path), "mpq")) {
-        (*archive)->unk_0000 = 0;
+        (*archive)->m_type = 0;
         result = Blizzard::Mopaq::SFileOpenArchive(path, priority, flags, &handle);
         (*archive)->m_archive = handle;
 
@@ -664,15 +664,15 @@ int32_t STORMAPI SFileUnloadFile(void* data) {
 // OFFSET: 0x00422330
 SFileImpl::SFileImpl(uint32_t type) {
     this->m_lock = new (0u, __FILE__, __LINE__) SFileLock();
-    this->m_lock->unk_0018 = 0;
+    this->m_lock->unused_0018 = 0;
     this->m_stream = nullptr;
     this->m_archive = nullptr;
     this->m_name = nullptr;
     this->m_data = nullptr;
     this->m_file = nullptr;
-    this->unk_0024 = 0;
-    this->unk_0010 = nullptr;
-    this->unk_0028 = 0;
+    this->unused_0024 = 0;
+    this->m_actualName = nullptr;
+    this->unused_0028 = 0;
     this->m_type = type;
 }
 
@@ -680,7 +680,7 @@ SFileImpl::SFileImpl(uint32_t type) {
 // OFFSET: 0x004224A0
 SFileImpl::~SFileImpl() {
     Blizzard::Memory::Free(this->m_name);
-    Blizzard::Memory::Free(this->unk_0010);
+    Blizzard::Memory::Free(this->m_actualName);
     Blizzard::Memory::Free(this->m_data);
 
     if (this->m_lock) {
@@ -897,7 +897,7 @@ bool System_SFile2::ScanDirForFileSystemHash(const char* directory) {
     Blizzard::String::ForceTrailingSeparator(path, sizeof(path), '\\');
 
     ScanDirCookie cookie;
-    cookie.unk_0000 = 1;
+    cookie.unused_0000 = 1;
     cookie.m_root = path;
     cookie.m_rootLength = Blizzard::String::Length(path);
     cookie.m_prefix = "";
@@ -1059,10 +1059,10 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
             SErrSetLastError(2);
             return 0;
         }
-    } else if (archive->unk_0000 == 0) {
+    } else if (archive->m_type == 0) {
         handle = archive->m_archive;
         type = 3;
-    } else if (archive->unk_0000 == 1) {
+    } else if (archive->m_type == 1) {
         handle = archive->m_archive;
         type = 4;
     } else {
@@ -1153,7 +1153,7 @@ int32_t STORMAPI SFile::ReadFile(SArchive* archive, const char* name, void** dat
     uint8_t* buffer = static_cast<uint8_t*>(Blizzard::Memory::Allocate(fileSize + extra));
 
     if (overlapped) {
-        file->unk_0024 = 1;
+        file->unused_0024 = 1;
     }
 
     if (!SFileReadFile(file, buffer, fileSize, size, overlapped, 0)) {
@@ -1182,7 +1182,7 @@ int32_t STORMAPI SFile::ReadFile(SArchive* archive, const char* name, void** dat
 // VERIFY: a77cc075 manual
 // OFFSET: 0x00424FA0
 int32_t STORMAPI SFile::List(SArchive* archive, int32_t (*callback)(const char* fileName, void* param), void* param) {
-    if (archive->unk_0000 != 0 && archive->unk_0000 != 1) {
+    if (archive->m_type != 0 && archive->m_type != 1) {
         return 0;
     }
 

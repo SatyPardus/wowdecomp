@@ -25,7 +25,7 @@ ShipPath::ShipPath() {
     this->m_timeOffset = 0;
     this->m_waiting = 0;
     this->m_waitReached = 0;
-    this->unk_003E = 0;
+    this->unused_003E = 0;
 }
 
 // VERIFY: 09b64bdb auto
@@ -765,7 +765,7 @@ void ShipPath::WaitAtNextPausePoint(uint32_t time, bool pause) {
 
     this->m_waiting = pause;
     this->m_waitReached = 0;
-    this->unk_003E = 0;
+    this->unused_003E = 0;
 }
 
 // VERIFY: defabc1a manual
@@ -783,7 +783,7 @@ void ShipPath::WaitAtCurrentLocation(uint32_t time) {
     ShipPathSegment& entry = this->m_legs.m_data[leg].m_segments.m_data[segment];
     this->m_waiting = 1;
     this->m_waitReached = 1;
-    this->unk_003E = 0;
+    this->unused_003E = 0;
     this->m_waitTime = (entry.m_time + entry.m_delay) % total;
 }
 

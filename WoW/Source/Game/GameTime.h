@@ -16,14 +16,14 @@ struct TIMESTAMPCALLBACK : public TSLinkedNode<TIMESTAMPCALLBACK> {
 class TIMESTAMPSTRUCT : public TSHashObject<TIMESTAMPSTRUCT, HASHKEY_NONE> {
     public:
     /* 0018 */ TSList<TIMESTAMPCALLBACK, TSGetLink<TIMESTAMPCALLBACK>> m_callbacks;
-    /* 0024 */ uint32_t unk_0024[3];
+    /* 0024 */ uint32_t unused_0024[3];
 
     ~TIMESTAMPSTRUCT();
 };
 
 class CGameTime : public WowTime {
     public:
-    /* 0020 */ int32_t unk_0020;
+    /* 0020 */ int32_t unused_0020;
     /* 0024 */ int32_t m_minuteOffset;
     /* 0028 */ int32_t m_dayOffset;
     /* 002C */ int32_t m_minuteTicks;
@@ -32,10 +32,10 @@ class CGameTime : public WowTime {
     /* 0038 */ uint32_t m_elapsedMinutes;
     /* 003C */ uint32_t m_lastTickMs;
     /* 0040 */ uint8_t m_running;
-    /* 0041 */ uint8_t unk_0041[3];
+    /* 0041 */ uint8_t unused_0041[3];
     /* 0044 */ float m_baseMinuteOfDay;
-    /* 0048 */ float unk_0048;
-    /* 004C */ float unk_004C;
+    /* 0048 */ float unused_0048;
+    /* 004C */ float unused_004C;
     /* 0050 */ TSHashTable<TIMESTAMPSTRUCT, HASHKEY_NONE> m_timeStamps;
 
     static void __stdcall GameTimeUnregisterCallback(TIMESTAMPCALLBACK* callback);

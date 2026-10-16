@@ -95,7 +95,7 @@ void CGxDeviceD3d::IBufUnlock(CGxBuf* buf) {
 
     if (emergencyMem.m_lock) {
         emergencyMem.Unlock();
-        buf->unk_001D = 0;
+        buf->m_valid = 0;
         this->m_intF5C = 1;
         return;
     }
@@ -115,7 +115,7 @@ void CGxDeviceD3d::IBufUnlock(CGxBuf* buf) {
             break;
     }
 
-    buf->unk_001D = SUCCEEDED(result);
+    buf->m_valid = SUCCEEDED(result);
 }
 
 // VERIFY: 32fdd761 auto
@@ -139,17 +139,17 @@ char* CGxDeviceD3d::IBufLock(CGxBuf* buf) {
     DWORD flags = 0;
 
     if (pool->m_usage == GxPoolUsage_Stream) {
-        uint32_t index = (buf->m_itemSize + pool->unk_001C - 1) - (buf->m_itemSize + pool->unk_001C - 1) % buf->m_itemSize;
+        uint32_t index = (buf->m_itemSize + pool->m_offset - 1) - (buf->m_itemSize + pool->m_offset - 1) % buf->m_itemSize;
 
         if (index + buf->m_size > static_cast<uint32_t>(pool->m_size)) {
             flags = D3DLOCK_DISCARD;
             pool->Discard();
             buf->m_index = 0;
-            pool->unk_001C = buf->m_size;
+            pool->m_offset = buf->m_size;
         } else {
             flags = D3DLOCK_NOOVERWRITE;
             buf->m_index = index;
-            pool->unk_001C = index + buf->m_size;
+            pool->m_offset = index + buf->m_size;
         }
     } else if (pool->m_usage == GxPoolUsage_Dynamic) {
         flags = D3DLOCK_NOOVERWRITE;
@@ -289,7 +289,7 @@ LPDIRECT3DINDEXBUFFER9 CGxDeviceD3d::ICreateD3dIB(EGxPoolUsage usage, uint32_t s
 // OFFSET: 0x0068E1F0
 void CGxDeviceD3d::IReleaseD3dPool(CGxPool* pool) {
     if (pool->m_usage == GxPoolUsage_Stream) {
-        pool->unk_001C = 0;
+        pool->m_offset = 0;
     }
 
     pool->Invalidate();
@@ -982,7 +982,7 @@ void CGxDeviceD3d::IStateSyncScissorRect() {
 // VERIFY: 1602f0a7 auto
 // OFFSET: 0x006A39E0
 void CGxDeviceD3d::ISetVertexBuffer(uint32_t stream, LPDIRECT3DVERTEXBUFFER9 buffer, uint32_t offset, uint32_t stride) {
-    if (!this->m_caps.unk_0010) {
+    if (!this->m_caps.m_streamOffset) {
         offset = 0;
     }
 
@@ -2406,7 +2406,7 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
 
     this->m_caps.m_depthBias = (this->m_d3dCaps.RasterCaps & D3DPRASTERCAPS_DEPTHBIAS) != 0;
     this->m_caps.m_numStreams = this->m_d3dCaps.MaxStreams;
-    this->m_caps.unk_0010 = this->m_d3dCaps.Caps2 & 0x1;
+    this->m_caps.m_streamOffset = this->m_d3dCaps.Caps2 & 0x1;
 
     for (uint32_t i = 0; i < GxShTargets_Last; i++) {
         this->m_caps.m_shaderTargets[i] = 0;
@@ -2512,12 +2512,12 @@ void CGxDeviceD3d::ISetCaps(const CGxFormat& format) {
     this->m_caps.m_pointScaleMax = this->m_d3dCaps.MaxPointSize;
     this->m_caps.m_pointSprite = this->m_d3dCaps.MaxPointSize > 1.0f;
     this->m_caps.m_blendFactor = (this->m_d3dCaps.SrcBlendCaps & D3DPBLENDCAPS_BLENDFACTOR) != 0;
-    this->m_caps.unk_0130 = 1;
-    this->m_caps.unk_0114[1] = 0;
-    this->m_caps.unk_0114[0] = 0;
-    this->m_caps.unk_0114[2] = 0;
-    this->m_caps.unk_0114[3] = 0;
-    this->m_caps.unk_0114[4] = 0;
+    this->m_caps.m_shaderAlphaRef = 1;
+    this->m_caps.unused_0114[1] = 0;
+    this->m_caps.unused_0114[0] = 0;
+    this->m_caps.unused_0114[2] = 0;
+    this->m_caps.unused_0114[3] = 0;
+    this->m_caps.unused_0114[4] = 0;
     this->m_caps.unk_0134 = this->m_caps.m_shaderTargets[GxSh_Pixel] != 4;
     this->m_caps.unk_0138 = this->m_caps.m_shaderTargets[GxSh_Pixel] != 4;
 }
@@ -3290,7 +3290,7 @@ void CGxDeviceD3d::Draw(CGxBatch* batch, int32_t count) {
 
     uint32_t baseVertexIndex = 0;
 
-    if (!this->m_caps.unk_0010) {
+    if (!this->m_caps.m_streamOffset) {
         baseVertexIndex = this->m_primVertexFormatBuf[0]->m_index / this->m_primVertexFormatBuf[0]->m_itemSize;
     }
 

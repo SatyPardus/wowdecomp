@@ -13,7 +13,7 @@ class LFGLIST {
     /* 0004 */ uint32_t m_time;
     /* 0008 */ uint32_t m_totalPlayers;
     /* 000C */ uint32_t m_totalParties;
-    /* 0010 */ uint8_t unk_0010;
+    /* 0010 */ uint8_t unused_0010;
     /* 0014 */ uint32_t m_pendingNames;
     /* 0018 */ TSHashTable<LFGListParty, CHashKeyGUID> m_parties;
     /* 0040 */ TSHashTable<LFGListPlayer, CHashKeyGUID> m_players;

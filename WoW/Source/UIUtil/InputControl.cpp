@@ -1301,8 +1301,8 @@ void CGInputControl::UpdatePlayer(uint32_t time, int32_t a2) {
 
 // VERIFY: ad249167 manual
 // OFFSET: 0x005FBE10
-void CGInputControl::ToggleControlBit(uint32_t bit, int32_t enable, uint32_t time, int32_t a5) {
-    int32_t changed = enable ? this->SetControlBit(bit, time) : this->UnsetControlBit(bit, time, a5);
+void CGInputControl::ToggleControlBit(uint32_t bit, int32_t enable, uint32_t time, int32_t keepSmoothing) {
+    int32_t changed = enable ? this->SetControlBit(bit, time) : this->UnsetControlBit(bit, time, keepSmoothing);
 
     if (!changed) {
         return;

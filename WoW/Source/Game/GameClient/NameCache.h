@@ -18,7 +18,7 @@ class NameCache {
     /* 0000 */ char m_name[48];
     /* 0030 */ NameCache::DeclinedNames* m_declinedNames;
     /* 0034 */ char m_realmName[256];
-    /* 0134 */ uint32_t unk_0134;
+    /* 0134 */ uint32_t unused_0134;
     /* 0138 */ WOWGUID m_guid;
     /* 0140 */ uint32_t m_race;
     /* 0144 */ uint32_t m_sex;

@@ -16,7 +16,7 @@ class AuraData {
     /* 000C */ uint8_t m_flags;
     /* 000D */ uint8_t m_level;
     /* 000E */ uint8_t m_stackCount;
-    /* 000F */ uint8_t unk_000F;
+    /* 000F */ uint8_t unused_000F;
     /* 0010 */ int32_t m_duration;
     /* 0014 */ int32_t m_endTime;
 

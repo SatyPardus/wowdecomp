@@ -55,7 +55,7 @@ static int32_t s_cacheCount;
 static int32_t s_cacheCountPeak;
 
 // STATIC: 0x00D437E8
-static uint32_t s_unknownStat;
+static uint32_t s_unused_unknownStat;
 
 // STATIC: 0x00D437EC
 static uint32_t s_cacheHitsLoaded;
@@ -1574,8 +1574,8 @@ void SESoundInternal::Play() {
 // OFFSET: 0x0087EBC0
 SEFileSound::SEFileSound() {
     this->m_file = nullptr;
-    this->unk_00E4 = 0;
-    this->unk_00E8 = 0;
+    this->unused_00E4 = 0;
+    this->unused_00E8 = 0;
     this->m_sound = nullptr;
     this->m_loadSoundGroup = nullptr;
     this->m_soundGroup = nullptr;
@@ -3105,7 +3105,7 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
     s_cacheBytesPeak = 0;
     s_cacheCount = 0;
     s_cacheCountPeak = 0;
-    s_unknownStat = 0;
+    s_unused_unknownStat = 0;
     s_cacheHitsLoaded = 0;
     s_cacheHitsLoading = 0;
     s_soundsCreated = 0;

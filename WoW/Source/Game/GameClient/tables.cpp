@@ -72,6 +72,6 @@ void GameTablesInitialize() {
 
 // VERIFY: 166b2593 auto
 // OFFSET: 0x007F6990
-float GetGameTableValue(int32_t table, int32_t index, int32_t a3) {
-    return s_gameTables[table]->EvaluateTable(index, a3);
+float GetGameTableValue(int32_t table, int32_t index, int32_t row) {
+    return s_gameTables[table]->EvaluateTable(index, row);
 }

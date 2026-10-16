@@ -11,7 +11,7 @@ class IOUnitContainer {
 
     /* 0000 */ uint8_t* m_next;
     /* 0004 */ bool m_owner;
-    /* 0005 */ uint8_t unk_0005[3];
+    /* 0005 */ uint8_t unused_0005[3];
 
     IOUnitContainer(uint32_t size, ...);
 };
