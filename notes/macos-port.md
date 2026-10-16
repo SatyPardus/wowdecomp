@@ -18,6 +18,7 @@ a server, creates characters (with localized race and class names), and enters a
 | Registry | `~/Library/Preferences/WowDecomp/registry.ini` |
 | FMOD Ex Win32 output | FMOD output plugin backed by SDL2 audio (`fmodex/mac/src`) |
 | CRITICAL_SECTION / Win32 threads | pthread (see section 4 for semantic compatibility) |
+| DivxDecoder.dll (movies) | Same Xvid shim as Win64 (`Tools/XvidDecoder/XvidDecoder.cpp`), statically linked against Homebrew `xvid`; falls back to a stub that skips movies when xvid is missing |
 
 Conventions:
 
@@ -25,8 +26,8 @@ Conventions:
   source file is wrapped in `#if defined(__APPLE__)`. Module CMake files exclude `Win32/Win64` on macOS and
   exclude `Mac/` on Windows.
 - Port behavior function by function, using the Win64 implementation as the reference. Only features that
-  genuinely do not exist on macOS (Logitech LCD, SteelSeries HID, Windows anti-cheat memory scanning, the patch
-  downloader, and DivX decoding) use a "device/feature unavailable" path.
+  genuinely do not exist on macOS (Logitech LCD, SteelSeries HID, Windows anti-cheat memory scanning, and the
+  patch downloader) use a "device/feature unavailable" path.
 - Isolate platform differences in shared code with `#if` so Windows behavior remains unchanged.
 - On non-Windows platforms, `Engine/Source/Platform/Compat/` is a global include directory for compatibility
   shims: `malloc.h`, `SSE.h` (x86 SSE → ARM NEON), `RecursiveMutex.h`, and `ThreadStack.h`.
@@ -54,7 +55,7 @@ You can also run `./play.sh 2` or `./play.sh 3 --client <client-directory>` dire
 with the version of bash 3.2 included with macOS. Manual steps:
 
 ```sh
-brew install cmake sdl2
+brew install cmake sdl2 xvid
 cmake -S . -B build/mac -DCMAKE_BUILD_TYPE=Release
 cmake --build build/mac --target Wow --parallel
 ```
@@ -135,7 +136,12 @@ The following three issues also affect Windows builds:
   not seen in the official arm64 build using Homebrew SDL, but its dialog text has not been confirmed.
 - Audio uses SDL2 output; OpenAL Soft is not integrated.
 - Streaming implements only a minimal local-first path; a complete client installation does not depend on it.
-- Unavailable on macOS: Direct3D, Logitech LCD, SteelSeries HID, DivX cinematics (skipped), and the patch
-  downloader.
+- Unavailable on macOS: Direct3D, Logitech LCD, SteelSeries HID, and the patch downloader.
+- Login-screen movies (Logo, WoW, and Burning Crusade intros) and the first-login race/class flyby cinematics
+  are verified. The Wrath of the Lich King intro (`Interface\Cinematics\WOW_Intro_LK_800/1024.avi`) is missing
+  from the test client's data (it is in neither the MPQs nor `Data/zhCN/Interface/Cinematics/`), so it is skipped on
+  every platform.
+- The server marks a character's intro cinematic as seen (`characters.cinematic = 1`) when it sends
+  `SMSG_TRIGGER_CINEMATIC`, even if the client crashes. To replay it for testing, set the column back to 0.
 - Windows could not be built on this machine. Shared-file changes are isolated with `#if`; review found no
   changes to Windows behavior.

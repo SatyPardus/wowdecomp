@@ -77,6 +77,15 @@ check_tools() {
         fi
     fi
 
+    # Optional: Xvid decodes the login-screen intro movies; without it they are skipped.
+    if [ ! -f "$(brew_prefix)/include/xvid.h" ]; then
+        if confirm "未找到 xvid（播放片头动画需要），是否通过 Homebrew 安装？"; then
+            brew install xvid
+        else
+            info "跳过 xvid：片头动画将不会播放。"
+        fi
+    fi
+
     info "依赖就绪：$(cmake --version | head -n 1)，SDL2 位于 $(brew_prefix)"
 }
 
@@ -194,7 +203,7 @@ done
 
 if [ -z "$CHOICE" ]; then
     echo "wowdecomp macOS"
-    echo "  1) 配置：检查/安装依赖（Xcode 命令行工具、Homebrew、CMake、SDL2）并生成构建"
+    echo "  1) 配置：检查/安装依赖（Xcode 命令行工具、Homebrew、CMake、SDL2、xvid）并生成构建"
     echo "  2) 编译：编译客户端 bin/Mac/Wow"
     echo "  3) 启动：链接游戏数据并启动客户端（需要时自动编译）"
     echo "  q) 退出"

@@ -145,7 +145,7 @@ its `Data` folder) and symlinks it as `bin/Mac/Data`; the client then writes `WT
 `bin/Mac/`. Client output goes to `bin/Mac/Wow.log`. Manual equivalent:
 
 ```sh
-brew install cmake sdl2
+brew install cmake sdl2 xvid   # xvid is optional; it decodes the login-screen intro movies
 cmake -S . -B build/mac -DCMAKE_BUILD_TYPE=Release
 cmake --build build/mac --target Wow --parallel
 ```
