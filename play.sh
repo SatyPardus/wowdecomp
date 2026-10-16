@@ -1,12 +1,12 @@
 #!/bin/bash
-# wowdecomp macOS 一键脚本：1 配置 / 2 编译 / 3 启动
+# wowdecomp macOS one-click script: 1 configure / 2 build / 3 launch
 #
-# 用法：
-#   ./play.sh                       显示菜单
-#   ./play.sh 1|2|3                 直接执行对应步骤
-#   ./play.sh 3 --client <路径>      启动并指定 3.3.5a 客户端目录（或其 Data 目录）
+# Usage:
+#   ./play.sh                       Show the menu
+#   ./play.sh 1|2|3                 Run the given step directly
+#   ./play.sh 3 --client <path>     Launch using a 3.3.5a client folder (or its Data folder)
 #
-# 每一步会自动补齐前置步骤：编译时若未配置会先配置，启动时若未编译会先编译。
+# Each step runs its prerequisites when needed: build configures first, launch builds first.
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ LOG_FILE="$OUTPUT_DIR/Wow.log"
 CLIENT_PATH=""
 
 die() {
-    echo "错误：$*" >&2
+    echo "Error: $*" >&2
     exit 1
 }
 
@@ -26,7 +26,7 @@ info() {
     echo "==> $*"
 }
 
-# 询问是/否，默认“是”；非交互环境下返回“否”。
+# Ask yes/no, defaulting to yes; returns no when not running interactively.
 confirm() {
     local answer
     if [ ! -t 0 ]; then
@@ -48,62 +48,62 @@ brew_prefix() {
 }
 
 check_tools() {
-    [ "$(uname -s)" = "Darwin" ] || die "此脚本仅用于 macOS。"
+    [ "$(uname -s)" = "Darwin" ] || die "This script is for macOS only."
 
     if ! xcode-select -p >/dev/null 2>&1; then
-        info "未找到 Xcode 命令行工具，正在打开安装程序……"
+        info "Xcode Command Line Tools not found; opening the installer..."
         xcode-select --install || true
-        die "请在弹出的窗口中完成安装后重新运行本脚本。"
+        die "Finish the installation in the window that opened, then run this script again."
     fi
 
     if ! command -v brew >/dev/null 2>&1; then
-        die "未找到 Homebrew。请先安装：https://brew.sh
+        die "Homebrew not found. Install it first: https://brew.sh
   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
     fi
 
     if ! command -v cmake >/dev/null 2>&1; then
-        if confirm "未找到 CMake，是否通过 Homebrew 安装？"; then
+        if confirm "CMake not found. Install it with Homebrew?"; then
             brew install cmake
         else
-            die "需要 CMake 才能继续。"
+            die "CMake is required to continue."
         fi
     fi
 
     if [ ! -f "$(brew_prefix)/lib/cmake/SDL2/SDL2Config.cmake" ]; then
-        if confirm "未找到 SDL2，是否通过 Homebrew 安装？"; then
+        if confirm "SDL2 not found. Install it with Homebrew?"; then
             brew install sdl2
         else
-            die "需要 SDL2 才能继续。"
+            die "SDL2 is required to continue."
         fi
     fi
 
     # Optional: Xvid decodes the login-screen intro movies; without it they are skipped.
     if [ ! -f "$(brew_prefix)/include/xvid.h" ]; then
-        if confirm "未找到 xvid（播放片头动画需要），是否通过 Homebrew 安装？"; then
+        if confirm "xvid (needed for the intro movies) not found. Install it with Homebrew?"; then
             brew install xvid
         else
-            info "跳过 xvid：片头动画将不会播放。"
+            info "Skipping xvid: intro movies will not play."
         fi
     fi
 
-    info "依赖就绪：$(cmake --version | head -n 1)，SDL2 位于 $(brew_prefix)"
+    info "Dependencies ready: $(cmake --version | head -n 1), SDL2 in $(brew_prefix)"
 }
 
 step_configure() {
     check_tools
-    info "生成构建（$BUILD_DIR）"
+    info "Generating build ($BUILD_DIR)"
     cmake -S "$REPO_ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew_prefix)"
-    info "配置完成。"
+    info "Configuration complete."
 }
 
 step_build() {
     if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
         step_configure
     fi
-    info "编译客户端（首次编译需要几分钟）"
+    info "Building the client (the first build takes a few minutes)"
     cmake --build "$BUILD_DIR" --target Wow --parallel "$(sysctl -n hw.ncpu)"
-    [ -x "$EXECUTABLE" ] || die "编译结束但未找到 $EXECUTABLE。"
-    info "编译完成：$EXECUTABLE"
+    [ -x "$EXECUTABLE" ] || die "Build finished but $EXECUTABLE was not found."
+    info "Build complete: $EXECUTABLE"
 }
 
 link_game_data() {
@@ -111,27 +111,27 @@ link_game_data() {
     local source
 
     if [ -L "$data_link" ] && [ ! -e "$data_link" ]; then
-        info "原有的游戏数据链接已失效（$(readlink "$data_link")），将重新选择。"
+        info "The existing game data link is broken ($(readlink "$data_link")); choosing again."
         rm "$data_link"
     fi
 
     if [ -e "$data_link" ]; then
         if [ -L "$data_link" ]; then
-            info "使用游戏数据：$(readlink "$data_link")"
+            info "Using game data: $(readlink "$data_link")"
         fi
         return
     fi
 
     source="$CLIENT_PATH"
     if [ -z "$source" ]; then
-        [ -t 0 ] || die "未链接游戏数据。请用 --client <路径> 指定 3.3.5a 客户端目录。"
-        echo "仓库不包含游戏数据，请使用你自己的 WoW 3.3.5a (12340) 客户端。"
-        read -r -p "客户端目录或其 Data 目录的路径（可直接把文件夹拖进来，留空取消）：" source
+        [ -t 0 ] || die "No game data linked. Use --client <path> to specify a 3.3.5a client folder."
+        echo "This repository does not include game data; use your own WoW 3.3.5a (12340) client."
+        read -r -p "Path to the client folder or its Data folder (you can drag the folder here; leave empty to cancel): " source
     fi
 
-    # 去掉首尾空白、引号和拖放产生的转义空格，并展开 ~。
+    # Strip surrounding whitespace, quotes and drag-and-drop escaped spaces, and expand ~.
     source="$(printf '%s' "$source" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e "s/^[\"']//" -e "s/[\"']\$//" -e 's/\\ / /g')"
-    [ -n "$source" ] || die "未选择游戏数据，客户端未启动。"
+    [ -n "$source" ] || die "No game data selected; the client was not started."
     case "$source" in
         "~"*) source="$HOME${source#\~}" ;;
     esac
@@ -139,17 +139,17 @@ link_game_data() {
     if [ -d "$source/Data" ]; then
         source="$source/Data"
     fi
-    [ -d "$source" ] || die "游戏数据目录不存在：$source"
+    [ -d "$source" ] || die "Game data folder does not exist: $source"
     source="$(cd "$source" && pwd)"
 
     if [ -z "$(find "$source" -maxdepth 2 -iname '*.mpq' -print -quit)" ]; then
-        die "$source 中没有 MPQ 文件，请选择 WoW 3.3.5a 的 Data 目录。"
+        die "No MPQ files in $source. Choose the Data folder of a WoW 3.3.5a client."
     fi
 
     mkdir -p "$OUTPUT_DIR"
-    # 符号链接，避免复制数 GB 的 Data 目录。
+    # Symlink instead of copying the multi-gigabyte Data folder.
     ln -s "$source" "$data_link"
-    info "已链接游戏数据：$data_link -> $source"
+    info "Linked game data: $data_link -> $source"
 }
 
 step_run() {
@@ -160,16 +160,16 @@ step_run() {
     fi
     link_game_data
 
-    info "使用 Data/<语言>/realmlist.wtf 中已有的服务器设置（脚本不会修改）。"
+    info "Using the server set in Data/<locale>/realmlist.wtf (this script does not change it)."
     cd "$OUTPUT_DIR"
     nohup "$EXECUTABLE" >"$LOG_FILE" 2>&1 &
     pid=$!
     sleep 3
     if ! kill -0 "$pid" 2>/dev/null; then
         tail -n 20 "$LOG_FILE" >&2 || true
-        die "客户端启动后立即退出，详见 $LOG_FILE"
+        die "The client exited right after starting; see $LOG_FILE"
     fi
-    info "客户端已启动（PID $pid），输出记录在 $LOG_FILE"
+    info "Client started (PID $pid); output is logged to $LOG_FILE"
 }
 
 run_choice() {
@@ -177,7 +177,7 @@ run_choice() {
         1 | setup) step_configure ;;
         2 | build) step_build ;;
         3 | run) step_run ;;
-        *) die "未知选项：$1（可选 1、2、3）" ;;
+        *) die "Unknown option: $1 (choose 1, 2 or 3)" ;;
     esac
 }
 
@@ -189,12 +189,12 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         --client)
-            [ $# -ge 2 ] || die "--client 需要一个路径。"
+            [ $# -ge 2 ] || die "--client requires a path."
             CLIENT_PATH="$2"
             shift 2
             ;;
         *)
-            [ -z "$CHOICE" ] || die "只能指定一个步骤。"
+            [ -z "$CHOICE" ] || die "Only one step can be specified."
             CHOICE="$1"
             shift
             ;;
@@ -203,11 +203,11 @@ done
 
 if [ -z "$CHOICE" ]; then
     echo "wowdecomp macOS"
-    echo "  1) 配置：检查/安装依赖（Xcode 命令行工具、Homebrew、CMake、SDL2、xvid）并生成构建"
-    echo "  2) 编译：编译客户端 bin/Mac/Wow"
-    echo "  3) 启动：链接游戏数据并启动客户端（需要时自动编译）"
-    echo "  q) 退出"
-    read -r -p "请选择 [1/2/3/q]：" CHOICE
+    echo "  1) Configure: check/install dependencies (Xcode Command Line Tools, Homebrew, CMake, SDL2, xvid) and generate the build"
+    echo "  2) Build: compile the client bin/Mac/Wow"
+    echo "  3) Launch: link game data and start the client (builds first if needed)"
+    echo "  q) Quit"
+    read -r -p "Choose [1/2/3/q]: " CHOICE
     case "$CHOICE" in
         q | Q | "") exit 0 ;;
     esac
