@@ -313,14 +313,14 @@ CGChatBubbleFrame::CGChatBubbleFrame(CSimpleFrame* parent) : CSimpleFrame(parent
     backdrop->m_tileSize = NDCToDDCWidth(16.0f / (CoordinateGetAspectCompensation() * 1024.0f));
     this->SetBackdrop(backdrop);
 
-    void* textureData = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* textureData = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
     CSimpleTexture* tail = textureData ? new (textureData) CSimpleTexture(this, 2, 1) : nullptr;
     tail->SetTexture("Interface\\Tooltips\\ChatBubble-Tail", 0, 0, CSimpleTexture::s_textureFilterMode, ImageMode_Normal);
     tail->SetWidth(NDCToDDCWidth(16.0f / (CoordinateGetAspectCompensation() * 1024.0f)));
     tail->SetHeight(NDCToDDCWidth(16.0f / (CoordinateGetAspectCompensation() * 1024.0f)));
     tail->SetPoint(FRAMEPOINT_TOPRIGHT, this, FRAMEPOINT_BOTTOM, 0.0f, NDCToDDCWidth(4.0f / (CoordinateGetAspectCompensation() * 1024.0f)), 1);
 
-    void* stringData = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
+    void* stringData = CSimpleFontString::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleFontString), SLOG_OBJECT);
     this->m_fontString = stringData ? new (stringData) CSimpleFontString(this, 2, 1) : nullptr;
     this->m_fontString->SetFont(FrameScript_GetText("NAMEPLATE_FONT", -1, GENDER_NOT_APPLICABLE), 0.01f, 0, false);
     this->m_fontString->SetNonSpaceWrap(1);
@@ -354,7 +354,7 @@ CGChatBubbleFrame* CGChatBubbleFrame::GetNewChatBubble(CSimpleFrame* parent) {
     CGChatBubbleFrame* bubble = s_freeChatBubbles.Head();
 
     if (!bubble) {
-        void* data = CGChatBubbleFrame::s_chatBubbleHeap.GetData(0, typeid(CGChatBubbleFrame).raw_name(), SLOG_OBJECT);
+        void* data = CGChatBubbleFrame::s_chatBubbleHeap.GetData(0, STORM_TYPE_NAME(CGChatBubbleFrame), SLOG_OBJECT);
         bubble = data ? new (data) CGChatBubbleFrame(parent) : nullptr;
     }
 

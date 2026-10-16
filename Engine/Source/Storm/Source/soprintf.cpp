@@ -5,6 +5,10 @@
 #include <cstring>
 #include "Engine/Source/Storm/H/storm.h"
 
+#if !defined(_WIN32)
+#define _snprintf snprintf
+#endif
+
 #define MAX_ARGUMENTS 64
 #define MAX_SPECIFIER_LENGTH 64
 #define UNBOUNDED_OUTPUT_SIZE 0x100000

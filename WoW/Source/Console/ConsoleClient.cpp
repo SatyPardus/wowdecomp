@@ -1,7 +1,6 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
-#include <malloc.h>
 #include <new>
 #include <typeinfo>
 #include "ConsoleClient.h"
@@ -512,7 +511,7 @@ static void EnforceMaxLines() {
     }
 
     node->~CONSOLELINE();
-    SMemFree(node, typeid(CONSOLELINE).raw_name(), SLOG_OBJECT, 0);
+    SMemFree(node, STORM_TYPE_NAME(CONSOLELINE), SLOG_OBJECT, 0);
     s_NumLines--;
 }
 

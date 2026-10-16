@@ -12,12 +12,12 @@
 class EvtContext;
 
 namespace Event {
-    extern volatile long s_threadListContention;
+    extern volatile int32_t s_threadListContention;
     extern TSList<EvtThread, TSGetLink<EvtThread> > s_threadList;
     extern EvtContext* s_currentEvtContext;
     extern uint32_t s_mainThread;
     extern int32_t s_originalThreadPriority;
-    extern volatile long s_interactiveCount;
+    extern volatile int32_t s_interactiveCount;
     extern uint32_t s_threadSlotCount;
     extern EvtThread** s_threadSlots;
     extern SCritSect* s_threadSlotCritsects;

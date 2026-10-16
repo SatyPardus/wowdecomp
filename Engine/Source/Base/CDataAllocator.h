@@ -39,7 +39,7 @@ class CDataAllocator {
 // OFFSET: [0x007D4920, 0x007E55F0, 0x007E6C60]
 template <class T>
 T* CDataAllocator::New(int32_t zero) {
-    void* data = this->GetData(zero, typeid(T).raw_name(), SLOG_OBJECT);
+    void* data = this->GetData(zero, STORM_TYPE_NAME(T), SLOG_OBJECT);
     return data ? new (data) T : nullptr;
 }
 

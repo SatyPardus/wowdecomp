@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <windows.h>
 #include "WoW/Source/Object/ObjectClient/Types.h"
 #include "WoW/Source/Object/Types.h"
 #include "WoW/Source/Object/WGUID.h"

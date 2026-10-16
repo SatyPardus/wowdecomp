@@ -1,8 +1,11 @@
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
+#if defined(__SSE2__)
 #include <emmintrin.h>
+#endif
 #include <new>
 #include <typeinfo>
 #if defined(_MSC_VER)
@@ -259,6 +262,7 @@ void* CCharacterComponent::LoadItemComponentTexture(const ItemDisplayInfoRec* di
 // VERIFY: c2d32b47 manual
 // OFFSET: 0x004E7030
 static void CompressBlockSSE(const uint8_t* src, uint32_t stride, uint32_t* out) {
+#if defined(__SSE2__)
     const __m128i zero = _mm_setzero_si128();
     const __m128 scale = _mm_set1_ps(1.0f / 255.0f);
 
@@ -377,6 +381,96 @@ static void CompressBlockSSE(const uint8_t* src, uint32_t stride, uint32_t* out)
 
     out[0] = color0 | (color1 << 16);
     out[1] = indices;
+#else
+    float pixels[16][3];
+    float mean[3] = {};
+
+    for (int32_t y = 0; y < 4; y++) {
+        for (int32_t x = 0; x < 4; x++) {
+            const uint8_t* pixel = src + y * stride + x * 4;
+            int32_t index = y * 4 + x;
+            for (int32_t channel = 0; channel < 3; channel++) {
+                pixels[index][channel] = pixel[channel] / 255.0f;
+                mean[channel] += pixels[index][channel] / 16.0f;
+            }
+        }
+    }
+
+    float covariance[3][3] = {};
+    for (int32_t i = 0; i < 16; i++) {
+        for (int32_t row = 0; row < 3; row++) {
+            for (int32_t column = 0; column < 3; column++) {
+                covariance[row][column] += (pixels[i][row] - mean[row]) * (pixels[i][column] - mean[column]);
+            }
+        }
+    }
+
+    float axis[3] = { 1.0f, 1.0f, 1.0f };
+    for (int32_t iteration = 0; iteration < 8; iteration++) {
+        float next[3];
+        for (int32_t row = 0; row < 3; row++) {
+            next[row] = covariance[row][0] * axis[0] + covariance[row][1] * axis[1] + covariance[row][2] * axis[2];
+        }
+
+        float largest = std::max(next[0], std::max(next[1], next[2]));
+        if (largest != 0.0f) {
+            for (int32_t i = 0; i < 3; i++) {
+                axis[i] = next[i] / largest;
+            }
+        } else {
+            axis[0] = axis[1] = axis[2] = 0.0f;
+        }
+    }
+
+    float length = std::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    if (length != 0.0f) {
+        for (float& component : axis) {
+            component /= length;
+        }
+    }
+
+    float projections[16];
+    float minProjection = 1.0f;
+    float maxProjection = -1.0f;
+    for (int32_t i = 0; i < 16; i++) {
+        projections[i] = (pixels[i][0] - mean[0]) * axis[0]
+            + (pixels[i][1] - mean[1]) * axis[1]
+            + (pixels[i][2] - mean[2]) * axis[2];
+        minProjection = std::min(minProjection, projections[i]);
+        maxProjection = std::max(maxProjection, projections[i]);
+    }
+
+    auto toRgb565 = [](float red, float green, float blue) {
+        auto toByteValue = [](float value) {
+            int32_t rounded = static_cast<int32_t>(std::nearbyint(value * 255.0f));
+            return static_cast<uint32_t>(std::max(0, std::min(255, rounded)));
+        };
+        return (toByteValue(red) >> 3) | ((toByteValue(green) >> 2) << 5) | ((toByteValue(blue) >> 3) << 11);
+    };
+
+    uint32_t color0 = toRgb565(mean[0] + axis[0] * maxProjection, mean[1] + axis[1] * maxProjection, mean[2] + axis[2] * maxProjection);
+    uint32_t color1 = toRgb565(mean[0] + axis[0] * minProjection, mean[1] + axis[1] * minProjection, mean[2] + axis[2] * minProjection);
+    uint32_t indices = 0;
+
+    if (color0 != color1) {
+        float scale = 3.0f / (maxProjection - minProjection);
+        static const uint32_t indexMap[4] = { 1, 3, 2, 0 };
+
+        for (int32_t i = 0; i < 16; i++) {
+            int32_t quantized = static_cast<int32_t>(std::nearbyint((projections[i] - minProjection) * scale));
+            quantized = std::max(0, std::min(3, quantized));
+            indices |= indexMap[quantized] << (2 * i);
+        }
+
+        if (color0 < color1) {
+            std::swap(color0, color1);
+            indices ^= 0x55555555;
+        }
+    }
+
+    out[0] = color0 | (color1 << 16);
+    out[1] = indices;
+#endif
 }
 
 // VERIFY: 4cd9c152 manual

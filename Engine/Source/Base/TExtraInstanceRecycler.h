@@ -35,12 +35,12 @@ T* TExtraInstanceRecycler<T>::New(uint32_t extraBytes) {
     uint32_t allocated;
 
     if (bytes > this->m_recycleBytes) {
-        data = this->AllocData(bytes, &allocated, typeid(T).raw_name(), SLOG_OBJECT);
+        data = this->AllocData(bytes, &allocated, STORM_TYPE_NAME(T), SLOG_OBJECT);
     } else {
-        this->GetData(data, allocated, typeid(T).raw_name(), SLOG_OBJECT);
+        this->GetData(data, allocated, STORM_TYPE_NAME(T), SLOG_OBJECT);
 
         if (allocated < bytes) {
-            data = this->ReallocData(data, bytes, &allocated, typeid(T).raw_name(), SLOG_OBJECT);
+            data = this->ReallocData(data, bytes, &allocated, STORM_TYPE_NAME(T), SLOG_OBJECT);
         }
     }
 
@@ -58,9 +58,9 @@ void TExtraInstanceRecycler<T>::Delete(T* ptr) {
     ptr->~T();
 
     if (bytes > this->m_recycleBytes) {
-        this->FreeData(ptr, typeid(T).raw_name(), SLOG_OBJECT);
+        this->FreeData(ptr, STORM_TYPE_NAME(T), SLOG_OBJECT);
     } else {
-        this->PutData(ptr, bytes, typeid(T).raw_name(), SLOG_OBJECT);
+        this->PutData(ptr, bytes, STORM_TYPE_NAME(T), SLOG_OBJECT);
     }
 }
 

@@ -1,5 +1,6 @@
 #include "World.h"
 #include <cstdlib>
+#include <cfloat>
 #include <new>
 #include <algorithm>
 #include <cmath>
@@ -1760,7 +1761,7 @@ bool World::IsValidPosition(const C3Vector& position, float a4) {
 // VERIFY: 8553e69c auto
 // OFFSET: 0x00406DE0
 bool World::IsValidPosition(float x, float y, float z, float a4) {
-    if (_finite(x) && _finite(y) && _finite(z)) {
+    if (std::isfinite(x) && std::isfinite(y) && std::isfinite(z)) {
         float v4 = -(y - 17066.666f);
         float v5 = -(x - 17066.666f);
 

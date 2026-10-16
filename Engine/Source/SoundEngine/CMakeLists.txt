@@ -7,33 +7,61 @@ set(FMODEX_FLAC_DIR ${FMODEX_DIR}/lib/flac-1.1.4)
 
 file(GLOB FMODEX_SOURCES CONFIGURE_DEPENDS
     "${FMODEX_DIR}/src/*.cpp"
-    "${FMODEX_DIR}/win32/src/*.cpp"
-    "${FMODEX_DIR}/win32/src/asio/*.cpp"
     "${FMODEX_DIR}/lib/ogg_vorbis/ogg/src/*.c"
     "${FMODEX_DIR}/lib/ogg_vorbis/vorbis/lib/*.c"
     "${FMODEX_FLAC_DIR}/src/libFLAC/*.c"
-    "${FMODEX_DIR}/lib/openal/utils/*.cpp"
     "${FMODEX_DIR}/lib/freeverb/*.cpp"
     "${FMODEX_DIR}/lib/sfx/foreverb/*.cpp"
 )
 
+if (WIN32)
+    file(GLOB FMODEX_WINDOWS_SOURCES CONFIGURE_DEPENDS
+        "${FMODEX_DIR}/win32/src/*.cpp"
+        "${FMODEX_DIR}/win32/src/asio/*.cpp"
+        "${FMODEX_DIR}/lib/openal/utils/*.cpp"
+    )
+    list(APPEND FMODEX_SOURCES ${FMODEX_WINDOWS_SOURCES})
+elseif (APPLE)
+    file(GLOB FMODEX_MAC_SOURCES CONFIGURE_DEPENDS
+        "${FMODEX_DIR}/mac/src/*.cpp"
+    )
+    list(APPEND FMODEX_SOURCES
+        ${FMODEX_MAC_SOURCES}
+        "${FMODEX_DIR}/win32/src/fmod_dsp_distortion.cpp"
+    )
+endif ()
+
 add_library(fmodex STATIC ${FMODEX_SOURCES})
+
+set_target_properties(fmodex PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON
+)
 
 target_include_directories(fmodex
     PUBLIC
         ${FMODEX_DIR}/src
     PRIVATE
-        ${FMODEX_DIR}/win32/src
         ${FMODEX_DIR}/lib/ogg_vorbis/ogg/include
         ${FMODEX_DIR}/lib/ogg_vorbis/vorbis/include
         ${FMODEX_DIR}/lib/ogg_vorbis/vorbis/lib
         ${FMODEX_FLAC_DIR}/include
         ${FMODEX_FLAC_DIR}/src/libFLAC/include
         ${FMODEX_DIR}/lib/openal/include
-        ${FMODEX_DIR}/win32/lib/wmsdk/include
         ${FMODEX_DIR}/lib/sfx/foreverb
         ${FMODEX_DIR}/lib/freeverb
 )
+
+if (WIN32)
+    target_include_directories(fmodex PRIVATE
+        ${FMODEX_DIR}/win32/src
+        ${FMODEX_DIR}/win32/lib/wmsdk/include
+    )
+elseif (APPLE)
+    target_include_directories(fmodex PRIVATE
+        ${FMODEX_DIR}/mac/src
+    )
+endif ()
 
 target_compile_definitions(fmodex
     PRIVATE
@@ -41,12 +69,19 @@ target_compile_definitions(fmodex
         FLAC__HAS_OGG=1
 )
 
-target_link_libraries(fmodex
-    INTERFACE
-        winmm
-        ws2_32
-        msacm32
-)
+if (WIN32)
+    target_link_libraries(fmodex
+        INTERFACE
+            winmm
+            ws2_32
+            msacm32
+    )
+elseif (APPLE)
+    target_link_libraries(fmodex
+        PUBLIC
+            SDL2::SDL2
+    )
+endif ()
 
 if (MSVC)
     target_compile_options(fmodex PRIVATE /MP)

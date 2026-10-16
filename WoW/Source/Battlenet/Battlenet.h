@@ -139,6 +139,19 @@ class WindowsLibrary : public Library {
     void* GetProc(uint32_t ordinal) override;
 };
 
+#if !defined(_WIN32)
+class PosixLibrary : public Library {
+    public:
+    void* m_module;
+    Allocator* m_allocator;
+
+    void Destroy() override;
+    ~PosixLibrary() override;
+    void* GetProc(const char* name) override;
+    void* GetProc(uint32_t ordinal) override;
+};
+#endif
+
 bool GetProc(Library* library, void*& proc, uint32_t ordinal);
 uint32_t StringCopy(void* dest, const char* source, uint32_t size);
 

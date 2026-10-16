@@ -8,6 +8,11 @@
 #ifndef lconfig_h
 #define lconfig_h
 
+#if !defined(_MSC_VER)
+#include <stdint.h>
+#define __int64 int64_t
+#endif
+
 #include <limits.h>
 #include <stddef.h>
 
@@ -752,4 +757,3 @@ union luai_Cast { double l_d; long l_l; };
 
 
 #endif
-

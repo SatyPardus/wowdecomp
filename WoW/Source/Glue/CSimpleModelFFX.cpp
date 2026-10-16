@@ -130,7 +130,7 @@ void CSimpleModelFFX::operator delete(void* ptr) {
 // VERIFY: 9f5b0582 auto
 // OFFSET: 0x004E6300
 CSimpleFrame* CSimpleModelFFX::Create(CSimpleFrame* parent) {
-    void* data = CSimpleModelFFX::s_simpleModelFFXHeap.GetData(0, typeid(CSimpleModelFFX).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleModelFFX::s_simpleModelFFXHeap.GetData(0, STORM_TYPE_NAME(CSimpleModelFFX), SLOG_OBJECT);
     return data ? new (data) CSimpleModelFFX(parent) : nullptr;
 }
 

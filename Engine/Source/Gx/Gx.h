@@ -49,8 +49,10 @@ class GxDrawListEntry {
     GxDrawListEntry();
 };
 
+#if defined(_WIN32)
 CGxDevice* CreateCGxDeviceD3d();
 CGxDevice* CreateCGxDeviceD3d9Ex();
+#endif
 CGxDevice* CreateCGxDeviceOpenGl();
 CGxDevice* CreateGxDevice(EGxApi api, GxWindowProc windowProc, const CGxFormat& format);
 int32_t GxAdapterDesktopMode(CGxMonitorMode& mode);

@@ -89,19 +89,26 @@ Battlenet::Library::~Library() {
 // OFFSET: 0x009C29C0
 Battlenet::Library* Battlenet::Library::LoadApplicationBundle(const char* name, Allocator& allocator) {
     uint32_t length = SStrLen(name);
-
-    if (length + 5 < length) {
+#if defined(_WIN32)
+    const char* extension = ".dll";
+#elif defined(__APPLE__)
+    const char* extension = ".dylib";
+#else
+    const char* extension = ".so";
+#endif
+    const uint32_t extensionLength = static_cast<uint32_t>(strlen(extension));
+    if (length > UINT32_MAX - extensionLength - 1) {
         return nullptr;
     }
 
-    char* path = static_cast<char*>(allocator.Alloc(length + 5));
+    char* path = static_cast<char*>(allocator.Alloc(length + extensionLength + 1));
 
     if (!path) {
         return nullptr;
     }
 
     memcpy(path, name, length);
-    strcpy(&path[length], ".dll");
+    memcpy(path + length, extension, extensionLength + 1);
 
     Library* library = Battlenet::Library::Load(path, allocator);
     allocator.Free(path);
@@ -110,11 +117,13 @@ Battlenet::Library* Battlenet::Library::LoadApplicationBundle(const char* name, 
 
 // VERIFY: dc515e8e auto
 // OFFSET: 0x009C2A70
+#if defined(_WIN32)
 void Battlenet::WindowsLibrary::Destroy() {
     Allocator* allocator = this->m_allocator;
     this->~WindowsLibrary();
     allocator->Free(this);
 }
+#endif
 
 // VERIFY: 82c53b15 auto
 // OFFSET: 0x009C2010

@@ -182,14 +182,14 @@ CSimpleEditBox::CSimpleEditBox(CSimpleFrame* parent) : CSimpleFrame(parent) {
     this->m_font = new (SMemAlloc(sizeof(CSimpleFontedFrameFont), __FILE__, __LINE__, 0)) CSimpleFontedFrameFont(this);
     this->m_font->m_attributes.SetJustifyH(0x1);
 
-    void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleFontString::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleFontString), SLOG_OBJECT);
     this->m_fontString = data ? new (data) CSimpleFontString(this, 2, true) : nullptr;
     this->m_fontString->SetFontObject(this->m_font);
 
     this->SetMultiLine(0);
 
     for (uint32_t i = 0; i < 3; i++) {
-        data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         this->m_highlightTextures[i] = data ? new (data) CSimpleTexture(this, 2, 0) : nullptr;
     }
 
@@ -203,7 +203,7 @@ CSimpleEditBox::CSimpleEditBox(CSimpleFrame* parent) : CSimpleFrame(parent) {
         this->m_highlightTextures[i]->SetTexture(highlightColor);
     }
 
-    data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
     this->m_cursorTexture = data ? new (data) CSimpleTexture(this, 3, 1) : nullptr;
     this->m_cursorTexture->Hide();
 
@@ -844,7 +844,7 @@ void CSimpleEditBox::CreateClauseHighlight() {
         return;
     }
 
-    void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
     this->m_clauseHighlight = data ? new (data) CSimpleTexture(this, 3, 1) : nullptr;
 
     CImVector color;
@@ -1975,7 +1975,7 @@ void CSimpleEditBox::CreateCandidatesFrame() {
 
     float fontHeight = this->m_fontString->GetFontHeight(true);
 
-    void* data = CSimpleMessageFrame::s_allocator.GetData(0, typeid(CSimpleMessageFrame).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleMessageFrame::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleMessageFrame), SLOG_OBJECT);
     this->m_candidatesFrame = data ? new (data) CSimpleMessageFrame(nullptr) : nullptr;
     this->m_candidatesFrame->SetFrameStrata(FRAME_STRATA_TOOLTIP);
     this->m_candidatesFrame->m_font->SetFontObject(this->m_font);
@@ -1988,7 +1988,7 @@ void CSimpleEditBox::CreateCandidatesFrame() {
     this->m_candidatesFrame->SetInsertMode(0);
 
     CSimpleTexture* background = nullptr;
-    data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
 
     if (data) {
         background = new (data) CSimpleTexture(this->m_candidatesFrame, 0, 1);
@@ -2002,7 +2002,7 @@ void CSimpleEditBox::CreateCandidatesFrame() {
     background->SetTexture(backgroundColor);
     background->SetAllPoints(this->m_candidatesFrame, 1);
 
-    data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
     this->m_candidateHighlight = data ? new (data) CSimpleTexture(this->m_candidatesFrame, 2, 1) : nullptr;
 
     CImVector highlightColor;

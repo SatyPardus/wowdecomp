@@ -3,7 +3,6 @@
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/Game/GameClient/ComSatClient.h"
-#include <malloc.h>
 #include <new>
 
 // VERIFY: ed1c5c8c manual

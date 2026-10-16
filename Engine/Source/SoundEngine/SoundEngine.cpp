@@ -2448,7 +2448,7 @@ static void ProcessDeleteList(int32_t force) {
 
             sound->m_channel = nullptr;
             sound->~SESoundInternal();
-            SMemFree(sound, typeid(SESoundInternal).raw_name(), SLOG_OBJECT, 0);
+            SMemFree(sound, STORM_TYPE_NAME(SESoundInternal), SLOG_OBJECT, 0);
         }
 
         sound = next;
@@ -2772,7 +2772,7 @@ void SE2::StopAllSounds(int32_t restart) {
                 } else {
                     SESoundInternal* next = s_soundList.Next(sound);
                     sound->~SESoundInternal();
-                    SMemFree(sound, typeid(SESoundInternal).raw_name(), SLOG_OBJECT, 0);
+                    SMemFree(sound, STORM_TYPE_NAME(SESoundInternal), SLOG_OBJECT, 0);
                     sound = next;
                 }
             }

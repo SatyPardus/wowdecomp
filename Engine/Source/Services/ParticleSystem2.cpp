@@ -1840,7 +1840,7 @@ void CParticleEmitter2::DetermineIfSimple() {
 
 // VERIFY: 4fbdf517 manual
 // OFFSET: 0x0097D730
-CSortableParticleQueue::CSortableParticleQueue(const uint32_t* params) : CMemBlock(sizeof(CSortableParticleRecord) * params[0], 0, typeid(CSortableParticleRecord).raw_name(), SLOG_OBJECT) {
+CSortableParticleQueue::CSortableParticleQueue(const uint32_t* params) : CMemBlock(sizeof(CSortableParticleRecord) * params[0], 0, STORM_TYPE_NAME(CSortableParticleRecord), SLOG_OBJECT) {
     uint32_t count = params[0];
     uint32_t chunk = params[1];
 

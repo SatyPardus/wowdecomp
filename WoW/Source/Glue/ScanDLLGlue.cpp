@@ -14,10 +14,10 @@
 char CGlueMgr::m_scandllHackName[512];
 
 // STATIC: 0x00B6B468
-static volatile long s_downloadComplete;
+static volatile int32_t s_downloadComplete;
 
 // STATIC: 0x00B6B46C
-volatile long CGlueMgr::m_scandllStatus;
+volatile int32_t CGlueMgr::m_scandllStatus;
 
 // STATIC: 0x00B6B470
 const char* CGlueMgr::m_scandllResult;

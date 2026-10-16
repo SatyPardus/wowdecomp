@@ -2,6 +2,11 @@
 #include <cstdlib>
 #include <cstring>
 #include "Engine/Source/Gx/CGxDeviceOpenGL/GlExt.h"
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <SDL.h>
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00C6061C
@@ -9,6 +14,14 @@ static const char* s_wglExtensions;
 
 // STATIC: 0x00C60620
 static const char* s_glExtensions;
+
+static void* GxGlGetProcAddress(const char* name) {
+#if defined(_WIN32)
+    return reinterpret_cast<void*>(wglGetProcAddress(name));
+#else
+    return SDL_GL_GetProcAddress(name);
+#endif
+}
 
 // STATIC: 0x00C6044C
 int32_t glExtGPUProgramParameters;
@@ -383,6 +396,7 @@ bool FindGlExt(const char* name) {
 // VERIFY: 5f60079f auto
 // OFFSET: 0x00690960
 bool HasWGLExtension(const char* name) {
+#if defined(_WIN32)
     if (!wglGetExtensionsStringARB) {
         return false;
     }
@@ -392,6 +406,10 @@ bool HasWGLExtension(const char* name) {
     }
 
     return ScanString(s_wglExtensions, name);
+#else
+    (void)name;
+    return false;
+#endif
 }
 
 // VERIFY: df2e8e3f auto
@@ -405,14 +423,14 @@ void BindGlExtensions() {
     glExtCVA = FindGlExt("GL_EXT_compiled_vertex_array");
 
     if (glExtCVA) {
-        glLockArraysEXT = reinterpret_cast<PFNGLLOCKARRAYSEXTPROC>(wglGetProcAddress("glLockArraysEXT"));
-        glUnlockArraysEXT = reinterpret_cast<PFNGLUNLOCKARRAYSEXTPROC>(wglGetProcAddress("glUnlockArraysEXT"));
+        glLockArraysEXT = reinterpret_cast<PFNGLLOCKARRAYSEXTPROC>(GxGlGetProcAddress("glLockArraysEXT"));
+        glUnlockArraysEXT = reinterpret_cast<PFNGLUNLOCKARRAYSEXTPROC>(GxGlGetProcAddress("glUnlockArraysEXT"));
     }
 
     if (FindGlExt("GL_ARB_multitexture")) {
         glGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &glMaxTextureUnits);
-        glActiveTextureARB = reinterpret_cast<PFNGLACTIVETEXTUREARBPROC>(wglGetProcAddress("glActiveTextureARB"));
-        glClientActiveTextureARB = reinterpret_cast<PFNGLCLIENTACTIVETEXTUREARBPROC>(wglGetProcAddress("glClientActiveTextureARB"));
+        glActiveTextureARB = reinterpret_cast<PFNGLACTIVETEXTUREARBPROC>(GxGlGetProcAddress("glActiveTextureARB"));
+        glClientActiveTextureARB = reinterpret_cast<PFNGLCLIENTACTIVETEXTUREARBPROC>(GxGlGetProcAddress("glClientActiveTextureARB"));
     } else {
         glMaxTextureUnits = 1;
     }
@@ -454,8 +472,8 @@ void BindGlExtensions() {
     glExtTextureCompressionS3tc = FindGlExt("GL_EXT_texture_compression_s3tc");
 
     if (glExtTextureCompression && glExtTextureCompressionS3tc) {
-        glCompressedTexImage2DARB = reinterpret_cast<PFNGLCOMPRESSEDTEXIMAGE2DARBPROC>(wglGetProcAddress(compressedTexImage2D));
-        glCompressedTexSubImage2DARB = reinterpret_cast<PFNGLCOMPRESSEDTEXSUBIMAGE2DARBPROC>(wglGetProcAddress(compressedTexSubImage2D));
+        glCompressedTexImage2DARB = reinterpret_cast<PFNGLCOMPRESSEDTEXIMAGE2DARBPROC>(GxGlGetProcAddress(compressedTexImage2D));
+        glCompressedTexSubImage2DARB = reinterpret_cast<PFNGLCOMPRESSEDTEXSUBIMAGE2DARBPROC>(GxGlGetProcAddress(compressedTexSubImage2D));
     }
 
     if (!glCompressedTexImage2DARB || !glCompressedTexSubImage2DARB) {
@@ -468,19 +486,19 @@ void BindGlExtensions() {
     glARBVertexBufferObject = FindGlExt("GL_ARB_vertex_buffer_object");
 
     if (glARBVertexBufferObject) {
-        glBindBufferARB = reinterpret_cast<PFNGLBINDBUFFERARBPROC>(wglGetProcAddress("glBindBufferARB"));
-        glDeleteBuffersARB = reinterpret_cast<PFNGLDELETEBUFFERSARBPROC>(wglGetProcAddress("glDeleteBuffersARB"));
-        glGenBuffersARB = reinterpret_cast<PFNGLGENBUFFERSARBPROC>(wglGetProcAddress("glGenBuffersARB"));
-        glBufferDataARB = reinterpret_cast<PFNGLBUFFERDATAARBPROC>(wglGetProcAddress("glBufferDataARB"));
-        glBufferSubDataARB = reinterpret_cast<PFNGLBUFFERSUBDATAARBPROC>(wglGetProcAddress("glBufferSubDataARB"));
-        glMapBufferARB = reinterpret_cast<PFNGLMAPBUFFERARBPROC>(wglGetProcAddress("glMapBufferARB"));
-        glUnmapBufferARB = reinterpret_cast<PFNGLUNMAPBUFFERARBPROC>(wglGetProcAddress("glUnmapBufferARB"));
+        glBindBufferARB = reinterpret_cast<PFNGLBINDBUFFERARBPROC>(GxGlGetProcAddress("glBindBufferARB"));
+        glDeleteBuffersARB = reinterpret_cast<PFNGLDELETEBUFFERSARBPROC>(GxGlGetProcAddress("glDeleteBuffersARB"));
+        glGenBuffersARB = reinterpret_cast<PFNGLGENBUFFERSARBPROC>(GxGlGetProcAddress("glGenBuffersARB"));
+        glBufferDataARB = reinterpret_cast<PFNGLBUFFERDATAARBPROC>(GxGlGetProcAddress("glBufferDataARB"));
+        glBufferSubDataARB = reinterpret_cast<PFNGLBUFFERSUBDATAARBPROC>(GxGlGetProcAddress("glBufferSubDataARB"));
+        glMapBufferARB = reinterpret_cast<PFNGLMAPBUFFERARBPROC>(GxGlGetProcAddress("glMapBufferARB"));
+        glUnmapBufferARB = reinterpret_cast<PFNGLUNMAPBUFFERARBPROC>(GxGlGetProcAddress("glUnmapBufferARB"));
     }
 
     glExtDrawRangeElements = FindGlExt("GL_EXT_draw_range_elements");
 
     if (glExtDrawRangeElements) {
-        glDrawRangeElementsEXT = reinterpret_cast<PFNGLDRAWRANGEELEMENTSEXTPROC>(wglGetProcAddress("glDrawRangeElementsEXT"));
+        glDrawRangeElementsEXT = reinterpret_cast<PFNGLDRAWRANGEELEMENTSEXTPROC>(GxGlGetProcAddress("glDrawRangeElementsEXT"));
 
         GLint maxVertices;
         GLint maxIndices;
@@ -493,17 +511,17 @@ void BindGlExtensions() {
     glNVRegisterCombiners = FindGlExt("GL_NV_register_combiners");
 
     if (glNVRegisterCombiners) {
-        glCombinerInputNV = reinterpret_cast<PFNGLCOMBINERINPUTNVPROC>(wglGetProcAddress("glCombinerInputNV"));
-        glCombinerOutputNV = reinterpret_cast<PFNGLCOMBINEROUTPUTNVPROC>(wglGetProcAddress("glCombinerOutputNV"));
-        glFinalCombinerInputNV = reinterpret_cast<PFNGLFINALCOMBINERINPUTNVPROC>(wglGetProcAddress("glFinalCombinerInputNV"));
-        glCombinerParameterfvNV = reinterpret_cast<PFNGLCOMBINERPARAMETERFVNVPROC>(wglGetProcAddress("glCombinerParameterfvNV"));
-        glCombinerParameteriNV = reinterpret_cast<PFNGLCOMBINERPARAMETERINVPROC>(wglGetProcAddress("glCombinerParameteriNV"));
+        glCombinerInputNV = reinterpret_cast<PFNGLCOMBINERINPUTNVPROC>(GxGlGetProcAddress("glCombinerInputNV"));
+        glCombinerOutputNV = reinterpret_cast<PFNGLCOMBINEROUTPUTNVPROC>(GxGlGetProcAddress("glCombinerOutputNV"));
+        glFinalCombinerInputNV = reinterpret_cast<PFNGLFINALCOMBINERINPUTNVPROC>(GxGlGetProcAddress("glFinalCombinerInputNV"));
+        glCombinerParameterfvNV = reinterpret_cast<PFNGLCOMBINERPARAMETERFVNVPROC>(GxGlGetProcAddress("glCombinerParameterfvNV"));
+        glCombinerParameteriNV = reinterpret_cast<PFNGLCOMBINERPARAMETERINVPROC>(GxGlGetProcAddress("glCombinerParameteriNV"));
     }
 
     glNVRegisterCombiners2 = FindGlExt("GL_NV_register_combiners2");
 
     if (glNVRegisterCombiners2) {
-        glCombinerStageParameterfvNV = reinterpret_cast<PFNGLCOMBINERSTAGEPARAMETERFVNVPROC>(wglGetProcAddress("glCombinerStageParameterfvNV"));
+        glCombinerStageParameterfvNV = reinterpret_cast<PFNGLCOMBINERSTAGEPARAMETERFVNVPROC>(GxGlGetProcAddress("glCombinerStageParameterfvNV"));
     }
 
     glNVTextureShader = FindGlExt("GL_NV_texture_shader");
@@ -514,38 +532,38 @@ void BindGlExtensions() {
     glARBFragmentProgram = FindGlExt("GL_ARB_fragment_program");
 
     if (glARBFragmentProgram) {
-        glProgramStringARB = reinterpret_cast<PFNGLPROGRAMSTRINGARBPROC>(wglGetProcAddress("glProgramStringARB"));
-        glBindProgramARB = reinterpret_cast<PFNGLBINDPROGRAMARBPROC>(wglGetProcAddress("glBindProgramARB"));
-        glProgramLocalParameter4fvARB = reinterpret_cast<PFNGLPROGRAMLOCALPARAMETER4FVARBPROC>(wglGetProcAddress("glProgramLocalParameter4fvARB"));
-        glDeleteProgramsARB = reinterpret_cast<PFNGLDELETEPROGRAMSARBPROC>(wglGetProcAddress("glDeleteProgramsARB"));
-        glGenProgramsARB = reinterpret_cast<PFNGLGENPROGRAMSARBPROC>(wglGetProcAddress("glGenProgramsARB"));
-        glIsProgramARB = reinterpret_cast<PFNGLISPROGRAMARBPROC>(wglGetProcAddress("glIsProgramARB"));
-        glGetProgramivARB = reinterpret_cast<PFNGLGETPROGRAMIVARBPROC>(wglGetProcAddress("glGetProgramivARB"));
+        glProgramStringARB = reinterpret_cast<PFNGLPROGRAMSTRINGARBPROC>(GxGlGetProcAddress("glProgramStringARB"));
+        glBindProgramARB = reinterpret_cast<PFNGLBINDPROGRAMARBPROC>(GxGlGetProcAddress("glBindProgramARB"));
+        glProgramLocalParameter4fvARB = reinterpret_cast<PFNGLPROGRAMLOCALPARAMETER4FVARBPROC>(GxGlGetProcAddress("glProgramLocalParameter4fvARB"));
+        glDeleteProgramsARB = reinterpret_cast<PFNGLDELETEPROGRAMSARBPROC>(GxGlGetProcAddress("glDeleteProgramsARB"));
+        glGenProgramsARB = reinterpret_cast<PFNGLGENPROGRAMSARBPROC>(GxGlGetProcAddress("glGenProgramsARB"));
+        glIsProgramARB = reinterpret_cast<PFNGLISPROGRAMARBPROC>(GxGlGetProcAddress("glIsProgramARB"));
+        glGetProgramivARB = reinterpret_cast<PFNGLGETPROGRAMIVARBPROC>(GxGlGetProcAddress("glGetProgramivARB"));
         glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS_ARB, &glMaxTextureImageUnitsARB);
     }
 
     glARBVertexProgram = FindGlExt("GL_ARB_vertex_program");
 
     if (glARBVertexProgram) {
-        glVertexAttribPointerARB = reinterpret_cast<PFNGLVERTEXATTRIBPOINTERARBPROC>(wglGetProcAddress("glVertexAttribPointerARB"));
-        glEnableVertexAttribArrayARB = reinterpret_cast<PFNGLENABLEVERTEXATTRIBARRAYARBPROC>(wglGetProcAddress("glEnableVertexAttribArrayARB"));
-        glDisableVertexAttribArrayARB = reinterpret_cast<PFNGLDISABLEVERTEXATTRIBARRAYARBPROC>(wglGetProcAddress("glDisableVertexAttribArrayARB"));
+        glVertexAttribPointerARB = reinterpret_cast<PFNGLVERTEXATTRIBPOINTERARBPROC>(GxGlGetProcAddress("glVertexAttribPointerARB"));
+        glEnableVertexAttribArrayARB = reinterpret_cast<PFNGLENABLEVERTEXATTRIBARRAYARBPROC>(GxGlGetProcAddress("glEnableVertexAttribArrayARB"));
+        glDisableVertexAttribArrayARB = reinterpret_cast<PFNGLDISABLEVERTEXATTRIBARRAYARBPROC>(GxGlGetProcAddress("glDisableVertexAttribArrayARB"));
     }
 
     if (glARBVertexProgram || glARBFragmentProgram) {
-        glProgramStringARB = reinterpret_cast<PFNGLPROGRAMSTRINGARBPROC>(wglGetProcAddress("glProgramStringARB"));
-        glBindProgramARB = reinterpret_cast<PFNGLBINDPROGRAMARBPROC>(wglGetProcAddress("glBindProgramARB"));
-        glProgramEnvParameter4fvARB = reinterpret_cast<PFNGLPROGRAMENVPARAMETER4FVARBPROC>(wglGetProcAddress("glProgramEnvParameter4fvARB"));
-        glProgramLocalParameter4fvARB = reinterpret_cast<PFNGLPROGRAMLOCALPARAMETER4FVARBPROC>(wglGetProcAddress("glProgramLocalParameter4fvARB"));
-        glDeleteProgramsARB = reinterpret_cast<PFNGLDELETEPROGRAMSARBPROC>(wglGetProcAddress("glDeleteProgramsARB"));
-        glGenProgramsARB = reinterpret_cast<PFNGLGENPROGRAMSARBPROC>(wglGetProcAddress("glGenProgramsARB"));
-        glIsProgramARB = reinterpret_cast<PFNGLISPROGRAMARBPROC>(wglGetProcAddress("glIsProgramARB"));
-        glGetProgramivARB = reinterpret_cast<PFNGLGETPROGRAMIVARBPROC>(wglGetProcAddress("glGetProgramivARB"));
+        glProgramStringARB = reinterpret_cast<PFNGLPROGRAMSTRINGARBPROC>(GxGlGetProcAddress("glProgramStringARB"));
+        glBindProgramARB = reinterpret_cast<PFNGLBINDPROGRAMARBPROC>(GxGlGetProcAddress("glBindProgramARB"));
+        glProgramEnvParameter4fvARB = reinterpret_cast<PFNGLPROGRAMENVPARAMETER4FVARBPROC>(GxGlGetProcAddress("glProgramEnvParameter4fvARB"));
+        glProgramLocalParameter4fvARB = reinterpret_cast<PFNGLPROGRAMLOCALPARAMETER4FVARBPROC>(GxGlGetProcAddress("glProgramLocalParameter4fvARB"));
+        glDeleteProgramsARB = reinterpret_cast<PFNGLDELETEPROGRAMSARBPROC>(GxGlGetProcAddress("glDeleteProgramsARB"));
+        glGenProgramsARB = reinterpret_cast<PFNGLGENPROGRAMSARBPROC>(GxGlGetProcAddress("glGenProgramsARB"));
+        glIsProgramARB = reinterpret_cast<PFNGLISPROGRAMARBPROC>(GxGlGetProcAddress("glIsProgramARB"));
+        glGetProgramivARB = reinterpret_cast<PFNGLGETPROGRAMIVARBPROC>(GxGlGetProcAddress("glGetProgramivARB"));
         glExtGPUProgramParameters = FindGlExt("GL_EXT_gpu_program_parameters");
 
         if (glExtGPUProgramParameters) {
-            glProgramEnvParameters4fvEXT = reinterpret_cast<PFNGLPROGRAMENVPARAMETERS4FVEXTPROC>(wglGetProcAddress("glProgramEnvParameters4fvEXT"));
-            glProgramLocalParameters4fvEXT = reinterpret_cast<PFNGLPROGRAMLOCALPARAMETERS4FVEXTPROC>(wglGetProcAddress("glProgramLocalParameters4fvEXT"));
+            glProgramEnvParameters4fvEXT = reinterpret_cast<PFNGLPROGRAMENVPARAMETERS4FVEXTPROC>(GxGlGetProcAddress("glProgramEnvParameters4fvEXT"));
+            glProgramLocalParameters4fvEXT = reinterpret_cast<PFNGLPROGRAMLOCALPARAMETERS4FVEXTPROC>(GxGlGetProcAddress("glProgramLocalParameters4fvEXT"));
         }
     }
 
@@ -570,21 +588,21 @@ void BindGlExtensions() {
 
     if (glVersion >= 0x10005 || FindGlExt("GL_ARB_occlusion_query")) {
         glARBOcclusionQuery = 1;
-        glGenQueriesARB = reinterpret_cast<PFNGLGENQUERIESARBPROC>(wglGetProcAddress("glGenQueriesARB"));
-        glDeleteQueriesARB = reinterpret_cast<PFNGLDELETEQUERIESARBPROC>(wglGetProcAddress("glDeleteQueriesARB"));
-        glBeginQueryARB = reinterpret_cast<PFNGLBEGINQUERYARBPROC>(wglGetProcAddress("glBeginQueryARB"));
-        glEndQueryARB = reinterpret_cast<PFNGLENDQUERYARBPROC>(wglGetProcAddress("glEndQueryARB"));
-        glGetQueryivARB = reinterpret_cast<PFNGLGETQUERYIVARBPROC>(wglGetProcAddress("glGetQueryivARB"));
-        glGetQueryObjectivARB = reinterpret_cast<PFNGLGETQUERYOBJECTIVARBPROC>(wglGetProcAddress("glGetQueryObjectivARB"));
-        glGetQueryObjectuivARB = reinterpret_cast<PFNGLGETQUERYOBJECTUIVARBPROC>(wglGetProcAddress("glGetQueryObjectuivARB"));
+        glGenQueriesARB = reinterpret_cast<PFNGLGENQUERIESARBPROC>(GxGlGetProcAddress("glGenQueriesARB"));
+        glDeleteQueriesARB = reinterpret_cast<PFNGLDELETEQUERIESARBPROC>(GxGlGetProcAddress("glDeleteQueriesARB"));
+        glBeginQueryARB = reinterpret_cast<PFNGLBEGINQUERYARBPROC>(GxGlGetProcAddress("glBeginQueryARB"));
+        glEndQueryARB = reinterpret_cast<PFNGLENDQUERYARBPROC>(GxGlGetProcAddress("glEndQueryARB"));
+        glGetQueryivARB = reinterpret_cast<PFNGLGETQUERYIVARBPROC>(GxGlGetProcAddress("glGetQueryivARB"));
+        glGetQueryObjectivARB = reinterpret_cast<PFNGLGETQUERYOBJECTIVARBPROC>(GxGlGetProcAddress("glGetQueryObjectivARB"));
+        glGetQueryObjectuivARB = reinterpret_cast<PFNGLGETQUERYOBJECTUIVARBPROC>(GxGlGetProcAddress("glGetQueryObjectuivARB"));
     } else {
         glARBOcclusionQuery = 0;
     }
 
     if (glVersion >= 0x10004 || FindGlExt("GL_ARB_point_parameters")) {
         glARBPointParameters = 1;
-        glPointParameterfARB = reinterpret_cast<PFNGLPOINTPARAMETERFARBPROC>(wglGetProcAddress("glPointParameterfARB"));
-        glPointParameterfvARB = reinterpret_cast<PFNGLPOINTPARAMETERFVARBPROC>(wglGetProcAddress("glPointParameterfvARB"));
+        glPointParameterfARB = reinterpret_cast<PFNGLPOINTPARAMETERFARBPROC>(GxGlGetProcAddress("glPointParameterfARB"));
+        glPointParameterfvARB = reinterpret_cast<PFNGLPOINTPARAMETERFVARBPROC>(GxGlGetProcAddress("glPointParameterfvARB"));
     } else {
         glARBPointParameters = 0;
     }
@@ -599,49 +617,55 @@ void BindGlExtensions() {
     glExtFramebufferMultisample = FindGlExt("GL_EXT_framebuffer_multisample");
 
     if (glExtFramebufferObject) {
-        glBindRenderbufferEXT = reinterpret_cast<PFNGLBINDRENDERBUFFEREXTPROC>(wglGetProcAddress("glBindRenderbufferEXT"));
-        glDeleteRenderbuffersEXT = reinterpret_cast<PFNGLDELETERENDERBUFFERSEXTPROC>(wglGetProcAddress("glDeleteRenderbuffersEXT"));
-        glGenRenderbuffersEXT = reinterpret_cast<PFNGLGENRENDERBUFFERSEXTPROC>(wglGetProcAddress("glGenRenderbuffersEXT"));
-        glRenderbufferStorageEXT = reinterpret_cast<PFNGLRENDERBUFFERSTORAGEEXTPROC>(wglGetProcAddress("glRenderbufferStorageEXT"));
-        glBindFramebufferEXT = reinterpret_cast<PFNGLBINDFRAMEBUFFEREXTPROC>(wglGetProcAddress("glBindFramebufferEXT"));
-        glDeleteFramebuffersEXT = reinterpret_cast<PFNGLDELETEFRAMEBUFFERSEXTPROC>(wglGetProcAddress("glDeleteFramebuffersEXT"));
-        glGenFramebuffersEXT = reinterpret_cast<PFNGLGENFRAMEBUFFERSEXTPROC>(wglGetProcAddress("glGenFramebuffersEXT"));
-        glCheckFramebufferStatusEXT = reinterpret_cast<PFNGLCHECKFRAMEBUFFERSTATUSEXTPROC>(wglGetProcAddress("glCheckFramebufferStatusEXT"));
-        glFramebufferTexture1DEXT = reinterpret_cast<PFNGLFRAMEBUFFERTEXTURE1DEXTPROC>(wglGetProcAddress("glFramebufferTexture1DEXT"));
-        glFramebufferTexture2DEXT = reinterpret_cast<PFNGLFRAMEBUFFERTEXTURE2DEXTPROC>(wglGetProcAddress("glFramebufferTexture2DEXT"));
-        glFramebufferTexture3DEXT = reinterpret_cast<PFNGLFRAMEBUFFERTEXTURE3DEXTPROC>(wglGetProcAddress("glFramebufferTexture3DEXT"));
-        glFramebufferRenderbufferEXT = reinterpret_cast<PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC>(wglGetProcAddress("glFramebufferRenderbufferEXT"));
+        glBindRenderbufferEXT = reinterpret_cast<PFNGLBINDRENDERBUFFEREXTPROC>(GxGlGetProcAddress("glBindRenderbufferEXT"));
+        glDeleteRenderbuffersEXT = reinterpret_cast<PFNGLDELETERENDERBUFFERSEXTPROC>(GxGlGetProcAddress("glDeleteRenderbuffersEXT"));
+        glGenRenderbuffersEXT = reinterpret_cast<PFNGLGENRENDERBUFFERSEXTPROC>(GxGlGetProcAddress("glGenRenderbuffersEXT"));
+        glRenderbufferStorageEXT = reinterpret_cast<PFNGLRENDERBUFFERSTORAGEEXTPROC>(GxGlGetProcAddress("glRenderbufferStorageEXT"));
+        glBindFramebufferEXT = reinterpret_cast<PFNGLBINDFRAMEBUFFEREXTPROC>(GxGlGetProcAddress("glBindFramebufferEXT"));
+        glDeleteFramebuffersEXT = reinterpret_cast<PFNGLDELETEFRAMEBUFFERSEXTPROC>(GxGlGetProcAddress("glDeleteFramebuffersEXT"));
+        glGenFramebuffersEXT = reinterpret_cast<PFNGLGENFRAMEBUFFERSEXTPROC>(GxGlGetProcAddress("glGenFramebuffersEXT"));
+        glCheckFramebufferStatusEXT = reinterpret_cast<PFNGLCHECKFRAMEBUFFERSTATUSEXTPROC>(GxGlGetProcAddress("glCheckFramebufferStatusEXT"));
+        glFramebufferTexture1DEXT = reinterpret_cast<PFNGLFRAMEBUFFERTEXTURE1DEXTPROC>(GxGlGetProcAddress("glFramebufferTexture1DEXT"));
+        glFramebufferTexture2DEXT = reinterpret_cast<PFNGLFRAMEBUFFERTEXTURE2DEXTPROC>(GxGlGetProcAddress("glFramebufferTexture2DEXT"));
+        glFramebufferTexture3DEXT = reinterpret_cast<PFNGLFRAMEBUFFERTEXTURE3DEXTPROC>(GxGlGetProcAddress("glFramebufferTexture3DEXT"));
+        glFramebufferRenderbufferEXT = reinterpret_cast<PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC>(GxGlGetProcAddress("glFramebufferRenderbufferEXT"));
     }
 
     glExtBlendColor = FindGlExt("GL_EXT_blend_color");
 
     if (glExtBlendColor) {
-        glBlendColorEXT = reinterpret_cast<PFNGLBLENDCOLOREXTPROC>(wglGetProcAddress("glBlendColorEXT"));
+        glBlendColorEXT = reinterpret_cast<PFNGLBLENDCOLOREXTPROC>(GxGlGetProcAddress("glBlendColorEXT"));
     }
 }
 
 // VERIFY: 31ee35e7 auto
 // OFFSET: 0x0068C5A0
 void BindWglExtensions() {
-    wglGetExtensionsStringARB = reinterpret_cast<PFNWGLGETEXTENSIONSSTRINGARBPROC>(wglGetProcAddress("wglGetExtensionsStringARB"));
+#if defined(_WIN32)
+    wglGetExtensionsStringARB = reinterpret_cast<PFNWGLGETEXTENSIONSSTRINGARBPROC>(GxGlGetProcAddress("wglGetExtensionsStringARB"));
 
     if (HasWGLExtension("WGL_ARB_pixel_format")) {
         wglArbPixelFormat = 1;
-        wglGetPixelFormatAttribivARB = reinterpret_cast<PFNWGLGETPIXELFORMATATTRIBIVARBPROC>(wglGetProcAddress("wglGetPixelFormatAttribivARB"));
-        wglChoosePixelFormatARB = reinterpret_cast<PFNWGLCHOOSEPIXELFORMATARBPROC>(wglGetProcAddress("wglChoosePixelFormatARB"));
+        wglGetPixelFormatAttribivARB = reinterpret_cast<PFNWGLGETPIXELFORMATATTRIBIVARBPROC>(GxGlGetProcAddress("wglGetPixelFormatAttribivARB"));
+        wglChoosePixelFormatARB = reinterpret_cast<PFNWGLCHOOSEPIXELFORMATARBPROC>(GxGlGetProcAddress("wglChoosePixelFormatARB"));
     }
 
     if (HasWGLExtension("WGL_ARB_pbuffer")) {
         wglArbPbuffer = 1;
-        wglCreatePbufferARB = reinterpret_cast<PFNWGLCREATEPBUFFERARBPROC>(wglGetProcAddress("wglCreatePbufferARB"));
-        wglGetPbufferDCARB = reinterpret_cast<PFNWGLGETPBUFFERDCARBPROC>(wglGetProcAddress("wglGetPbufferDCARB"));
-        wglReleasePbufferDCARB = reinterpret_cast<PFNWGLRELEASEPBUFFERDCARBPROC>(wglGetProcAddress("wglReleasePbufferDCARB"));
-        wglDestroyPbufferARB = reinterpret_cast<PFNWGLDESTROYPBUFFERARBPROC>(wglGetProcAddress("wglDestroyPbufferARB"));
-        wglQueryPbufferARB = reinterpret_cast<PFNWGLQUERYPBUFFERARBPROC>(wglGetProcAddress("wglQueryPbufferARB"));
+        wglCreatePbufferARB = reinterpret_cast<PFNWGLCREATEPBUFFERARBPROC>(GxGlGetProcAddress("wglCreatePbufferARB"));
+        wglGetPbufferDCARB = reinterpret_cast<PFNWGLGETPBUFFERDCARBPROC>(GxGlGetProcAddress("wglGetPbufferDCARB"));
+        wglReleasePbufferDCARB = reinterpret_cast<PFNWGLRELEASEPBUFFERDCARBPROC>(GxGlGetProcAddress("wglReleasePbufferDCARB"));
+        wglDestroyPbufferARB = reinterpret_cast<PFNWGLDESTROYPBUFFERARBPROC>(GxGlGetProcAddress("wglDestroyPbufferARB"));
+        wglQueryPbufferARB = reinterpret_cast<PFNWGLQUERYPBUFFERARBPROC>(GxGlGetProcAddress("wglQueryPbufferARB"));
     }
 
     if (HasWGLExtension("WGL_EXT_swap_control")) {
         wglExtSwapControl = 1;
-        wglSwapIntervalEXT = reinterpret_cast<PFNWGLSWAPINTERVALEXTPROC>(wglGetProcAddress("wglSwapIntervalEXT"));
+        wglSwapIntervalEXT = reinterpret_cast<PFNWGLSWAPINTERVALEXTPROC>(GxGlGetProcAddress("wglSwapIntervalEXT"));
     }
+#else
+    wglArbPixelFormat = 0;
+    wglArbPbuffer = 0;
+    wglExtSwapControl = 0;
+#endif
 }

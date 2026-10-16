@@ -413,7 +413,7 @@ static int32_t Script_UseContainerItem(lua_State* L) {
 
 // VERIFY: 256ccaab manual
 // OFFSET: 0x005D7FF0
-static int32_t Script_PickupContainerItem(lua_State* L) {
+int32_t Script_PickupContainerItem(lua_State* L) {
     if (!lua_isnumber(L, 1) || !lua_isnumber(L, 2)) {
         luaL_error(L, "Usage: PickupContainerItem(index, slot)");
         return 0;

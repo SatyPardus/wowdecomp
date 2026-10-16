@@ -1,6 +1,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#if !defined(_WIN32)
+#include <strings.h>
+#define _strnicmp strncasecmp
+#endif
 #include "SCmd.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Storm/H/storm.h"

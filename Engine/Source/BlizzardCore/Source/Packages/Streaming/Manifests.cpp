@@ -278,7 +278,7 @@ bool Blizzard::Streaming::FileManifest::SplitItem(char* line, MANIFEST_ITEM* ite
                 }
 
                 case 1:
-                    item->m_size = _atoi64(field);
+                    item->m_size = std::strtoll(field, nullptr, 10);
                     break;
 
                 case 2:
@@ -634,7 +634,7 @@ bool Blizzard::Streaming::Manifests::FileItem::HandleTag(const char* tag, const 
         }
 
         if (!_stricmp(tag, "size")) {
-            this->m_size = _atoi64(value);
+            this->m_size = std::strtoll(value, nullptr, 10);
             return true;
         }
 

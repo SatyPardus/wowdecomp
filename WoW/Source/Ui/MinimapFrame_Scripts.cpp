@@ -27,17 +27,17 @@
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/Base/Handle.h"
 
-int32_t Script_SetMaskTexture(lua_State* L);
-int32_t Script_SetIconTexture(lua_State* L);
-int32_t Script_SetBlipTexture(lua_State* L);
-int32_t Script_SetClassBlipTexture(lua_State* L);
-int32_t Script_SetPOIArrowTexture(lua_State* L);
-int32_t Script_SetStaticPOIArrowTexture(lua_State* L);
-int32_t Script_SetCorpsePOIArrowTexture(lua_State* L);
-int32_t Script_SetPlayerTexture(lua_State* L);
-int32_t Script_SetZoom(lua_State* L);
-int32_t Script_PingLocation(lua_State* L);
-int32_t Script_GetPingPosition(lua_State* L);
+static int32_t Script_SetMaskTexture(lua_State* L);
+static int32_t Script_SetIconTexture(lua_State* L);
+static int32_t Script_SetBlipTexture(lua_State* L);
+static int32_t Script_SetClassBlipTexture(lua_State* L);
+static int32_t Script_SetPOIArrowTexture(lua_State* L);
+static int32_t Script_SetStaticPOIArrowTexture(lua_State* L);
+static int32_t Script_SetCorpsePOIArrowTexture(lua_State* L);
+static int32_t Script_SetPlayerTexture(lua_State* L);
+static int32_t Script_SetZoom(lua_State* L);
+static int32_t Script_PingLocation(lua_State* L);
+static int32_t Script_GetPingPosition(lua_State* L);
 
 // VERIFY: 756048df auto
 // OFFSET: 0x0057C060

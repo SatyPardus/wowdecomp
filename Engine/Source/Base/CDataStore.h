@@ -58,10 +58,10 @@ class CDataStore {
     CDataStore& Set(uint32_t pos, uint32_t val);
 };
 
-template <uint32_t size>
+template <uint32_t CacheSize>
 class CDataStoreCache : public CDataStore {
     public:
-    /* 0018 */ uint8_t m_cache[size];
+    /* 0018 */ uint8_t m_cache[CacheSize];
 
     void InternalInitialize(uint8_t*& data, uint32_t& base, uint32_t& alloc) override;
     void InternalDestroy(uint8_t*& data, uint32_t& base, uint32_t& alloc) override;
@@ -74,15 +74,15 @@ class CDataStoreCache : public CDataStore {
 
 // VERIFY: 94af1ab9 manual
 // OFFSET: [0x008CCEE0<1024>]
-template <uint32_t size>
-CDataStoreCache<size>::CDataStoreCache() {
+template <uint32_t CacheSize>
+CDataStoreCache<CacheSize>::CDataStoreCache() {
     this->InternalInitialize(this->m_data, this->m_base, this->m_alloc);
 }
 
 // VERIFY: 929e0c1c manual
 // OFFSET: [0x008CD040, 0x008CD160, 0x008CD1C0]
-template <uint32_t size>
-CDataStoreCache<size>::~CDataStoreCache() {
+template <uint32_t CacheSize>
+CDataStoreCache<CacheSize>::~CDataStoreCache() {
     if (this->m_alloc != -1) {
         this->InternalDestroy(this->m_data, this->m_base, this->m_alloc);
     }
@@ -90,16 +90,16 @@ CDataStoreCache<size>::~CDataStoreCache() {
 
 // VERIFY: 3368e2bb auto
 // OFFSET: [0x008CCF30, 0x008CD090]
-template <uint32_t size>
-void CDataStoreCache<size>::InternalInitialize(uint8_t*& data, uint32_t& base, uint32_t& alloc) {
+template <uint32_t CacheSize>
+void CDataStoreCache<CacheSize>::InternalInitialize(uint8_t*& data, uint32_t& base, uint32_t& alloc) {
     data = this->m_cache;
-    alloc = size;
+    alloc = CacheSize;
 }
 
 // VERIFY: 91276e33 manual
 // OFFSET: 0x008CCF50
-template <uint32_t size>
-void CDataStoreCache<size>::InternalDestroy(uint8_t*& data, uint32_t& base, uint32_t& alloc) {
+template <uint32_t CacheSize>
+void CDataStoreCache<CacheSize>::InternalDestroy(uint8_t*& data, uint32_t& base, uint32_t& alloc) {
     if (data == this->m_cache) {
         data = nullptr;
         alloc = 0;
@@ -115,8 +115,8 @@ void CDataStoreCache<size>::InternalDestroy(uint8_t*& data, uint32_t& base, uint
 
 // VERIFY: a0ace69c auto
 // OFFSET: 0x008CD0B0
-template <uint32_t size>
-int32_t CDataStoreCache<size>::InternalFetchWrite(uint32_t pos, uint32_t bytes, uint8_t*& data, uint32_t& base, uint32_t& alloc, const char* fileName, int32_t lineNumber) {
+template <uint32_t CacheSize>
+int32_t CDataStoreCache<CacheSize>::InternalFetchWrite(uint32_t pos, uint32_t bytes, uint8_t*& data, uint32_t& base, uint32_t& alloc, const char* fileName, int32_t lineNumber) {
     uint32_t newAlloc = pos + bytes;
 
     if (newAlloc <= alloc) {
@@ -146,8 +146,8 @@ int32_t CDataStoreCache<size>::InternalFetchWrite(uint32_t pos, uint32_t bytes, 
 
 // VERIFY: 1f74376a auto
 // OFFSET: 0x008CCFC0
-template <uint32_t size>
-void CDataStoreCache<size>::DetachBuffer(void** data, uint32_t* size_, uint32_t* alloc) {
+template <uint32_t CacheSize>
+void CDataStoreCache<CacheSize>::DetachBuffer(void** data, uint32_t* size_, uint32_t* alloc) {
     void* detachedData;
     uint32_t detachedSize;
 

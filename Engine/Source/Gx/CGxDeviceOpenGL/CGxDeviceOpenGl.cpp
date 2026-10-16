@@ -156,6 +156,12 @@ CGxDeviceOpenGl::CGxDeviceOpenGl() {
     this->m_glVendor = nullptr;
     this->m_glRenderer = nullptr;
     this->m_glVersion = nullptr;
+#if defined(__APPLE__)
+    this->m_sdlWindowID = 0;
+    this->m_eventWatchAdded = 0;
+    this->m_lastDrawableWidth = 0;
+    this->m_lastDrawableHeight = 0;
+#endif
 }
 
 // VERIFY: 5fa67711 auto
@@ -1396,6 +1402,8 @@ void CGxDeviceOpenGl::DeviceDestroyPoolAPI() {
     }
 }
 
+#if defined(_WIN32)
+
 // VERIFY: 63ba8840 manual
 // OFFSET: 0x0068C670
 static void CreateDummyContext() {
@@ -1599,12 +1607,16 @@ void CGxDeviceOpenGl::DeviceDestroy() {
     s_deviceChanging = 0;
 }
 
+#endif
+
 // VERIFY: 2fa3d260 auto
 // OFFSET: 0x0068CC00
 void CGxDeviceOpenGl::DeviceSetBaseMipLevel(uint32_t level) {
     this->ITexForceRecreation();
     CGxDevice::DeviceSetBaseMipLevel(level);
 }
+
+#if defined(_WIN32)
 
 // VERIFY: 01f4b10a auto
 // OFFSET: 0x0068CC20
@@ -2083,11 +2095,15 @@ static HGLRC CreateGLContext(HDC dc, const CGxFormat& format) {
     return wglCreateContext(dc);
 }
 
+#endif
+
 // VERIFY: b403578c manual
 // OFFSET: 0x0069E140
 void CGxDeviceOpenGl::IShaderConstantsClear() {
     this->ShaderConstantsClear();
 }
+
+#if defined(_WIN32)
 
 // VERIFY: 80ad3a5a auto
 // OFFSET: 0x0068CF60
@@ -2834,6 +2850,8 @@ int32_t CGxDevice::OpenGlAdapterFormats(TSGrowableArray<CGxFormat>& formats) {
 
     return formats.Count() != 0;
 }
+
+#endif
 
 // VERIFY: f1a2e45f auto
 // OFFSET: 0x006A5A00
@@ -3902,7 +3920,16 @@ void CGxDeviceOpenGl::ScenePresent() {
     this->ICursorDraw();
 
     if (this->m_hwMasterEnables & 0x40) {
+#if defined(_WIN32)
         wglSwapLayerBuffers(this->m_hdc, WGL_SWAP_MAIN_PLANE);
+#elif defined(__APPLE__)
+        this->IDevCheckResize();
+        if (this->m_hwnd) {
+            SDL_GL_SwapWindow(this->m_hwnd);
+        }
+#else
+        glFinish();
+#endif
     } else {
         glFinish();
     }

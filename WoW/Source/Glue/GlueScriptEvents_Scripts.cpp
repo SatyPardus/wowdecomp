@@ -38,12 +38,12 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/AccountData.h"
 
 int32_t Script_GetLocale(lua_State* L);
-int32_t Script_PlayCreditsMusic(lua_State* L);
-int32_t Script_PatchDownloadProgress(lua_State* L);
-int32_t Script_GetAddOnEnableState(lua_State* L);
-int32_t Script_ResetAddOns(lua_State* L);
-int32_t Script_GetBillingTimeRemaining(lua_State* L);
-int32_t Script_GetBillingPlan(lua_State* L);
+static int32_t Script_PlayCreditsMusic(lua_State* L);
+static int32_t Script_PatchDownloadProgress(lua_State* L);
+static int32_t Script_GetAddOnEnableState(lua_State* L);
+static int32_t Script_ResetAddOns(lua_State* L);
+static int32_t Script_GetBillingTimeRemaining(lua_State* L);
+static int32_t Script_GetBillingPlan(lua_State* L);
 int32_t Script_GetBillingTimeRested(lua_State* L);
 int32_t Script_IsLinuxClient(lua_State* L);
 int32_t Script_RestoreVideoResolutionDefaults(lua_State* L);

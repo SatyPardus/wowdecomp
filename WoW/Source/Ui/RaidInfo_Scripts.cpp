@@ -534,7 +534,7 @@ static int32_t Script_DemoteAssistant(lua_State* L) {
 
 // VERIFY: 4c3de34f auto
 // OFFSET: 0x005740B0
-static int32_t Script_DoReadyCheck(lua_State* L) {
+int32_t Script_DoReadyCheck(lua_State* L) {
     CGRaidInfo::SendReadyCheck();
     return 0;
 }

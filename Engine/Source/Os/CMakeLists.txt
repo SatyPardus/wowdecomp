@@ -1,5 +1,11 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
 
+if (NOT WIN32)
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/Win(32|64)/")
+else ()
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/Mac/")
+endif ()
+
 add_library(Os STATIC
     ${PRIVATE_SOURCES}
 )
@@ -20,3 +26,12 @@ if(WIN32)
             version
     )
 endif()
+if (APPLE)
+    find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    target_link_libraries(Os
+        PUBLIC
+            SDL2::SDL2
+            CURL::libcurl
+            ${COREFOUNDATION_FRAMEWORK}
+    )
+endif ()

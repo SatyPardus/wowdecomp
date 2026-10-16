@@ -1,6 +1,6 @@
 #include <cmath>
 #include <cstdint>
-#include <xmmintrin.h>
+#include "Engine/Source/Platform/Compat/SSE.h"
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
 
 extern "C" {

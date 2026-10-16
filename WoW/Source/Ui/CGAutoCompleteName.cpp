@@ -184,7 +184,7 @@ static int32_t ApplyNodeFlags(AUTOCOMPLETE_NAMENODE* node, uint32_t flags, int32
 // VERIFY: 4d5b0997 manual
 // OFFSET: 0x0057B6A0
 static AUTOCOMPLETE_NAMENODE* AllocNameNode(const WOWGUID& guid, uint32_t flags, uint32_t lastUsed, const char* name) {
-    AUTOCOMPLETE_NAMENODE* node = new (SMemAlloc(sizeof(AUTOCOMPLETE_NAMENODE), typeid(AUTOCOMPLETE_NAMENODE).raw_name(), -2, 0x8)) AUTOCOMPLETE_NAMENODE;
+    AUTOCOMPLETE_NAMENODE* node = new (SMemAlloc(sizeof(AUTOCOMPLETE_NAMENODE), STORM_TYPE_NAME(AUTOCOMPLETE_NAMENODE), -2, 0x8)) AUTOCOMPLETE_NAMENODE;
     node->m_presenceId = 0;
     node->m_guid = guid;
 
@@ -391,7 +391,7 @@ void CGAutoCompleteName::RefreshName(const WOWGUID& guid) {
 // VERIFY: 2cdda694 manual
 // OFFSET: 0x0057B730
 AUTOCOMPLETE_NAMENODE* CGAutoCompleteName::AddPlayerToList(const uint32_t& presenceId, uint32_t flags, uint32_t lastUsed, const char* name) {
-    AUTOCOMPLETE_NAMENODE* node = new (SMemAlloc(sizeof(AUTOCOMPLETE_NAMENODE), typeid(AUTOCOMPLETE_NAMENODE).raw_name(), -2, 0x8)) AUTOCOMPLETE_NAMENODE;
+    AUTOCOMPLETE_NAMENODE* node = new (SMemAlloc(sizeof(AUTOCOMPLETE_NAMENODE), STORM_TYPE_NAME(AUTOCOMPLETE_NAMENODE), -2, 0x8)) AUTOCOMPLETE_NAMENODE;
     node->m_presenceId = 1;
     *reinterpret_cast<uint32_t*>(&node->m_guid) = presenceId;
 

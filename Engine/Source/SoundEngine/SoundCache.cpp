@@ -171,7 +171,7 @@ void SoundCache::Purge(uint32_t bytes) {
     for (uint32_t i = 0; i < count; i++) {
         CacheChunk* chunk = &refs[i].m_cacheData->m_chunks[refs[i].m_index];
         this->m_bytes -= chunk->m_size;
-        s_chunkRecycler.PutData(chunk->m_data, sizeof(Chunk::Data), typeid(Chunk::Data).raw_name(), SLOG_OBJECT);
+        s_chunkRecycler.PutData(chunk->m_data, sizeof(Chunk::Data), STORM_TYPE_NAME(Chunk::Data), SLOG_OBJECT);
         chunk->m_data = nullptr;
         chunk->m_size = 0;
 

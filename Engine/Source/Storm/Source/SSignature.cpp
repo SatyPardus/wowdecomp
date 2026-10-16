@@ -1,6 +1,10 @@
 #include <cstdint>
 #include <cstring>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "RSA.h"
 #include "SSignature.h"
 #include "Engine/Source/Storm/H/storm.h"

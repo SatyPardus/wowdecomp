@@ -93,7 +93,7 @@ int64_t GeneralFunction::Arg::ToInt64() const {
             return value;
         }
         case TYPE_STRING:
-            return _strtoi64(this->m_string, nullptr, 0);
+            return std::strtoll(this->m_string, nullptr, 0);
         default:
             return 0;
     }
@@ -120,7 +120,7 @@ uint64_t GeneralFunction::Arg::ToUInt64() const {
             return value;
         }
         case TYPE_STRING:
-            return _strtoui64(this->m_string, nullptr, 0);
+            return std::strtoull(this->m_string, nullptr, 0);
         default:
             return 0;
     }

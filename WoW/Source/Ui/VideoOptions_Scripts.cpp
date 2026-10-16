@@ -23,9 +23,9 @@
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
 
-int32_t Script_SetScreenResolution(lua_State* L);
-int32_t Script_SetupFullscreenScale(lua_State* L);
-int32_t Script_SetMultisampleFormat(lua_State* L);
+static int32_t Script_SetScreenResolution(lua_State* L);
+static int32_t Script_SetupFullscreenScale(lua_State* L);
+static int32_t Script_SetMultisampleFormat(lua_State* L);
 
 // STATIC: 0x00A0C7C0
 static const int32_t s_formatBits[CGxFormat::Formats_Last] = { 16, 24, 24, 30, 16, 24, 24, 32 };

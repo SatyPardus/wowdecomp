@@ -423,7 +423,7 @@ int32_t CMissile::CallMotionScriptFunction(SimpleScriptIO& io) {
     }
 
     for (int32_t i = 0; i < 12; i++) {
-        if (!_finite(io.m_numbers.m_data[i])) {
+        if (!std::isfinite(io.m_numbers.m_data[i])) {
             io.m_numbers.m_data[i] = 0.0;
         }
     }

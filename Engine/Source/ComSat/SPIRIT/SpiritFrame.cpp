@@ -1,6 +1,8 @@
 #include <cmath>
 #include <cstdint>
+#if defined(__SSE__)
 #include <xmmintrin.h>
+#endif
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
 
 extern "C" {
@@ -337,7 +339,11 @@ void SPIRIT_IP_MR_V3_NAME_200(const float* src, int16_t* pcm, int16_t count) {
     int32_t blocks = count / 4;
 
     for (int32_t i = 0; i < blocks * 4; i++) {
+#if defined(__SSE__)
         int32_t value = _mm_cvtss_si32(_mm_set_ss(src[i]));
+#else
+        int32_t value = static_cast<int32_t>(std::lrint(src[i]));
+#endif
 
         if (value > 32767) {
             value = 32767;

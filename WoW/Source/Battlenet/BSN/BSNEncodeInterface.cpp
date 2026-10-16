@@ -1,6 +1,17 @@
 #include "WoW/Source/Battlenet/BSN/BSNEncodeInterface.h"
 #include <cstring>
-#include <malloc.h>
+#if !defined(_MSC_VER)
+#include <alloca.h>
+#define _alloca alloca
+#endif
+
+template <typename Adapter>
+static Adapter GetAdapterFunction(const void* address) {
+    Adapter function{};
+    static_assert(sizeof(function) == sizeof(address));
+    memcpy(&function, &address, sizeof(function));
+    return function;
+}
 
 // VERIFY: 2c86983e manual
 // OFFSET: 0x00530B00
@@ -111,7 +122,7 @@ uint32_t BSN::BSNPrimitiveEncoder::GetFourCC(const EncodeContext* context) const
     }
 
     BSN::Protocol::Meta::FourCC meta(context->m_protocol, context->m_typeId);
-    return reinterpret_cast<AdapterGetFourCC>(meta.m_codeInfo[0])(context->m_data);
+    return GetAdapterFunction<AdapterGetFourCC>(meta.m_codeInfo[0])(context->m_data);
 }
 
 // VERIFY: 5d67be71 auto
@@ -119,12 +130,12 @@ uint32_t BSN::BSNPrimitiveEncoder::GetFourCC(const EncodeContext* context) const
 uint32_t BSN::BSNPrimitiveEncoder::GetStringLength(const EncodeContext* context) const {
     if (context->m_header == BSN::META_ASCII_STRING) {
         BSN::Protocol::Meta::AsciiString meta(context->m_protocol, context->m_typeId);
-        return reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+        return GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
     }
 
     if (context->m_header == BSN::META_STRING) {
         BSN::Protocol::Meta::String meta(context->m_protocol, context->m_typeId);
-        return reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+        return GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
     }
 
     return 0;
@@ -135,26 +146,26 @@ uint32_t BSN::BSNPrimitiveEncoder::GetStringLength(const EncodeContext* context)
 bool BSN::BSNPrimitiveEncoder::GetString(const EncodeContext* context, char* buffer, uint32_t size) const {
     if (context->m_header == BSN::META_ASCII_STRING) {
         BSN::Protocol::Meta::AsciiString meta(context->m_protocol, context->m_typeId);
-        uint32_t length = reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+        uint32_t length = GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
 
         if (length >= size) {
             length = size - 1;
         }
 
-        memcpy(buffer, reinterpret_cast<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), length);
+        memcpy(buffer, GetAdapterFunction<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), length);
         buffer[length] = '\0';
         return true;
     }
 
     if (context->m_header == BSN::META_STRING) {
         BSN::Protocol::Meta::String meta(context->m_protocol, context->m_typeId);
-        uint32_t length = reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+        uint32_t length = GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
 
         if (length >= size) {
             length = size - 1;
         }
 
-        memcpy(buffer, reinterpret_cast<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), length);
+        memcpy(buffer, GetAdapterFunction<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), length);
         buffer[length] = '\0';
         return true;
     }
@@ -171,7 +182,7 @@ uint32_t BSN::BSNPrimitiveEncoder::GetBitArrayLength(const EncodeContext* contex
     }
 
     BSN::Protocol::Meta::BitArray meta(context->m_protocol, context->m_typeId);
-    return reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+    return GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
 }
 
 // VERIFY: 8283051f auto
@@ -182,13 +193,13 @@ bool BSN::BSNPrimitiveEncoder::GetBitArray(const EncodeContext* context, uint8_t
     }
 
     BSN::Protocol::Meta::BitArray meta(context->m_protocol, context->m_typeId);
-    uint32_t length = reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+    uint32_t length = GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
 
     if (length > bits) {
         length = bits;
     }
 
-    memcpy(buffer, reinterpret_cast<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), (length + 7) >> 3);
+    memcpy(buffer, GetAdapterFunction<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), (length + 7) >> 3);
     return true;
 }
 
@@ -200,7 +211,7 @@ uint32_t BSN::BSNPrimitiveEncoder::GetBlobLength(const EncodeContext* context) c
     }
 
     BSN::Protocol::Meta::Blob meta(context->m_protocol, context->m_typeId);
-    return reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+    return GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
 }
 
 // VERIFY: 19cebf40 auto
@@ -211,13 +222,13 @@ bool BSN::BSNPrimitiveEncoder::GetBlob(const EncodeContext* context, uint8_t* bu
     }
 
     BSN::Protocol::Meta::Blob meta(context->m_protocol, context->m_typeId);
-    uint32_t length = reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
+    uint32_t length = GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[0])(context->m_data);
 
     if (length > size) {
         length = size;
     }
 
-    memcpy(buffer, reinterpret_cast<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), length);
+    memcpy(buffer, GetAdapterFunction<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data), length);
     return true;
 }
 
@@ -247,20 +258,20 @@ bool BSN::BSNPrimitiveEncoder::GetMemberContext(const EncodeContext* context, co
         }
 
         member->ResolveType();
-        member->m_data = reinterpret_cast<AdapterGetChoice>(meta.m_codeInfo[2])(context->m_data);
+        member->m_data = GetAdapterFunction<AdapterGetChoice>(meta.m_codeInfo[2])(context->m_data);
         return true;
     }
 
     if (context->m_header == BSN::META_OPTIONAL) {
         BSN::Protocol::Meta::Optional meta(context->m_protocol, context->m_typeId);
 
-        if (!reinterpret_cast<AdapterGetExists>(meta.m_codeInfo[0])(context->m_data)) {
+        if (!GetAdapterFunction<AdapterGetExists>(meta.m_codeInfo[0])(context->m_data)) {
             return false;
         }
 
         member->m_typeId = meta.m_elementTypeId;
         member->ResolveType();
-        member->m_data = const_cast<void*>(reinterpret_cast<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data));
+        member->m_data = const_cast<void*>(GetAdapterFunction<AdapterGetElements>(meta.m_codeInfo[1])(context->m_data));
         return true;
     }
 
@@ -305,7 +316,7 @@ bool BSN::BSNPrimitiveEncoder::GetElementContext(const EncodeContext* context, u
 
     BSN::Protocol::Meta::Array meta(context->m_protocol, context->m_typeId);
 
-    if (index >= reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[1])(context->m_data)) {
+    if (index >= GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[1])(context->m_data)) {
         return false;
     }
 
@@ -313,7 +324,7 @@ bool BSN::BSNPrimitiveEncoder::GetElementContext(const EncodeContext* context, u
     element->ResolveType();
 
     uint32_t elementSize = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(meta.m_codeInfo[0]));
-    element->m_data = const_cast<uint8_t*>(static_cast<const uint8_t*>(reinterpret_cast<AdapterGetElements>(meta.m_codeInfo[2])(context->m_data))) + index * elementSize;
+    element->m_data = const_cast<uint8_t*>(static_cast<const uint8_t*>(GetAdapterFunction<AdapterGetElements>(meta.m_codeInfo[2])(context->m_data))) + index * elementSize;
     return true;
 }
 
@@ -322,7 +333,7 @@ bool BSN::BSNPrimitiveEncoder::GetElementContext(const EncodeContext* context, u
 bool BSN::BSNPrimitiveEncoder::GetChoiceName(const EncodeContext* context, char* buffer, uint32_t size) const {
     if (context->m_header == BSN::META_CHOICE) {
         BSN::Protocol::Meta::Choice meta(context->m_protocol, context->m_typeId);
-        int32_t tag = reinterpret_cast<AdapterGetTag>(meta.m_codeInfo[1])(context->m_data);
+        int32_t tag = GetAdapterFunction<AdapterGetTag>(meta.m_codeInfo[1])(context->m_data);
         uint32_t field;
 
         if (meta.GetTagField(static_cast<int64_t>(tag), field)) {
@@ -351,7 +362,7 @@ uint32_t BSN::BSNPrimitiveEncoder::GetArrayLength(const EncodeContext* context) 
     }
 
     BSN::Protocol::Meta::Array meta(context->m_protocol, context->m_typeId);
-    return reinterpret_cast<AdapterGetLength>(meta.m_codeInfo[1])(context->m_data);
+    return GetAdapterFunction<AdapterGetLength>(meta.m_codeInfo[1])(context->m_data);
 }
 
 // VERIFY: e85768a5 manual
@@ -362,7 +373,7 @@ bool BSN::BSNPrimitiveEncoder::GetOptional(const EncodeContext* context) const {
     }
 
     BSN::Protocol::Meta::Optional meta(context->m_protocol, context->m_typeId);
-    return reinterpret_cast<AdapterGetExists>(meta.m_codeInfo[0])(context->m_data);
+    return GetAdapterFunction<AdapterGetExists>(meta.m_codeInfo[0])(context->m_data);
 }
 
 // VERIFY: 249005f2 manual
@@ -432,7 +443,7 @@ bool BSN::BSNPrimitiveEncoder::SetFourCC(EncodeContext* context, uint32_t value)
     }
 
     BSN::Protocol::Meta::FourCC meta(context->m_protocol, context->m_typeId);
-    reinterpret_cast<AdapterSetFourCC>(meta.m_codeInfo[1])(context->m_data, value);
+    GetAdapterFunction<AdapterSetFourCC>(meta.m_codeInfo[1])(context->m_data, value);
     return true;
 }
 
@@ -442,7 +453,7 @@ bool BSN::BSNPrimitiveEncoder::SetString(EncodeContext* context, const char* val
     if (context->m_header == BSN::META_ASCII_STRING) {
         BSN::Protocol::Meta::AsciiString meta(context->m_protocol, context->m_typeId);
         uint32_t length = static_cast<uint32_t>(strlen(value));
-        char* data = static_cast<char*>(reinterpret_cast<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, length));
+        char* data = static_cast<char*>(GetAdapterFunction<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, length));
         memcpy(data, value, length);
         data[length] = '\0';
         return true;
@@ -451,14 +462,14 @@ bool BSN::BSNPrimitiveEncoder::SetString(EncodeContext* context, const char* val
     if (context->m_header == BSN::META_STRING) {
         BSN::Protocol::Meta::String meta(context->m_protocol, context->m_typeId);
         uint32_t length = static_cast<uint32_t>(strlen(value));
-        char* data = static_cast<char*>(reinterpret_cast<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, length));
+        char* data = static_cast<char*>(GetAdapterFunction<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, length));
         memcpy(data, value, length);
         data[length] = '\0';
 
         uint32_t count;
 
         if (BSN::Protocol::Meta::String::IsValid(length, reinterpret_cast<uint8_t*>(data), count)) {
-            reinterpret_cast<AdapterSetCount>(meta.m_codeInfo[3])(context->m_data, count);
+            GetAdapterFunction<AdapterSetCount>(meta.m_codeInfo[3])(context->m_data, count);
             return true;
         }
     }
@@ -479,7 +490,7 @@ bool BSN::BSNPrimitiveEncoder::SetBitArray(EncodeContext* context, const uint8_t
         return false;
     }
 
-    memcpy(reinterpret_cast<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, bits), data, (bits + 7) >> 3);
+    memcpy(GetAdapterFunction<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, bits), data, (bits + 7) >> 3);
     return true;
 }
 
@@ -496,7 +507,7 @@ bool BSN::BSNPrimitiveEncoder::SetBlob(EncodeContext* context, const uint8_t* da
         return false;
     }
 
-    memcpy(reinterpret_cast<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, size), data, size);
+    memcpy(GetAdapterFunction<AdapterSetLength>(meta.m_codeInfo[2])(context->m_data, size), data, size);
     return true;
 }
 
@@ -531,7 +542,7 @@ bool BSN::BSNPrimitiveEncoder::SetChoice(EncodeContext* context, const char* typ
     uint64_t tag;
 
     if (meta.GetFieldTag(field, tag)) {
-        reinterpret_cast<AdapterSetTag>(meta.m_codeInfo[3])(context->m_data, static_cast<int32_t>(tag));
+        GetAdapterFunction<AdapterSetTag>(meta.m_codeInfo[3])(context->m_data, static_cast<int32_t>(tag));
     }
 
     return true;
@@ -550,7 +561,7 @@ bool BSN::BSNPrimitiveEncoder::SetArray(EncodeContext* context, uint32_t length)
         return false;
     }
 
-    reinterpret_cast<AdapterSetLength>(meta.m_codeInfo[3])(context->m_data, length);
+    GetAdapterFunction<AdapterSetLength>(meta.m_codeInfo[3])(context->m_data, length);
     return true;
 }
 
@@ -562,7 +573,7 @@ bool BSN::BSNPrimitiveEncoder::SetOptional(EncodeContext* context, bool exists) 
     }
 
     BSN::Protocol::Meta::Optional meta(context->m_protocol, context->m_typeId);
-    reinterpret_cast<AdapterSetExists>(meta.m_codeInfo[2])(context->m_data, exists);
+    GetAdapterFunction<AdapterSetExists>(meta.m_codeInfo[2])(context->m_data, exists);
     return true;
 }
 

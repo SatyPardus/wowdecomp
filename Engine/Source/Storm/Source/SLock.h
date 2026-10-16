@@ -3,7 +3,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <mutex>
+using HANDLE = void*;
+using CRITICAL_SECTION = std::recursive_mutex;
+using LONG = int32_t;
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 
 class CInitCritSect;

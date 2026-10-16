@@ -1,7 +1,12 @@
 #include "WoW/Source/Battlenet/Tumor/CreepTendril.h"
 #include <cstring>
-#include <malloc.h>
 #include <new>
+#if defined(_MSC_VER)
+#include <malloc.h>
+#else
+#include <alloca.h>
+#define _alloca alloca
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00DCED30
