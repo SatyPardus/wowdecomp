@@ -488,10 +488,10 @@ int32_t OsInputGet(OSINPUT* id, int32_t* param0, int32_t* param1, int32_t* param
 
     *id = static_cast<OSINPUT>(-1);
 
+    // Unlike Win64, do not call s_eventPollProc here: Windows only runs it from a timer during
+    // modal non-client loops. Calling it on every poll re-enters idle processing (including
+    // PollNet) while the client is still loading, e.g. from UpdateProgressBar.
     if (s_queueHead == s_queueTail) {
-        if (s_eventPollProc) {
-            s_eventPollProc();
-        }
         OsPollJoysticks(s_appActive);
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
