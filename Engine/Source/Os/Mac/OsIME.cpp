@@ -40,22 +40,20 @@ int32_t OsIMEGetClauseInfo(uint32_t& clauseStart, uint32_t& clauseEnd, uint32_t&
     return s_composition[0] != '\0';
 }
 
+// Windows detaches the IME context when the IME is disabled, but WM_CHAR keeps arriving. SDL text input is
+// the only source of character events here (it stays on from OsInputInitialize to OsInputDestroy), so
+// disabling the IME only drops any pending composition; it must never stop text input.
 void OsIMEEnable(int32_t enable) {
     if (enable) {
-        if (++s_enableCount == 1) {
-            SDL_StartTextInput();
-        }
+        s_enableCount++;
+        SDL_StartTextInput();
     } else if (s_enableCount && --s_enableCount == 0) {
-        SDL_StopTextInput();
+        s_composition[0] = '\0';
     }
 }
 
 void OsIMESync() {
-    if (s_enableCount) {
-        SDL_StartTextInput();
-    } else {
-        SDL_StopTextInput();
-    }
+    SDL_StartTextInput();
 }
 
 void OsIMESetLanguageMode(int32_t native) {

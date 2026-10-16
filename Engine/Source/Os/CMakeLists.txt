@@ -28,10 +28,12 @@ if(WIN32)
 endif()
 if (APPLE)
     find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    find_library(CARBON_FRAMEWORK Carbon REQUIRED)
     target_link_libraries(Os
         PUBLIC
             SDL2::SDL2
             CURL::libcurl
             ${COREFOUNDATION_FRAMEWORK}
+            ${CARBON_FRAMEWORK}
     )
 endif ()

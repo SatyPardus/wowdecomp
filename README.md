@@ -130,7 +130,19 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
 The native macOS client (Apple Silicon or Intel) replaces the Win32 platform layer with SDL2 (window, input,
 audio device), the system OpenGL framework (legacy 2.1 context, ARB program path) and libcurl. Platform code
-lives in `Mac/` directories next to the `Win32/`/`Win64/` ones.
+lives in `Mac/` directories next to the `Win32/`/`Win64/` ones. Porting notes: [notes/macos-port.md](notes/macos-port.md).
+
+The quickest way is the menu script, which installs missing dependencies through Homebrew (after asking),
+builds, links your game data and starts the client:
+
+```sh
+./play.sh                                  # menu: 1 configure, 2 build, 3 launch
+./play.sh 3 --client "/path/to/WoW 3.3.5a" # launch directly; builds first if needed
+```
+
+Each step runs the earlier ones when needed. On first launch the script asks for your 3.3.5a client folder (or
+its `Data` folder) and symlinks it as `bin/Mac/Data`; the client then writes `WTF/`, `Logs/` and `Cache/` under
+`bin/Mac/`. Client output goes to `bin/Mac/Wow.log`. Manual equivalent:
 
 ```sh
 brew install cmake sdl2
@@ -138,7 +150,7 @@ cmake -S . -B build/mac -DCMAKE_BUILD_TYPE=Release
 cmake --build build/mac --target Wow --parallel
 ```
 
-The client is written to `bin/Mac/Wow`. Copy your 3.3.5a `Data` folder to `bin/Mac/Data/` and start
+The client is written to `bin/Mac/Wow`. Put (or symlink) your 3.3.5a `Data` folder at `bin/Mac/Data/` and start
 `bin/Mac/Wow` (data is located relative to the executable). Not available on macOS: Direct3D (OpenGL only), Logitech LCD,
 SteelSeries HID, DivX cinematics (skipped), and the patch-download launcher.
 
