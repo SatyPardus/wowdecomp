@@ -453,6 +453,7 @@ void BattlenetLogin::LogConnectionStatus(const char* format, ...) {
         va_start(args, format);
         SStrVPrintf(buffer, sizeof(buffer), format, args);
         CGlueMgr::LogConnectionStatus(buffer);
+        va_end(args);
     }
 }
 
