@@ -3,9 +3,8 @@
 This document records the process of porting wowdecomp (the decompiled WoW 3.3.5a client) to a native macOS
 executable, the design decisions made, and the issues found during startup debugging and their root causes.
 
-Current status: The native Apple Silicon (arm64) build, `bin/Mac/Wow`, loads WoW 3.3.5 zhCN game data, displays
-the complete login screen (scene, animated models, Chinese fonts, and particles), and exits normally. Logging
-into a server, entering the world, and fully verifying sound and input have not yet been completed.
+Current status: The native Apple Silicon (arm64) build, `bin/Mac/Wow`, loads WoW 3.3.5 zhCN game data, logs in to
+a server, creates characters (with localized race and class names), and enters and stays in the world.
 
 ## 1. Architecture and Dependency Replacements
 
@@ -94,6 +93,9 @@ non-Windows systems. Implementations were added in parallel by module: Storm, Bl
 | Warning: "This system will no longer be supported in future versions (SSE)" | The Mac CPU feature flags did not match the Windows bit layout, so SSE (bit `0x4`) was not reported. | Use the Windows bit definitions: arm64 reports TSC/SSE/SSE2 (the relevant code is pure C++ or uses the NEON compatibility layer); x86_64 reports TSC/MMX/SSE/SSE2. |
 | Cannot type in the password field | When focus left the account field, `DisableIME()` reduced the IME reference count to zero. Mac `OsIMEEnable(0)` / `OsIMESync()` then called `SDL_StopTextInput()`, disabling all text events. On Windows, disabling the IME only detaches the input-method context; `WM_CHAR` continues to arrive. The password field (flag `0x8`) does not enable the IME again. | IME toggles now manage only composition state; SDL text input remains enabled for the entire session. `OsInputEnableSecureMode` (called in balanced pairs on password-field focus gain/loss) now uses macOS Secure Event Input (`EnableSecureEventInput`), bypassing the input method and preventing other processes from observing keystrokes, corresponding to disabling the IME on Windows. |
 | Crash after clicking Login while "Connecting" (`EXC_ARM_DA_ALIGN` on the Network thread) | `WowConnectionNet::WORKER` used `#pragma pack(push, 1)` to reproduce the 32-bit `Wow.exe` layout, placing `SCritSect m_lock` at odd offset 0x15. x86 tolerates an unaligned `CRITICAL_SECTION`; on arm64, a pthread mutex must be 8-byte aligned, so locking it caused a bus error. | Preserve byte packing only for 32-bit builds (`WOWDECOMP_ARCH_32`) used to compare layouts with the original binary. The 64-bit layout already differs from the comments' offsets, so use natural alignment there. A scan of all `pack(1)` regions found no other embedded locks. |
+| Entering the world crashed with a different null dereference each time (`CMovement_C::UpdateStatusInternal`, `MovementUpdateCameraYaw`, `CMap::ObjectCreate`, `CGCamera::SetTelescope`, `Fatal Condition` in `CGGameUI::UpdateActivePlayer`) | The Mac `OsInputGet` called `s_eventPollProc` (`EventForceIdleProcessing`) on every poll with an empty queue. Win64 calls it only from a timer during modal non-client loops (title-bar menu/drag). While loading, `FrameXML_CreateFrames` → `UpdateProgressBar` pumps input, so the Mac build re-entered idle processing, including `PollNet`, which handled `SMSG_UPDATE_OBJECT` before movement globals, the camera, map light, and world frame existed. | Do not call the poll proc from `OsInputGet` (`Engine/Source/Os/Mac/Input.cpp`), matching Win64. Do not add null checks for the individual symptoms; they all disappear once packets are no longer processed during loading. |
+| Crash after a few minutes in the world in `CM2Model::ProcessEventCallbacks` (invalid address in M2 event timestamp data) | `M2Array` stores a self-relative signed 32-bit offset. On 64-bit builds, external `.anim` sequence data and some vertex buffers are separate allocations that must be within ±2 GB of the M2 data (`OsAllocNear`). The Mac `OsAllocNear` ignored its anchor and used `mmap(nullptr, …)`. On arm64, large and small allocations can be more than 2 GB apart, so offsets were truncated. | Port the Win64 search to Mach VM (`Engine/Source/Os/Mac/OsMemory.cpp`): walk gaps between mapped regions within 0x60000000 of the anchor using `mach_vm_region`, then claim one with `mach_vm_allocate(VM_FLAGS_FIXED)`, which never replaces existing mappings, unlike `MAP_FIXED`. |
+| On character creation, race and class tooltips and the race/class panel titles are empty (gender tooltips work) | Race and class names are localized DBC strings selected by `s_locale`, which comes from `Wow.ini` inside `locale-zhCN.MPQ` (`Language=zh`, `Country=CN`) through `SStrPrintf(s_iniLocale, 5, "%s%s", ...)`. Storm's ordered printf (`vsnoprintf`) mapped MSVC `_snprintf` to C `snprintf`. MSVC can fill all `n` characters, while C reserves one for the terminator, so on Mac each specifier that exactly filled the remaining space lost its last character. The result was `"zhC"`, which made `s_locale` fall back to 0 (enUS, an empty column in zhCN data). | `Engine/Source/Storm/Source/soprintf.cpp` passes `avail + 1` to `snprintf` on non-Windows platforms. The extra byte is `end`, which is already reserved for the final terminator. This fixes every truncated `SStrPrintf`/`SStrVPrintf` exact-fit case, not just locale handling. |
 
 ### Issues Not Specific to macOS
 
@@ -116,14 +118,19 @@ The following three issues also affect Windows builds:
   from shared-code issues.
 - If the process hangs, use `sample <pid>` to inspect the main-thread stack. For crashes, capture a backtrace
   with `lldb -b -o run -o bt` or inspect `~/Library/Logs/DiagnosticReports/Wow-*.ips`.
+- lldb runs the client with ASLR enabled, so `b -a <static address>` breakpoints silently fail to resolve. Use
+  symbol breakpoints, and resolve globals through `SBTarget.FindSymbols(...).GetLoadAddress()` in a Python script.
+  Only one client instance can run at a time; a stale debugged instance makes a new launch exit immediately.
 - SDL converts SIGTERM into a quit event. If the process is stuck in a modal dialog, SIGTERM will not terminate
   it; SIGKILL is required.
 
 ## 6. Known Limitations and Follow-up Work
 
-- Not yet verified: server login, entering the world, sound output, keyboard/mouse and IME input (including the
-  password-field fix; keystroke injection could not be automated without Accessibility permission), windowed
-  mode, and resolution switching.
+- Verified with admin/admin: server login, character creation, entering the world, and several minutes in the
+  world without crashing. Not yet verified: sound output, IME composition, windowed mode, and resolution
+  switching.
+- Upstream renames (`unk_*` → `unused_*`) update only the Win32/Win64 platform files. After merging upstream,
+  rebuild on macOS and apply the same rename to `Mac/` sources (for example, `OsCallContext::unused_000C`).
 - A temporary x86_64 test build (using a locally built SDL 2.30) showed a Yes/No dialog with no text. This was
   not seen in the official arm64 build using Homebrew SDL, but its dialog text has not been confirmed.
 - Audio uses SDL2 output; OpenAL Soft is not integrated.

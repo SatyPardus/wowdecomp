@@ -170,14 +170,38 @@ if (WOWDECOMP_ARCH_32)
     endif ()
 else ()
     if (APPLE)
-        add_library(DivxDecoderMac STATIC
-            ${CMAKE_SOURCE_DIR}/Tools/XvidDecoder/Mac/DivxDecoderUnavailable.cpp
-        )
+        # Same Xvid-backed decoder as Win64. Without xvidcore, fall back to a stub that reports
+        # failure so movies are skipped.
+        find_path(XVID_INCLUDE_DIR xvid.h HINTS /opt/homebrew/opt/xvid/include /usr/local/opt/xvid/include)
+        find_library(XVIDCORE_LIBRARY NAMES libxvidcore.a xvidcore HINTS /opt/homebrew/opt/xvid/lib /usr/local/opt/xvid/lib)
 
-        target_include_directories(DivxDecoderMac
-            PRIVATE
-                ${CMAKE_SOURCE_DIR}
-        )
+        if (XVID_INCLUDE_DIR AND XVIDCORE_LIBRARY)
+            add_library(DivxDecoderMac STATIC
+                ${CMAKE_SOURCE_DIR}/Tools/XvidDecoder/XvidDecoder.cpp
+            )
+
+            target_include_directories(DivxDecoderMac
+                PRIVATE
+                    ${CMAKE_SOURCE_DIR}
+                    ${XVID_INCLUDE_DIR}
+            )
+
+            target_link_libraries(DivxDecoderMac
+                PRIVATE
+                    ${XVIDCORE_LIBRARY}
+            )
+        else ()
+            message(WARNING "DivxDecoder: xvidcore not found (brew install xvid); cinematics will be skipped.")
+
+            add_library(DivxDecoderMac STATIC
+                ${CMAKE_SOURCE_DIR}/Tools/XvidDecoder/Mac/DivxDecoderUnavailable.cpp
+            )
+
+            target_include_directories(DivxDecoderMac
+                PRIVATE
+                    ${CMAKE_SOURCE_DIR}
+            )
+        endif ()
 
         target_link_libraries(DivxDecoder
             INTERFACE
