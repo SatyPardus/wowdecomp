@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include "Engine/Source/Os/OsMemory.h"
 
-static std::mutex s_nearMutex;
+static std::mutex& s_nearMutex = *new std::mutex;  // never destroyed: still used by threads during exit()
 static std::unordered_map<void*, size_t> s_nearSizes;
 
 void* OsAllocNear(const void* anchor, size_t size) {

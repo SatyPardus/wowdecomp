@@ -126,8 +126,11 @@
   {
     TT_Get_Metrics( &face->horizontal, index, lsb, aw );
 
-    if ( check && face->postscript.isFixedPitch )
-      *aw = face->horizontal.advance_Width_Max;
+    /* wowdecomp: the original client's FreeType keeps the per-glyph `hmtx' */
+    /* advance for fonts flagged `isFixedPitch' (the zhCN/zhTW fonts set it */
+    /* while being proportional); forcing `advance_Width_Max' here spaces   */
+    /* every glyph at the widest advance.                                   */
+    FT_UNUSED( check );
   }
 
 
@@ -1153,14 +1156,8 @@
       FT_Pos  advance = loader->advance;
 
 
-      /* the flag FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH was introduced to */
-      /* correctly support DynaLab fonts, which have an incorrect       */
-      /* `advance_Width_Max' field!  It is used, to my knowledge,       */
-      /* exclusively in the X-TrueType font server.                     */
-      /*                                                                */
-      if ( face->postscript.isFixedPitch                                    &&
-           ( loader->load_flags & FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH ) == 0 )
-        advance = face->horizontal.advance_Width_Max;
+      /* wowdecomp: see Get_HMetrics -- keep the per-glyph advance for      */
+      /* fonts flagged `isFixedPitch', like the original client.            */
 
       /* we need to return the advance in font units in linearHoriAdvance, */
       /* it will be scaled later by the base layer.                        */

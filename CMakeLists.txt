@@ -17,6 +17,13 @@ if (NOT WIN32)
     include_directories(BEFORE "${CMAKE_SOURCE_DIR}/Engine/Source/Platform/Compat")
 endif ()
 
+# The decompiled code relies on MSVC semantics: no type-based alias analysis (it type-puns through
+# reinterpret_cast, e.g. expanding MPQ block tables in place) and wrapping signed arithmetic. Clang/GCC
+# optimize both as undefined behavior, which silently miscompiles such code.
+if (NOT MSVC)
+    add_compile_options(-fno-strict-aliasing -fwrapv)
+endif ()
+
 # Native macOS client: SDL2 (window, input, audio device), the system OpenGL framework and libcurl replace
 # Win32/WGL/DirectInput/WinINet. Platform sources live in Mac/ directories next to the Win32/Win64 ones.
 if (APPLE)

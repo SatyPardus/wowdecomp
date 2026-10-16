@@ -1,5 +1,6 @@
 #if defined(__APPLE__)
 
+#include "Engine/Source/Platform/Compat/ThreadStack.h"
 #include <crt_externs.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -406,7 +407,7 @@ struct ProcessCompletion {
 };
 
 std::mutex& RwLockMapMutex() {
-    static std::mutex mutex;
+    static std::mutex& mutex = *new std::mutex;
     return mutex;
 }
 
@@ -503,7 +504,7 @@ struct RegistryEntry {
 using RegistryMap = std::unordered_map<std::string, RegistryEntry>;
 
 std::mutex& RegistryMutex() {
-    static std::mutex mutex;
+    static std::mutex& mutex = *new std::mutex;
     return mutex;
 }
 
@@ -568,7 +569,7 @@ struct LogRecord {
 };
 
 std::mutex& LogMutex() {
-    static std::mutex mutex;
+    static std::mutex& mutex = *new std::mutex;
     return mutex;
 }
 
@@ -615,7 +616,7 @@ std::string CurrentLogTimestamp() {
 }
 
 std::mutex& ErrorMutex() {
-    static std::mutex mutex;
+    static std::mutex& mutex = *new std::mutex;
     return mutex;
 }
 
@@ -1153,9 +1154,7 @@ void* SCreateThread(uint32_t stackSize, uint32_t (STORMAPI* startAddress)(void*)
     pthread_attr_t attr;
     pthread_attr_init(&attr);
 
-    if (stackSize >= PTHREAD_STACK_MIN) {
-        pthread_attr_setstacksize(&attr, stackSize);
-    }
+    pthread_attr_setstacksize(&attr, WowThreadStackSize(stackSize));
 
     S_Thread::s_threadCrit.Enter();
 

@@ -1,5 +1,6 @@
 #if defined(__APPLE__)
 
+#include "ThreadStack.h"  // Engine/Source/Platform/Compat (global include dir on non-Windows)
 #include "fmod_settings.h"
 
 #include "fmod.h"
@@ -353,10 +354,7 @@ FMOD_RESULT FMOD_OS_Thread_Create(const char *name, THREAD_RETURNTYPE (THREAD_CA
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    if (stacksize > 0)
-    {
-        pthread_attr_setstacksize(&attr, (size_t)stacksize);
-    }
+    pthread_attr_setstacksize(&attr, WowThreadStackSize(stacksize > 0 ? (size_t)stacksize : 0));
 
     int rc = pthread_create(&thread->thread, &attr, FMOD_OS_Thread_Trampoline, start);
     pthread_attr_destroy(&attr);

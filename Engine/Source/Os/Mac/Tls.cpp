@@ -6,7 +6,7 @@
 #include <vector>
 #include "Engine/Source/Os/Tls.h"
 
-static std::mutex s_tlsMutex;
+static std::mutex& s_tlsMutex = *new std::mutex;  // never destroyed: still used by threads during exit()
 static std::vector<pthread_key_t> s_tlsKeys;
 
 uint32_t OsTlsAlloc() {

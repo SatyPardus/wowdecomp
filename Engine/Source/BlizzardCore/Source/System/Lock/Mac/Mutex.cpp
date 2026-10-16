@@ -16,7 +16,7 @@ void Blizzard::Lock::MutexLeave(Mutex& mutex) {
 }
 
 void Blizzard::Lock::MutexDestroy(Mutex& mutex) {
-    mutex.~Mutex();
+    pthread_mutex_destroy(&mutex.m_mutex);
 }
 
 Blizzard::Lock::ScopedMutex::ScopedMutex(Mutex& mutex) : m_mutex(&mutex) {

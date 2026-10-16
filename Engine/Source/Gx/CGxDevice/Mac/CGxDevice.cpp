@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <SDL.h>
+#include <OpenGL/gl.h>
+#include <OpenGL/glext.h>
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/Gx.h"
 
@@ -114,9 +116,58 @@ int32_t CGxDevice::DeviceAdapterID(uint16_t& vendorID, uint16_t& deviceID, uint3
 }
 
 int32_t CGxDevice::DeviceAdapterInfer(uint16_t& deviceID) {
+    int32_t result = 0;
     deviceID = 0;
-    CGxDevice::Log("CGxDevice::DeviceAdapterInfer(): RET: %d, DID: %x", 0, deviceID);
-    return 0;
+
+    // Windows classifies the adapter from the Direct3D 9 HAL caps (hardware T&L, more than two texture stages,
+    // pixel shader 2.0 / 1.1). The OpenGL equivalents are ARB_vertex_program, GL_MAX_TEXTURE_UNITS_ARB and
+    // ARB_fragment_program / ATI_fragment_shader / NV_texture_shader, queried on a throwaway context.
+    SDL_GL_ResetAttributes();
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+
+    SDL_Window* window = SDL_CreateWindow("adinfer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16, 16, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+
+    if (window) {
+        SDL_GLContext context = SDL_GL_CreateContext(window);
+
+        if (context) {
+            const char* extensions = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+            GLint textureUnits = 0;
+            glGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &textureUnits);
+
+            auto hasExtension = [extensions](const char* name) {
+                return extensions && strstr(extensions, name) != nullptr;
+            };
+
+            bool hwTransform = hasExtension("GL_ARB_vertex_program");
+            bool ps20 = hasExtension("GL_ARB_fragment_program");
+            bool ps11 = ps20 || hasExtension("GL_ATI_fragment_shader") || hasExtension("GL_NV_texture_shader");
+
+            if (hwTransform && textureUnits > 2 && ps20) {
+                deviceID = 3;
+            } else if (hwTransform && textureUnits > 2 && ps11) {
+                deviceID = 2;
+            } else if (hwTransform && textureUnits >= 2) {
+                deviceID = 1;
+            } else {
+                deviceID = 0;
+            }
+
+            result = 1;
+
+            SDL_GL_MakeCurrent(window, nullptr);
+            SDL_GL_DeleteContext(context);
+        }
+
+        SDL_DestroyWindow(window);
+    }
+
+    SDL_GL_ResetAttributes();
+    CGxDevice::Log("CGxDevice::DeviceAdapterInfer(): RET: %d, DID: %x", result, deviceID);
+
+    return result;
 }
 
 int32_t CGxDevice::AdapterDesktopMode(CGxMonitorMode& mode) {

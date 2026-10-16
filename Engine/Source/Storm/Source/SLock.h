@@ -7,8 +7,9 @@
 #include <windows.h>
 #else
 #include <mutex>
+#include "Engine/Source/Platform/Compat/RecursiveMutex.h"
 using HANDLE = void*;
-using CRITICAL_SECTION = std::recursive_mutex;
+using CRITICAL_SECTION = WowRecursiveMutex;
 using LONG = int32_t;
 #endif
 #include "Engine/Source/Storm/H/storm.h"

@@ -7,6 +7,7 @@
 #include <windows.h>
 #else
 #include <mutex>
+#include "Engine/Source/Platform/Compat/RecursiveMutex.h"
 #endif
 #include "Engine/Source/BlizzardCore/Source/System/Process/Process.h"
 
@@ -19,7 +20,7 @@ typedef CRITICAL_SECTION Mutex;
 #else
 struct EventState;
 typedef EventState* Event;
-typedef std::recursive_mutex Mutex;
+typedef WowRecursiveMutex Mutex;
 #endif
 
 class Atomic {

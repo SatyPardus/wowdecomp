@@ -156,6 +156,20 @@ static SDL_Window* CreateGameWindow(CGxFormat& format, void* param) {
         mode.refresh_rate = format.m_refreshRate;
         SDL_SetWindowDisplayMode(window, &mode);
         SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+
+        // On Windows a fullscreen client area always equals the requested mode. macOS may pick a scaled (Retina)
+        // mode whose backbuffer is larger than the requested size, so adopt the real backbuffer size; otherwise
+        // font rasterization and 3D viewports are computed for a smaller surface than the one being drawn.
+        SDL_PumpEvents();
+        int drawableWidth = 0;
+        int drawableHeight = 0;
+        SDL_GL_GetDrawableSize(window, &drawableWidth, &drawableHeight);
+
+        if (drawableWidth > 0 && drawableHeight > 0 && (drawableWidth != format.m_size.x || drawableHeight != format.m_size.y)) {
+            CGxDevice::Log("CreateGameWindow(): fullscreen backbuffer is %d x %d, requested %d x %d", drawableWidth, drawableHeight, format.m_size.x, format.m_size.y);
+            format.m_size.x = drawableWidth;
+            format.m_size.y = drawableHeight;
+        }
     }
 
     OsGuiSetGxWindow(window);

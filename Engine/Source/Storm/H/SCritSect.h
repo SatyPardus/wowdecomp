@@ -6,7 +6,8 @@
 #include <windows.h>
 #else
 #include <mutex>
-using CRITICAL_SECTION = std::recursive_mutex;
+#include "Engine/Source/Platform/Compat/RecursiveMutex.h"
+using CRITICAL_SECTION = WowRecursiveMutex;
 #endif
 
 class CCritSect {

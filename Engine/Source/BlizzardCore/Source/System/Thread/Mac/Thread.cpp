@@ -1,5 +1,6 @@
 #if defined(__APPLE__)
 
+#include "Engine/Source/Platform/Compat/ThreadStack.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -198,9 +199,7 @@ bool Blizzard::Thread::Create(uint32_t (*function)(void*), void* param, ThreadRe
     if (!stackSize) {
         stackSize = System_Thread::s_DefaultStackSize;
     }
-    if (stackSize > 0) {
-        pthread_attr_setstacksize(&attr, static_cast<size_t>(stackSize));
-    }
+    pthread_attr_setstacksize(&attr, WowThreadStackSize(stackSize > 0 ? static_cast<size_t>(stackSize) : 0));
     if (pthread_create(handle, &attr, PThreadStarter, record) != 0) {
         pthread_attr_destroy(&attr);
         free(handle);
