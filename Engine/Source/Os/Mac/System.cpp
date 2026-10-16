@@ -194,10 +194,14 @@ int32_t OsLaunchURL(const char* url) {
 
 uint32_t OsGetProcessorFeaturesEx(int32_t& vendor) {
     vendor = 4;
+    // Same bits as the Win32 CPUID decode: 1 = TSC, 2 = MMX, 4 = SSE, 8 = 3DNow!, 0x10 = SSE2.
 #if defined(__aarch64__)
-    return 0x80000000u | 0x10u;
+    // Every SSE/SSE2-gated path in the client is plain C++ or goes through the NEON shim
+    // (Engine/Source/Platform/Compat/SSE.h); there are no MMX or 3DNow! paths to enable.
+    return 0x1u | 0x4u | 0x10u;
 #else
-    return 0x80000000u;
+    // Every x86_64 CPU has TSC, MMX, SSE and SSE2.
+    return 0x1u | 0x2u | 0x4u | 0x10u;
 #endif
 }
 
