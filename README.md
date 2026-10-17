@@ -147,6 +147,13 @@ culling and scissor rectangles. The preview uses immutable PCT vertices and an
 index buffer. This path currently uses BGRA8 color and Depth32Float attachments;
 it does not implement lighting, fog, skinning, triangle fans, MSAA or arbitrary
 game shaders, and is not a D3D9 depth-precision or rasterization-equivalence result.
+The first native programmable family is the original UI shader: texture times
+vertex color, four transform constant registers, and both regular and screen-at-depth
+vertex permutations. Preview startup reads the mounted `vs_3_0/UI.bls` and
+`ps_3_0/UI.bls`; bounded BLS parsing and recognized code fingerprints prevent a
+modified shader from silently selecting the wrong native implementation. The
+original 2.0 family is recognized too. This is shader identification, not the
+client's signature policy, and full CGx shader creation/binding remains pending.
 
 The Metal probe verifies known alpha cases, filtering and blending, then draws and
 reads back each mip through both native and forced-expanded upload paths. Expanded

@@ -52,7 +52,7 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
             "Gx scissor exceeds target");
     }
     Require(std::isfinite(state.blendFactor) && state.blendFactor >= 0 && state.blendFactor <= 1, "Invalid Gx blend factor");
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth);
     id<MTLSamplerState> sampler = Sampler(state);
     const uint32_t depthKey = geometry.depthFunction | (unsigned(geometry.depthTest) << 2) | (unsigned(geometry.depthWrite) << 3);
     auto depth = m_depthStates.find(depthKey);

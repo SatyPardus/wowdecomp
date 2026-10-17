@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/Metal/TextureDevice.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Gx/Metal/UIShader.h"
 #include <algorithm>
 #include <cstring>
 #include <stdexcept>
@@ -134,5 +135,30 @@ void CheckGxGeometry(GxMetal::TextureDevice& gpu) {
         triangle.vertices = [gpu.device newBufferWithBytes:bytes.data() length:bytes.size() options:MTLResourceStorageModeShared];
         const uint8_t expected[] = {255, 255, 255, 255};
         Solid(Render(gpu, texture, {triangle}), expected, "Gx unskinned vertex layout mismatch");
+    }
+}
+
+void CheckUIShader(GxMetal::TextureDevice& gpu, const GxMetal::UIShader& ui) {
+    BLP::Image white;
+    white.mips.push_back({1, 1, 4, {255, 255, 255, 255}});
+    auto texture = gpu.Upload(white);
+    const float registers[16] = {0.5f, 0, 0, 0.25f, 0, 0.5f, 0, -0.25f, 0, 0, 0, 1, 0, 0, 0, 2};
+    for (uint32_t permutation = 0; permutation < 2; ++permutation) {
+        auto draw = Quad(gpu, 0xFF102030);
+        auto transform = ui.VertexTransform(registers, 4, permutation);
+        draw.clipFromModel = transform.clipFromModel;
+        draw.screenAtDepth = transform.screenAtDepth;
+        const auto pixels = Render(gpu, texture, {draw});
+        // Original DP4 equations give regular NDC [-.125,.375] x [-.375,.125].
+        // Permutation 1 multiplies clip.xy by w before perspective divide,
+        // giving [-.25,.75] x [-.75,.25] while retaining the same depth.
+        const uint32_t start = permutation ? 6 : 7, end = permutation ? 14 : 11;
+        const uint8_t tint[] = {0x30, 0x20, 0x10, 255};
+        for (unsigned y = 0; y < extent; ++y) {
+            for (unsigned x = 0; x < extent; ++x) {
+                const auto* expected = x >= start && x < end && y >= start && y < end ? tint : background;
+                Require(!std::memcmp(pixels.data() + (y * extent + x) * 4, expected, 4), "Native UI BLS permutation or register layout mismatch");
+            }
+        }
     }
 }

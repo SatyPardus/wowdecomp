@@ -12,6 +12,7 @@ struct QuadParameters {
     float padding[3];
 };
 constant bool alphaTest [[function_constant(0)]];
+constant bool screenAtDepth [[function_constant(1)]];
 struct QuadVertex { float4 position [[position]]; float2 uv; float4 color; };
 
 vertex QuadVertex textureQuadVertex(uint index [[vertex_id]], constant QuadParameters& p [[buffer(0)]]) {
@@ -26,7 +27,9 @@ struct VertexPT { float3 position [[attribute(0)]]; float2 uv [[attribute(2)]]; 
 struct VertexPCT { float3 position [[attribute(0)]]; float4 color [[attribute(1)]]; float2 uv [[attribute(2)]]; };
 struct GeometryParameters { float4x4 clipFromModel; QuadParameters texture; };
 inline QuadVertex unlitVertex(float3 position, float4 color, float2 uv, constant GeometryParameters& p) {
-    return {p.clipFromModel * float4(position, 1), uv * p.texture.uvScale + p.texture.uvOffset, color};
+    float4 clip = p.clipFromModel * float4(position, 1);
+    if (screenAtDepth) { clip.xy *= clip.w; }
+    return {clip, uv * p.texture.uvScale + p.texture.uvOffset, color};
 }
 vertex QuadVertex unlitP(VertexP v [[stage_in]], constant GeometryParameters& p [[buffer(0)]]) {
     return unlitVertex(v.position, float4(1), float2(0), p);

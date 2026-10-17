@@ -26,10 +26,12 @@ int main(int argc, char** argv) {
             ClientData client(argv[2], "");
             const auto asset = client.Read(argv[4], 64 * 1024 * 1024);
             const auto image = BLP::Image::Load(asset.bytes.data(), asset.bytes.size(), 256 * 1024 * 1024);
+            const auto ui = GxMetal::UIShader::FromBls(client.Read("Shaders\\Vertex\\vs_3_0\\UI.bls", 1024 * 1024).bytes,
+                client.Read("Shaders\\Pixel\\ps_3_0\\UI.bls", 1024 * 1024).bytes);
             std::printf("%s from %s: %ux%u %s, %zu mips\n", argv[4], asset.archive.c_str(), image.mips[0].width, image.mips[0].height,
                 BLP::FormatName(image.format), image.mips.size());
             std::string report;
-            const bool success = AppleBootstrap::CheckMetal(image, report);
+            const bool success = AppleBootstrap::CheckMetal(image, ui, report);
             std::fputs(report.c_str(), stdout);
             if (success && argc == 6) {
                 [NSApplication sharedApplication];
@@ -43,7 +45,7 @@ int main(int argc, char** argv) {
                 delegate.window.releasedWhenClosed = NO;
                 MTKView* view = [[MTKView alloc] initWithFrame:delegate.window.contentView.bounds];
                 delegate.window.contentView = view;
-                delegate.renderer = [[WowTextureRenderer alloc] initWithView:view image:image];
+                delegate.renderer = [[WowTextureRenderer alloc] initWithView:view image:image uiShader:ui];
                 [delegate.window center];
                 [delegate.window makeKeyAndOrderFront:nil];
                 [NSApp activateIgnoringOtherApps:YES];

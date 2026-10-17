@@ -7,14 +7,16 @@
     std::unique_ptr<GxMetal::TextureDevice> _gpu;
     id<MTLTexture> _texture;
     GxMetal::GeometryDraw _quad;
+    std::unique_ptr<GxMetal::UIShader> _uiShader;
     __weak MTKView* _view;
     dispatch_semaphore_t _frames;
     BOOL _active;
 }
-- (instancetype)initWithView:(MTKView*)view image:(const BLP::Image&)image {
+- (instancetype)initWithView:(MTKView*)view image:(const BLP::Image&)image uiShader:(const GxMetal::UIShader&)ui {
     if ((self = [super init])) {
         _gpu = std::make_unique<GxMetal::TextureDevice>(MTLCreateSystemDefaultDevice());
         _texture = _gpu->Upload(image);
+        _uiShader = std::make_unique<GxMetal::UIShader>(ui);
         // Immutable Gx PCT vertices and uint16 indices are shared by all frames.
         struct Vertex { float x, y, z; uint32_t color; float u, v; };
         static_assert(sizeof(Vertex) == 24, "Gx PCT layout");
@@ -67,6 +69,10 @@
         else { parameters.scale.x = imageAspect / viewAspect; }
         _quad.clipFromModel.Identity();
         _quad.clipFromModel.Scale(C3Vector(parameters.scale.x, parameters.scale.y, 1));
+        const C44Matrix registers = _quad.clipFromModel.Transpose();
+        const auto transform = _uiShader->VertexTransform(&registers.a0, 4, 0);
+        _quad.clipFromModel = transform.clipFromModel;
+        _quad.screenAtDepth = transform.screenAtDepth;
         GxMetal::TextureDrawState state;
         state.blend = GxBlend_Alpha;
         state.alphaRef = 1;

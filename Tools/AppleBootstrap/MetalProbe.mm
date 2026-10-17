@@ -7,6 +7,7 @@
 #include <stdexcept>
 
 void CheckGxGeometry(GxMetal::TextureDevice& gpu);
+void CheckUIShader(GxMetal::TextureDevice& gpu, const GxMetal::UIShader& ui);
 
 namespace {
 void Require(bool condition, const char* message) {
@@ -187,7 +188,7 @@ void CheckGxStates(GxMetal::TextureDevice& gpu) {
 }
 }
 
-bool AppleBootstrap::CheckMetal(const BLP::Image& image, std::string& report) {
+bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader& ui, std::string& report) {
     std::ostringstream out;
     @autoreleasepool {
         try {
@@ -196,9 +197,12 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, std::string& report) {
             CheckDecodeCases(gpu);
             CheckGxStates(gpu);
             CheckGxGeometry(gpu);
+            CheckUIShader(gpu, ui);
             out << "BC endpoint/alpha cases, BGRA channel order, straight alpha blending and bilinear sampling passed.\n";
             out << "Gx: 12 RGBA blend modes, alpha-test equality/clip, channel masks, six mip filters and independent U/V addressing passed.\n";
             out << "Gx geometry: 13 unskinned packed layouts, indexed/nonindexed draws, Tempest transforms, BGRA vertex colors, depth comparisons/write masks, opposite cull modes and scissors passed.\n";
+            out << "Original UI BLS recognized (vs_" << ui.VertexMajorVersion() << "_0 / ps_" << ui.PixelMajorVersion()
+                << "_0): both native vertex permutations and constant-register mapping passed.\n";
             for (bool expanded : {false, true}) {
                 id<MTLTexture> texture = gpu.Upload(image, expanded);
                 unsigned maxRGB = 0, maxAlpha = 0;

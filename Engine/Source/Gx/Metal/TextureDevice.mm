@@ -38,9 +38,13 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     if (!library) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal shader compilation failed"); }
     m_vertex = [library newFunctionWithName:@"textureQuadVertex"];
     NSString* geometryFunctions[] = {@"unlitP", @"unlitPC", @"unlitPT", @"unlitPCT"};
-    for (unsigned i = 0; i < 4; ++i) {
-        m_geometryVertex[i] = [library newFunctionWithName:geometryFunctions[i]];
-        Require(m_geometryVertex[i] != nil, "Cannot load Metal geometry function");
+    for (bool screenAtDepth : {false, true}) {
+        MTLFunctionConstantValues* constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&screenAtDepth type:MTLDataTypeBool atIndex:1];
+        for (unsigned i = 0; i < 4; ++i) {
+            m_geometryVertex[screenAtDepth][i] = [library newFunctionWithName:geometryFunctions[i] constantValues:constants error:&error];
+            if (!m_geometryVertex[screenAtDepth][i]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal geometry specialization failed"); }
+        }
     }
     for (bool alphaTest : {false, true}) {
         MTLFunctionConstantValues* constants = [MTLFunctionConstantValues new];
@@ -57,12 +61,12 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5) |
-        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13);
+        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -85,7 +89,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     descriptor.vertexFunction = m_vertex;
     if (format != GxVertexBufferFormats_Last) {
         const bool color = GxVertexHasAttrib(format, GxVA_Color0), uv = GxVertexHasAttrib(format, GxVA_TexCoord0);
-        descriptor.vertexFunction = m_geometryVertex[unsigned(color) | (unsigned(uv) << 1)];
+        descriptor.vertexFunction = m_geometryVertex[screenAtDepth][unsigned(color) | (unsigned(uv) << 1)];
         MTLVertexDescriptor* layout = [MTLVertexDescriptor vertexDescriptor];
         auto attribute = [&](unsigned index, EGxVertexAttrib gx, MTLVertexFormat type) {
             layout.attributes[index].bufferIndex = 1;

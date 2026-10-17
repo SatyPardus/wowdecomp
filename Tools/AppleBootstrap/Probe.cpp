@@ -17,6 +17,8 @@
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/BLPFile/Types.h"
+#include "Engine/Source/Gx/ShaderBinary.h"
+#include "Engine/Source/Gx/Metal/UIShader.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
@@ -511,6 +513,26 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
                 << (asset.digestVerified ? " (archive MD5 matched)" : " (no archive MD5)") << '\n';
         }
         out << "SFile2 sequential, preloaded, seek/EOF and whole-file reads match all 7 mounted resources.\n";
+        for (unsigned version : {2, 3}) {
+            const std::string profile = std::to_string(version) + "_0\\UI.bls";
+            const auto vertex = client.Read("Shaders\\Vertex\\vs_" + profile, 1024 * 1024);
+            const auto pixel = client.Read("Shaders\\Pixel\\ps_" + profile, 1024 * 1024);
+            auto ui = GxMetal::UIShader::FromBls(vertex.bytes, pixel.bytes);
+            Require(ui.VertexMajorVersion() == version && ui.PixelMajorVersion() == version, "UI shader profile mismatch");
+            auto reject = [](auto&& operation) {
+                bool failed = false;
+                try { operation(); } catch (const std::runtime_error&) { failed = true; }
+                Require(failed, "Unsupported/truncated/over-budget shader was accepted");
+            };
+            auto changed = vertex.bytes;
+            changed[28] ^= 1;
+            reject([&] { GxMetal::UIShader::FromBls(changed, pixel.bytes); });
+            changed = vertex.bytes;
+            changed.pop_back();
+            reject([&] { GxReadShaderBinary(changed, 1024 * 1024); });
+            reject([&] { GxReadShaderBinary(vertex.bytes, 16); });
+        }
+        out << "Original UI vs/ps_2_0 and vs/ps_3_0 BLS recognized; modified code, truncation and memory budget checks passed.\n";
         out << "Full local archive layout and locale fallback are active. Client signature policy, game loop, full Gx/Metal integration, audio and networking remain to be integrated.\n";
         report = out.str();
         return success;

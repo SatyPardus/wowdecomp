@@ -39,6 +39,7 @@ struct GeometryDraw {
     EGxVertexBufferFormat format = GxVBF_PCT;
     CGxBatch batch{};
     C44Matrix clipFromModel{1.0f};
+    bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
     bool depthTest = false, depthWrite = false;
     uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
     uint32_t culling = 0; // Gx: none, clockwise, counterclockwise
@@ -68,12 +69,12 @@ public:
 private:
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
-    id<MTLFunction> m_geometryVertex[4];
+    id<MTLFunction> m_geometryVertex[2][4];
     std::unordered_map<uint32_t, id<MTLRenderPipelineState>> m_pipelines;
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false);
+        bool depthAttachment = false, bool screenAtDepth = false);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
 };
 }
