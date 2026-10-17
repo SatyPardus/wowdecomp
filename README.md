@@ -140,6 +140,13 @@ and sampler objects are cached; alpha testing uses an MSL function specializatio
 It is not yet connected to the full CGxDevice interface.
 The original shared Gx sources also compile as a native static library; Apple
 device factories, platform hooks and full client linkage remain pending.
+The native unlit geometry primitive now links the shared Gx vertex-layout tables
+and consumes packed vertex buffers and 16-bit indexed/nonindexed batches directly.
+It maps Tempest matrices, BGRA vertex colors, Gx depth comparisons/write control,
+culling and scissor rectangles. The preview uses immutable PCT vertices and an
+index buffer. This path currently uses BGRA8 color and Depth32Float attachments;
+it does not implement lighting, fog, skinning, triangle fans, MSAA or arbitrary
+game shaders, and is not a D3D9 depth-precision or rasterization-equivalence result.
 
 The Metal probe verifies known alpha cases, filtering and blending, then draws and
 reads back each mip through both native and forced-expanded upload paths. Expanded

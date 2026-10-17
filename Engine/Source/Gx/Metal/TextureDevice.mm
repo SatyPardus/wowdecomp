@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/Metal/TextureDevice.h"
 #include "MetalShaderSource.h"
+#include "Engine/Source/Gx/Gx.h"
 #include <algorithm>
 #include <cstring>
 #include <cmath>
@@ -36,6 +37,11 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     id<MTLLibrary> library = [device newLibraryWithSource:@(TextureQuadSource) options:options error:&error];
     if (!library) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal shader compilation failed"); }
     m_vertex = [library newFunctionWithName:@"textureQuadVertex"];
+    NSString* geometryFunctions[] = {@"unlitP", @"unlitPC", @"unlitPT", @"unlitPCT"};
+    for (unsigned i = 0; i < 4; ++i) {
+        m_geometryVertex[i] = [library newFunctionWithName:geometryFunctions[i]];
+        Require(m_geometryVertex[i] != nil, "Cannot load Metal geometry function");
+    }
     for (bool alphaTest : {false, true}) {
         MTLFunctionConstantValues* constants = [MTLFunctionConstantValues new];
         [constants setConstantValue:&alphaTest type:MTLDataTypeBool atIndex:0];
@@ -48,12 +54,15 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state); Sampler(state);
     state.blend = GxBlend_Alpha; state.alphaRef = 1;
     Pipeline(state);
+    Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
-    const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5);
+    Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
+    const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5) |
+        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -74,6 +83,22 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     MTLRenderPipelineDescriptor* descriptor = [MTLRenderPipelineDescriptor new];
     descriptor.label = [NSString stringWithFormat:@"WoW Gx blend %u mask %u alpha %d", state.blend, state.colorWrite, state.alphaRef != 0];
     descriptor.vertexFunction = m_vertex;
+    if (format != GxVertexBufferFormats_Last) {
+        const bool color = GxVertexHasAttrib(format, GxVA_Color0), uv = GxVertexHasAttrib(format, GxVA_TexCoord0);
+        descriptor.vertexFunction = m_geometryVertex[unsigned(color) | (unsigned(uv) << 1)];
+        MTLVertexDescriptor* layout = [MTLVertexDescriptor vertexDescriptor];
+        auto attribute = [&](unsigned index, EGxVertexAttrib gx, MTLVertexFormat type) {
+            layout.attributes[index].bufferIndex = 1;
+            layout.attributes[index].offset = GxVertexAttribOffset(format, gx);
+            layout.attributes[index].format = type;
+        };
+        attribute(0, GxVA_Position, MTLVertexFormatFloat3);
+        if (color) { attribute(1, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA); }
+        if (uv) { attribute(2, GxVA_TexCoord0, MTLVertexFormatFloat2); }
+        layout.layouts[1].stride = GxVertexSize(format);
+        descriptor.vertexDescriptor = layout;
+    }
+    if (depthAttachment) { descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float; }
     descriptor.fragmentFunction = m_fragment[state.alphaRef != 0];
     auto attachment = descriptor.colorAttachments[0];
     attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;

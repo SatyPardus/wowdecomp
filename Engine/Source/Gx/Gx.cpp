@@ -13,24 +13,6 @@
 // STATIC: 0x00A2D57C
 static const uint32_t s_texelSize[GxTexFormats_Last] = { 0, 4, 4, 2, 2, 2, 2, 4, 4, 2, 4, 4, 4 };
 
-// STATIC: 0x00A2D5B0
-static const int32_t s_vertexAttribOffset[GxVertexBufferFormats_Last][GxVAs_Last] = {
-    { 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, 12, 24, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, 12, -1, -1, 24, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, 12, 24, -1, 28, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, 12, -1, -1, 24, 32, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, 12, 24, -1, 28, 36, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, -1, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, -1, 12, -1, 16, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, -1, 12, -1, 16, 24, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, -1, -1, -1, 12, -1, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, -1, -1, -1, 12, 20, -1, -1, -1, -1, -1, -1 },
-    { 0, 12, 16, 20, -1, -1, 32, 40, -1, -1, -1, -1, -1, -1 },
-    { 0, -1, -1, 12, 24, 28, 32, 40, -1, -1, -1, -1, -1, -1 }
-};
-
 // STATIC: 0x00AD8AF8
 static BlitFormat s_blitFormats[GxTexFormats_Last] = {
     BlitFormat_Unknown, BlitFormat_Abgr8888, BlitFormat_Argb8888, BlitFormat_Argb4444, BlitFormat_Argb1555,
@@ -40,9 +22,6 @@ static BlitFormat s_blitFormats[GxTexFormats_Last] = {
 
 // STATIC: 0x00AD87E4
 const char* g_gxApiNames[GxApis_Last] = { "OpenGL", "D3D9", "D3D9Ex", "D3D10", "D3D11", "GLL" };
-
-// STATIC: 0x00AD8AC0
-static uint32_t s_vertexSize[GxVertexBufferFormats_Last] = { 12, 24, 28, 32, 36, 40, 44, 16, 24, 32, 20, 28, 48, 48 };
 
 // STATIC: 0x00C5DF74
 static uint32_t s_maxFPSBk;
@@ -132,12 +111,6 @@ int32_t GxApiSupported(EGxApi api) {
     }
 }
 
-// VERIFY: 619cba02 auto
-// OFFSET: 0x00681230
-uint32_t GxVertexSize(EGxVertexBufferFormat format) {
-    return s_vertexSize[format];
-}
-
 // VERIFY: f1ff254c auto
 // OFFSET: 0x006811F0
 int32_t GxAdapterID(uint16_t& vendorID, uint16_t& deviceID, uint32_t& driverVersionHi, uint32_t& driverVersionLo) {
@@ -160,18 +133,6 @@ int32_t GxAdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
 // OFFSET: 0x00681220
 int32_t GxAdapterDesktopMode(CGxMonitorMode& mode) {
     return CGxDevice::AdapterDesktopMode(mode);
-}
-
-// VERIFY: d108cfe2 auto
-// OFFSET: 0x00681240
-uint32_t GxVertexAttribOffset(EGxVertexBufferFormat format, EGxVertexAttrib attrib) {
-    return s_vertexAttribOffset[format][attrib];
-}
-
-// VERIFY: 6233e69b auto
-// OFFSET: 0x00681260
-int32_t GxVertexHasAttrib(EGxVertexBufferFormat format, EGxVertexAttrib attrib) {
-    return s_vertexAttribOffset[format][attrib] != -1;
 }
 
 // VERIFY: ca53a8f5 auto
@@ -729,7 +690,7 @@ void GxPrimVertexPtr(uint32_t vertexCount, const C3Vector* pos, uint32_t posStri
         }
     }
 
-    uint32_t vertexSize = s_vertexSize[format];
+    uint32_t vertexSize = GxVertexSize(format);
     CGxBuf* buf = g_theGxDevicePtr->BufStream(GxPoolTarget_Vertex, vertexSize, vertexCount);
     char* data = g_theGxDevicePtr->BufLock(buf);
 
@@ -738,14 +699,14 @@ void GxPrimVertexPtr(uint32_t vertexCount, const C3Vector* pos, uint32_t posStri
     C2Vector emptyTex0;
     CImVector emptyColor;
 
-    char* posDst = data + s_vertexAttribOffset[format][GxVA_Position];
-    char* normalDst = normal ? data + s_vertexAttribOffset[format][GxVA_Normal] : reinterpret_cast<char*>(&emptyNormal);
+    char* posDst = data + static_cast<int32_t>(GxVertexAttribOffset(format, GxVA_Position));
+    char* normalDst = normal ? data + static_cast<int32_t>(GxVertexAttribOffset(format, GxVA_Normal)) : reinterpret_cast<char*>(&emptyNormal);
     uint32_t normalDstStride = normal ? vertexSize : 0;
-    char* colorDst = color ? data + s_vertexAttribOffset[format][GxVA_Color0] : reinterpret_cast<char*>(&emptyColor);
+    char* colorDst = color ? data + static_cast<int32_t>(GxVertexAttribOffset(format, GxVA_Color0)) : reinterpret_cast<char*>(&emptyColor);
     uint32_t colorDstStride = color ? vertexSize : 0;
-    char* tex0Dst = tex0 ? data + s_vertexAttribOffset[format][GxVA_TexCoord0] : reinterpret_cast<char*>(&emptyTex0);
+    char* tex0Dst = tex0 ? data + static_cast<int32_t>(GxVertexAttribOffset(format, GxVA_TexCoord0)) : reinterpret_cast<char*>(&emptyTex0);
     uint32_t tex0DstStride = tex0 ? vertexSize : 0;
-    char* tex1Dst = tex1 ? data + s_vertexAttribOffset[format][GxVA_TexCoord1] : reinterpret_cast<char*>(&emptyTex1);
+    char* tex1Dst = tex1 ? data + static_cast<int32_t>(GxVertexAttribOffset(format, GxVA_TexCoord1)) : reinterpret_cast<char*>(&emptyTex1);
     uint32_t tex1DstStride = tex1 ? vertexSize : 0;
 
     if (!normal) {

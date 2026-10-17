@@ -6,6 +6,8 @@
 #include <sstream>
 #include <stdexcept>
 
+void CheckGxGeometry(GxMetal::TextureDevice& gpu);
+
 namespace {
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }
@@ -193,8 +195,10 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, std::string& report) {
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
             CheckDecodeCases(gpu);
             CheckGxStates(gpu);
+            CheckGxGeometry(gpu);
             out << "BC endpoint/alpha cases, BGRA channel order, straight alpha blending and bilinear sampling passed.\n";
             out << "Gx: 12 RGBA blend modes, alpha-test equality/clip, channel masks, six mip filters and independent U/V addressing passed.\n";
+            out << "Gx geometry: 13 unskinned packed layouts, indexed/nonindexed draws, Tempest transforms, BGRA vertex colors, depth comparisons/write masks, opposite cull modes and scissors passed.\n";
             for (bool expanded : {false, true}) {
                 id<MTLTexture> texture = gpu.Upload(image, expanded);
                 unsigned maxRGB = 0, maxAlpha = 0;

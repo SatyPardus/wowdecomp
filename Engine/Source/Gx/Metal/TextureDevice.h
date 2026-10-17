@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
+#include "Engine/Source/Tempest/C44Matrix.h"
 
 namespace GxMetal {
 struct QuadParameters {
@@ -29,10 +30,27 @@ struct TextureDrawState {
     float blendFactor = 1; // Gx render state Unk84, quantized to UNORM8
 };
 
-// First native texture/render primitive. This is not yet a CGxDevice backend.
+// Unlit geometry consumes the original packed Gx vertex layout directly. The
+// caller supplies a transform to Metal clip space (z in [0,w]); it is not a
+// replacement for lighting, skinning, fog or the game's programmable effects.
+struct GeometryDraw {
+    id<MTLBuffer> vertices = nil, indices = nil;
+    size_t vertexOffset = 0, indexOffset = 0;
+    EGxVertexBufferFormat format = GxVBF_PCT;
+    CGxBatch batch{};
+    C44Matrix clipFromModel{1.0f};
+    bool depthTest = false, depthWrite = false;
+    uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
+    uint32_t culling = 0; // Gx: none, clockwise, counterclockwise
+    bool scissorEnabled = false;
+    MTLScissorRect scissor{};
+};
+
+// Native texture/unlit geometry primitives. This is not yet a CGxDevice backend.
 // Uploads and draws on this queue are ordered; command buffers retain staging
 // resources until completion. Uploads do not block the CPU or mutate live images.
 // Draw and its pipeline/sampler caches belong to the owning render thread.
+// Geometry buffers must remain unchanged until the submitted command completes.
 class TextureDevice {
 public:
     explicit TextureDevice(id<MTLDevice> device);
@@ -43,14 +61,19 @@ public:
     id<MTLTexture> Upload(const BLP::Image& image, bool forceExpansion = false);
     void Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const QuadParameters& parameters, const TextureDrawState& state);
+    void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
+        const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state);
     bool SupportsBC() const;
 
 private:
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
+    id<MTLFunction> m_geometryVertex[4];
     std::unordered_map<uint32_t, id<MTLRenderPipelineState>> m_pipelines;
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
-    id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state);
+    std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
+    id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
+        bool depthAttachment = false);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
 };
 }
