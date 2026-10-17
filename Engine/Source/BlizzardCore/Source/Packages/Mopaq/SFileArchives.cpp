@@ -1266,11 +1266,16 @@ void System_SFile::ARCHIVEREC::InitializeTables() {
             return;
         }
 
-        const uint32_t* raw = reinterpret_cast<const uint32_t*>(&this->m_blockTable[0]) + (this->m_header.m_blockTableSize * 16 - 16) / 4;
-        BLOCKENTRY* first = &this->m_blockTable[0];
         int64_t archiveOffset = this->m_archiveOffset;
 
-        for (BLOCKENTRY* entry = &this->m_blockTable[this->m_header.m_blockTableSize - 1]; entry >= first; entry--, raw -= 4) {
+        for (uint32_t i = this->m_header.m_blockTableSize; i-- > 0;) {
+            // Expand the packed disk table backwards in the same allocation.
+            // Snapshot via byte copy: entry zero's 64-bit offset overwrites
+            // raw[1], and typed aliasing allowed optimized builds to reload it
+            // after that store, turning its compressed size into zero.
+            uint32_t raw[4];
+            memcpy(raw, reinterpret_cast<const uint8_t*>(this->m_blockTable.data()) + size_t(i) * 16, sizeof(raw));
+            BLOCKENTRY* entry = &this->m_blockTable[i];
             uint32_t offset = raw[0];
             uint32_t compressedSize = raw[1];
             uint32_t fileSize = raw[2];
@@ -1989,7 +1994,11 @@ bool System_SFile::ARCHIVEREC::ReadAdditionalAttributes() {
 
     if (flags & 2) {
         for (uint32_t i = 0; i < count; i++, p += 8) {
-            this->SetBlockFileTime(i, *reinterpret_cast<const uint64_t*>(p));
+            // The timestamp array follows packed 32-bit CRCs and need not be
+            // eight-byte aligned, even when the archive buffer itself is.
+            uint64_t fileTime;
+            memcpy(&fileTime, p, sizeof(fileTime));
+            this->SetBlockFileTime(i, fileTime);
         }
     }
 
