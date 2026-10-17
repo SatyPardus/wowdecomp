@@ -165,8 +165,11 @@ tracks and retry after a truncated animation. Apple model roots use separate VM
 allocations so external animation and expanded vertex data remain within the
 32-bit relative-pointer range, including under ASan. Native NEON matrix blending
 and CPU skinning retain the original weighted/one-bone calculations and both UV
-sets; the same kernels retain an SSE path for x86. These checks do not yet exercise
-the complete model scene, animation playback, material setup or Metal model draw.
+sets; the same kernels retain an SSE path for x86. The original scene/model
+instance path also loads the real FlyByDwarf cinematic model and skin through
+Services workers, plays its camera animation, and recreates the scene/cache.
+It uses the original AnimationData DBC and bounded `World/model.blob` index.
+Visible model materials and Metal model drawing remain to be connected.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.

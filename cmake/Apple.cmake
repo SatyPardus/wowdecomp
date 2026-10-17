@@ -119,6 +119,16 @@ add_library(AppleGameResources STATIC
     Engine/Source/Services/TextureBlob.cpp
     Engine/Source/Services/SysMessage.cpp
     Engine/Source/Services/AsyncFile.cpp
+    Engine/Source/Services/ModelBlob.cpp
+    Engine/Source/Services/Camera.cpp
+    Engine/Source/Services/GfxSingletonManager.cpp
+    Engine/Source/Services/ParticleSystem.cpp
+    Engine/Source/Services/ParticleSystem2.cpp
+    Engine/Source/Services/RibbonEmitter.cpp
+    WoW/Source/ObjectAlloc/ObjectAlloc.cpp
+    WoW/Source/DB/WowClientDB.cpp
+    WoW/Source/DB/DBClient/AnimationData.cpp
+    WoW/Source/DB/Rec/AnimationDataRec.cpp
     Engine/Source/FFX/FFX.cpp
     Engine/Source/FFX/FFX_CVar.cpp
     Engine/Source/FFX/EffectGlow.cpp
@@ -151,9 +161,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
 else ()
     target_link_libraries(AppleMetal PUBLIC "-framework AppKit")
 endif ()
-add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm Tools/AppleBootstrap/EventProbe.cpp Tools/AppleBootstrap/AsyncFileProbe.cpp)
+add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm Tools/AppleBootstrap/EventProbe.cpp Tools/AppleBootstrap/AsyncFileProbe.cpp Tools/AppleBootstrap/ModelSceneProbe.cpp)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources)
+target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources Model2)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources "-framework MetalKit" "-framework CoreGraphics")

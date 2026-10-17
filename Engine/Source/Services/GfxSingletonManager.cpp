@@ -105,7 +105,7 @@ ParticleSystemManager* ParticleSystemManager::GetInstance() {
     void* mem = SMemAlloc(sizeof(ParticleSystemManager), __FILE__, __LINE__, 0);
     ParticleSystemManager::s_instance = mem ? new (mem) ParticleSystemManager : nullptr;
 
-    CRndSeed seed((rand() << 16) | static_cast<uint16_t>(rand()));
+    CRndSeed seed((static_cast<uint32_t>(rand()) << 16) | static_cast<uint16_t>(rand()));
 
     for (uint32_t i = 0; i < 128; i++) {
         CParticleEmitter2::s_rndTable[i] = CRandom::ufloat_(seed);

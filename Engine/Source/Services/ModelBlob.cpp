@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include "Engine/Source/Services/ModelBlob.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -122,23 +123,43 @@ void CModelBlob::Load(const char* fileName) {
         return;
     }
 
-    SStrCopy(this->m_filename, fileName, STORM_MAX_STR);
-    uint32_t size = SFileGetFileSize(file, nullptr);
-    this->m_data = static_cast<uint8_t*>(SMemAlloc(size, __FILE__, __LINE__, 0));
-    SFileReadFile(file, this->m_data, size, nullptr, nullptr, 0);
-    SFileCloseFile(file);
-
-    uint8_t* chunk = this->m_data + *reinterpret_cast<uint32_t*>(this->m_data + 4) + 8;
-    uint32_t chunkSize = *reinterpret_cast<uint32_t*>(chunk + 4);
-    this->m_entries = reinterpret_cast<SEntry*>(chunk + 8);
-    this->m_entryCount = chunkSize / sizeof(SEntry);
-    this->m_stringTable = reinterpret_cast<const char*>(this->m_entries) + chunkSize + 8;
-
-    SEntry* entry = this->m_entries;
-
-    for (uint32_t i = 0; i < this->m_entryCount; i++, entry++) {
-        this->HashBlobEntry(entry);
+    SStrCopy(this->m_filename, fileName, sizeof(this->m_filename));
+    uint32_t high = 0;
+    const uint32_t size = SFileGetFileSize(file, &high);
+    if (high || size < 28 || size > 64 * 1024 * 1024) {
+        SFileCloseFile(file);
+        SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
+        return;
     }
+    auto* bytes = static_cast<uint8_t*>(SMemAlloc(size, __FILE__, __LINE__, 0));
+    uint32_t read = 0;
+    const bool complete = bytes && SFileReadFile(file, bytes, size, &read, nullptr, 0) && read == size;
+    SFileCloseFile(file);
+    auto reject = [&] { SMemFree(bytes, __FILE__, __LINE__, 0); SErrSetLastError(STORM_ERROR_INVALID_PARAMETER); };
+    if (!complete) { reject(); return; }
+    auto word = [&](uint32_t offset) { uint32_t value; std::memcpy(&value, bytes + offset, 4); return value; };
+    // The original format is three consecutive chunks: version, entries, names.
+    const uint32_t versionBytes = word(4);
+    if (versionBytes < 4 || versionBytes > size - 24 || versionBytes % 4) { reject(); return; }
+    const uint32_t entryChunk = 8 + versionBytes;
+    const uint32_t entryBytes = word(entryChunk + 4);
+    if (entryBytes > size - entryChunk - 16 || entryBytes % sizeof(SEntry)) { reject(); return; }
+    const uint32_t stringChunk = entryChunk + 8 + entryBytes;
+    const uint32_t stringBytes = word(stringChunk + 4);
+    if (stringBytes > size - stringChunk - 8) { reject(); return; }
+    auto* entries = reinterpret_cast<SEntry*>(bytes + entryChunk + 8);
+    const char* names = reinterpret_cast<const char*>(bytes + stringChunk + 8);
+    const uint32_t count = entryBytes / sizeof(SEntry);
+    for (uint32_t i = 0; i < count; ++i) {
+        const auto offset = entries[i].m_filenameOffset;
+        if (offset >= stringBytes || !std::memchr(names + offset, 0, stringBytes - offset)) { reject(); return; }
+    }
+    this->m_version = word(8);
+    this->m_data = bytes;
+    this->m_entries = entries;
+    this->m_entryCount = count;
+    this->m_stringTable = names;
+    for (uint32_t i = 0; i < count; ++i) this->HashBlobEntry(&entries[i]);
 }
 
 // VERIFY: b703c86f manual

@@ -156,7 +156,7 @@ int32_t CM2Cache::Initialize(uint32_t flags) {
 
     this->m_flags |= flags & 0x1A0;
 
-    uint32_t high = rand() << 16;
+    uint32_t high = static_cast<uint32_t>(rand()) << 16;
     CRndSeed seed(high | static_cast<uint16_t>(rand()));
 
     for (uint32_t i = 0; i < sizeof(s_randomTable) / sizeof(s_randomTable[0]); i++) {

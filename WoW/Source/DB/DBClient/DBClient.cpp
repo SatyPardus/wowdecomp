@@ -43,9 +43,6 @@ WowClientDB<Achievement_CriteriaRec> g_achievement_CriteriaDB;
 // STATIC: 0x00AD30A4
 WowClientDB<Achievement_CategoryRec> g_achievement_CategoryDB;
 
-// STATIC: 0x00AD30C8
-WowClientDB<AnimationDataRec> g_animationDataDB;
-
 // STATIC: 0x00AD30EC
 WowClientDB<AreaGroupRec> g_areaGroupDB;
 
