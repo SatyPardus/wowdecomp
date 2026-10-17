@@ -2,7 +2,7 @@
 #include <typeinfo>
 #include "Engine/Source/Base/RefCount.h"
 #include "Engine/Source/Event/Observer.h"
-#include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Storm/H/stpl.h"
 
 // STATIC: 0x00B4186C
 static TRefCnt* s_inputObserver;
@@ -35,7 +35,7 @@ void ObserverInitialize() {
 // VERIFY: 42d23e57 auto
 // OFFSET: 0x00480EA0
 void ObserverDestroy() {
-    s_eventRegAllocator.m_allocator.Clear(typeid(EventReg).raw_name(), SLOG_OBJECT, 1);
-    s_callbackRegAllocator.m_allocator.Clear(typeid(EventReg::EVENTCALLBACKREG).raw_name(), SLOG_OBJECT, 1);
-    s_dispatchRegAllocator.m_allocator.Clear(typeid(EventReg::EVENTDISPATCHREG).raw_name(), SLOG_OBJECT, 1);
+    s_eventRegAllocator.m_allocator.Clear(StormTypeName(typeid(EventReg)), SLOG_OBJECT, 1);
+    s_callbackRegAllocator.m_allocator.Clear(StormTypeName(typeid(EventReg::EVENTCALLBACKREG)), SLOG_OBJECT, 1);
+    s_dispatchRegAllocator.m_allocator.Clear(StormTypeName(typeid(EventReg::EVENTDISPATCHREG)), SLOG_OBJECT, 1);
 }

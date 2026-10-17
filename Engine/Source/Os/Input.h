@@ -4,7 +4,11 @@
 #include <cstdint>
 #include "Engine/Source/Event/Types.h"
 
+#if defined(__APPLE__)
+struct tagRECT { int32_t left, top, right, bottom; };
+#else
 struct tagRECT;
+#endif
 
 enum OSINPUT {
     OS_INPUT_CAPTURE_CHANGED = 0,

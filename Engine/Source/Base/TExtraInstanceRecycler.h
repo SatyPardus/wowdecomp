@@ -5,7 +5,7 @@
 #include <new>
 #include <typeinfo>
 #include "Engine/Source/Base/CDataRecycler.h"
-#include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Storm/H/stpl.h"
 
 struct TExtraInstanceRecyclable {
     /* 0000 */ uint32_t m_recycleBytes;
@@ -35,12 +35,12 @@ T* TExtraInstanceRecycler<T>::New(uint32_t extraBytes) {
     uint32_t allocated;
 
     if (bytes > this->m_recycleBytes) {
-        data = this->AllocData(bytes, &allocated, typeid(T).raw_name(), SLOG_OBJECT);
+        data = this->AllocData(bytes, &allocated, StormTypeName(typeid(T)), SLOG_OBJECT);
     } else {
-        this->GetData(data, allocated, typeid(T).raw_name(), SLOG_OBJECT);
+        this->GetData(data, allocated, StormTypeName(typeid(T)), SLOG_OBJECT);
 
         if (allocated < bytes) {
-            data = this->ReallocData(data, bytes, &allocated, typeid(T).raw_name(), SLOG_OBJECT);
+            data = this->ReallocData(data, bytes, &allocated, StormTypeName(typeid(T)), SLOG_OBJECT);
         }
     }
 
@@ -58,9 +58,9 @@ void TExtraInstanceRecycler<T>::Delete(T* ptr) {
     ptr->~T();
 
     if (bytes > this->m_recycleBytes) {
-        this->FreeData(ptr, typeid(T).raw_name(), SLOG_OBJECT);
+        this->FreeData(ptr, StormTypeName(typeid(T)), SLOG_OBJECT);
     } else {
-        this->PutData(ptr, bytes, typeid(T).raw_name(), SLOG_OBJECT);
+        this->PutData(ptr, bytes, StormTypeName(typeid(T)), SLOG_OBJECT);
     }
 }
 

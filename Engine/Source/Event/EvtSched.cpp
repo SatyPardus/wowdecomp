@@ -1,6 +1,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/Event/EvtContext.h"
 #include "Engine/Source/Event/EvtInput.h"
@@ -13,6 +17,23 @@
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
+
+namespace {
+#if defined(__APPLE__)
+long Increment(volatile long* value) { return __atomic_add_fetch(value, 1, __ATOMIC_SEQ_CST); }
+long Decrement(volatile long* value) { return __atomic_sub_fetch(value, 1, __ATOMIC_SEQ_CST); }
+void PumpNetwork(uint32_t) { throw std::runtime_error("Apple server network pump is not implemented"); }
+#else
+long Increment(volatile long* value) { return InterlockedIncrement(value); }
+long Decrement(volatile long* value) { return InterlockedDecrement(value); }
+void PumpNetwork(uint32_t timeout) { OsNetPump(timeout); }
+#endif
+bool s_mainThreadAttached;
+bool s_hostDriven;
+bool s_hostProcessing;
+bool s_resetElapsedTime;
+uint32_t s_hostThread;
+}
 
 namespace Event {
     // STATIC: 0x00AC0DC0
@@ -76,7 +97,7 @@ uint32_t STORMAPI WaitPumpingNetwork(void* param) {
     SSyncObject* event = static_cast<SSyncObject*>(param);
 
     while (event->Wait(0)) {
-        OsNetPump(100);
+        PumpNetwork(100);
     }
 
     return 0;
@@ -225,6 +246,17 @@ void IEvtSchedulerDestroy() {
         return;
     }
 
+    IEvtSchedulerShutdown();
+    Event::s_startEvent.Set(); // Also release workers if the host never ticked.
+    if (s_mainThreadAttached) {
+        DestroySchedulerThread(Event::s_mainThread);
+        s_mainThreadAttached = false;
+        if (s_hostDriven) { OsCallDestroy(); }
+    }
+    s_hostDriven = false;
+    s_resetElapsedTime = false;
+    Event::s_currentEvtContext = nullptr;
+
     SEvent shutdownEvent(1, 0);
     TSGrowableArray<SThread*> shutdownThreads;
 
@@ -277,7 +309,7 @@ void IEvtSchedulerDestroy() {
 void SynthesizeDestroy(EvtContext* context) {
     SynthesizeInitialize(context);
 
-    if ((context->m_schedFlags & 2) && !InterlockedDecrement(&Event::s_interactiveCount)) {
+    if ((context->m_schedFlags & 2) && !Decrement(&Event::s_interactiveCount)) {
         IEvtSchedulerShutdown();
     }
 
@@ -320,7 +352,7 @@ EvtContext* GetNextContext(uint32_t hThread) {
 // VERIFY: 1a6d7021 manual
 // OFFSET: 0x0047E910
 uint32_t InitializeSchedulerThread() {
-    InterlockedIncrement(&Event::s_threadListContention);
+    Increment(&Event::s_threadListContention);
     Event::s_threadListCritsect.Enter();
 
     uint32_t slot = Event::s_threadSlotCount;
@@ -354,7 +386,7 @@ uint32_t InitializeSchedulerThread() {
     thread->m_threadCount++;
 
     Event::s_threadListCritsect.Leave();
-    InterlockedDecrement(&Event::s_threadListContention);
+    Decrement(&Event::s_threadListContention);
 
     return slot;
 }
@@ -364,7 +396,7 @@ uint32_t InitializeSchedulerThread() {
 void DestroySchedulerThread(uint32_t hThread) {
     TSGrowableArray<EvtContext*> contexts;
 
-    InterlockedIncrement(&Event::s_threadListContention);
+    Increment(&Event::s_threadListContention);
     Event::s_threadListCritsect.Enter();
 
     EvtThread* thread = Event::s_threadSlots[hThread];
@@ -386,7 +418,7 @@ void DestroySchedulerThread(uint32_t hThread) {
     }
 
     Event::s_threadListCritsect.Leave();
-    InterlockedDecrement(&Event::s_threadListContention);
+    Decrement(&Event::s_threadListContention);
 
     for (uint32_t i = contexts.Count(); i; i--) {
         EvtContext* context = contexts[i - 1];
@@ -406,7 +438,7 @@ void DestroySchedulerThread(uint32_t hThread) {
 HEVENTCONTEXT AttachContextToThread(EvtContext* context) {
     HEVENTCONTEXT handle = nullptr;
 
-    InterlockedIncrement(&Event::s_threadListContention);
+    Increment(&Event::s_threadListContention);
     Event::s_threadListCritsect.Enter();
 
     EvtThread* found = nullptr;
@@ -436,7 +468,7 @@ HEVENTCONTEXT AttachContextToThread(EvtContext* context) {
     }
 
     Event::s_threadListCritsect.Leave();
-    InterlockedDecrement(&Event::s_threadListContention);
+    Decrement(&Event::s_threadListContention);
 
     return handle;
 }
@@ -444,7 +476,7 @@ HEVENTCONTEXT AttachContextToThread(EvtContext* context) {
 // VERIFY: 06f63a78 manual
 // OFFSET: 0x0047ED30
 void DetachContextFromThread(uint32_t hThread, EvtContext* context) {
-    InterlockedIncrement(&Event::s_threadListContention);
+    Increment(&Event::s_threadListContention);
     Event::s_threadListCritsect.Enter();
 
     EvtThread* thread = Event::s_threadSlots[hThread];
@@ -467,7 +499,7 @@ void DetachContextFromThread(uint32_t hThread, EvtContext* context) {
     }
 
     Event::s_threadListCritsect.Leave();
-    InterlockedDecrement(&Event::s_threadListContention);
+    Decrement(&Event::s_threadListContention);
 }
 
 // VERIFY: 86cbefd2 manual
@@ -485,7 +517,7 @@ void PutContext(uint32_t nextWakeTime, uint32_t newSmoothWeight, EvtContext* con
 
     uint32_t slot = hThread;
 
-    if (InterlockedIncrement(&Event::s_threadListContention) == 0) {
+    if (Increment(&Event::s_threadListContention) == 0) {
         Event::s_threadListCritsect.Enter();
 
         EvtThread* thread = Event::s_threadSlots[hThread];
@@ -544,7 +576,7 @@ void PutContext(uint32_t nextWakeTime, uint32_t newSmoothWeight, EvtContext* con
         Event::s_threadListCritsect.Leave();
     }
 
-    InterlockedDecrement(&Event::s_threadListContention);
+    Decrement(&Event::s_threadListContention);
 
     if (slot < Event::s_threadSlotCount) {
         Event::s_threadSlotCritsects[slot].Enter();
@@ -555,10 +587,12 @@ void PutContext(uint32_t nextWakeTime, uint32_t newSmoothWeight, EvtContext* con
 
 // VERIFY: 6f17c9b6 manual
 // OFFSET: 0x0047EFF0
-int32_t SchedulerThreadProcProcess(uint32_t hThread, int32_t* watchdogStarted) {
+int32_t SchedulerThreadProcProcess(uint32_t hThread, int32_t* watchdogStarted, bool allowWait) {
+#if defined(_WIN32)
     if (SGetCurrentThreadPriority() != Event::s_originalThreadPriority) {
         SSetCurrentThreadPriority(Event::s_originalThreadPriority);
     }
+#endif
 
     if (!Event::s_shutdownEvent.Wait(0)) {
         return 1;
@@ -575,14 +609,24 @@ int32_t SchedulerThreadProcProcess(uint32_t hThread, int32_t* watchdogStarted) {
         }
     }
 
+    // The native UI owns its main run loop. Never wait or dispatch a future
+    // context early when it asks for one scheduler iteration.
+    if (!allowWait && (!context || timeout > 0)) {
+        if (context) { PutContext(context->m_schedNextWakeTime.m_val, context->m_schedSmoothWeight, context, hThread); }
+        if (hThread == Event::s_mainThread) { Event::s_currentEvtContext = nullptr; }
+        return 0;
+    }
     uint32_t result;
 
-    if (Event::s_netServer) {
+    if (!allowWait) {
+        Event::s_threadSlots[hThread]->m_wakeEvent.Wait(0);
+        result = 258;
+    } else if (Event::s_netServer) {
         if (timeout == -1) {
             timeout = 100;
         }
 
-        OsNetPump(timeout);
+        PumpNetwork(timeout);
         result = 258;
     } else {
         result = Event::s_threadSlots[hThread]->m_wakeEvent.Wait(timeout);
@@ -603,6 +647,7 @@ int32_t SchedulerThreadProcProcess(uint32_t hThread, int32_t* watchdogStarted) {
             *watchdogStarted = 1;
         }
 
+        if (!allowWait && s_resetElapsedTime) { context->m_schedLastIdle = currTime; s_resetElapsedTime = false; }
         float elapsedSec = static_cast<float>(static_cast<int32_t>(currTime - context->m_schedLastIdle)) * 0.001f;
         context->m_schedLastIdle = currTime;
 
@@ -704,6 +749,23 @@ void IEvtSchedulerProcess() {
     Event::s_startEvent.Set();
     SchedulerThreadProc(reinterpret_cast<void*>(1));
     Event::s_mainThread = 0;
+    s_mainThreadAttached = false;
+}
+
+bool IEvtSchedulerStep() {
+    if (!Event::s_threadSlotCount || !s_mainThreadAttached) { return false; }
+    if (Event::s_schedulerThreads.Count()) { throw std::logic_error("Native host stepping currently requires one scheduler thread"); }
+    if (s_hostThread != SGetCurrentThreadId() || s_hostProcessing) {
+        throw std::logic_error("EventProcessPending must run nonrecursively on the initializing thread");
+    }
+    if (!s_hostDriven) {
+        s_hostDriven = true;
+        OsCallInitialize("Native game main loop");
+        Event::s_startEvent.Set();
+    }
+    struct Guard { Guard() { s_hostProcessing = true; } ~Guard() { s_hostProcessing = false; } } guard;
+    int32_t watchdogStarted = 0;
+    return !SchedulerThreadProcProcess(Event::s_mainThread, &watchdogStarted, false) && Event::s_shutdownEvent.Wait(0) != 0;
 }
 
 // VERIFY: b3031e06 manual
@@ -713,8 +775,13 @@ void IEvtSchedulerInitialize(uint32_t threadCount, int32_t netServer) {
         DebugLog("IEvtScheduler already initialized");
     }
 
+#if defined(__APPLE__)
+    if (netServer) { throw std::runtime_error("Apple server network scheduling is not implemented"); }
+#endif
     Event::s_netServer = netServer;
+#if defined(_WIN32)
     Event::s_originalThreadPriority = SGetCurrentThreadPriority();
+#endif
 
     uint32_t slotCount = 1;
 
@@ -735,6 +802,8 @@ void IEvtSchedulerInitialize(uint32_t threadCount, int32_t netServer) {
     Event::s_shutdownEvent.Reset();
 
     Event::s_mainThread = InitializeSchedulerThread();
+    s_mainThreadAttached = true;
+    s_hostThread = SGetCurrentThreadId();
 
     for (uint32_t i = threadCount - 1; i; i--) {
         SThread* thread = new (SMemAlloc(sizeof(SThread), __FILE__, __LINE__, 0)) SThread;
@@ -768,7 +837,7 @@ HEVENTCONTEXT IEvtSchedulerCreateContext(int32_t interactive, EVENTHANDLERFUNC i
     EvtContext* context = new (SMemAlloc(sizeof(EvtContext), __FILE__, __LINE__, 0)) EvtContext(interactive ? 2 : 0, idleTime, interactive ? 1000 : 1, callContext, (debugFlags >> 1) & 1);
 
     if (interactive) {
-        InterlockedIncrement(&Event::s_interactiveCount);
+        Increment(&Event::s_interactiveCount);
     }
 
     if (initializeHandler) {
@@ -781,3 +850,5 @@ HEVENTCONTEXT IEvtSchedulerCreateContext(int32_t interactive, EVENTHANDLERFUNC i
 
     return AttachContextToThread(context);
 }
+
+void IEvtSchedulerResetElapsedTime() { s_resetElapsedTime = true; }

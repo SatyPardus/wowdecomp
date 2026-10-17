@@ -58,3 +58,33 @@ void OsInputGetMousePosition(int32_t* x, int32_t* y) {
     throw std::runtime_error("iOS pointer input is not connected to Gx");
 #endif
 }
+
+void OsInputSetMouseMode(OS_MOUSE_MODE mode) {
+    static OS_MOUSE_MODE current = OS_MOUSE_MODE_NORMAL;
+    if (mode == current) { return; }
+    if (mode >= OS_MOUSE_MODES) { throw std::invalid_argument("Invalid native mouse mode"); }
+#if TARGET_OS_OSX
+    const auto result = CGAssociateMouseAndMouseCursorPosition(mode == OS_MOUSE_MODE_NORMAL);
+    if (result != kCGErrorSuccess) { throw std::runtime_error("Cannot change native relative mouse mode"); }
+    if (mode == OS_MOUSE_MODE_RELATIVE) { [NSCursor hide]; }
+    else { [NSCursor unhide]; }
+    current = mode;
+#else
+    throw std::runtime_error("iOS relative pointer input is not connected");
+#endif
+}
+void OsInputSetMousePosition(int32_t x, int32_t y) {
+#if TARGET_OS_OSX
+    NSView* view = g_theGxDevicePtr ? (__bridge NSView*)g_theGxDevicePtr->DeviceWindow() : nil;
+    if (!view.window) { throw std::runtime_error("Mouse positioning requires a native host view"); }
+    NSPoint point = [view convertPointFromBacking:NSMakePoint(x, y)];
+    if (!view.isFlipped) { point.y = view.bounds.size.height - point.y; }
+    point = [view.window convertPointToScreen:[view convertPoint:point toView:nil]];
+    const CGFloat top = NSScreen.screens.firstObject.frame.size.height;
+    if (CGWarpMouseCursorPosition(CGPointMake(point.x, top - point.y)) != kCGErrorSuccess) {
+        throw std::runtime_error("Cannot position the native mouse cursor");
+    }
+#else
+    throw std::runtime_error("iOS pointer positioning is not connected");
+#endif
+}

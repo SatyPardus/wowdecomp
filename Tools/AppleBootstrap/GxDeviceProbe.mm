@@ -9,6 +9,7 @@
 
 void CheckGxFFXPasses(CGxDeviceMetal& device);
 void CheckGxFFXEffect(CGxDeviceMetal& device);
+void CheckGameEvents();
 void CheckGxFont(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
 
@@ -189,5 +190,6 @@ void CheckGxDevice() {
     CheckGxFont(device);
     CheckGxFFXPasses(device);
     CheckGxFFXEffect(device);
+    CheckGameEvents();
     device.DeviceDestroy();
 }

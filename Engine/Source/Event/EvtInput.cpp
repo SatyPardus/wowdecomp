@@ -155,6 +155,10 @@ void IEvtInputDestroy() {
 // OFFSET: 0x0047FBA0
 void IEvtInputInitialize() {
     OsInputInitialize();
+#if defined(__APPLE__)
+    Input::s_mouseMode = MOUSE_MODE_NORMAL;
+    Input::s_mouseHoldButton = 0;
+#endif
 }
 
 // VERIFY: b0467071 manual
@@ -377,7 +381,11 @@ void IEvtDispatchInput(EvtContext* context, OSINPUT id, int32_t* param, int32_t*
             data.m_action = param[0];
             data.unused_0004 = param[1];
             data.m_param = param[2];
+#if defined(__APPLE__)
+            data.m_codePage = 65001; // Native text is Unicode; no Windows ANSI code page.
+#else
             data.m_codePage = GetACP();
+#endif
 
             IEvtQueueDispatch(context, EVENT_ID_IME, &data);
             break;

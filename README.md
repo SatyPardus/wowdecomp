@@ -133,6 +133,15 @@ glob enumeration, copy/move and cleanup. Its directory attributes use the bits
 expected by CVar/AddOns callers; unsupported attribute flags fail explicitly.
 Windows cross-process sharing restrictions remain unsupported on Apple.
 
+The shared Event scheduler now has a nonblocking native-host step. Mac/iOS
+previews render continuously from the original paint event, preserving update,
+timer, input, poll, queued-message, idle and paint ordering. Focus/resize events
+come from the host; native keyboard, pointer and composed-text delivery remain
+to be connected. Foreground resume resets frame elapsed time while retaining
+wall-clock timers. Context shutdown and recreation release property TLS, call
+contexts, queues and timers. Native stepping currently requires the client's
+single scheduler thread; server network pumping is explicitly unsupported.
+
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
 It uploads original BC blocks when the device supports them; otherwise it expands
@@ -255,8 +264,7 @@ host Data directory; real devices need a path accessible inside their sandbox.
 loader starts at enUS and follows the original cyclic locale fallback order.
 The iOS app shows the same Metal texture and runs the GPU checks only while its
 scene is active. `WOW_TEXTURE` selects a different archive resource. Inactive
-scenes stop submitting draws and drain submitted work; this preview draws on
-demand. Full reports remain in the view and bounded status messages go to unified
+scenes stop the native Event frame callback and drain submitted work. Full reports remain in the view and bounded status messages go to unified
 logging, avoiding blocked simulator console pipes.
 Missing files and failed checks appear in the app and console. iOS does not allow
 spawning a shell, so Lua `os.execute` explicitly reports an unsupported-operation

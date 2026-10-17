@@ -318,3 +318,7 @@ void EventRegister(EVENTID id, EVENTHANDLERFUNC handler) {
 void EventUnregister(EVENTID id, EVENTHANDLERFUNC handler) {
     EventUnregisterEx(id, handler, nullptr, 0xFFFFFFFF);
 }
+
+bool EventProcessPending() { return IEvtSchedulerStep(); }
+
+void EventResetElapsedTime() { IEvtSchedulerResetElapsedTime(); }

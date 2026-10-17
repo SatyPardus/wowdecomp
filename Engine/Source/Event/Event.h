@@ -7,6 +7,11 @@
 HEVENTCONTEXT EventCreateContextEx(int32_t interactive, EVENTHANDLERFUNC initializeHandler, EVENTHANDLERFUNC destroyHandler, uint32_t idleTime, uint32_t debugFlags);
 void EventDestroy();
 void EventDoMessageLoop();
+// Run at most one due context without blocking the native main run loop.
+// Returns false after shutdown. Call on the EventInitialize thread.
+bool EventProcessPending();
+// On native foreground resume, keep wall-clock timers but reset frame delta.
+void EventResetElapsedTime();
 HEVENTCONTEXT EventGetCurrentContext();
 void EventInitialize(uint32_t threadCount, int32_t netServer);
 void EventInitiateShutdown();

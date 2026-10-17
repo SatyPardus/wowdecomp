@@ -55,5 +55,5 @@ HPROPCONTEXT PropCreateContext() {
 }
 
 void PropDeleteContext(HPROPCONTEXT context) {
-    delete context;
+    SMemFree(context, __FILE__, __LINE__, 0);
 }

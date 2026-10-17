@@ -1,4 +1,5 @@
 #include "Engine/Source/Os/Processor.h"
+#include <thread>
 #include "Engine/Source/Os/TimeManager.h"
 
 uint32_t OsGetProcessorFeaturesEx(int32_t& vendor) {
@@ -7,3 +8,5 @@ uint32_t OsGetProcessorFeaturesEx(int32_t& vendor) {
     return 0x80000000u;
 }
 uint64_t OsGetProcessorTicksPerSecond() { return OsGetAsyncClocksPerSecond(); }
+
+uint32_t OsGetNumberOfProcessors() { const auto count = std::thread::hardware_concurrency(); return count ? count : 1; }

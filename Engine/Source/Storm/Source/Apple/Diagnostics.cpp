@@ -6,6 +6,9 @@
 // Foundation diagnostics. The client crash reporter and UI are separate work.
 static thread_local uint32_t s_lastError;
 
+// Native diagnostics are synchronous stderr output; no modal error UI exists.
+int32_t STORMAPI SErrIsDisplayingError() { return 0; }
+
 uint32_t STORMAPI SErrGetLastError() { return s_lastError; }
 void STORMAPI SErrSetLastError(uint32_t error) { s_lastError = error; }
 

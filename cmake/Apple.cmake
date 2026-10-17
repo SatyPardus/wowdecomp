@@ -39,6 +39,12 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Handle.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RCString.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RefCount.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Prop.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataAllocator.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataRecycler.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Tls.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsCall.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Input.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsFile.cpp
@@ -102,6 +108,8 @@ add_subdirectory(Engine/Source/Images)
 add_subdirectory(Engine/Source/BLPFile)
 add_subdirectory(Engine/Source/ConsoleBase)
 target_link_libraries(ConsoleBase PUBLIC AppleArchives)
+add_subdirectory(Engine/Source/Event)
+target_link_libraries(Event PUBLIC AppleArchives Tempest)
 add_library(AppleGameResources STATIC
     Engine/Source/Base/Status.cpp
     Engine/Source/Services/Texture.cpp
@@ -114,9 +122,8 @@ add_library(AppleGameResources STATIC
     Engine/Source/FFX/PassBox4.cpp
     Engine/Source/FFX/PassGauss4.cpp
     Engine/Source/FFX/PassGlow.cpp
-    Engine/Source/Base/Prop.cpp
 )
-target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile ConsoleBase)
+target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile ConsoleBase Event)
 
 add_library(AppleTextureData ALIAS BLPFile)
 
@@ -136,7 +143,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
 else ()
     target_link_libraries(AppleMetal PUBLIC "-framework AppKit")
 endif ()
-add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm)
+add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm Tools/AppleBootstrap/EventProbe.cpp)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm)

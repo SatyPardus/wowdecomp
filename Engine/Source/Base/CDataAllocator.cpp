@@ -7,6 +7,7 @@
 // OFFSET: 0x0095D080
 CDataAllocator::CDataAllocator(uint32_t bytesPerData, uint32_t dataPerBlock) {
     this->m_bytesPerData = bytesPerData < sizeof(Data) ? sizeof(Data) : bytesPerData;
+    this->m_bytesPerData = (this->m_bytesPerData + alignof(Data) - 1) & ~(alignof(Data) - 1);
     this->m_dataPerBlock = dataPerBlock ? dataPerBlock : 1;
     this->m_dataUsed = 0;
     this->m_blockList = nullptr;

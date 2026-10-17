@@ -2,6 +2,9 @@
 #define ENGINE_SOURCE_BASE_CDATARECYCLER_H
 
 #include <cstdint>
+#if defined(__APPLE__)
+#include <mutex>
+#endif
 
 class CDataRecycler {
     public:
@@ -32,6 +35,9 @@ class CDataRecycler {
     void PutData(void* data, uint32_t bytes, const char* fileName, int32_t lineNumber);
 
     private:
+#if defined(__APPLE__)
+    std::mutex m_mutex;
+#endif
     void Link(void** list, void* item);
     void Link(Node** list, NodeBlock* nodeBlock);
     void* Unlink(void** list);

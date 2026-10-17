@@ -4,11 +4,48 @@
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Services/Texture.h"
+#include "Engine/Source/Event/Event.h"
+#include "Engine/Source/Base/Prop.h"
+#include "Engine/Source/Os/Input.h"
+#include "Engine/Source/Os/Apple/Input.h"
 #include <cstring>
 #include <memory>
 #include <stdexcept>
 
 namespace {
+class GameEvents {
+    static GameEvents* s_current;
+    void (*m_paint)(void*);
+    void* m_owner;
+    static int32_t Paint(const void*, void* arg) {
+        auto& self = *static_cast<GameEvents*>(arg);
+        self.m_paint(self.m_owner);
+        return 1;
+    }
+    static int32_t Initialize(const void*, void*) {
+        EventRegisterEx(EVENT_ID_PAINT, Paint, s_current, 0);
+        return 1;
+    }
+public:
+    GameEvents(void (*paint)(void*), void* owner) : m_paint(paint), m_owner(owner) {
+        if (s_current) { throw std::logic_error("A native game event host already exists"); }
+        s_current = this;
+        PropInitialize();
+        try {
+            EventInitialize(1, 0);
+            if (!EventCreateContextEx(1, Initialize, nullptr, 1, 0)) { throw std::runtime_error("Cannot create native game Event context"); }
+        } catch (...) {
+            EventDestroy(); PropDestroy(); s_current = nullptr; throw;
+        }
+    }
+    ~GameEvents() {
+        EventDestroy();
+        PropDestroy();
+        s_current = nullptr;
+    }
+};
+GameEvents* GameEvents::s_current;
+
 class GameText {
     CGxFont* m_font = nullptr;
     CGxString* m_string = nullptr;
@@ -53,11 +90,16 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
 }
 }
 
+@interface WowTextureRenderer ()
+- (void)renderGameFrame;
+@end
+
 @implementation WowTextureRenderer {
     std::unique_ptr<CGxDeviceMetal> _device;
     // Declared after the device so the original font system and its texture
     // cache are destroyed while their Gx device is still alive.
     std::unique_ptr<GameText> _text;
+    std::unique_ptr<GameEvents> _events;
     std::unique_ptr<BLP::Image> _image;
     CGxTex* _texture;
     CGxBuf* _vertices;
@@ -66,6 +108,7 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
     CGxShader* _pixelShader;
     __weak MTKView* _view;
     BOOL _active;
+    uint32_t _presentedFrames;
 }
 - (instancetype)initWithView:(MTKView*)view image:(const BLP::Image&)image {
     if ((self = [super init])) {
@@ -96,14 +139,38 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
         view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
         view.framebufferOnly = NO; // Gx screenshot / framebuffer copy source.
         view.clearColor = MTLClearColorMake(0.12, 0.14, 0.18, 1);
-        view.paused = YES; view.enableSetNeedsDisplay = YES; view.delegate = self;
+        view.paused = YES; view.enableSetNeedsDisplay = NO; view.delegate = self;
+        _events = std::make_unique<GameEvents>([](void* owner) {
+            [(__bridge WowTextureRenderer*)owner renderGameFrame];
+        }, (__bridge void*)self);
+        OsInputSetDrawableSize(uint32_t(size.x), uint32_t(size.y));
     }
     return self;
 }
-- (void)resume { _active = YES; [_view draw]; }
-- (void)suspend { _active = NO; _device->Drain(); }
-- (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size { if (_active) { [view draw]; } }
+- (void)resume {
+    _active = YES;
+    EventResetElapsedTime();
+    OsQueuePut(OS_INPUT_FOCUS, 1, 0, 0, 0);
+    _view.paused = NO;
+    [_view draw];
+}
+- (void)suspend {
+    _active = NO; _view.paused = YES;
+    OsQueuePut(OS_INPUT_FOCUS, 0, 0, 0, 0);
+    EventProcessPending();
+    _device->Drain();
+}
+- (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
+    OsInputSetDrawableSize(uint32_t(size.width), uint32_t(size.height));
+    OsQueuePut(OS_INPUT_SIZE, int32_t(size.width), int32_t(size.height), 0, 0);
+    if (_active) { [view draw]; }
+}
 - (void)drawInMTKView:(MTKView*)view {
+    if (!_active) { return; }
+    if (!EventProcessPending()) { [self suspend]; }
+}
+- (void)renderGameFrame {
+    MTKView* view = _view;
     if (!_active || !view.drawableSize.width || !view.drawableSize.height) { return; }
     MTLRenderPassDescriptor* pass = view.currentRenderPassDescriptor;
     id<CAMetalDrawable> drawable = view.currentDrawable;
@@ -125,9 +192,11 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
         if (!_text) { _text = std::make_unique<GameText>(); }
         _text->Draw(uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         GxScenePresent();
+        if (++_presentedFrames == 120) { NSLog(@"Original Event native frame loop: 120 frames presented"); }
     } catch (const std::exception& error) {
         if (_device->FrameCommand()) { _device->ScenePresent(); }
         _active = NO;
+        view.paused = YES;
         NSLog(@"Metal Gx preview stopped: %s", error.what());
     }
 }
