@@ -5,6 +5,7 @@
 #include "Engine/Source/FrameXML/LoadXML.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // VERIFY: a013e686 manual
 // OFFSET: 0x005EC9A0
@@ -51,6 +52,7 @@ static int32_t Script_SetCooldown(lua_State* L) {
 
     int32_t start = static_cast<int32_t>(lua_tonumber(L, 2) * 1000.0);
     int32_t duration = static_cast<int32_t>(lua_tonumber(L, 3) * 1000.0);
+    ModCore::Manager().OnCooldownSet(cooldown ? cooldown->GetName() : "", static_cast<float>(lua_tonumber(L, 2)), static_cast<float>(lua_tonumber(L, 3)));
     cooldown->SetCooldown(start, duration);
     return 0;
 }

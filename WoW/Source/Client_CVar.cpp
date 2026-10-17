@@ -19,6 +19,9 @@
 #include "Engine/Source/Services/SysMessage.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Gxu/GxuFont.h"
+#include "Engine/Source/Gxu/GxuFontFont.h"
+#include "Engine/Source/Gxu/GxuFontMsdf.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Hardware.h"
 #include "WoW/Source/WowSysMessageOutput.h"
@@ -498,6 +501,23 @@ bool UIFasterCallback(CVar* var, const char* oldValue, const char* value, void* 
 
     TextureEnableAtlas(faster & 1);
     CSimpleRender::s_mergeEnable = (faster >> 1) & 1;
+
+    return true;
+}
+
+bool FontMsdfCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
+    if (!value) {
+        return true;
+    }
+
+    uint8_t enabled = SStrToInt(value) != 0;
+    if (g_msdfEnabled != enabled) {
+        g_msdfEnabled = enabled;
+        for (CGxFont* face = g_fonts.Head(); face; face = g_fonts.Next(face)) {
+            face->ClearGlyphs();
+            face->UpdateDimensions();
+        }
+    }
 
     return true;
 }

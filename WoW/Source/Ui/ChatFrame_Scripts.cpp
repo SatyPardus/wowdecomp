@@ -1,4 +1,5 @@
 #include "ChatFrame.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include <cstdint>
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "Engine/Source/Base/CDataStore.h"
@@ -90,6 +91,10 @@ static int32_t Script_SendChatMessage(lua_State* L) {
 
     if (lua_isstring(L, 4)) {
         target = lua_tolstring(L, 4, nullptr);
+    }
+
+    if (ModCore::Manager().OnSendChatMessage(text, type, language, target ? target : "")) {
+        return 0;
     }
 
     if (type == CHAT_MSG_WHISPER) {

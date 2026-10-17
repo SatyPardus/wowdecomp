@@ -18,6 +18,7 @@
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/UIUtil/Tooltip.h"
 
 // VERIFY: 35618cea auto
@@ -88,6 +89,7 @@ static int32_t Script_GetTradeTargetItemLink(lua_State* L) {
 // OFFSET: 0x005866E0
 static int32_t Script_AcceptTrade(lua_State* L) {
     if (CGGameUI::CanPerformAction(7) && CGTradeInfo::m_playerAccepted != 1) {
+        ModCore::Manager().OnTradeAccept();
         CGTradeInfo::m_playerAccepted = 1;
         FrameScript_SignalEvent(SCRIPT_EVENT_TRADE_ACCEPT_UPDATE, "%d%d", 1, CGTradeInfo::m_targetAccepted);
         Trade_C_AcceptTrade();

@@ -20,6 +20,7 @@
 #include "WoW/Source/Ui/HealthBar.h"
 #include "WoW/Source/Ui/RaidInfo.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // STATIC: 0x00AA34B8
 static int32_t s_greenLevelRanges[20] = { 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
@@ -521,6 +522,7 @@ void CGNamePlateFrame::Initialize(CGUnit_C* unit) {
     this->UpdateLevelDisplay(unit);
     this->UpdateEliteIcon(unit);
     this->UpdateRaidTargetDisplay(GetRaidTargetIndexFromGuid(unit->m_obj->m_guid));
+    ModCore::Manager().OnNamePlateCreate(unit->m_obj->m_guid.m_guid, this);
 }
 
 // VERIFY: 1dffc031 manual

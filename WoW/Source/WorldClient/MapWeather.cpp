@@ -17,6 +17,7 @@
 #include "WoW/Source/WorldClient/DayNight.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "Engine/Source/Os/Time.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // STATIC: 0x00ADF1F8
 float s_weatherDensity = 0.66f;
@@ -720,6 +721,8 @@ void Weather::SetType(uint32_t type, float intensity, const WeatherRec* rec, boo
     if (s_weatherTypeForced || type > 3) {
         return;
     }
+
+    ModCore::Manager().OnWeatherChange(type, intensity);
 
     this->m_immediate = immediate;
     bool unchanged = true;

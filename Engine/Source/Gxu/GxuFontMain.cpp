@@ -14,6 +14,7 @@
 #include "Engine/Source/Gxu/Gxu.h"
 #include "Engine/Source/Gxu/GxuFontFont.h"
 #include "Engine/Source/Gxu/GxuFontMiscClasses.h"
+#include "Engine/Source/Gxu/GxuFontMsdf.h"
 #include "Engine/Source/Gxu/GxuFontUtil.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -98,6 +99,7 @@ uint32_t g_widthPixels;
 
 // STATIC: 0x00C7D2CC
 CGxShader* g_fontPixelShader;
+CGxShader* g_fontMsdfPixelShader;
 
 // STATIC: 0x00C7D2D0
 CGxShader* g_fontVertexShader[2];
@@ -950,11 +952,12 @@ void GxuFontWindowSizeChanged() {
 void GxuFontInitialize() {
     g_theGxDevicePtr->ShaderCreate(g_fontVertexShader, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
     g_theGxDevicePtr->ShaderCreate(&g_fontPixelShader, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
-
     BATCHEDRENDERFONTDESC::Initialize();
 
     FT_New_Library(&s_GxuMemoryRecord, &g_FTLibrary);
     FT_Add_Default_Modules(g_FTLibrary);
+    MsdfInitialize();
+    g_fontMsdfPixelShader = GxuFontCreateMsdfPixelShader();
 
     GxuFontWindowSizeChanged();
     InitializeFrameGraph();
@@ -1188,4 +1191,11 @@ void GxuFontShutdown() {
     if (g_fontPixelShader) {
         g_theGxDevicePtr->ShaderDestroy(g_fontPixelShader);
     }
+
+    if (g_fontMsdfPixelShader) {
+        g_theGxDevicePtr->ShaderDestroy(g_fontMsdfPixelShader);
+        g_fontMsdfPixelShader = nullptr;
+    }
+
+    MsdfShutdown();
 }

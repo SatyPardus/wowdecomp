@@ -28,6 +28,7 @@
 #include "WoW/Source/WowServices/Login.h"
 #include "WoW/Source/WowServices/WDataStore.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/WowServices/RealmConnection.h"
 #include "Engine/Source/Scrn/Scrn.h"
@@ -206,6 +207,10 @@ static int32_t Script_AcceptContest(lua_State* L) {
 // VERIFY: 37439067 auto
 // OFFSET: 0x004DC260
 static int32_t Script_DefaultServerLogin(lua_State* L) {
+    if (ModCore::Manager().IsLoginBlocked()) {
+        return 0;
+    }
+
     if (!lua_isstring(L, 1) || !lua_isstring(L, 2)) {
         luaL_error(L, "Usage: DefaultServerLogin(\"accountName\", \"password\")");
         return 0;

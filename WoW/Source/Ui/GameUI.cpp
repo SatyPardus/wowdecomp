@@ -1,4 +1,5 @@
 #include "GameUI.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/DB/Rec/FileDataRec.h"
 #include "WoW/Source/DB/Rec/MovieFileDataRec.h"
 #include "WoW/Source/DB/Rec/MovieRec.h"
@@ -7,6 +8,7 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstring>
+#include <iostream>
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -1994,8 +1996,9 @@ int32_t CGGameUI::Idle(const void* data, void* param) {
     lua_State* L = FrameScript_GetContext();
     lua_taintexpected = 0;
 
-    if (lua_gettop(FrameScript_GetContext())) {
-        SErrDisplayAppFatalMessage("", "", 0);
+    if (int stackTop = lua_gettop(L)) {
+        std::cerr << "[GameUI] Warning: lua stack dirty (" << stackTop << ") in CGGameUI::Idle. Clearing stack." << std::endl;
+        lua_settop(L, 0);
     }
 
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
@@ -2851,6 +2854,7 @@ void CGGameUI::Target(WOWGUID guid) {
     CGGameUI::SendTarget(guid);
     CGSpellBook::UpdateUsable();
     FrameScript_SignalEvent(SCRIPT_EVENT_PLAYER_TARGET_CHANGED, nullptr);
+    ModCore::Manager().OnTargetChanged(CGGameUI::m_lastTarget.m_guid, guid.m_guid);
 
     if (g_stopAutoAttackOnTargetChangeCVar->m_intValue) {
         if (Spell_C_GetAutoRepeatingSpell()) {
@@ -2864,6 +2868,10 @@ void CGGameUI::Target(WOWGUID guid) {
 // VERIFY: fbb342ce manual
 // OFFSET: 0x00527360
 int32_t CGGameUI::OnTerrainClick(const CTerrainClickEvent& evt) {
+    if (ModCore::Manager().OnTerrainClick(evt.m_button, evt.m_point.x, evt.m_point.y, evt.m_point.z)) {
+        return 1;
+    }
+
     if (evt.m_button == MOUSE_BUTTON_LEFT) {
         if (Spell_C_HandleTerrainClick(evt)) {
             return 1;
@@ -3719,6 +3727,7 @@ void CGGameUI::EnterWorld() {
     }
 
     FrameScript_SignalEvent(SCRIPT_EVENT_PLAYER_ENTERING_WORLD, nullptr);
+    ModCore::Manager().OnEnterWorld();
     CGMinimapFrame::EnterWorld();
     CGChat::EnterWorld();
     CGActionBar::EnterWorld();
@@ -4199,6 +4208,10 @@ void CGGameUI::NewZoneFeedback(int32_t areaId, int32_t subzoneId, int32_t wmoGro
         FrameScript_SignalEvent(inside ? SCRIPT_EVENT_ZONE_CHANGED_INDOORS : SCRIPT_EVENT_ZONE_CHANGED, nullptr);
     }
 
+    if (newArea || textChanged) {
+        ModCore::Manager().OnZoneChange(CGGameUI::m_areaID, CGGameUI::m_subzoneID, CGGameUI::m_realZoneText ? CGGameUI::m_realZoneText : "");
+    }
+
     if (SFile::IsTrial() && (newArea || textChanged)) {
         Blizzard::Streaming::SetZone(CGGameUI::m_areaID, CGGameUI::m_subzoneID);
     }
@@ -4676,6 +4689,9 @@ void CGGameUI::CastSpiritHealSpell() {
 // VERIFY: cd2d4923 auto
 // OFFSET: 0x00513380
 void CGGameUI::ShowCombatFeedback(const WOWGUID& guid, int32_t amount, uint32_t schoolMask, uint32_t flags) {
+    if (ModCore::Manager().OnCombatFeedback(guid.m_guid, amount, schoolMask, flags)) {
+        return;
+    }
     CGGameUI::SignalUnitCombat(guid, "WOUND", amount, schoolMask, flags);
 }
 
@@ -8215,6 +8231,7 @@ void CGGameUI::LeaveWorld() {
     }
 
     FrameScript_SignalEvent(SCRIPT_EVENT_PLAYER_LEAVING_WORLD, nullptr);
+    ModCore::Manager().OnLeaveWorld();
 }
 
 // VERIFY: f11d2535 manual

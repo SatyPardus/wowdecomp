@@ -17,6 +17,8 @@ struct CGxStringBatch;
 
 extern FT_Library g_FTLibrary;
 extern CGxShader* g_fontPixelShader;
+extern CGxShader* g_fontMsdfPixelShader;
+extern TSList<CGxFont, TSGetLink<CGxFont> > g_fonts;
 extern uint8_t g_fontStatsEnabled;
 extern CGxShader* g_fontVertexShader[2];
 extern TSList<CGxString, TSGetLink<CGxString> > g_freeStrings;

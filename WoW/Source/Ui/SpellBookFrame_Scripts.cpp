@@ -1,4 +1,5 @@
 #include "SpellBookFrame.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include <cstdint>
 #include "Engine/Source/FrameScript/FrameScript.h"
@@ -286,8 +287,22 @@ static int32_t Script_IsPassiveSpell(lua_State* L) {
 
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && (spell.m_attributes & 0x40)) {
-        lua_pushnumber(L, 1.0);
+    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell)) {
+        int32_t isPassiveOverride = 0;
+        if (ModCore::Manager().OnSpellQuery("IsPassive", spell.m_id, &isPassiveOverride)) {
+            if (isPassiveOverride) {
+                lua_pushnumber(L, 1.0);
+            } else {
+                lua_pushnil(L);
+            }
+            return 1;
+        }
+
+        if (spell.m_attributes & 0x40) {
+            lua_pushnumber(L, 1.0);
+        } else {
+            lua_pushnil(L);
+        }
     } else {
         lua_pushnil(L);
     }

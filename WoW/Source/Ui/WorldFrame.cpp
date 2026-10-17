@@ -28,6 +28,7 @@
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Tempest/CImVector.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Common/TextureCache.h"
 #include "WoW/Source/Client.h"
@@ -296,6 +297,20 @@ void CGWorldFrame::GetCameraPosition(C3Vector* position) {
 // VERIFY: c8cc818e auto
 // OFFSET: 0x004F66C0
 void CGWorldFrame::OnLayerTrackTerrain(const HITTESTRESULT& result) {
+    if (ModCore::Manager().IsCastAtCursor()) {
+        ModCore::Manager().SetCastAtCursor(false);
+        CTerrainClickEvent evt;
+        evt.m_guid = WOWGUID();
+        evt.m_point = result.m_point;
+        evt.m_button = MOUSE_BUTTON_LEFT;
+        CGGameUI::HandleTerrainClick(evt);
+        return;
+    }
+
+    if (ModCore::Manager().OnTerrainTrack(&result.m_point)) {
+        return;
+    }
+
     if (!Spell_C_IsTargeting() || !Spell_C_CanTargetTerrain()) {
         CursorResetMode();
         this->HandleSpriteTrack(WOWGUID());
@@ -1197,6 +1212,8 @@ int32_t CGWorldFrame::HitTestPoint(float x, float y, int32_t a3, HITTESTRESULT* 
                 this->MoveToFreeList(&this->m_hitModelList);
                 this->m_hitGuid = WOWGUID();
             }
+
+            ModCore::Manager().OnWorldHitTest(result->m_guid.m_guid, &result->m_point, kind >= 2);
         }
     }
 
@@ -1791,6 +1808,7 @@ void CGWorldFrame::OnWorldRender() {
     GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
     FFX::Finish();
     CVehiclePassenger_C::PostRenderUpdateAll();
+    ModCore::Manager().OnWorldRender(this);
 }
 
 // VERIFY: 79b17fb9 manual
@@ -2001,6 +2019,7 @@ void CGWorldFrame::OnWorldUpdate() {
     C3Vector camPos = camera->m_position;
     C3Vector forward = camera->Forward();
     C3Vector camTarget = C3Vector(camera->m_position.x + forward.x, camera->m_position.y + forward.y, camera->m_position.z + forward.z);
+    ModCore::Manager().OnCameraUpdate(camPos.x, camPos.y, camPos.z, camera->m_fov);
     this->m_camera->SetupWorldProjection(this->m_viewportDDC);
     this->UpdateDayNight(elapsedSec);
 
@@ -2062,6 +2081,7 @@ void CGWorldFrame::OnWorldUpdate() {
     CMissile::UpdateStaticLists();
     Spell_C_ExpireDestLocSpellCasts(FrameTime::s_curTimeMs);
     Spell_C_UpdateInTransitList();
+    ModCore::Manager().OnWorldUpdate();
 
     C3Vector position = (this->m_camera->m_model || !target) ? camPos : target->GetPosition();
     CWorld::Update(&camPos, &camTarget, &position);
@@ -2366,6 +2386,9 @@ int32_t CGWorldFrame::OnLayerKeyDown(const CKeyEvent& evt) {
     }
 
     state.m_modifiers = evt.m_data.m_metaKeyState;
+    if (ModCore::Manager().OnKeyDown(key, state.m_modifiers, state.m_keyString)) {
+        return 1;
+    }
     return CGUIBindings::s_bindings->ExecKey(state.m_modifiers, state.m_keyString, 1, 1, static_cast<BINDING_MODE>(4));
 }
 
@@ -2397,6 +2420,10 @@ int32_t CGWorldFrame::OnLayerKeyUp(const CKeyEvent& evt) {
 
     if (state.m_keyString[0]) {
         state.m_modifiers |= evt.m_data.m_metaKeyState;
+        if (ModCore::Manager().OnKeyUp(key, state.m_modifiers, state.m_keyString)) {
+            state.m_keyString[0] = 0;
+            return 1;
+        }
         result = CGUIBindings::s_bindings->ExecKey(state.m_modifiers, state.m_keyString, 0, 1, static_cast<BINDING_MODE>(4));
         state.m_keyString[0] = 0;
     }
@@ -2408,6 +2435,10 @@ int32_t CGWorldFrame::OnLayerKeyUp(const CKeyEvent& evt) {
 // OFFSET: 0x004F6C10
 int32_t CGWorldFrame::OnLayerMouseDown(const CMouseEvent& evt, const char* btn) {
     if (this->CSimpleFrame::OnLayerMouseDown(evt, btn) || CGGameUI::HandleMouseDown(evt)) {
+        return 1;
+    }
+
+    if (ModCore::Manager().OnMouseDown(MouseButtonToIndex(evt.m_data.m_button), static_cast<int32_t>(evt.m_data.m_mousePosition.x), static_cast<int32_t>(evt.m_data.m_mousePosition.y))) {
         return 1;
     }
 
@@ -2425,6 +2456,10 @@ int32_t CGWorldFrame::OnLayerMouseDown(const CMouseEvent& evt, const char* btn) 
 // OFFSET: 0x004F6C90
 int32_t CGWorldFrame::OnLayerMouseUp(const CMouseEvent& evt, const char* btn) {
     if (this->CSimpleFrame::OnLayerMouseUp(evt, btn)) {
+        return 1;
+    }
+
+    if (ModCore::Manager().OnMouseUp(MouseButtonToIndex(evt.m_data.m_button), static_cast<int32_t>(evt.m_data.m_mousePosition.x), static_cast<int32_t>(evt.m_data.m_mousePosition.y))) {
         return 1;
     }
 
@@ -2457,6 +2492,10 @@ int32_t CGWorldFrame::SetupDefaultAction() {
 // OFFSET: 0x004F5C80
 int32_t CGWorldFrame::OnLayerMouseWheel(const CMouseEvent& evt) {
     if (this->CSimpleFrame::OnLayerMouseWheel(evt) || !evt.m_data.m_wheelAmount) {
+        return 1;
+    }
+
+    if (ModCore::Manager().OnMouseWheel(evt.m_data.m_wheelAmount)) {
         return 1;
     }
 

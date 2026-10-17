@@ -9,6 +9,7 @@
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "WoW/Source/Ui/QuestFrame.h"
 #include "WoW/Source/Ui/QuestLog.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // STATIC: 0x00ACEF20
 static const char* s_gossipTypes[22] = {
@@ -189,6 +190,9 @@ static int32_t Script_SelectGossipOption(lua_State* L) {
     }
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
+    if (ModCore::Manager().OnGossipSelect(index)) {
+        return 0;
+    }
     int32_t confirmed = StringToBOOL(L, 3, 0);
     CGGossipInfo::SelectGossipOption(index, lua_tolstring(L, 2, nullptr), confirmed);
     return 0;

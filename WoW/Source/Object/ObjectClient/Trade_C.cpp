@@ -11,6 +11,7 @@
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "WoW/Source/Ui/Types.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include <cstring>
 
 // STATIC: 0x00CA0B7C
@@ -93,6 +94,7 @@ void CGTradeInfo::InitiateTrade(WOWGUID target, int32_t useCursorItem) {
     }
 
     s_nextTradeRequestTime = FrameTime::s_curTimeMs + 1000;
+    ModCore::Manager().OnTradeInitiate(target.m_guid, useCursorItem);
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_INITIATE_TRADE));
     msg.Put(target.m_guid);

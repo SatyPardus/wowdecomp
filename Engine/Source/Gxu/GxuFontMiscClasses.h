@@ -28,7 +28,8 @@ struct GLYPHBITMAPDATA {
     /* 001C */ uint32_t m_glyphPitch;
     /* 0020 */ int32_t m_yOffset;
     /* 0024 */ uint32_t m_yStart;
-    /* 0028 */ CRect m_textureCoords;
+    /* 0028 */ uint8_t m_isMsdf;
+    /* 002C */ CRect m_textureCoords;
 
     GLYPHBITMAPDATA();
     ~GLYPHBITMAPDATA();
@@ -45,7 +46,7 @@ struct CHARCODEDESC : public TSHashObject<CHARCODEDESC, HASHKEY_NONE> {
     /* 0038 */ GLYPHBITMAPDATA m_bitmapData;
 
     CHARCODEDESC();
-    void GenerateTextureCoords(uint32_t rowNumber, uint32_t cellHeight);
+    void GenerateTextureCoords(uint32_t rowNumber, uint32_t cellHeight, uint32_t atlasSize = 256);
     uint32_t GapToPrevious();
 };
 
@@ -96,8 +97,8 @@ struct TEXTURECACHEROW {
     /* 0004 */ TSExplicitList<CHARCODEDESC, offsetof(CHARCODEDESC, m_textureRowLink)> m_glyphlist;
 
     TEXTURECACHEROW();
-    CHARCODEDESC* CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t rowNumber, uint32_t cellHeight);
-    void EvictGlyph(CHARCODEDESC* desc);
+    CHARCODEDESC* CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t rowNumber, uint32_t cellHeight, uint32_t atlasSize = 256);
+    void EvictGlyph(CHARCODEDESC* desc, uint32_t atlasSize = 256);
 };
 
 struct TEXTURECACHE {
@@ -106,7 +107,9 @@ struct TEXTURECACHE {
     /* 0000 */ CTexture* m_texture;
     /* 0004 */ CGxFont* m_theFace;
     /* 0008 */ uint8_t m_anyDirtyGlyphs;
-    /* 000C */ TSFixedArray<TEXTURECACHEROW> m_textureRows;
+    /* 0009 */ uint8_t m_isMsdfCache;
+    /* 000C */ uint32_t m_atlasSize;
+    /* 0010 */ TSFixedArray<TEXTURECACHEROW> m_textureRows;
 
     TEXTURECACHE();
     ~TEXTURECACHE();
@@ -119,6 +122,8 @@ struct TEXTURECACHE {
     void PasteGlyphOutlinedAA(const GLYPHBITMAPDATA& data, uint16_t* dest);
     void PasteGlyphOutlinedMonochrome(const GLYPHBITMAPDATA& data, uint16_t* dest);
     void UpdateDirty();
+    void PasteGlyphMsdf(const GLYPHBITMAPDATA& data, uint32_t* dest);
+    static void MsdfTextureCallback(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t face, uint32_t level, void* userArg, uint32_t& texelStrideInBytes, const void*& texels);
 };
 
 #endif

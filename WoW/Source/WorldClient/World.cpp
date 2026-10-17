@@ -1,4 +1,5 @@
 #include "World.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include <cstdlib>
 #include <new>
 #include <algorithm>
@@ -1367,6 +1368,7 @@ void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, in
     World::PrepareAreaOfInterest(*position);
     CWorld::gbChunkRectOld = CWorld::gbChunkRect;
     CMap::Load(mapName, zoneID);
+    ModCore::Manager().OnMapChange(mapName, zoneID);
 
     int32_t shaders = Enable_Doodads;
 

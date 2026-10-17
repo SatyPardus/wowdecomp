@@ -16,6 +16,7 @@
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "Engine/Source/Base/CDataStore.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include <cstring>
 
 // STATIC: 0x00BFA688
@@ -496,6 +497,8 @@ void CGPlayer_C::OnLootClearMoney() {
 // VERIFY: 0569898a manual
 // OFFSET: 0x00589140
 void CGLootInfo::LootSlot(uint32_t slot) {
+    ModCore::Manager().OnLootSlot(slot);
+
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
@@ -674,6 +677,7 @@ void CGLootInfo::SetObject(CGObject_C* object, int32_t coins, uint32_t lootType)
         CGLootInfo::m_lootObj = WOWGUID();
         memset(CGLootInfo::m_slots, 0, sizeof(CGLootInfo::m_slots));
         FrameScript_SignalEvent(SCRIPT_EVENT_LOOT_CLOSED, nullptr);
+        ModCore::Manager().OnLootClose();
     }
 
     if (!object) {
@@ -685,6 +689,8 @@ void CGLootInfo::SetObject(CGObject_C* object, int32_t coins, uint32_t lootType)
     CGLootInfo::m_itemsPending = 0;
     CGLootInfo::m_lootType = lootType;
     s_bindConfirmSlot = -1;
+
+    ModCore::Manager().OnLootOpen(object->m_obj->m_guid.m_guid, coins, lootType);
     uint32_t count = 0;
     memset(CGLootInfo::m_slots, 0, sizeof(CGLootInfo::m_slots));
 
