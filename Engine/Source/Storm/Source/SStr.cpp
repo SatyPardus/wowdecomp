@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cctype>
+#if !defined(_WIN32)
+#include <strings.h>
+#endif
 #include "SOption.h"
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -89,7 +93,11 @@ int32_t STORMAPI SStrCmp(const char* string1, const char* string2, size_t maxcha
 // VERIFY: 0278ea41 auto
 // OFFSET: 0x0076E780
 int32_t STORMAPI SStrCmpI(const char* string1, const char* string2, size_t maxchars) {
+#if defined(_WIN32)
     return _strnicmp(string1, string2, maxchars);
+#else
+    return strncasecmp(string1, string2, maxchars);
+#endif
 }
 
 // VERIFY: 806bfb4a manual
@@ -609,7 +617,11 @@ static size_t ISStrVPrintf(char* dest, size_t maxchars, const char* format, va_l
     if (g_opt.orderedprintfenabled) {
         result = vsnoprintf(dest, maxchars, format, arglist);
     } else {
+#if defined(_WIN32)
         result = _vsnprintf(dest, maxchars, format, arglist);
+#else
+        result = vsnprintf(dest, maxchars, format, arglist);
+#endif
     }
 
     if (result >= maxchars) {
@@ -886,13 +898,25 @@ uint32_t STORMAPI SStrHashHT(const char* string) {
 // VERIFY: 95c28b4a auto
 // OFFSET: 0x0076F6C0
 void STORMAPI SStrUpper(char* string) {
+#if defined(_WIN32)
     _strupr(string);
+#else
+    for (char* current = string; *current; current++) {
+        *current = static_cast<char>(toupper(static_cast<unsigned char>(*current)));
+    }
+#endif
 }
 
 // VERIFY: 760ebea0 auto
 // OFFSET: 0x0076F6E0
 void STORMAPI SStrLower(char* string) {
+#if defined(_WIN32)
     _strlwr(string);
+#else
+    for (char* current = string; *current; current++) {
+        *current = static_cast<char>(tolower(static_cast<unsigned char>(*current)));
+    }
+#endif
 }
 
 // VERIFY: d9e4e017 auto

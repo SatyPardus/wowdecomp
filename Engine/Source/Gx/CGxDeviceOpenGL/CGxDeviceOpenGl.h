@@ -3,6 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(__APPLE__)
+#include <SDL.h>
+#endif
 #include "Engine/Source/Gx/CGxDeviceOpenGL/GlExt.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Storm/H/stpl.h"
@@ -53,15 +56,39 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3AE0 */ const GLubyte* m_glVendor;
     /* 3AE4 */ const GLubyte* m_glRenderer;
     /* 3AE8 */ const GLubyte* m_glVersion;
+    #if defined(_WIN32)
     /* 3AEC */ HWND m_hwnd;
+    #elif defined(__APPLE__)
+    /* 3AEC */ SDL_Window* m_hwnd;
+    #else
+    /* 3AEC */ void* m_hwnd;
+    #endif
     /* 3AF0 */ int32_t m_ownhwnd;
+    #if defined(_WIN32)
     /* 3AF4 */ ATOM m_hwndClass;
+#else
+    /* 3AF4 */ uint32_t m_hwndClass;
+    #endif
     /* 3AF6 */ uint16_t unused_3AF6;
+    #if defined(_WIN32)
     /* 3AF8 */ HDC m_hdc;
     /* 3AFC */ HGLRC m_hglrc;
     /* 3B00 */ HPBUFFERARB m_pbuffer;
     /* 3B04 */ HDC m_pbufferDC;
     /* 3B08 */ HGLRC m_pbufferRC;
+    #elif defined(__APPLE__)
+    /* 3AF8 */ void* m_hdc;
+    /* 3AFC */ SDL_GLContext m_hglrc;
+    /* 3B00 */ void* m_pbuffer;
+    /* 3B04 */ void* m_pbufferDC;
+    /* 3B08 */ void* m_pbufferRC;
+    #else
+    /* 3AF8 */ void* m_hdc;
+    /* 3AFC */ void* m_hglrc;
+    /* 3B00 */ void* m_pbuffer;
+    /* 3B04 */ void* m_pbufferDC;
+    /* 3B08 */ void* m_pbufferRC;
+    #endif
     /* 3B0C */ TSFixedArray<C3Vector> m_vertexArray;
     /* 3B18 */ TSFixedArray<C3Vector> m_normalArray;
     /* 3B24 */ TSFixedArray<CImVector> m_colorArray;
@@ -79,6 +106,12 @@ class CGxDeviceOpenGl : public CGxDevice {
     /* 3B94 */ GLuint m_fbo;
     /* 3B98 */ GLuint m_boundFbo;
     /* 3B9C */ int32_t m_ambientOnlyMode;
+#if defined(__APPLE__)
+    uint32_t m_sdlWindowID;
+    int32_t m_eventWatchAdded;
+    int32_t m_lastDrawableWidth;
+    int32_t m_lastDrawableHeight;
+#endif
 
     virtual void ITexMarkAsUpdated(CGxTex* texId);
     virtual void IRsSendToHw(EGxRenderState which);
@@ -134,7 +167,9 @@ class CGxDeviceOpenGl : public CGxDevice {
     virtual void DeviceUnk82();
     virtual void DeviceUnk83(uint32_t a, uint32_t b);
 
+#if defined(_WIN32)
     static LRESULT CALLBACK WindowProcGl(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+#endif
 
     CGxDeviceOpenGl();
 
@@ -150,6 +185,9 @@ class CGxDeviceOpenGl : public CGxDevice {
     int32_t IDevAttachGlContext(const CGxFormat& format);
     void IDevRemoveGlContext();
     void IDevSetFocus(int32_t focus, const CGxFormat& format);
+#if defined(__APPLE__)
+    void IDevCheckResize();
+#endif
     void IDeviceSetRenderTargetCopy(EGxBuffer buffer, CGxTex* texture, uint32_t plane);
     void IDeviceSetRenderTargetFBO(EGxBuffer buffer, CGxTex* texture, uint32_t plane);
     void IBindPixelShader(CGxShader* shader);

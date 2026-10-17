@@ -219,7 +219,7 @@ void WorldTextShutdown() {
         HandleClose(reinterpret_cast<HOBJECT>(s_worldTextFont));
     }
 
-    s_freeStrings.Clear(typeid(WORLDTEXTSTRING).raw_name(), SLOG_OBJECT, 1);
+    s_freeStrings.Clear(STORM_TYPE_NAME(WORLDTEXTSTRING), SLOG_OBJECT, 1);
     GxuFontDestroyBatch(s_worldTextBatch);
 
     for (uint32_t i = 0; i < 15; i++) {

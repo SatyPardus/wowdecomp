@@ -1,8 +1,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <winerror.h>
+#if defined(_WIN32)
 #include <malloc.h>
+#define STORM_MALLOC_SIZE _msize
+#elif defined(__APPLE__)
+#include <malloc/malloc.h>
+#define STORM_MALLOC_SIZE malloc_size
+#else
+#include <malloc.h>
+#define STORM_MALLOC_SIZE malloc_usable_size
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00ADE850
@@ -47,7 +55,7 @@ void* STORMAPI SMemAlloc(size_t bytes, const char* filename, int32_t linenumber,
         return nullptr;
     }
 
-    _msize(ptr);
+    STORM_MALLOC_SIZE(ptr);
 
     return ptr;
 }
@@ -56,7 +64,7 @@ void* STORMAPI SMemAlloc(size_t bytes, const char* filename, int32_t linenumber,
 // OFFSET: 0x0076E5A0
 int32_t STORMAPI SMemFree(void* ptr, const char* filename, int32_t linenumber, uint32_t flags) {
     if (ptr) {
-        _msize(ptr);
+        STORM_MALLOC_SIZE(ptr);
         free(ptr);
     }
 
@@ -80,7 +88,7 @@ void* STORMAPI SMemReAlloc(void* ptr, size_t bytes, const char* filename, int32_
         return SMemAlloc(bytes, filename, linenumber, flags);
     }
 
-    size_t oldsize = _msize(ptr);
+    size_t oldsize = STORM_MALLOC_SIZE(ptr);
 
     if (flags & SMEM_FLAG_NOREALLOC) {
         return nullptr;
@@ -97,7 +105,7 @@ void* STORMAPI SMemReAlloc(void* ptr, size_t bytes, const char* filename, int32_
         return nullptr;
     }
 
-    size_t newsize = _msize(newptr);
+    size_t newsize = STORM_MALLOC_SIZE(newptr);
 
     if (s_heaptracking && newptr != ptr) {
         DebugLog(-1, "[%08lx] REALLOC %10d bytes <-- [%08lx]/%d, requested=%d (%s: %d)\n", newptr, newsize, ptr, oldsize, bytes, filename, linenumber);

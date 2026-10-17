@@ -115,7 +115,11 @@ static int (*s_drawListSorters[GxuSorts_Last])(const void*, const void*) = { Dra
 // VERIFY: 0b88acbc auto
 // OFFSET: 0x008C8DE0
 EGxApi GxDefaultApi() {
+#if defined(_WIN32)
     return GxApi_D3d9;
+#else
+    return GxApi_OpenGl;
+#endif
 }
 
 // VERIFY: cef2b995 auto
@@ -123,8 +127,10 @@ EGxApi GxDefaultApi() {
 int32_t GxApiSupported(EGxApi api) {
     switch (api) {
         case GxApi_OpenGl:
+#if defined(_WIN32)
         case GxApi_D3d9:
         case GxApi_D3d9Ex:
+#endif
             return 1;
 
         default:
@@ -186,14 +192,26 @@ CGxDevice* CreateGxDevice(EGxApi api, GxWindowProc windowProc, const CGxFormat& 
             break;
 
         case GxApi_D3d9:
+#if defined(_WIN32)
             device = CreateCGxDeviceD3d();
             g_theGxDevicePtr = device;
             break;
+#else
+            device = CreateCGxDeviceOpenGl();
+            g_theGxDevicePtr = device;
+            break;
+#endif
 
         case GxApi_D3d9Ex:
+#if defined(_WIN32)
             device = CreateCGxDeviceD3d9Ex();
             g_theGxDevicePtr = device;
             break;
+#else
+            device = CreateCGxDeviceOpenGl();
+            g_theGxDevicePtr = device;
+            break;
+#endif
 
         default:
             device = g_theGxDevicePtr;

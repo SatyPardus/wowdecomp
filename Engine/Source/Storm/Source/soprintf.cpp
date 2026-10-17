@@ -5,6 +5,10 @@
 #include <cstring>
 #include "Engine/Source/Storm/H/storm.h"
 
+#if !defined(_WIN32)
+#define _snprintf snprintf
+#endif
+
 #define MAX_ARGUMENTS 64
 #define MAX_SPECIFIER_LENGTH 64
 #define UNBOUNDED_OUTPUT_SIZE 0x100000
@@ -251,23 +255,30 @@ int32_t vsnoprintf(char* out, size_t outSize, const char* format, va_list argume
 
         int32_t avail = static_cast<int32_t>(end - dest);
         int32_t written = 0;
+#if defined(_WIN32)
+        int32_t limit = avail;
+#else
+        // C snprintf reserves a byte for the terminator, unlike MSVC _snprintf. dest + avail is
+        // `end`, which is already reserved for the final terminator, so allow writing up to it.
+        int32_t limit = avail + 1;
+#endif
 
         switch (sizes[argument]) {
         case e_intSized:
-            written = _snprintf(dest, avail, specifier, values[argument].intValue);
+            written = _snprintf(dest, limit, specifier, values[argument].intValue);
             break;
         case e_pointerSized:
-            written = _snprintf(dest, avail, specifier, values[argument].pointerValue);
+            written = _snprintf(dest, limit, specifier, values[argument].pointerValue);
             break;
         case e_longLongSized:
             FixUpLongLongFormatSpecifier(specifier);
-            written = _snprintf(dest, avail, specifier, values[argument].longLongValue);
+            written = _snprintf(dest, limit, specifier, values[argument].longLongValue);
             break;
         case e_doubleSized:
-            written = _snprintf(dest, avail, specifier, values[argument].doubleValue);
+            written = _snprintf(dest, limit, specifier, values[argument].doubleValue);
             break;
         case e_takesNoSpace:
-            written = _snprintf(dest, avail, specifier);
+            written = _snprintf(dest, limit, specifier);
             break;
         }
 

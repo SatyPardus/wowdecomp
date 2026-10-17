@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <windows.h>
 #include "Engine/Source/Storm/H/SCritSect.h"
 #include "Engine/Source/Storm/Source/SLock.h"
 

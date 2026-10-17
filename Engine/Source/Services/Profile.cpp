@@ -1,7 +1,7 @@
 #include <cstddef>
 #include <cstdint>
+#include <cctype>
 #include <cstring>
-#include <mbstring.h>
 #include <new>
 #include "Engine/Source/Services/Profile.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -10,14 +10,10 @@
 // VERIFY: c051543c auto
 // OFFSET: 0x004BBCB0
 static void StrTrimTrailingSpace(char* str) {
-    char* ptr = str + SStrLen(str) - 1;
+    size_t length = SStrLen(str);
 
-    if (ptr >= str) {
-        while (_ismbcspace(*ptr)) {
-            ptr--;
-        }
-
-        ptr[1] = '\0';
+    while (length > 0 && std::isspace(static_cast<unsigned char>(str[length - 1]))) {
+        str[--length] = '\0';
     }
 }
 

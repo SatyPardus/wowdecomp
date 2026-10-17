@@ -377,7 +377,11 @@ void IEvtDispatchInput(EvtContext* context, OSINPUT id, int32_t* param, int32_t*
             data.m_action = param[0];
             data.unused_0004 = param[1];
             data.m_param = param[2];
+#if defined(_WIN32)
             data.m_codePage = GetACP();
+#else
+            data.m_codePage = 65001;
+#endif
 
             IEvtQueueDispatch(context, EVENT_ID_IME, &data);
             break;

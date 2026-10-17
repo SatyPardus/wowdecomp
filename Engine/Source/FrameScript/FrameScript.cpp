@@ -1,7 +1,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <malloc.h>
+#include <cstdlib>
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
 #include "Engine/Source/Base/Status.h"

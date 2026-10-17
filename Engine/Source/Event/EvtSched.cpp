@@ -16,7 +16,7 @@
 
 namespace Event {
     // STATIC: 0x00AC0DC0
-    volatile long s_threadListContention = -1;
+    volatile int32_t s_threadListContention = -1;
 
     // STATIC: 0x00AC0DC4
     TSList<EvtThread, TSGetLink<EvtThread> > s_threadList;
@@ -31,7 +31,7 @@ namespace Event {
     int32_t s_originalThreadPriority;
 
     // STATIC: 0x00B417D0
-    volatile long s_interactiveCount;
+    volatile int32_t s_interactiveCount;
 
     // STATIC: 0x00B417D4
     uint32_t s_threadSlotCount;

@@ -174,6 +174,9 @@
 #define FMOD_SUPPORT_AIFF
 #define FMOD_SUPPORT_ASF
 #define FMOD_SUPPORT_CDDA
+#if !defined(PLATFORM_WINDOWS)
+#undef FMOD_SUPPORT_CDDA
+#endif
 #define FMOD_SUPPORT_DLS
 #define FMOD_SUPPORT_FLAC
 #define FMOD_SUPPORT_FSB
@@ -1022,5 +1025,4 @@
 #define GEOMETRY_THREADPRIORITY Thread::PRIORITY_LOW            /* Low priority background thread. */
 
 #endif	/* _FMOD_SETTINGS_H */
-
 

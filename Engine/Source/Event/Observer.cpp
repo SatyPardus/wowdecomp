@@ -35,7 +35,7 @@ void ObserverInitialize() {
 // VERIFY: 42d23e57 auto
 // OFFSET: 0x00480EA0
 void ObserverDestroy() {
-    s_eventRegAllocator.m_allocator.Clear(typeid(EventReg).raw_name(), SLOG_OBJECT, 1);
-    s_callbackRegAllocator.m_allocator.Clear(typeid(EventReg::EVENTCALLBACKREG).raw_name(), SLOG_OBJECT, 1);
-    s_dispatchRegAllocator.m_allocator.Clear(typeid(EventReg::EVENTDISPATCHREG).raw_name(), SLOG_OBJECT, 1);
+    s_eventRegAllocator.m_allocator.Clear(STORM_TYPE_NAME(EventReg), SLOG_OBJECT, 1);
+    s_callbackRegAllocator.m_allocator.Clear(STORM_TYPE_NAME(EventReg::EVENTCALLBACKREG), SLOG_OBJECT, 1);
+    s_dispatchRegAllocator.m_allocator.Clear(STORM_TYPE_NAME(EventReg::EVENTDISPATCHREG), SLOG_OBJECT, 1);
 }

@@ -346,12 +346,12 @@ FMOD_RESULT OutputWavWriter_NRT::writeWavHeader()
         WAVE_FORMATEXTENSIBLE Fmt =
         {
             {
-                extensible ? WAVE_FORMAT_EXTENSIBLE : mFormat == FMOD_SOUND_FORMAT_PCMFLOAT ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM, 
-                mChannels, 
-                mRate, 
-                mRate * mChannels * mBits / 8, 
-                mChannels * mBits / 8, 
-                mBits,
+                static_cast<uint16_t>(extensible ? WAVE_FORMAT_EXTENSIBLE : mFormat == FMOD_SOUND_FORMAT_PCMFLOAT ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM),
+                static_cast<uint16_t>(mChannels),
+                static_cast<uint32_t>(mRate),
+                static_cast<uint32_t>(mRate * mChannels * mBits / 8),
+                static_cast<uint16_t>(mChannels * mBits / 8),
+                static_cast<uint16_t>(mBits),
                 0
             },
             0
@@ -380,7 +380,7 @@ FMOD_RESULT OutputWavWriter_NRT::writeWavHeader()
         WAVE_CHUNK WavHeader = 
         { 
             {'R','I','F','F'}, 
-            sizeof(FmtHdr) + sizeof(Fmt) + sizeof(DataChunk) + mLengthBytes,
+            static_cast<uint32_t>(sizeof(FmtHdr) + sizeof(Fmt) + sizeof(DataChunk) + mLengthBytes),
         };
 
 #ifdef PLATFORM_ENDIAN_BIG
@@ -721,4 +721,3 @@ FMOD_RESULT F_CALLBACK OutputWavWriter_NRT::getHandleCallback(FMOD_OUTPUT_STATE 
 
 
 #endif
-

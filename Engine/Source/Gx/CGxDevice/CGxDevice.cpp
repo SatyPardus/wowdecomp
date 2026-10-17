@@ -1492,7 +1492,11 @@ void CGxDevice::Log(const char* format, va_list args) {
     }
 
     char buffer[2048];
+#if defined(_MSC_VER)
     _vsnprintf(buffer, sizeof(buffer), format, args);
+#else
+    vsnprintf(buffer, sizeof(buffer), format, args);
+#endif
 
     if (CGxDevice::m_logBytes < 0x200000) {
         SLogWrite(CGxDevice::m_log, buffer);

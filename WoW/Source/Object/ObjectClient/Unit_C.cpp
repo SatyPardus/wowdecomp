@@ -20063,7 +20063,7 @@ CGNamePlateFrame* CGNamePlateFrame::GetNewNameplateFrame(CSimpleFrame* parent) {
     CGNamePlateFrame* frame = s_unusedNamePlates.Head();
 
     if (!frame) {
-        void* data = CGNamePlateFrame::s_namePlateHeap.GetData(0, typeid(CGNamePlateFrame).raw_name(), SLOG_OBJECT);
+        void* data = CGNamePlateFrame::s_namePlateHeap.GetData(0, STORM_TYPE_NAME(CGNamePlateFrame), SLOG_OBJECT);
         return data ? new (data) CGNamePlateFrame(parent) : nullptr;
     }
 

@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <cstring>
-#include <malloc.h>
+#include <cstdlib>
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"

@@ -13,12 +13,27 @@ project(wowdecomp CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
-    message(FATAL_ERROR "wowdecomp targets Windows only.")
+if (NOT WIN32)
+    include_directories(BEFORE "${CMAKE_SOURCE_DIR}/Engine/Source/Platform/Compat")
 endif ()
 
-# x64 is the target. Win32 stays buildable: it is the configuration whose struct layouts can be
-# checked against Wow.exe 3.3.5a (12340).
+# The decompiled code relies on MSVC semantics: no type-based alias analysis (it type-puns through
+# reinterpret_cast, e.g. expanding MPQ block tables in place) and wrapping signed arithmetic. Clang/GCC
+# optimize both as undefined behavior, which silently miscompiles such code.
+if (NOT MSVC)
+    add_compile_options(-fno-strict-aliasing -fwrapv)
+endif ()
+
+# Native macOS client: SDL2 (window, input, audio device), the system OpenGL framework and libcurl replace
+# Win32/WGL/DirectInput/WinINet. Platform sources live in Mac/ directories next to the Win32/Win64 ones.
+if (APPLE)
+    find_package(SDL2 CONFIG REQUIRED)
+    find_package(CURL REQUIRED)
+    find_package(OpenGL REQUIRED)
+endif ()
+
+# x64 is the target. Win32 stays buildable on Windows: it is the configuration whose struct
+# layouts can be checked against Wow.exe 3.3.5a (12340).
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(WOWDECOMP_ARCH_64 1)
     add_compile_definitions(WOWDECOMP_ARCH_64=1)
@@ -29,8 +44,11 @@ elseif (CMAKE_SIZEOF_VOID_P EQUAL 4)
     if (MSVC)
         add_compile_options(/arch:IA32 /fp:fast)
     endif ()
-    # 32-bit time_t like the original build: time/localtime/mktime resolve to _time32/_localtime32/_mktime32.
-    add_compile_definitions(_USE_32BIT_TIME_T)
+    if (WIN32)
+        # Match the original 32-bit time_t: time/localtime/mktime resolve to
+        # _time32/_localtime32/_mktime32.
+        add_compile_definitions(_USE_32BIT_TIME_T)
+    endif ()
 else ()
     message(FATAL_ERROR "Unsupported pointer size.")
 endif ()
@@ -39,13 +57,17 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_compile_definitions(
-    WIN32
-    _WINDOWS
-    NOMINMAX
-    WIN32_LEAN_AND_MEAN
-    _CRT_SECURE_NO_WARNINGS
-)
+if (WIN32)
+    add_compile_definitions(
+        WIN32
+        _WINDOWS
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN
+        _CRT_SECURE_NO_WARNINGS
+    )
+else ()
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif ()
 
 # Off by default: the client checks MPQ file MD5s (signaturefile) and GlueXML/FrameXML/AddOn .toc.sig files like the
 # original. ON accepts unsigned or modified game data and interface files.
@@ -108,12 +130,14 @@ add_subdirectory(WoW/Source)
 if (WIN32)
     add_subdirectory(Tools/WowClient)
 endif ()
-if (WOWDECOMP_ARCH_64)
+if (WIN32 AND WOWDECOMP_ARCH_64)
     add_subdirectory(Tools/XvidDecoder)
 endif ()
 
-foreach (target Wow WowClient MapViewer M2Viewer GxTest MpqTest BlpTest DbcTest AssetCheck)
-    if (TARGET ${target})
-        target_sources(${target} PRIVATE ${CMAKE_SOURCE_DIR}/waystone.rc)
-    endif ()
-endforeach ()
+if (WIN32)
+    foreach (target Wow WowClient MapViewer M2Viewer GxTest MpqTest BlpTest DbcTest AssetCheck)
+        if (TARGET ${target})
+            target_sources(${target} PRIVATE ${CMAKE_SOURCE_DIR}/waystone.rc)
+        endif ()
+    endforeach ()
+endif ()

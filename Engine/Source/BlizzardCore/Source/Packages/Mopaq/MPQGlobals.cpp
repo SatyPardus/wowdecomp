@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstring>
+#include <strings.h>
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFileArchives.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQGlobals.h"
 #include "Engine/Source/BlizzardCore/Source/System/Process/Process.h"
@@ -134,7 +135,7 @@ System_SFile::ARCHIVEREC* System_MPQGlobals::FindArchiveByName(const char* name)
     ArchiveList* archives = GetArchiveList();
 
     for (ArchiveList::iterator it = archives->begin(); it != archives->end(); ++it) {
-        if (name && *it && !_stricmp(name, (*it)->m_name)) {
+        if (name && *it && !strcasecmp(name, (*it)->m_name)) {
             return *it;
         }
     }

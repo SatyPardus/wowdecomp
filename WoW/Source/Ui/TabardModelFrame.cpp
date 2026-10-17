@@ -54,7 +54,7 @@ CSimpleFrame* CGTabardModelFrame::Create(CSimpleFrame* parent) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    void* data = CGTabardModelFrame::s_tabardModelHeap.GetData(0, typeid(CGTabardModelFrame).raw_name(), SLOG_OBJECT);
+    void* data = CGTabardModelFrame::s_tabardModelHeap.GetData(0, STORM_TYPE_NAME(CGTabardModelFrame), SLOG_OBJECT);
     return data ? new (data) CGTabardModelFrame(parent) : nullptr;
 }
 

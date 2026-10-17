@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <windows.h>
 #include "Engine/Source/Event/Types.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Storm/H/stpl.h"

@@ -316,8 +316,8 @@ void SpellVisualsShutdown() {
     }
 
     s_lastUpdateTime = -1;
-    s_blizzardObjectHeap.Clear(typeid(BlizzardObject).raw_name(), -2, 1);
-    s_shardHeap.Clear(typeid(Shard).raw_name(), -2, 1);
+    s_blizzardObjectHeap.Clear(STORM_TYPE_NAME(BlizzardObject), -2, 1);
+    s_shardHeap.Clear(STORM_TYPE_NAME(Shard), -2, 1);
     s_spellEffectLevelVar = nullptr;
     SpellVisualsShutdownModelAttachLookup();
 }

@@ -73,7 +73,7 @@ int32_t CGCooldown::GetObjectType() {
 // VERIFY: 61bceefd auto
 // OFFSET: 0x0051A380
 CSimpleFrame* CGCooldown::Create(CSimpleFrame* parent) {
-    void* data = CGCooldown::s_cooldownHeap.GetData(0, typeid(CGCooldown).raw_name(), SLOG_OBJECT);
+    void* data = CGCooldown::s_cooldownHeap.GetData(0, STORM_TYPE_NAME(CGCooldown), SLOG_OBJECT);
     return data ? new (data) CGCooldown(parent) : nullptr;
 }
 

@@ -11,7 +11,11 @@
 
 class WowConnectionNet {
     public:
+// The 32-bit layout packs m_lock at 0x15 like Wow.exe. 64-bit builds keep natural alignment: their offsets
+// differ anyway, and a misaligned lock faults on arm64 (pthread mutexes must be 8-byte aligned).
+#if defined(WOWDECOMP_ARCH_32)
 #pragma pack(push, 1)
+#endif
     struct WORKER {
         /* 0000 */ WowConnectionNet* m_owner;
         /* 0004 */ SThread m_thread;
@@ -25,7 +29,9 @@ class WowConnectionNet {
 
         WORKER();
     };
+#if defined(WOWDECOMP_ARCH_32)
 #pragma pack(pop)
+#endif
 
     /* 0000 */ SThread m_thread;
     /* 0004 */ SEvent m_stopEvent;

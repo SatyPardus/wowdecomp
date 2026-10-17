@@ -322,7 +322,11 @@ float CMath::normalizeAngleNegPiToPi_(float angle) {
 // VERIFY: a3991bed auto
 // OFFSET: 0x006E9360
 int32_t IsNaN(double value) {
+#if defined(_MSC_VER)
     return _isnan(value);
+#else
+    return std::isnan(value);
+#endif
 }
 
 // VERIFY: 2ff13d8c auto

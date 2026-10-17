@@ -308,7 +308,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     C2Vector texCoords[4];
 
     if (this->m_bgFile.m_str && *this->m_bgFile.m_str) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 0, 1) : nullptr;
         this->m_backgroundTexture = texture;
 
@@ -321,7 +321,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x1) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_leftTexture = texture;
 
@@ -334,7 +334,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x2) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_rightTexture = texture;
 
@@ -347,7 +347,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x4) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_topTexture = texture;
 
@@ -360,7 +360,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x8) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_bottomTexture = texture;
 
@@ -373,7 +373,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x10) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_topLeftTexture = texture;
 
@@ -394,7 +394,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x20) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_topRightTexture = texture;
 
@@ -415,7 +415,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x40) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_bottomLeftTexture = texture;
 
@@ -436,7 +436,7 @@ void CBackdropGenerator::SetOutput(CSimpleFrame* frame) {
     }
 
     if (this->m_pieces & 0x80) {
-        void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleTexture::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleTexture), SLOG_OBJECT);
         CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 1, 1) : nullptr;
         this->m_bottomRightTexture = texture;
 

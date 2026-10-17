@@ -1,5 +1,7 @@
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/Base/CDataRecycler.h"
 #include "Engine/Source/Storm/H/storm.h"
 

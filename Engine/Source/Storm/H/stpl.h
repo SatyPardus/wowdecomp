@@ -436,7 +436,7 @@ T* TSList<T, TGetLink>::DeleteNode(T* ptr) {
     T* next = this->Next(ptr);
 
     ptr->~T();
-    SMemFree(ptr, typeid(T).raw_name(), SLOG_OBJECT, 0);
+    SMemFree(ptr, STORM_TYPE_NAME(T), SLOG_OBJECT, 0);
 
     return next;
 }
@@ -515,7 +515,7 @@ void TSList<T, TGetLink>::LinkToTail(T* ptr) {
 // OFFSET: [0x00496C00<SIMPLEFONT, TSGetExplicitLink<SIMPLEFONT>>, 0x004B6E40, 0x004BFFC0, 0x004F3420<CACHEENTRY, TSGetExplicitLink<CACHEENTRY>>, 0x004F89E0, 0x0055A1D0<LFGListParty, TSGetExplicitLink<LFGListParty>>, 0x00560A00<OVERRIDEKEYBINDING, TSGetExplicitLink<OVERRIDEKEYBINDING>>, 0x005BDF00, 0x006329D0, 0x0066CCB0<DBCACHECALLBACK, TSGetLink<DBCACHECALLBACK>>, 0x006705D0, 0x00671030, 0x006883B0<CGxShader, TSGetExplicitLink<CGxShader>>, 0x006BBDB0<CGxuLight, TSGetLink<CGxuLight>>, 0x0074F2D0<CombatLogEntry, TSGetLink<CombatLogEntry>>, 0x00776BC0<RGN, TSGetExplicitLink<RGN>>, 0x007FBC60<LightningObject, TSGetLink<LightningObject>>, 0x007FBCE0<MountTransitionObject, TSGetLink<MountTransitionObject>>, 0x00783100]
 template <class T, class TGetLink>
 T* TSList<T, TGetLink>::NewNode(uint32_t location, size_t extrabytes, uint32_t flags) {
-    T* node = new (SMemAlloc(sizeof(T) + extrabytes, typeid(T).raw_name(), SLOG_OBJECT, flags | SMEM_FLAG_ZEROMEMORY)) T;
+    T* node = new (SMemAlloc(sizeof(T) + extrabytes, STORM_TYPE_NAME(T), SLOG_OBJECT, flags | SMEM_FLAG_ZEROMEMORY)) T;
 
     if (location) {
         this->LinkNode(node, location, nullptr);
@@ -657,7 +657,7 @@ uint32_t TSBaseArray<T>::Count() {
 // INLINED
 template <class T>
 const char* TSBaseArray<T>::MemFileName() {
-    return typeid(T).raw_name();
+    return STORM_TYPE_NAME(T);
 }
 
 // INLINED
@@ -1017,7 +1017,7 @@ TSHashObject<T, TKey>::~TSHashObject() {
 template <class T, class TKey>
 void TSHashTable<T, TKey>::InternalDelete(T* ptr) {
     ptr->~T();
-    SMemFree(ptr, typeid(T).raw_name(), SLOG_OBJECT, 0);
+    SMemFree(ptr, STORM_TYPE_NAME(T), SLOG_OBJECT, 0);
 }
 
 // VERIFY: 2a1eed0a auto
@@ -1346,7 +1346,7 @@ void TSHashTableReuse<T, TKey>::Destructor() {
 
     while ((node = this->m_reuseList.Head()) != nullptr) {
         this->m_reuseList.UnlinkNode(node);
-        SMemFree(node, typeid(T).raw_name(), SLOG_OBJECT, 0);
+        SMemFree(node, STORM_TYPE_NAME(T), SLOG_OBJECT, 0);
     }
 }
 

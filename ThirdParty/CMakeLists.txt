@@ -100,10 +100,10 @@ add_library(expat STATIC
 target_compile_definitions(expat
     PUBLIC
         _STATIC
-    PRIVATE
-        COMPILED_FROM_DSP
-        _LIB
 )
+if (WIN32)
+    target_compile_definitions(expat PRIVATE COMPILED_FROM_DSP _LIB)
+endif ()
 
 target_include_directories(expat
     PUBLIC
@@ -169,10 +169,50 @@ if (WOWDECOMP_ARCH_32)
         message(WARNING "DivxDecoder: ${DIVXDECODER_DLL} is missing. Copy DivxDecoder.dll from a 3.3.5a (12340) client there; Win32 builds need it next to the executables.")
     endif ()
 else ()
-    target_link_libraries(DivxDecoder
-        INTERFACE
-            XvidDecoder
-    )
+    if (APPLE)
+        # Same Xvid-backed decoder as Win64. Without xvidcore, fall back to a stub that reports
+        # failure so movies are skipped.
+        find_path(XVID_INCLUDE_DIR xvid.h HINTS /opt/homebrew/opt/xvid/include /usr/local/opt/xvid/include)
+        find_library(XVIDCORE_LIBRARY NAMES libxvidcore.a xvidcore HINTS /opt/homebrew/opt/xvid/lib /usr/local/opt/xvid/lib)
+
+        if (XVID_INCLUDE_DIR AND XVIDCORE_LIBRARY)
+            add_library(DivxDecoderMac STATIC
+                ${CMAKE_SOURCE_DIR}/Tools/XvidDecoder/XvidDecoder.cpp
+            )
+
+            target_include_directories(DivxDecoderMac
+                PRIVATE
+                    ${CMAKE_SOURCE_DIR}
+                    ${XVID_INCLUDE_DIR}
+            )
+
+            target_link_libraries(DivxDecoderMac
+                PRIVATE
+                    ${XVIDCORE_LIBRARY}
+            )
+        else ()
+            message(WARNING "DivxDecoder: xvidcore not found (brew install xvid); cinematics will be skipped.")
+
+            add_library(DivxDecoderMac STATIC
+                ${CMAKE_SOURCE_DIR}/Tools/XvidDecoder/Mac/DivxDecoderUnavailable.cpp
+            )
+
+            target_include_directories(DivxDecoderMac
+                PRIVATE
+                    ${CMAKE_SOURCE_DIR}
+            )
+        endif ()
+
+        target_link_libraries(DivxDecoder
+            INTERFACE
+                DivxDecoderMac
+        )
+    elseif (WIN32)
+        target_link_libraries(DivxDecoder
+            INTERFACE
+                XvidDecoder
+        )
+    endif ()
 endif ()
 
 if (WIN32)

@@ -1,4 +1,4 @@
-#if defined(WOWDECOMP_ARCH_64)
+#if defined(WOWDECOMP_ARCH_64) && defined(_WIN32)
 
 #include <winsock2.h>
 #include <cstdlib>

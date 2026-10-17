@@ -2,7 +2,14 @@
 #define ENGINE_SOURCE_BLIZZARDCORE_SOURCE_SYSTEM_TIME_TIME_H
 
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#else
+using DWORD = uint32_t;
+struct LARGE_INTEGER {
+    int64_t QuadPart;
+};
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 #include "Engine/Source/BlizzardCore/Source/System/Time/Types.h"
 

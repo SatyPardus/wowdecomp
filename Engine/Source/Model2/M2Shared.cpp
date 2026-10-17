@@ -1,7 +1,12 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#define _alloca alloca
+#endif
 #include <new>
 #include <typeinfo>
 #include "Engine/Source/Model2/M2Shared.h"
@@ -1980,7 +1985,7 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
         shared->m_flags &= ~0x30u;
     } else {
         load->~CM2SequenceLoad();
-        SMemFree(load, typeid(CM2SequenceLoad).raw_name(), SLOG_OBJECT, 0);
+        SMemFree(load, STORM_TYPE_NAME(CM2SequenceLoad), SLOG_OBJECT, 0);
         shared->m_flags &= ~0x10u;
     }
 }
@@ -1990,7 +1995,7 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
 void CM2Shared::LowPrioritySequenceFailedCallback(void* param) {
     CM2SequenceLoad* load = static_cast<CM2SequenceLoad*>(param);
     load->~CM2SequenceLoad();
-    SMemFree(load, typeid(CM2SequenceLoad).raw_name(), SLOG_OBJECT, 0);
+    SMemFree(load, STORM_TYPE_NAME(CM2SequenceLoad), SLOG_OBJECT, 0);
 }
 
 // VERIFY: 0ec0803c manual

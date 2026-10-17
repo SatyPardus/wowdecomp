@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
-#include <xmmintrin.h>
+#include "Engine/Source/Platform/Compat/SSE.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"

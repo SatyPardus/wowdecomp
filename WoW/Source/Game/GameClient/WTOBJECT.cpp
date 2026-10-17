@@ -36,15 +36,15 @@ WTOBJECT::~WTOBJECT() {
 // VERIFY: c3c7b136 auto
 // OFFSET: 0x007E4BC0
 void WeaponTrailsShutdown() {
-    s_freeTrails.Clear(typeid(WTOBJECT).raw_name(), SLOG_OBJECT, 1);
-    s_freeSwings.Clear(typeid(SWING).raw_name(), SLOG_OBJECT, 1);
+    s_freeTrails.Clear(STORM_TYPE_NAME(WTOBJECT), SLOG_OBJECT, 1);
+    s_freeSwings.Clear(STORM_TYPE_NAME(SWING), SLOG_OBJECT, 1);
 }
 
 // VERIFY: 38b83c0d auto
 // OFFSET: 0x007E4BF0
 WTOBJECT* WeaponTrailCreate(CM2Model* model) {
     s_count++;
-    WTOBJECT* trail = static_cast<WTOBJECT*>(s_freeTrails.GetData(0, typeid(WTOBJECT).raw_name(), SLOG_OBJECT));
+    WTOBJECT* trail = static_cast<WTOBJECT*>(s_freeTrails.GetData(0, STORM_TYPE_NAME(WTOBJECT), SLOG_OBJECT));
 
     if (trail) {
         trail->m_swing = nullptr;
@@ -199,7 +199,7 @@ void WTOBJECT::SetDrawTrail(const uint32_t* color, uint32_t duration) {
         this->m_swing->m_tail = 0;
         this->m_swing->m_head = 0;
     } else {
-        SWING* swing = static_cast<SWING*>(s_freeSwings.GetData(0, typeid(SWING).raw_name(), SLOG_OBJECT));
+        SWING* swing = static_cast<SWING*>(s_freeSwings.GetData(0, STORM_TYPE_NAME(SWING), SLOG_OBJECT));
 
         if (swing) {
             new (swing) SWING();

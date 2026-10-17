@@ -2,8 +2,41 @@
 #define ENGINE_SOURCE_STORM_H_TYPES_H
 
 #include <cstdint>
+#include <typeinfo>
 
+#if defined(_WIN32)
 #define STORMAPI __stdcall
+#define STORM_TYPE_NAME(type) typeid(type).raw_name()
+#else
+#include <strings.h>
+#define STORMAPI
+#define STORM_TYPE_NAME(type) typeid(type).name()
+using LONG = int32_t;
+
+#define _stricmp strcasecmp
+#define _strnicmp strncasecmp
+
+inline LONG InterlockedIncrement(volatile LONG* value) {
+    return __atomic_add_fetch(value, 1, __ATOMIC_SEQ_CST);
+}
+
+inline LONG InterlockedDecrement(volatile LONG* value) {
+    return __atomic_sub_fetch(value, 1, __ATOMIC_SEQ_CST);
+}
+
+inline LONG InterlockedExchange(volatile LONG* value, LONG exchange) {
+    return __atomic_exchange_n(value, exchange, __ATOMIC_SEQ_CST);
+}
+
+inline LONG InterlockedExchangeAdd(volatile LONG* value, LONG addend) {
+    return __atomic_fetch_add(value, addend, __ATOMIC_SEQ_CST);
+}
+
+inline void* InterlockedCompareExchangePointer(void* volatile* destination, void* exchange, void* comparand) {
+    __atomic_compare_exchange_n(destination, &comparand, exchange, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return comparand;
+}
+#endif
 
 struct _CMDPARAMS {
     /* 0000 */ uint32_t flags;

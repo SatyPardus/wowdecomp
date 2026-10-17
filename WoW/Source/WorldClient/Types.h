@@ -70,7 +70,7 @@ enum Enables : uint32_t {
     Enable_PixelShaders = 0x10000000,
     Enable_ShowTris = 0x20000000,
     Enable_ShowNormals = 0x40000000,
-    Enable_Anisotropic = 0xFFFFFFFF80000000,
+    Enable_Anisotropic = 0x80000000u,
 };
 
 enum Enables2 {

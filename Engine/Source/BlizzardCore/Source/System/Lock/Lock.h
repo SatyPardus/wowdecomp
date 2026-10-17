@@ -3,14 +3,25 @@
 
 #include <cstdint>
 #include <new>
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <mutex>
+#include "Engine/Source/Platform/Compat/RecursiveMutex.h"
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Process/Process.h"
 
 namespace Blizzard {
 namespace Lock {
 
+#if defined(_WIN32)
 typedef HANDLE Event;
 typedef CRITICAL_SECTION Mutex;
+#else
+struct EventState;
+typedef EventState* Event;
+typedef WowRecursiveMutex Mutex;
+#endif
 
 class Atomic {
     public:

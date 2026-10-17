@@ -123,77 +123,77 @@ int32_t FrameXML_GuessNumFiles(const char* toc) {
 // VERIFY: c88573f9 auto
 // OFFSET: 0x00812630
 CSimpleFrame* Create_SimpleCheckButton(CSimpleFrame* parent) {
-    void* data = CSimpleCheckbox::s_allocator.GetData(0, typeid(CSimpleCheckbox).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleCheckbox::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleCheckbox), SLOG_OBJECT);
     return data ? new (data) CSimpleCheckbox(parent) : nullptr;
 }
 
 // VERIFY: e0d76346 auto
 // OFFSET: 0x00812660
 CSimpleFrame* Create_SimpleEditBox(CSimpleFrame* parent) {
-    void* data = CSimpleEditBox::s_allocator.GetData(0, typeid(CSimpleEditBox).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleEditBox::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleEditBox), SLOG_OBJECT);
     return data ? new (data) CSimpleEditBox(parent) : nullptr;
 }
 
 // VERIFY: 2aa2d739 auto
 // OFFSET: 0x00812690
 CSimpleFrame* Create_SimpleMessageFrame(CSimpleFrame* parent) {
-    void* data = CSimpleMessageFrame::s_allocator.GetData(0, typeid(CSimpleMessageFrame).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleMessageFrame::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleMessageFrame), SLOG_OBJECT);
     return data ? new (data) CSimpleMessageFrame(parent) : nullptr;
 }
 
 // VERIFY: 9ec2bd5d auto
 // OFFSET: 0x008126C0
 CSimpleFrame* Create_SimpleModel(CSimpleFrame* parent) {
-    void* data = CSimpleModel::s_allocator.GetData(0, typeid(CSimpleModel).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleModel::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleModel), SLOG_OBJECT);
     return data ? new (data) CSimpleModel(parent) : nullptr;
 }
 
 // VERIFY: d93ae8f1 auto
 // OFFSET: 0x008126F0
 CSimpleFrame* Create_SimpleScrollFrame(CSimpleFrame* parent) {
-    void* data = CSimpleScrollFrame::s_allocator.GetData(0, typeid(CSimpleScrollFrame).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleScrollFrame::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleScrollFrame), SLOG_OBJECT);
     return data ? new (data) CSimpleScrollFrame(parent) : nullptr;
 }
 
 // VERIFY: 2ba95665 auto
 // OFFSET: 0x00812720
 CSimpleFrame* Create_SimpleScrollingMessageFrame(CSimpleFrame* parent) {
-    void* data = CSimpleMessageScrollFrame::s_allocator.GetData(0, typeid(CSimpleMessageScrollFrame).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleMessageScrollFrame::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleMessageScrollFrame), SLOG_OBJECT);
     return data ? new (data) CSimpleMessageScrollFrame(parent, 8) : nullptr;
 }
 
 // VERIFY: 1a3fde32 auto
 // OFFSET: 0x00812750
 CSimpleFrame* Create_SimpleSlider(CSimpleFrame* parent) {
-    void* data = CSimpleSlider::s_allocator.GetData(0, typeid(CSimpleSlider).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleSlider::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleSlider), SLOG_OBJECT);
     return data ? new (data) CSimpleSlider(parent) : nullptr;
 }
 
 // VERIFY: 4bbcca61 auto
 // OFFSET: 0x00812780
 CSimpleFrame* Create_SimpleHTML(CSimpleFrame* parent) {
-    void* data = CSimpleHTML::s_allocator.GetData(0, typeid(CSimpleHTML).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleHTML::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleHTML), SLOG_OBJECT);
     return data ? new (data) CSimpleHTML(parent) : nullptr;
 }
 
 // VERIFY: 7fb244de auto
 // OFFSET: 0x008127B0
 CSimpleFrame* Create_SimpleStatusBar(CSimpleFrame* parent) {
-    void* data = CSimpleStatusBar::s_allocator.GetData(0, typeid(CSimpleStatusBar).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleStatusBar::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleStatusBar), SLOG_OBJECT);
     return data ? new (data) CSimpleStatusBar(parent) : nullptr;
 }
 
 // VERIFY: dd0cf87c auto
 // OFFSET: 0x008127E0
 CSimpleFrame* Create_SimpleColorSelect(CSimpleFrame* parent) {
-    void* data = CSimpleColorSelect::s_allocator.GetData(0, typeid(CSimpleColorSelect).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleColorSelect::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleColorSelect), SLOG_OBJECT);
     return data ? new (data) CSimpleColorSelect(parent) : nullptr;
 }
 
 // VERIFY: b85fa974 auto
 // OFFSET: 0x00812810
 CSimpleFrame* Create_SimpleMovieFrame(CSimpleFrame* parent) {
-    void* data = CSimpleMovieFrame::s_allocator.GetData(0, typeid(CSimpleMovieFrame).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleMovieFrame::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleMovieFrame), SLOG_OBJECT);
     return data ? new (data) CSimpleMovieFrame(parent) : nullptr;
 }
 
@@ -209,14 +209,14 @@ void FrameXML_RegisterLoadProgressCallback(void (*callback)(float progress, void
 // VERIFY: 36e2fb88 auto
 // OFFSET: 0x00812870
 CSimpleFrame* Create_SimpleButton(CSimpleFrame* parent) {
-    void* data = CSimpleButton::s_allocator.GetData(0, typeid(CSimpleButton).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleButton::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleButton), SLOG_OBJECT);
     return data ? new (data) CSimpleButton(parent) : nullptr;
 }
 
 // VERIFY: 8993fe13 auto
 // OFFSET: 0x008128A0
 CSimpleFrame* Create_SimpleFrame(CSimpleFrame* parent) {
-    void* data = CSimpleFrame::s_allocator.GetData(0, typeid(CSimpleFrame).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleFrame::s_allocator.GetData(0, STORM_TYPE_NAME(CSimpleFrame), SLOG_OBJECT);
     return data ? new (data) CSimpleFrame(parent) : nullptr;
 }
 

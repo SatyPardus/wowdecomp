@@ -305,6 +305,6 @@ void SpellTableDestroy() {
     s_skillLineLinkInfoDirty = true;
     s_raceClassInfo.Clear();
     s_skillCostsInfo.Clear();
-    s_skillLineRecAllocator.Clear(typeid(SKILLLINEREC).raw_name(), SLOG_OBJECT, 1);
+    s_skillLineRecAllocator.Clear(STORM_TYPE_NAME(SKILLLINEREC), SLOG_OBJECT, 1);
     s_skillLineLinkInfo.m_count = 0;
 }

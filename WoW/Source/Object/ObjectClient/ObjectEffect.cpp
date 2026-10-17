@@ -614,7 +614,7 @@ void CObjectEffectManager::UpdateAllPlayingEffects() {
 
         CObjectEffect* next = this->m_oneShotEffects.Next(effect);
         effect->~CObjectEffect();
-        SMemFree(effect, typeid(CObjectEffect).raw_name(), SLOG_OBJECT, 0);
+        SMemFree(effect, STORM_TYPE_NAME(CObjectEffect), SLOG_OBJECT, 0);
         effect = next;
     }
 }
@@ -789,12 +789,12 @@ void CObjectEffectManager::ShutDown() {
 
     while (CObjectEffect* effect = this->m_loopingEffects.Head()) {
         effect->~CObjectEffect();
-        SMemFree(effect, typeid(CObjectEffect).raw_name(), SLOG_OBJECT, 0);
+        SMemFree(effect, STORM_TYPE_NAME(CObjectEffect), SLOG_OBJECT, 0);
     }
 
     while (CObjectEffect* effect = this->m_oneShotEffects.Head()) {
         effect->~CObjectEffect();
-        SMemFree(effect, typeid(CObjectEffect).raw_name(), SLOG_OBJECT, 0);
+        SMemFree(effect, STORM_TYPE_NAME(CObjectEffect), SLOG_OBJECT, 0);
     }
 }
 

@@ -3,8 +3,88 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
 #include <GL/gl.h>
+#else
+#include <OpenGL/gl.h>
+#include <OpenGL/glext.h>
+
+#define glProgramLocalParameters4fvEXT gx_glProgramLocalParameters4fvEXT
+#define glProgramEnvParameters4fvEXT gx_glProgramEnvParameters4fvEXT
+#define glBlendColorEXT gx_glBlendColorEXT
+#define glFramebufferRenderbufferEXT gx_glFramebufferRenderbufferEXT
+#define glFramebufferTexture3DEXT gx_glFramebufferTexture3DEXT
+#define glFramebufferTexture2DEXT gx_glFramebufferTexture2DEXT
+#define glFramebufferTexture1DEXT gx_glFramebufferTexture1DEXT
+#define glCheckFramebufferStatusEXT gx_glCheckFramebufferStatusEXT
+#define glGenFramebuffersEXT gx_glGenFramebuffersEXT
+#define glDeleteFramebuffersEXT gx_glDeleteFramebuffersEXT
+#define glBindFramebufferEXT gx_glBindFramebufferEXT
+#define glRenderbufferStorageEXT gx_glRenderbufferStorageEXT
+#define glGenRenderbuffersEXT gx_glGenRenderbuffersEXT
+#define glDeleteRenderbuffersEXT gx_glDeleteRenderbuffersEXT
+#define glBindRenderbufferEXT gx_glBindRenderbufferEXT
+#define glPointParameterfvARB gx_glPointParameterfvARB
+#define glPointParameterfARB gx_glPointParameterfARB
+#define glGetQueryObjectuivARB gx_glGetQueryObjectuivARB
+#define glGetQueryObjectivARB gx_glGetQueryObjectivARB
+#define glGetQueryivARB gx_glGetQueryivARB
+#define glEndQueryARB gx_glEndQueryARB
+#define glBeginQueryARB gx_glBeginQueryARB
+#define glDeleteQueriesARB gx_glDeleteQueriesARB
+#define glGenQueriesARB gx_glGenQueriesARB
+#define glUnmapBufferARB gx_glUnmapBufferARB
+#define glMapBufferARB gx_glMapBufferARB
+#define glBufferSubDataARB gx_glBufferSubDataARB
+#define glBufferDataARB gx_glBufferDataARB
+#define glGenBuffersARB gx_glGenBuffersARB
+#define glDeleteBuffersARB gx_glDeleteBuffersARB
+#define glBindBufferARB gx_glBindBufferARB
+#define glGenProgramsNV gx_glGenProgramsNV
+#define glDeleteProgramsNV gx_glDeleteProgramsNV
+#define glProgramParameters4fvNV gx_glProgramParameters4fvNV
+#define glBindProgramNV gx_glBindProgramNV
+#define glLoadProgramNV gx_glLoadProgramNV
+#define glDisableVertexAttribArrayARB gx_glDisableVertexAttribArrayARB
+#define glEnableVertexAttribArrayARB gx_glEnableVertexAttribArrayARB
+#define glVertexAttribPointerARB gx_glVertexAttribPointerARB
+#define glGetProgramivARB gx_glGetProgramivARB
+#define glIsProgramARB gx_glIsProgramARB
+#define glProgramLocalParameter4fvARB gx_glProgramLocalParameter4fvARB
+#define glProgramEnvParameter4fvARB gx_glProgramEnvParameter4fvARB
+#define glGenProgramsARB gx_glGenProgramsARB
+#define glDeleteProgramsARB gx_glDeleteProgramsARB
+#define glBindProgramARB gx_glBindProgramARB
+#define glProgramStringARB gx_glProgramStringARB
+#define glCombinerParameteriNV gx_glCombinerParameteriNV
+#define glCombinerParameterfvNV gx_glCombinerParameterfvNV
+#define glFinalCombinerInputNV gx_glFinalCombinerInputNV
+#define glCombinerStageParameterfvNV gx_glCombinerStageParameterfvNV
+#define glCombinerOutputNV gx_glCombinerOutputNV
+#define glCombinerInputNV gx_glCombinerInputNV
+#define glDrawRangeElementsEXT gx_glDrawRangeElementsEXT
+#define glCompressedTexSubImage2DARB gx_glCompressedTexSubImage2DARB
+#define glCompressedTexImage2DARB gx_glCompressedTexImage2DARB
+#define glClientActiveTextureARB gx_glClientActiveTextureARB
+#define glActiveTextureARB gx_glActiveTextureARB
+#define glUnlockArraysEXT gx_glUnlockArraysEXT
+#define glLockArraysEXT gx_glLockArraysEXT
+
+#ifndef APIENTRY
+#define APIENTRY
+#endif
+
+#ifndef WINAPI
+#define WINAPI
+#endif
+
+typedef int BOOL;
+typedef unsigned int UINT;
+typedef float FLOAT;
+typedef void* HDC;
+typedef void* HPBUFFERARB;
+#endif
 
 #define GL_TEXTURE0_ARB 0x84C0
 #define GL_MAX_TEXTURE_UNITS_ARB 0x84E2
@@ -111,7 +191,9 @@
 #define WGL_SAMPLE_BUFFERS_ARB 0x2041
 #define WGL_SAMPLES_ARB 0x2042
 
+#if defined(_WIN32)
 DECLARE_HANDLE(HPBUFFERARB);
+#endif
 
 typedef char GLcharARB;
 typedef ptrdiff_t GLintptrARB;

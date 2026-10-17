@@ -2,7 +2,13 @@
 #define ENGINE_SOURCE_STORM_H_SCRITSECT_H
 
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <mutex>
+#include "Engine/Source/Platform/Compat/RecursiveMutex.h"
+using CRITICAL_SECTION = WowRecursiveMutex;
+#endif
 
 class CCritSect {
     public:

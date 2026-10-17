@@ -76,7 +76,7 @@ CSimpleFrame* CGCharacterModelBase::Create(CSimpleFrame* parent) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    void* data = CGCharacterModelBase::s_characterModelHeap.GetData(0, typeid(CGCharacterModelBase).raw_name(), SLOG_OBJECT);
+    void* data = CGCharacterModelBase::s_characterModelHeap.GetData(0, STORM_TYPE_NAME(CGCharacterModelBase), SLOG_OBJECT);
     return data ? new (data) CGCharacterModelBase(parent) : nullptr;
 }
 

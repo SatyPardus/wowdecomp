@@ -1,9 +1,12 @@
 #include <cstdarg>
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <windows.h>
+#if !defined(_WIN32)
+#include <limits.h>
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 #include "Engine/Source/BlizzardCore/Source/System/Log/Log.h"
@@ -12,6 +15,15 @@
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
+
+static int OpenLogFile(FILE** file, const char* path, const char* mode) {
+#if defined(_WIN32)
+    return fopen_s(file, path, mode);
+#else
+    *file = fopen(path, mode);
+    return *file ? 0 : errno;
+#endif
+}
 
 // STATIC: 0x00AB93EC
 static System_Log::UsingLog s_usingLog;
@@ -353,12 +365,12 @@ bool System_Log::Reopen(int32_t logClass, const char* name, FILE*& file, int32_t
 
     bool created = true;
 
-    if (*mode == 'a' && !fopen_s(&stream, s_logs[index].m_path, "r")) {
+    if (*mode == 'a' && !OpenLogFile(&stream, s_logs[index].m_path, "r")) {
         fclose(stream);
         created = false;
     }
 
-    fopen_s(&s_logs[index].m_file, s_logs[index].m_path, mode);
+    OpenLogFile(&s_logs[index].m_file, s_logs[index].m_path, mode);
 
     if (!s_logs[index].m_file) {
         file = nullptr;
@@ -472,7 +484,11 @@ void System_Log::Init(int32_t logClass) {
         s_Prefs[0].m_maxOpenTime = 30000;
         s_Prefs[0].m_maxIdleTime = 15000;
 
+#if defined(_WIN32)
         char directory[MAX_PATH];
+#else
+        char directory[PATH_MAX];
+#endif
         Blizzard::Process::GetProcessDirectory(directory, sizeof(directory));
         s_Prefs[0].m_directory = static_cast<char*>(malloc(strlen(directory) + 1));
         Blizzard::String::MakeUnivPath(directory, s_Prefs[0].m_directory, static_cast<int32_t>(strlen(directory) + 1));

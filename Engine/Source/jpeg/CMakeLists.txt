@@ -6,6 +6,11 @@ add_library(jpeg STATIC
     ${PRIVATE_SOURCES}
 )
 
+set_target_properties(jpeg PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON
+)
+
 target_include_directories(jpeg
     PUBLIC
         ${CMAKE_SOURCE_DIR}

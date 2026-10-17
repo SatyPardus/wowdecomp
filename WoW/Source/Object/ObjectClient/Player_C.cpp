@@ -679,7 +679,7 @@ static void InitWeaponSkills() {
 static int32_t GuildUpdateHandler(WOWGUID guid, void* param) {
     CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
 
-    if (object && (object->m_obj->m_type & TYPEMASK_PLAYER) && static_cast<CGPlayer_C*>(object)->m_player->m_playerGuildid == reinterpret_cast<uint32_t>(param)) {
+    if (object && (object->m_obj->m_type & TYPEMASK_PLAYER) && static_cast<CGPlayer_C*>(object)->m_player->m_playerGuildid == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(param))) {
         static_cast<CGPlayer_C*>(object)->OnGuildChanged(0);
     }
 
