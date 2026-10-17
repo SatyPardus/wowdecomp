@@ -410,3 +410,33 @@ FodyWeavers.xsd
 
 # Local Visual Studio CMake settings (absolute paths to re/tools)
 CMakeSettings.json
+
+# macOS metadata and Xcode user state
+.DS_Store
+._*
+xcuserdata/
+*.xcuserstate
+
+# Local CMake / Apple build output
+/build/
+/build-*/
+/cmake-build-*/
+/DerivedData/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CMakeUserPresets.json
+/compile_commands.json
+*.app/
+*.dSYM/
+*.xcarchive/
+*.ipa
+*.air
+*.metallib
+
+# Local game data and runtime output
+/Data/
+/Cache/
+/WTF/
+/Logs/
+/Screenshots/
