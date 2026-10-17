@@ -63,10 +63,45 @@ struct CGxDeviceMetal::Impl {
     void* window = nullptr;
     bool passUsed = false;
     dispatch_semaphore_t frames = dispatch_semaphore_create(3);
+    void EnsurePass() {
+        if (!passUsed) {
+            id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
+            Require(encoder != nil, "Cannot encode Gx attachment load/clear");
+            [encoder endEncoding]; ConsumedPass();
+        }
+    }
     void ConsumedPass() {
         passUsed = true;
         pass.colorAttachments[0].loadAction = MTLLoadActionLoad;
         pass.depthAttachment.loadAction = MTLLoadActionLoad;
+    }
+    void ReadSurface(id<MTLTexture> surface, CiRect& rect, void* output) {
+        Require(command && surface && !surface.framebufferOnly && surface.sampleCount == 1,
+            "Gx readback requires an active frame and a readable single-sample attachment");
+        const size_t width = rect.maxX - rect.minX, height = rect.maxY - rect.minY;
+        if (!width || !height) { return; }
+        const size_t stride = (width * 4 + 255) & ~size_t(255);
+        Require(height <= ResourceBudget / stride, "Gx readback exceeds memory budget");
+        id<MTLBuffer> result = [gpu.device newBufferWithLength:stride * height options:MTLResourceStorageModeShared];
+        id<MTLCommandBuffer> continuation = [gpu.queue commandBuffer];
+        Require(result && continuation, "Cannot allocate Gx readback resources");
+        EnsurePass();
+        id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
+        Require(encoder != nil, "Cannot encode Gx readback");
+        [encoder copyFromTexture:surface sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(rect.minX, rect.minY, 0)
+            sourceSize:MTLSizeMake(width, height, 1) toBuffer:result destinationOffset:0
+            destinationBytesPerRow:stride destinationBytesPerImage:stride * height];
+        [encoder endEncoding];
+        id<MTLCommandBuffer> submitted = command;
+        command = continuation; command.label = @"Gx frame after synchronous readback";
+        // Only a synchronous game readback splits submission and waits. The
+        // logical frame keeps its in-flight permit and drawable until Present.
+        [submitted commit]; [submitted waitUntilCompleted];
+        if (submitted.error) { throw std::runtime_error(submitted.error.localizedDescription.UTF8String); }
+        for (size_t row = 0; row < height; ++row) {
+            std::memcpy(static_cast<uint8_t*>(output) + row * width * 4,
+                static_cast<const uint8_t*>(result.contents) + row * stride, width * 4);
+        }
     }
     void Queue(Pool& pool, size_t offset, size_t size) {
         if (!size) { return; }
@@ -199,7 +234,8 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
 void CGxDeviceMetal::ScenePresent() {
     Require(m->command != nil, "No active Metal frame to present");
-    if (!m->passUsed) { [[m->command renderCommandEncoderWithDescriptor:m->pass] endEncoding]; }
+    if (m_scrShotClick) { DeviceScreenShot(); }
+    m->EnsurePass();
     dispatch_semaphore_t frames = m->frames;
     [m->command addCompletedHandler:^(id<MTLCommandBuffer> command) {
         if (command.error) { CGxDevice::Log("Metal frame failed: %s", command.error.localizedDescription.UTF8String); }
@@ -258,14 +294,26 @@ int32_t CGxDeviceMetal::BufUnlock(CGxBuf* buffer, uint32_t size) {
     Require(buffer && buffer->m_pool && m_bufLocked[buffer->m_pool->m_target] == buffer && size <= buffer->m_size,
         "Invalid Gx buffer unlock");
     auto& storage = m->Storage(buffer->m_pool);
-    m->Queue(storage, buffer->m_index, size);
+    CGxDevice::BufUnlock(buffer, size);
+    buffer->m_hasData = 0;
+    // The D3D9 lock covers the whole logical buffer; size is only a legacy
+    // hint (font/index callers pass zero). Publish all bytes written by Lock.
+    m->Queue(storage, buffer->m_index, buffer->m_size);
     buffer->m_hasData = 1;
-    return CGxDevice::BufUnlock(buffer, size);
+    return 1;
 }
 void CGxDeviceMetal::BufData(CGxBuf* buffer, const void* data, uint32_t size, uint32_t offset) {
     Require(buffer && buffer->m_pool && data && offset <= buffer->m_size && size <= buffer->m_size - offset, "Invalid Gx buffer data range");
     auto* pool = buffer->m_pool;
-    Require(pool->m_usage != GxPoolUsage_Stream && !m_bufLocked[pool->m_target], "Use lock/unlock for a streaming or locked Gx buffer");
+    Require(!m_bufLocked[pool->m_target], "Gx buffer is already locked");
+    if (pool->m_usage == GxPoolUsage_Stream) {
+        // Shared GxPrimIndexPtr writes its streaming index buffer via BufData.
+        // Follow the same append/discard allocation as the lock/unlock path.
+        char* destination = BufLock(buffer);
+        std::memcpy(destination + offset, data, size);
+        BufUnlock(buffer, offset + size);
+        return;
+    }
     auto& storage = m->Storage(pool);
     Require(buffer->m_index <= uint32_t(pool->m_size) && buffer->m_size <= uint32_t(pool->m_size) - buffer->m_index, "Gx buffer data exceeds pool");
     const size_t start = size_t(buffer->m_index) + offset;
@@ -482,9 +530,31 @@ void CGxDeviceMetal::XformSetProjection(const C44Matrix& matrix) {
 }
 
 // Fail at the actual call site rather than inherit the base class's empty operations.
-void CGxDeviceMetal::DeviceReadPixels(CiRect&, TSGrowableArray<CImVector>&) { Unsupported("pixel readback"); }
-void CGxDeviceMetal::DeviceReadDepths(CiRect&, TSGrowableArray<float>&) { Unsupported("depth readback"); }
-void CGxDeviceMetal::DeviceTakeScreenShot() { Unsupported("screenshot capture"); }
+void CGxDeviceMetal::DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>& pixels) {
+    Require(m->command != nil, "Pixel readback requires an active Gx frame");
+    ClampRectToWindow(rect);
+    const size_t width = std::max<int64_t>(0, int64_t(rect.maxX) - rect.minX), height = std::max<int64_t>(0, int64_t(rect.maxY) - rect.minY);
+    Require(!height || width <= ResourceBudget / 4 / height, "Pixel readback exceeds memory budget");
+    pixels.SetCount(uint32_t(width * height));
+    if (!width || !height) { return; }
+    // The shared API uses top-left rectangles (also honored by its OpenGL
+    // implementation). D3D9's reconstructed readback ignores nonzero origins;
+    // current game callers request origin zero. That discrepancy still needs
+    // original Windows verification, not an assumed visual-equivalence claim.
+    m->ReadSurface(m->pass.colorAttachments[0].texture, rect, pixels.Ptr());
+}
+void CGxDeviceMetal::DeviceReadDepths(CiRect& rect, TSGrowableArray<float>& depths) {
+    Require(m->command && m->pass.depthAttachment.texture, "Depth readback requires a Gx depth attachment");
+    ClampRectToWindow(rect);
+    const size_t width = std::max<int64_t>(0, int64_t(rect.maxX) - rect.minX), height = std::max<int64_t>(0, int64_t(rect.maxY) - rect.minY);
+    Require(!height || width <= ResourceBudget / 4 / height, "Depth readback exceeds memory budget");
+    depths.SetCount(uint32_t(width * height));
+    if (!width || !height) { return; }
+    // Return actual native Depth32Float samples. The reconstructed D3D9 path
+    // fills zero and has no game call sites; it is not a depth reference.
+    m->ReadSurface(m->pass.depthAttachment.texture, rect, depths.Ptr());
+}
+void CGxDeviceMetal::DeviceTakeScreenShot() { CGxDevice::DeviceTakeScreenShot(); }
 void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer, CGxTex*, uint32_t) { Unsupported("game render target binding"); }
 void CGxDeviceMetal::DeviceSaveDepthSurface() { Unsupported("save depth surface"); }
 void CGxDeviceMetal::DeviceRestoreDepthSurface() { Unsupported("restore depth surface"); }

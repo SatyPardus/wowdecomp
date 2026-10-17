@@ -55,6 +55,7 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
         _view = view;
         view.device = _device->GPU().device;
         view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+        view.framebufferOnly = NO; // Gx screenshot / framebuffer copy source.
         view.clearColor = MTLClearColorMake(0.12, 0.14, 0.18, 1);
         view.paused = YES; view.enableSetNeedsDisplay = YES; view.delegate = self;
     }

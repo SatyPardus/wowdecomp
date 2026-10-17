@@ -162,13 +162,22 @@ modified shader from silently selecting the wrong native implementation. The
 original 2.0 family is recognized too. This is shader identification, not the
 client's signature policy. The game shader API accepts only this verified family
 and reports unsupported effects explicitly; it does not lower shader profiles.
-Device-level readback, copies, queries, render targets, partial viewport clears,
-gamma ramps and stereo remain explicit unsupported operations. Geometry draws
+The device supports synchronous BGRA pixel and Depth32Float depth readback,
+clipped top-left rectangles, continuation of drawing after a readback, and the
+original deferred screenshot interface. Only explicit readback waits for GPU
+completion. Shared UI immediate geometry now reaches the device, including
+`BufData` writes to streaming index buffers. The reconstructed D3D9 pixel reader
+ignores nonzero rectangle origins and its depth reader fills zero; native Metal
+returns the requested rectangle/actual depth. Current game pixel callers use
+origin zero, and no game depth-reader call sites were found. The discrepancy still
+needs original Windows verification. Copies, queries, render targets, partial
+viewport clears, gamma ramps and stereo remain explicit unsupported operations. Geometry draws
 currently open individual render encoders; pass batching, upload allocation reuse
 and texture-update bandwidth optimization remain to be implemented.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
-texture replacement and partial updates through game APIs. It verifies known alpha
+texture replacement, partial updates, immediate geometry, mid-frame pixel/depth
+readback and screenshots through game APIs. It verifies known alpha
 cases, filtering and blending, then draws and
 reads back each mip through both native and forced-expanded upload paths. Expanded
 samples must match exactly. The tested M2 Pro's native BC interpolation differs by

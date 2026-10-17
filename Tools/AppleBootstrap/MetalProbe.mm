@@ -200,7 +200,7 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             CheckGxGeometry(gpu);
             CheckUIShader(gpu, ui);
             CheckGxDevice();
-            out << "Native Gx factory, UI shader creation/binding, streaming-buffer wrap, immutable texture updates and partial-origin callbacks passed.\n";
+            out << "Native Gx factory, UI shader creation/binding, streaming-buffer wrap, immutable texture updates, partial-origin callbacks, pixel/depth readback and screenshots passed.\n";
             out << "BC endpoint/alpha cases, BGRA channel order, straight alpha blending and bilinear sampling passed.\n";
             out << "Gx: 12 RGBA blend modes, alpha-test equality/clip, channel masks, six mip filters and independent U/V addressing passed.\n";
             out << "Gx geometry: 13 unskinned packed layouts, indexed/nonindexed draws, Tempest transforms, BGRA vertex colors, depth comparisons/write masks, opposite cull modes and scissors passed.\n";

@@ -25,9 +25,9 @@ void TextureCallback(EGxTexCommand command, uint32_t width, uint32_t height, uin
     }
 }
 struct Vertex { float x, y, z; uint32_t color; float u, v; };
-void Vertices(Vertex* output, uint32_t color) {
-    const Vertex vertices[] = {{-1, 1, 0, color, 0, 0}, {-1, -1, 0, color, 0, 1},
-        {1, 1, 0, color, 1, 0}, {1, -1, 0, color, 1, 1}};
+void Vertices(Vertex* output, uint32_t color, float z) {
+    const Vertex vertices[] = {{-1, 1, z, color, 0, 0}, {-1, -1, z, color, 0, 1},
+        {1, 1, z, color, 1, 0}, {1, -1, z, color, 1, 1}};
     std::memcpy(output, vertices, sizeof(vertices));
 }
 }
@@ -66,30 +66,34 @@ void CheckGxDevice() {
     auto targetDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
     targetDesc.storageMode = MTLStorageModePrivate; targetDesc.usage = MTLTextureUsageRenderTarget;
     id<MTLTexture> target = [gpu.device newTextureWithDescriptor:targetDesc];
+    targetDesc.pixelFormat = MTLPixelFormatDepth32Float;
+    id<MTLTexture> depth = [gpu.device newTextureWithDescriptor:targetDesc];
     auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.depthAttachment.texture = depth; pass.depthAttachment.loadAction = MTLLoadActionClear; pass.depthAttachment.clearDepth = 1;
     pass.colorAttachments[0].texture = target; pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
-    auto draw = [&](float scale, float translation, uint32_t color) {
+    auto draw = [&](float scale, float translation, uint32_t color, float z = 0) {
         CGxBuf* vertices = GxBufStream(GxPoolTarget_Vertex, sizeof(Vertex), 4);
-        Vertices(reinterpret_cast<Vertex*>(device.BufLock(vertices)), color);
-        GxBufUnlock(vertices, 4 * sizeof(Vertex)); GxPrimVertexPtr(vertices, GxVBF_PCT);
+        Vertices(reinterpret_cast<Vertex*>(device.BufLock(vertices)), color, z);
+        GxBufUnlock(vertices, 0); GxPrimVertexPtr(vertices, GxVBF_PCT);
         C44Matrix matrix(1); matrix.Translate(C3Vector(translation, 0, 0)); matrix.Scale(C3Vector(scale, 1, 1));
         const auto registers = matrix.Transpose(); GxShaderConstantsSet(GxSh_Vertex, 0, &registers.a0, 4);
         CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1);
     };
     auto read = [&]() {
-        id<MTLBuffer> buffer = [gpu.device newBufferWithLength:16 * 256 options:MTLResourceStorageModeShared];
-        id<MTLCommandBuffer> command = device.FrameCommand();
-        id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
-        [encoder copyFromTexture:target sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0, 0, 0) sourceSize:MTLSizeMake(16, 16, 1)
-            toBuffer:buffer destinationOffset:0 destinationBytesPerRow:256 destinationBytesPerImage:16 * 256];
-        [encoder endEncoding]; GxScenePresent(); [command waitUntilCompleted];
-        Require(!command.error, "Gx frame GPU execution failed");
+        CiRect rect(0, 0, 16, 16); TSGrowableArray<CImVector> pixels;
+        GxReadPixels(rect, pixels); GxScenePresent();
         std::vector<uint32_t> result(16 * 16);
-        for (size_t y = 0; y < 16; ++y) { std::memcpy(result.data() + y * 16, static_cast<uint8_t*>(buffer.contents) + y * 256, 64); }
+        std::memcpy(result.data(), pixels.Ptr(), result.size() * 4);
         return result;
     };
-    device.BeginFrame(pass); draw(0.5f, -0.5f, 0xFFFF0000); draw(0.5f, 0.5f, 0xFF00FF00);
+    device.BeginFrame(pass); draw(0.5f, -0.5f, 0xFFFF0000);
+    CiRect left(0, 0, 16, 8); TSGrowableArray<CImVector> leftPixels;
+    GxReadPixels(left, leftPixels);
+    for (uint32_t i = 0; i < leftPixels.Count(); ++i) {
+        Require(leftPixels[i].r == 255 && leftPixels[i].g == 0, "Gx mid-frame pixel readback failed");
+    }
+    draw(0.5f, 0.5f, 0xFF00FF00);
     auto result = read();
     for (size_t y = 0; y < 16; ++y) { for (size_t x = 0; x < 16; ++x) {
         if (result[y * 16 + x] != (x < 8 ? 0xFFFF0000u : 0xFF00FF00u)) {
@@ -111,6 +115,39 @@ void CheckGxDevice() {
     for (size_t y = 0; y < 16; ++y) { for (size_t x = 0; x < 16; ++x) {
         Require(result[y * 16 + x] == (x >= 8 && y >= 8 ? 0xFF0000FF : 0xFF00FF00), "Gx partial-origin texture update mismatch");
     } }
+    device.BeginFrame(pass); draw(1, 0, 0xFFFFFFFF);
+    CiRect lowerRight(8, 8, 16, 16); TSGrowableArray<CImVector> region;
+    GxReadPixels(lowerRight, region);
+    for (uint32_t i = 0; i < region.Count(); ++i) {
+        Require(region[i].b == 255 && region[i].r == 0 && region[i].g == 0, "Gx pixel readback origin/row order failed");
+    }
+    CiRect clipped(-4, -4, 2, 2); GxReadPixels(clipped, region);
+    Require(region.Count() == 4 && clipped.minX == 0 && clipped.minY == 0 && region[0].g == 255, "Gx clipped readback failed");
+    CiRect empty(20, 20, 24, 24); GxReadPixels(empty, region); Require(!region.Count(), "Gx empty readback failed");
+    device.DeviceTakeScreenShot(); GxScenePresent();
+    uint32_t shotWidth = 0, shotHeight = 0; const CImVector* shot = nullptr;
+    device.DeviceReadScreenShot(shotWidth, shotHeight, shot);
+    Require(shotWidth == 16 && shotHeight == 16 && shot && shot[0].g == 255 && shot[255].b == 255, "Gx present-time screenshot failed");
+    device.BeginFrame(pass); GxRsSet(GxRs_DepthWrite, 1); draw(1, 0, 0xFFFFFFFF, 0.25f);
+    CiRect depthRegion(3, 5, 9, 11); TSGrowableArray<float> samples;
+    device.DeviceReadDepths(depthRegion, samples);
+    Require(samples.Count() == 36, "Gx depth readback extent mismatch");
+    for (uint32_t i = 0; i < samples.Count(); ++i) { Require(samples[i] == 0.25f, "Gx native depth readback mismatch"); }
+    device.SceneClear(2, CImVector()); device.DeviceReadDepths(depthRegion, samples);
+    for (uint32_t i = 0; i < samples.Count(); ++i) { Require(samples[i] == 1, "Gx depth clear/readback ordering mismatch"); }
+    GxScenePresent(); GxRsSet(GxRs_DepthWrite, 0);
+    // Exercise the shared immediate geometry entry used by UI/portrait callers,
+    // including packing separate attribute arrays and its streaming index path.
+    device.BeginFrame(pass);
+    const C3Vector positions[] = {{-1, 1, 0}, {-1, -1, 0}, {1, 1, 0}, {1, -1, 0}};
+    const C2Vector coordinates[] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+    const CImVector colors[] = {{255, 255, 255, 255}, {255, 255, 255, 255}, {255, 255, 255, 255}, {255, 255, 255, 255}};
+    const uint16_t strip[] = {0, 1, 2, 3};
+    C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex, 0, &identity.a0, 4);
+    GxPrimLockVertexPtrs(4, positions, sizeof(C3Vector), nullptr, 0, colors, sizeof(CImVector), nullptr, 0,
+        coordinates, sizeof(C2Vector), nullptr, 0);
+    GxDrawLockedElements(GxPrim_TriangleStrip, 4, strip); GxPrimUnlockVertexPtrs(); result = read();
+    Require(result[0] == 0xFF00FF00 && result[255] == 0xFF0000FF, "Shared Gx immediate geometry path failed");
     Require(pixels.locks == pixels.unlocks && device.TexIsReadyNow(texture), "Gx texture callback lifecycle mismatch");
     bool rejected = false;
     try { device.ShaderCreate(&shared, GxSh_Pixel, "Shaders\\Pixel", "NotImplemented", 1); } catch (const std::runtime_error&) { rejected = true; }
