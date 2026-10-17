@@ -471,16 +471,26 @@ void CGxDeviceMetal::TexDestroy(CGxTex* texture) {
     CGxDevice::TexDestroy(texture);
 }
 void CGxDeviceMetal::DeviceSetBaseMipLevel(uint32_t level) {
-    if (level != m_baseMipLevel) {
-        for (auto* texture = m_textures.Head(); texture; texture = m_textures.Next(texture)) {
-            // GPU-authored targets are recreated only if their actual mip
-            // allocation changes. Non-mipmapped targets keep their contents.
-            if (!texture->m_flags.m_renderTarget) { texture->m_needsCreation = 1; }
+    if (m->command) { m->EnsurePass(); }
+    for (auto* texture = m_textures.Head(); texture; texture = m_textures.Next(texture)) {
+        auto storage = m->textures.find(texture);
+        if (storage == m->textures.end() || !storage->second.gpu) { continue; }
+        // Match D3D9's ITexForceRecreation: invalidate resident textures and
+        // notify their producers before publishing the new base mip. Encoded
+        // commands and the currently bound attachment retain their old images.
+        texture->m_apiSpecificData = nullptr;
+        texture->m_needsCreation = texture->m_needsFlagUpdate = 1;
+        TexMarkForUpdate(texture, CiRect(), 0);
+        m->textures.erase(storage);
+        if (texture->m_userFunc) {
+            uint32_t stride = 0; const void* data = nullptr;
+            texture->m_userFunc(GxTex_3, texture->m_width, texture->m_height, 0, 0, texture->m_userArg, stride, data);
         }
-        if (m->command) { m->EnsurePass(); }
-        CGxDevice::DeviceSetBaseMipLevel(level);
-        if (m_textureTarget[GxBuffers_Color].m_texture) { ApplyRenderTarget(); }
     }
+    // Shadow and portrait caches listen to this independently of individual
+    // texture callbacks. Native hosts need no Win32 window for the notification.
+    if (m_context) { NotifyOnTextureRecreation(); }
+    CGxDevice::DeviceSetBaseMipLevel(level);
 }
 void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     Require(texture != nullptr, "Missing Gx texture");

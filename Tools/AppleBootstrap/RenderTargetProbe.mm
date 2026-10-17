@@ -16,6 +16,30 @@ void White(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void*,
 void Pattern(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void* arg, uint32_t& stride, const void*& data) {
     if (command == GxTex_Latch) { stride = 32; data = arg; }
 }
+struct RecreationData {
+    uint32_t texels[4][64]{};
+    unsigned notifications = 0, latches[4]{}, locks = 0, unlocks = 0;
+    uint32_t previousBase = 0;
+};
+void RecreationTexture(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t, uint32_t level,
+    void* arg, uint32_t& stride, const void*& data) {
+    auto& state = *static_cast<RecreationData*>(arg);
+    if (command == GxTex_3) { ++state.notifications; state.previousBase = g_theGxDevicePtr->DeviceBaseMipLevel(); }
+    if (command == GxTex_Lock) { ++state.locks; }
+    if (command == GxTex_Unlock) { ++state.unlocks; }
+    if (command == GxTex_Latch) {
+        Require(level < 4 && width == (8u >> level) && height == width, "Recreated Gx mip callback extent/index mismatch");
+        ++state.latches[level]; stride = width * 4; data = state.texels[level];
+    }
+}
+unsigned recreationNotifications = 0;
+uint32_t recreationPreviousBase = 0;
+void RecreationNotification() { ++recreationNotifications; recreationPreviousBase = g_theGxDevicePtr->DeviceBaseMipLevel(); }
+struct RecreationScope {
+    CGxDeviceMetal& device;
+    explicit RecreationScope(CGxDeviceMetal& d) : device(d) { recreationNotifications = 0; device.AddTextureRecreationCallback(RecreationNotification); }
+    ~RecreationScope() { device.RemoveTextureRecreationCallback(RecreationNotification); }
+};
 std::vector<uint32_t> Read(CGxDeviceMetal& device, int width, int height) {
     CiRect rect(0, 0, height, width); TSGrowableArray<CImVector> pixels;
     device.DeviceReadPixels(rect, pixels);
@@ -36,6 +60,55 @@ void Draw(CGxDeviceMetal& device, CGxTex* texture, uint32_t color, float z) {
     GxPrimVertexPtr(buffer, GxVBF_PCT); GxRsSet(GxRs_Texture0, texture);
     C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex, 0, &identity.a0, 4);
     CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3}; GxDraw(&batch, 0);
+}
+void CheckRecreation(CGxDeviceMetal& device) {
+    RecreationScope scope(device);
+    RecreationData data;
+    const uint32_t colors[] = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFFFF};
+    for (unsigned level = 0; level < 4; ++level) { std::fill(std::begin(data.texels[level]), std::end(data.texels[level]), colors[level]); }
+    CGxTex* texture = nullptr, *unused = nullptr, *target = nullptr;
+    CGxTexFlags flags(GxTex_NearestMipNearest);
+    device.TexCreate(GxTex_2d, 8, 8, 0, GxTex_Argb8888, GxTex_Argb8888, flags, &data, RecreationTexture, "Gx mip recreation", texture);
+    RecreationData unusedData;
+    device.TexCreate(GxTex_2d, 8, 8, 0, GxTex_Argb8888, GxTex_Argb8888, flags, &unusedData, RecreationTexture, "Gx nonresident texture", unused);
+    flags = CGxTexFlags(GxTex_Nearest); flags.m_renderTarget = 1;
+    device.TexCreate(GxTex_2d, 8, 8, 0, GxTex_Argb8888, GxTex_Unknown, flags, nullptr, nullptr, "Gx recreated target", target);
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:8 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+    device.BeginFrame(pass); GxRenderTargetSet(GxBuffers_Color, target, 0); device.SceneClear(1, CImVector(255, 0, 0, 255));
+    GxRenderTargetSet(GxBuffers_Color, nullptr, 0);
+    GxXformSetViewport(0, 0.5f, 0, 1, 0, 1); Draw(device, texture, 0xFFFFFFFF, 0);
+    device.DeviceSetBaseMipLevel(1);
+    Require(data.notifications == 1 && data.previousBase == 0 && recreationNotifications == 1 && recreationPreviousBase == 0 &&
+        unusedData.notifications == 0 && target->m_needsCreation && target->m_needsUpdate && !target->m_apiSpecificData,
+        "Gx resource invalidation or producer/cache notification order mismatch");
+    GxXformSetViewport(0.5f, 1, 0, 1, 0, 1); Draw(device, texture, 0xFFFFFFFF, 0);
+    auto pixels = Read(device, 16, 8);
+    for (unsigned y = 0; y < 8; ++y) { for (unsigned x = 0; x < 16; ++x) {
+        Require(pixels[y * 16 + x] == colors[x < 8 ? 0 : 1], "Gx mip recreation changed an earlier draw or selected the wrong authored mip");
+    } }
+    Require(data.latches[0] == 1 && data.latches[1] == 2 && data.latches[2] == 2 && data.latches[3] == 2 && data.locks == data.unlocks,
+        "Gx recreation did not upload the retained authored mip chain");
+    GxXformSetViewport(0, 1, 0, 1, 0, 1); GxRenderTargetSet(GxBuffers_Color, target, 0);
+    device.SceneClear(1, CImVector(0, 255, 255, 255));
+    Solid(Read(device, 8, 8), 0xFFFFFF00, "Gx render target did not recreate after mip invalidation");
+    device.DeviceSetBaseMipLevel(0);
+    Require(data.notifications == 2 && data.previousBase == 1 && recreationNotifications == 2 && recreationPreviousBase == 1,
+        "Gx restored base-mip notifications were missing");
+    // An attachment already bound by the frame retains its resource, just as a
+    // D3D surface reference outlives invalidation of its parent texture object.
+    Solid(Read(device, 8, 8), 0xFFFFFF00, "Gx invalidation discarded the active attachment");
+    GxRenderTargetSet(GxBuffers_Color, nullptr, 0); GxScenePresent();
+    device.BeginFrame(pass); Draw(device, texture, 0xFFFFFFFF, 0);
+    Solid(Read(device, 16, 8), colors[0], "Gx base mip restore failed"); GxScenePresent();
+    device.DeviceSetBaseMipLevel(0);
+    Require(data.notifications == 3 && recreationNotifications == 3 && unusedData.notifications == 0,
+        "Explicit Gx recreation at unchanged base mip lost its notifications");
+    for (auto* item : {texture, unused, target}) { GxTexDestroy(item); }
 }
 void CheckClears(CGxDeviceMetal& device, CGxTex* small, CGxTex* white) {
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
@@ -258,7 +331,6 @@ void CheckGxRenderTargets(CGxDeviceMetal& device) {
     device.DeviceReadDepths(rect, depths);
     for (uint32_t i = 0; i < depths.Count(); ++i) { Require(depths[i] == 0.25f, "Gx scratch depth did not survive smaller target binding"); }
     GxRenderTargetSet(GxBuffers_Color, large, 0);
-    device.DeviceSetBaseMipLevel(1); device.DeviceSetBaseMipLevel(0);
     Require(Read(device, 8, 6) == rendered, "Gx color target contents lost across binding changes");
     GxRenderTargetSet(GxBuffers_Color, nullptr, 0);
     Solid(Read(device, 16, 16), 0xFF0000FF, "Gx default pending clear lost or applied to custom target");
@@ -288,5 +360,6 @@ void CheckGxRenderTargets(CGxDeviceMetal& device) {
     GxScenePresent();
     CheckCopies(device, pass, large);
     CheckClears(device, large, white);
+    CheckRecreation(device);
     GxTexDestroy(large); GxTexDestroy(white);
 }

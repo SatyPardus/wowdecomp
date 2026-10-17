@@ -113,6 +113,17 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
                 throw std::runtime_error("Gxu font drawable resize/restore changed glyph output");
             }
         }
+        // A texture-quality change invalidates resident glyph textures, while
+        // the original font/string/cache objects remain alive and regenerate them.
+        for (uint32_t base : {1u, 0u}) {
+            device.DeviceSetBaseMipLevel(base);
+            device.BeginFrame(pass); GxuFontRenderBatch(sample.batch);
+            CiRect restoredRect(0, 0, 256, 512); TSGrowableArray<CImVector> restored;
+            GxReadPixels(restoredRect, restored); GxScenePresent();
+            if (restored.Count() != pixels.Count() || std::memcmp(restored.Ptr(), pixels.Ptr(), pixels.Count() * sizeof(CImVector))) {
+                throw std::runtime_error("Gxu glyph textures changed after base-mip recreation");
+            }
+        }
     }
     return hash;
 }

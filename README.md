@@ -191,6 +191,12 @@ explicit unsupported operations. Geometry draws
 currently open individual render encoders; pass batching, upload allocation reuse
 and texture-update bandwidth optimization remain to be implemented.
 
+Changing the base mip invalidates resident resources and delivers the original
+producer and texture-cache recreation notifications. Reuploads select the authored
+mips; earlier draws and the currently bound attachment retain their GPU images.
+The probe also keeps original Gxu font objects alive across mip changes and checks
+that their glyph textures reproduce the same pixels after reupload.
+
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth
 readback and screenshots through game APIs. It verifies known alpha
