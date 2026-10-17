@@ -128,8 +128,11 @@ BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
 It uploads original BC blocks when the device supports them; otherwise it expands
 to BGRA8 without resizing, generating mips or recompressing to another lossy format.
 Private GPU textures use one shared staging buffer per upload and ordered commands.
-The first native Metal primitive supports texture modulation, straight alpha
-blending and nearest/bilinear/trilinear sampling. It is not yet connected to CGxDevice.
+The native Metal primitive accepts Gx blend/filter/wrap enums, supports all 12
+blend equations (including alpha), independent alpha testing, the Gx channel-write
+mask, blend constants, six filter modes and independent U/V wrap/clamp. Pipeline
+and sampler objects are cached; alpha testing uses an MSL function specialization.
+It is not yet connected to the full CGxDevice interface.
 
 The Metal probe verifies known alpha cases, filtering and blending, then draws and
 reads back each mip through both native and forced-expanded upload paths. Expanded

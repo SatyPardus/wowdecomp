@@ -18,10 +18,17 @@ BLP::Image Block(BLP::Format format, std::initializer_list<uint8_t> bytes) {
     return image;
 }
 
-std::vector<uint8_t> Render(GxMetal::TextureDevice& gpu, id<MTLTexture> texture, uint32_t level,
-    bool blend = false, bool linear = false, uint32_t widthOverride = 0, uint32_t heightOverride = 0) {
-    const uint32_t width = widthOverride ? widthOverride : std::max(1u, uint32_t(texture.width) >> level);
-    const uint32_t height = heightOverride ? heightOverride : std::max(1u, uint32_t(texture.height) >> level);
+GxMetal::TextureDrawState NearestState() {
+    GxMetal::TextureDrawState state;
+    state.filter = GxTex_NearestMipNearest;
+    return state;
+}
+
+std::vector<uint8_t> Render(GxMetal::TextureDevice& gpu, id<MTLTexture> texture, float level,
+    const GxMetal::TextureDrawState& state = NearestState(), uint32_t widthOverride = 0, uint32_t heightOverride = 0,
+    GxMetal::QuadParameters parameters = {}) {
+    const uint32_t width = widthOverride ? widthOverride : std::max(1u, uint32_t(texture.width) >> uint32_t(level));
+    const uint32_t height = heightOverride ? heightOverride : std::max(1u, uint32_t(texture.height) >> uint32_t(level));
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
         width:width height:height mipmapped:NO];
     descriptor.storageMode = MTLStorageModePrivate;
@@ -36,10 +43,9 @@ std::vector<uint8_t> Render(GxMetal::TextureDevice& gpu, id<MTLTexture> texture,
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(32.0 / 255, 64.0 / 255, 96.0 / 255, 1);
     id<MTLCommandBuffer> command = [gpu.queue commandBuffer];
-    GxMetal::QuadParameters parameters;
     parameters.explicitMip = 1;
     parameters.mipLevel = level;
-    gpu.Draw(command, pass, texture, parameters, blend, linear);
+    gpu.Draw(command, pass, texture, parameters, state);
     id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
     [blit copyFromTexture:target sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0, 0, 0)
         sourceSize:MTLSizeMake(width, height, 1) toBuffer:readback destinationOffset:0 destinationBytesPerRow:stride destinationBytesPerImage:stride * height];
@@ -82,7 +88,9 @@ void CheckDecodeCases(GxMetal::TextureDevice& gpu) {
     }
     BLP::Image blendImage;
     blendImage.mips.push_back({1, 1, 4, {200, 100, 50, 128}});
-    const auto blended = Render(gpu, gpu.Upload(blendImage), 0, true);
+    auto state = NearestState();
+    state.blend = GxBlend_Alpha;
+    const auto blended = Render(gpu, gpu.Upload(blendImage), 0, state);
     const unsigned background[] = {96, 64, 32, 255};
     for (unsigned c = 0; c < 4; ++c) {
         const int expected = int(std::lround((blendImage.mips[0].bytes[c] * 128.0 + background[c] * 127.0) / 255));
@@ -90,8 +98,90 @@ void CheckDecodeCases(GxMetal::TextureDevice& gpu) {
     }
     BLP::Image filtered;
     filtered.mips.push_back({2, 2, 8, {0, 0, 0, 255, 0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255}});
-    const auto average = Render(gpu, gpu.Upload(filtered), 0, false, true, 1, 1);
+    state.blend = GxBlend_Opaque; state.filter = GxTex_Linear;
+    const auto average = Render(gpu, gpu.Upload(filtered), 0, state, 1, 1);
     Require(average[0] == 64 && average[1] == 64 && average[2] == 64 && average[3] == 255, "Bilinear center sampling mismatch");
+}
+
+void CheckGxStates(GxMetal::TextureDevice& gpu) {
+    BLP::Image source;
+    source.mips.push_back({1, 1, 4, {40, 80, 160, 128}});
+    id<MTLTexture> texture = gpu.Upload(source);
+    const double destination[] = {96, 64, 32, 255};
+    auto state = NearestState();
+    state.blendFactor = 0.375f;
+    // Independent scalar forms of the Gx blend equations, including alpha.
+    for (int mode = 0; mode < GxBlends_Last; ++mode) {
+        state.blend = static_cast<EGxBlend>(mode);
+        const auto pixels = Render(gpu, texture, 0, state);
+        for (unsigned c = 0; c < 4; ++c) {
+            const double s = source.mips[0].bytes[c], d = destination[c], a = 128.0 / 255;
+            double expected;
+            switch (state.blend) {
+                case GxBlend_Opaque: case GxBlend_AlphaKey: expected = s; break;
+                case GxBlend_Alpha: expected = s * a + d * (1 - a); break;
+                case GxBlend_Add: expected = s * a + d; break;
+                case GxBlend_Mod: expected = s * d / 255; break;
+                case GxBlend_Mod2x: expected = 2 * s * d / 255; break;
+                case GxBlend_ModAdd: expected = s * d / 255 + d; break;
+                case GxBlend_InvSrcAlphaAdd: expected = s * (1 - a) + d; break;
+                case GxBlend_InvSrcAlphaOpaque: expected = s * (1 - a); break;
+                case GxBlend_SrcAlphaOpaque: expected = s * a; break;
+                case GxBlend_NoAlphaAdd: expected = s + d; break;
+                case GxBlend_ConstantAlpha: expected = s * (95.0 / 255) + d * (160.0 / 255); break;
+                default: throw std::runtime_error("Unhandled Gx blend test");
+            }
+            Require(std::abs(int(pixels[c]) - int(std::lround(std::min(255.0, expected)))) <= 1, "Gx blend RGBA result mismatch");
+        }
+    }
+    state = NearestState();
+    state.blend = GxBlend_AlphaKey;
+    for (uint32_t threshold : {127u, 128u, 129u, 224u}) {
+        state.alphaRef = threshold;
+        const auto pixels = Render(gpu, texture, 0, state);
+        for (unsigned c = 0; c < 4; ++c) {
+            Require(pixels[c] == (threshold <= 128 ? source.mips[0].bytes[c] : uint8_t(destination[c])), "Gx alpha-test threshold mismatch");
+        }
+    }
+    state = NearestState();
+    const unsigned masks[] = {2, 4, 1, 8}; // BGRA byte order vs Gx mask bits
+    for (uint32_t mask : {0u, 1u, 2u, 4u, 8u, 15u}) {
+        state.colorWrite = mask;
+        const auto pixels = Render(gpu, texture, 0, state);
+        for (unsigned c = 0; c < 4; ++c) {
+            Require(pixels[c] == (mask & masks[c] ? source.mips[0].bytes[c] : uint8_t(destination[c])), "Gx channel-write mask mismatch");
+        }
+    }
+    BLP::Image mips;
+    mips.mips.push_back({2, 2, 8, {0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255}});
+    mips.mips.push_back({1, 1, 4, {255, 0, 0, 255}});
+    texture = gpu.Upload(mips);
+    state = NearestState();
+    for (int filter = GxTex_Nearest; filter < GxTexFilters_Last; ++filter) {
+        state.filter = static_cast<EGxTexFilter>(filter);
+        state.anisotropy = filter == GxTex_Anisotropic ? 16 : 1;
+        const auto pixels = Render(gpu, texture, 0.75f, state, 1, 1);
+        const uint8_t blue = filter <= GxTex_Linear ? 0 : (filter <= GxTex_LinearMipNearest ? 255 : 191);
+        const uint8_t red = filter <= GxTex_Linear ? 255 : (filter <= GxTex_LinearMipNearest ? 0 : 64);
+        if (pixels[0] != blue || pixels[2] != red || pixels[3] != 255) {
+            throw std::runtime_error("Gx mip filter " + std::to_string(filter) + " mismatch: B/R " +
+                std::to_string(pixels[0]) + "/" + std::to_string(pixels[2]));
+        }
+    }
+    BLP::Image wrap;
+    wrap.mips.push_back({2, 2, 8, {1, 2, 3, 255, 11, 12, 13, 255, 21, 22, 23, 255, 31, 32, 33, 255}});
+    texture = gpu.Upload(wrap);
+    GxMetal::QuadParameters coordinates;
+    coordinates.uvScale = {0, 0}; coordinates.uvOffset = {1.25f, -0.25f};
+    state = NearestState();
+    for (unsigned u = 0; u < 2; ++u) {
+        for (unsigned v = 0; v < 2; ++v) {
+            state.wrapU = static_cast<EGxTexWrapMode>(u); state.wrapV = static_cast<EGxTexWrapMode>(v);
+            const auto pixels = Render(gpu, texture, 0, state, 1, 1, coordinates);
+            const size_t offset = (v * 2 + (u ? 0 : 1)) * 4;
+            Require(!std::memcmp(pixels.data(), wrap.mips[0].bytes.data() + offset, 4), "Gx wrap/clamp addressing mismatch");
+        }
+    }
 }
 }
 
@@ -102,7 +192,9 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, std::string& report) {
             GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
             CheckDecodeCases(gpu);
+            CheckGxStates(gpu);
             out << "BC endpoint/alpha cases, BGRA channel order, straight alpha blending and bilinear sampling passed.\n";
+            out << "Gx: 12 RGBA blend modes, alpha-test equality/clip, channel masks, six mip filters and independent U/V addressing passed.\n";
             for (bool expanded : {false, true}) {
                 id<MTLTexture> texture = gpu.Upload(image, expanded);
                 unsigned maxRGB = 0, maxAlpha = 0;

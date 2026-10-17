@@ -53,7 +53,10 @@
         const double viewAspect = view.drawableSize.width / view.drawableSize.height;
         if (imageAspect > viewAspect) { parameters.scale.y = viewAspect / imageAspect; }
         else { parameters.scale.x = imageAspect / viewAspect; }
-        _gpu->Draw(command, pass, _texture, parameters, true, true);
+        GxMetal::TextureDrawState state;
+        state.blend = GxBlend_Alpha;
+        state.alphaRef = 1;
+        _gpu->Draw(command, pass, _texture, parameters, state);
         dispatch_semaphore_t frames = _frames;
         [command addCompletedHandler:^(id<MTLCommandBuffer> completed) {
             if (completed.error) { NSLog(@"Metal preview failed: %@", completed.error); }

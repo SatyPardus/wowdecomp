@@ -2,6 +2,7 @@
 #include "MetalShaderSource.h"
 #include <algorithm>
 #include <cstring>
+#include <cmath>
 #include <stdexcept>
 
 namespace {
@@ -34,31 +35,85 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     NSError* error = nil;
     id<MTLLibrary> library = [device newLibraryWithSource:@(TextureQuadSource) options:options error:&error];
     if (!library) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal shader compilation failed"); }
-    for (bool blend : {false, true}) {
-        MTLRenderPipelineDescriptor* descriptor = [MTLRenderPipelineDescriptor new];
-        descriptor.label = blend ? @"WoW straight alpha texture" : @"WoW opaque texture";
-        descriptor.vertexFunction = [library newFunctionWithName:@"textureQuadVertex"];
-        descriptor.fragmentFunction = [library newFunctionWithName:@"textureQuadFragment"];
-        auto attachment = descriptor.colorAttachments[0];
-        attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;
-        attachment.blendingEnabled = blend;
-        // Same factors for color and alpha as GxBlend_Alpha / D3D9 without
-        // separate-alpha blending. Texture bytes remain straight alpha.
-        attachment.sourceRGBBlendFactor = attachment.sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
-        attachment.destinationRGBBlendFactor = attachment.destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-        id<MTLRenderPipelineState> pipeline = [device newRenderPipelineStateWithDescriptor:descriptor error:&error];
-        if (!pipeline) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal pipeline creation failed"); }
-        if (blend) { m_alphaBlend = pipeline; } else { m_opaque = pipeline; }
+    m_vertex = [library newFunctionWithName:@"textureQuadVertex"];
+    for (bool alphaTest : {false, true}) {
+        MTLFunctionConstantValues* constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&alphaTest type:MTLDataTypeBool atIndex:0];
+        m_fragment[alphaTest] = [library newFunctionWithName:@"textureQuadFragment" constantValues:constants error:&error];
+        if (!m_fragment[alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal specialization failed"); }
     }
-    for (bool linear : {false, true}) {
-        MTLSamplerDescriptor* sampler = [MTLSamplerDescriptor new];
-        sampler.minFilter = sampler.magFilter = linear ? MTLSamplerMinMagFilterLinear : MTLSamplerMinMagFilterNearest;
-        sampler.mipFilter = linear ? MTLSamplerMipFilterLinear : MTLSamplerMipFilterNearest;
-        sampler.sAddressMode = sampler.tAddressMode = MTLSamplerAddressModeClampToEdge;
-        id<MTLSamplerState> state = [device newSamplerStateWithDescriptor:sampler];
-        Require(state != nil, "Cannot create Metal sampler");
-        if (linear) { m_linear = state; } else { m_nearest = state; }
-    }
+    // Prepare common preview states at initialization. Other masks/states are
+    // cached on demand; the full game will prewarm its material permutations.
+    TextureDrawState state;
+    Pipeline(state); Sampler(state);
+    state.blend = GxBlend_Alpha; state.alphaRef = 1;
+    Pipeline(state);
+}
+
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state) {
+    Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
+        "Invalid Gx blend, color mask or alpha reference");
+    const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5);
+    const auto found = m_pipelines.find(key);
+    if (found != m_pipelines.end()) { return found->second; }
+    // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
+    static const MTLBlendFactor source[] = {MTLBlendFactorOne, MTLBlendFactorOne, MTLBlendFactorSourceAlpha,
+        MTLBlendFactorSourceAlpha, MTLBlendFactorDestinationColor, MTLBlendFactorDestinationColor,
+        MTLBlendFactorDestinationColor, MTLBlendFactorOneMinusSourceAlpha, MTLBlendFactorOneMinusSourceAlpha,
+        MTLBlendFactorSourceAlpha, MTLBlendFactorOne, MTLBlendFactorBlendAlpha};
+    static const MTLBlendFactor destination[] = {MTLBlendFactorZero, MTLBlendFactorZero, MTLBlendFactorOneMinusSourceAlpha,
+        MTLBlendFactorOne, MTLBlendFactorZero, MTLBlendFactorSourceColor, MTLBlendFactorOne, MTLBlendFactorOne,
+        MTLBlendFactorZero, MTLBlendFactorZero, MTLBlendFactorOne, MTLBlendFactorOneMinusBlendAlpha};
+    static_assert(sizeof(source) / sizeof(source[0]) == GxBlends_Last &&
+        sizeof(destination) / sizeof(destination[0]) == GxBlends_Last, "Every Gx blend mode needs a native mapping");
+    auto alphaFactor = [](MTLBlendFactor factor) {
+        if (factor == MTLBlendFactorSourceColor) { return MTLBlendFactorSourceAlpha; }
+        if (factor == MTLBlendFactorDestinationColor) { return MTLBlendFactorDestinationAlpha; }
+        return factor;
+    };
+    MTLRenderPipelineDescriptor* descriptor = [MTLRenderPipelineDescriptor new];
+    descriptor.label = [NSString stringWithFormat:@"WoW Gx blend %u mask %u alpha %d", state.blend, state.colorWrite, state.alphaRef != 0];
+    descriptor.vertexFunction = m_vertex;
+    descriptor.fragmentFunction = m_fragment[state.alphaRef != 0];
+    auto attachment = descriptor.colorAttachments[0];
+    attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    attachment.blendingEnabled = state.blend >= GxBlend_Alpha;
+    attachment.sourceRGBBlendFactor = source[state.blend];
+    attachment.destinationRGBBlendFactor = destination[state.blend];
+    attachment.sourceAlphaBlendFactor = alphaFactor(source[state.blend]);
+    attachment.destinationAlphaBlendFactor = alphaFactor(destination[state.blend]);
+    attachment.writeMask = MTLColorWriteMaskNone;
+    if (state.colorWrite & 1) { attachment.writeMask |= MTLColorWriteMaskRed; }
+    if (state.colorWrite & 2) { attachment.writeMask |= MTLColorWriteMaskBlue; }
+    if (state.colorWrite & 4) { attachment.writeMask |= MTLColorWriteMaskGreen; }
+    if (state.colorWrite & 8) { attachment.writeMask |= MTLColorWriteMaskAlpha; }
+    NSError* error = nil;
+    id<MTLRenderPipelineState> pipeline = [device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+    if (!pipeline) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal pipeline creation failed"); }
+    m_pipelines.emplace(key, pipeline);
+    return pipeline;
+}
+
+id<MTLSamplerState> GxMetal::TextureDevice::Sampler(const TextureDrawState& state) {
+    Require(state.filter >= GxTex_Nearest && state.filter < GxTexFilters_Last && state.wrapU >= GxTex_Clamp && state.wrapU <= GxTex_Wrap &&
+        state.wrapV >= GxTex_Clamp && state.wrapV <= GxTex_Wrap && state.anisotropy >= 1 && state.anisotropy <= 16, "Invalid Gx sampler state");
+    const uint32_t anisotropy = state.filter == GxTex_Anisotropic ? state.anisotropy : 1;
+    const uint32_t key = uint32_t(state.filter) | (uint32_t(state.wrapU) << 3) | (uint32_t(state.wrapV) << 4) | (anisotropy << 5);
+    const auto found = m_samplers.find(key);
+    if (found != m_samplers.end()) { return found->second; }
+    MTLSamplerDescriptor* descriptor = [MTLSamplerDescriptor new];
+    const bool nearest = state.filter == GxTex_Nearest || state.filter == GxTex_NearestMipNearest;
+    descriptor.minFilter = descriptor.magFilter = nearest ? MTLSamplerMinMagFilterNearest : MTLSamplerMinMagFilterLinear;
+    if (state.filter <= GxTex_Linear) { descriptor.mipFilter = MTLSamplerMipFilterNotMipmapped; }
+    else if (state.filter <= GxTex_LinearMipNearest) { descriptor.mipFilter = MTLSamplerMipFilterNearest; }
+    else { descriptor.mipFilter = MTLSamplerMipFilterLinear; }
+    descriptor.sAddressMode = state.wrapU == GxTex_Wrap ? MTLSamplerAddressModeRepeat : MTLSamplerAddressModeClampToEdge;
+    descriptor.tAddressMode = state.wrapV == GxTex_Wrap ? MTLSamplerAddressModeRepeat : MTLSamplerAddressModeClampToEdge;
+    descriptor.maxAnisotropy = anisotropy;
+    id<MTLSamplerState> sampler = [device newSamplerStateWithDescriptor:descriptor];
+    Require(sampler != nil, "Cannot create Metal sampler");
+    m_samplers.emplace(key, sampler);
+    return sampler;
 }
 
 bool GxMetal::TextureDevice::SupportsBC() const {
@@ -118,15 +173,23 @@ id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forc
 }
 
 void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-    const QuadParameters& parameters, bool blend, bool linear) {
+    const QuadParameters& parameters, const TextureDrawState& state) {
+    // Resolve/validate before opening an encoder so failures cannot leave a pass open.
+    id<MTLRenderPipelineState> pipeline = Pipeline(state);
+    id<MTLSamplerState> sampler = Sampler(state);
+    Require(std::isfinite(state.blendFactor) && state.blendFactor >= 0 && state.blendFactor <= 1, "Invalid Gx blend factor");
+    const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
+    QuadParameters constants = parameters;
+    constants.alphaRef = state.alphaRef / 255.0f;
     id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
     Require(encoder != nil, "Cannot create Metal render encoder");
-    [encoder setRenderPipelineState:blend ? m_alphaBlend : m_opaque];
+    [encoder setRenderPipelineState:pipeline];
+    [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
     [encoder setCullMode:MTLCullModeNone];
-    [encoder setVertexBytes:&parameters length:sizeof(parameters) atIndex:0];
-    [encoder setFragmentBytes:&parameters length:sizeof(parameters) atIndex:0];
+    [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0];
+    [encoder setFragmentBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setFragmentTexture:texture atIndex:0];
-    [encoder setFragmentSamplerState:linear ? m_linear : m_nearest atIndex:0];
+    [encoder setFragmentSamplerState:sampler atIndex:0];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
     [encoder endEncoding];
 }
