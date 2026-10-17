@@ -33,6 +33,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
 #include "Engine/Source/Storm/H/SCritSect.h"
+#include "Engine/Source/Storm/Source/SThread.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CRandom.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
@@ -97,6 +98,72 @@ void CheckNativeThreads() {
     Blizzard::Thread::ThreadRecord* suspended = nullptr;
     Require(!Blizzard::Thread::Create(CheckThreadLocal, &values[0], &suspended, "suspended", 1, 0) && !suspended,
         "unsupported suspended thread did not fail explicitly");
+}
+
+void CheckStormSynchronization() {
+    SEvent manual(1, 0), automatic(0, 0);
+    SSemaphore semaphore(1, 2);
+    SSyncObject* together[] = { &semaphore, &automatic };
+    Require(SSyncObject::WaitMultiplePtr(2, together, 1, 1) == 258 && semaphore.Wait(0) == 0,
+        "Storm wait-all consumed a partial set on timeout");
+    automatic.Set(); automatic.Set();
+    Require(automatic.Wait(0) == 0 && automatic.Wait(0) == 258, "Storm auto-reset signal/coalescing mismatch");
+    automatic.Set(); semaphore.Signal(1);
+    Require(SSyncObject::WaitMultiplePtr(2, together, 1, 1000) == 0 &&
+        automatic.Wait(0) == 258 && semaphore.Wait(0) == 258, "Storm wait-all acquisition mismatch");
+    SSyncObject* any[] = { nullptr, &automatic, &manual };
+    manual.Set();
+    Require(SSyncObject::WaitMultiplePtr(3, any, 0, 0) == 1 && manual.Wait(0) == 0,
+        "Storm wait-any index/manual-reset mismatch");
+    manual.Reset();
+    std::atomic<int> awakened{0};
+    std::thread a([&] { if (manual.Wait(1000) == 0) { ++awakened; } });
+    std::thread b([&] { if (manual.Wait(1000) == 0) { ++awakened; } });
+    manual.Set(); a.join(); b.join();
+    Require(awakened == 2 && manual.Wait(0) == 0, "Storm manual event did not release all waiters");
+    Require(semaphore.Signal(2) && !semaphore.Signal(1) && semaphore.Wait(0) == 0 &&
+        semaphore.Wait(0) == 0 && semaphore.Wait(0) == 258, "Storm semaphore count/overflow mismatch");
+
+    SMutex mutex;
+    Require(mutex.Wait(0) == 0 && mutex.Wait(0) == 0 && mutex.Release(), "Storm recursive mutex failed");
+    uint32_t blocked = 0;
+    std::thread contender([&] { blocked = mutex.Wait(1); }); contender.join();
+    Require(blocked == 258 && mutex.Release(), "Storm mutex recursion released ownership early");
+    std::thread abandoned([&] { mutex.Wait(1000); }); abandoned.join();
+    Require(mutex.Wait(0) == 0x80 && mutex.Release(), "Storm abandoned mutex did not transfer ownership");
+    mutex.Create(0, "unsupported cross-process mutex");
+    Require(!mutex.Valid(), "Storm named mutex silently became process-local");
+
+    CSRWLock rw;
+    rw.Enter(0);
+    std::atomic<bool> secondReader{false};
+    std::thread reader([&] { rw.Enter(0); secondReader = true; rw.Leave(0); });
+    reader.join(); rw.Leave(0);
+    Require(secondReader, "Storm shared reader lock failed");
+    int protectedCount = 0;
+    auto increment = [&] { for (int i = 0; i < 1000; ++i) { rw.Enter(1); ++protectedCount; rw.Leave(1); } };
+    std::thread writerA(increment), writerB(increment); writerA.join(); writerB.join();
+    Require(protectedCount == 2000, "Storm writer exclusion failed");
+    CInitCritSect once;
+    Require(once.Enter() == 1 && once.Enter() == 0, "Storm critical-section first-entry result mismatch");
+    once.Leave(); once.Leave();
+
+    const int before = tlsDestroyed.load();
+    uint32_t value = 123;
+    SThread first, second;
+    Require(SThread::Create(CheckThreadLocal, &value, first, const_cast<char*>("Gxu file worker"), 65536) &&
+        SThread::Create(CheckThreadLocal, &value, second, nullptr, 0), "Storm native thread creation failed");
+    SSyncObject* threads[] = { &first, &second };
+    Require(SSyncObject::WaitMultiplePtr(2, threads, 1, 1000) == 0 && tlsDestroyed == before + 2 &&
+        first.Wait(0) == 0, "Storm thread wait returned before engine TLS destruction");
+    struct Detached { SEvent start{1, 0}, done{1, 0}; } detached;
+    SThread released;
+    Require(SThread::Create([](void* data) -> uint32_t {
+        auto& state = *static_cast<Detached*>(data);
+        state.start.Wait(1000); state.done.Set(); return 0;
+    }, &detached, released, nullptr, 0), "Storm detached thread creation failed");
+    released.Close(); detached.start.Set();
+    Require(!released.Valid() && detached.done.Wait(1000) == 0, "Storm closing a running thread cancelled its work");
 }
 
 uint32_t Read32(const uint8_t* bytes) {
@@ -400,6 +467,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         signal.join();
         Require(signaled, "event did not wake waiter");
         CheckNativeThreads();
+        CheckStormSynchronization();
         CheckBlpLoading();
 
         IOUnitContainer container(3u, 17u, 0u);
@@ -456,7 +524,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckFileStack(scratchDirectory);
         CheckClientLocalFile(scratchDirectory);
         CheckStormLog(scratchDirectory);
-        report = "PASS: native locks/events, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
+        report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
         report = std::string("Core check failed: ") + error.what() + "\n";

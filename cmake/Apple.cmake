@@ -16,6 +16,7 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>)
 add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SMem.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Diagnostics.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Sync.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/soprintf.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Lock/Apple/Lock.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/Apple/Thread.cpp

@@ -3,6 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(__APPLE__)
+#include "Engine/Source/Storm/Source/Apple/SThread.h"
+#else
 #include <windows.h>
 #include "Engine/Source/Storm/H/SCritSect.h"
 #include "Engine/Source/Storm/Source/SLock.h"
@@ -42,4 +45,5 @@ namespace S_Thread {
     uint32_t STORMAPI s_SLaunchThread(void* threadParam);
 }
 
+#endif // __APPLE__
 #endif

@@ -3,6 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(__APPLE__)
+#include "Engine/Source/Storm/Source/Apple/SLock.h"
+#else
 #include <windows.h>
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -128,4 +131,5 @@ class CSRWLock {
     void Leave(int32_t fromwriting);
 };
 
+#endif // __APPLE__
 #endif
