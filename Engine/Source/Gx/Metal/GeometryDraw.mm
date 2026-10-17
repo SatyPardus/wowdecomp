@@ -52,6 +52,13 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
             "Gx scissor exceeds target");
     }
     Require(std::isfinite(state.blendFactor) && state.blendFactor >= 0 && state.blendFactor <= 1, "Invalid Gx blend factor");
+    if (geometry.viewportEnabled) {
+        const auto& v = geometry.viewport;
+        Require(std::isfinite(v.originX) && std::isfinite(v.originY) && std::isfinite(v.width) && std::isfinite(v.height) &&
+            v.originX >= 0 && v.originY >= 0 && v.width > 0 && v.height > 0 &&
+            v.originX + v.width <= target.width && v.originY + v.height <= target.height &&
+            v.znear >= 0 && v.zfar <= 1 && v.znear <= v.zfar, "Invalid Metal geometry viewport");
+    }
     id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth);
     id<MTLSamplerState> sampler = Sampler(state);
     const uint32_t depthKey = geometry.depthFunction | (unsigned(geometry.depthTest) << 2) | (unsigned(geometry.depthWrite) << 3);
@@ -76,6 +83,7 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
     [encoder setRenderPipelineState:pipeline];
     [encoder setDepthStencilState:depth->second];
     [encoder setFrontFacingWinding:MTLWindingClockwise];
+    if (geometry.viewportEnabled) { [encoder setViewport:geometry.viewport]; }
     [encoder setCullMode:geometry.culling == 0 ? MTLCullModeNone : geometry.culling == 1 ? MTLCullModeFront : MTLCullModeBack];
     if (geometry.scissorEnabled) { [encoder setScissorRect:geometry.scissor]; }
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;

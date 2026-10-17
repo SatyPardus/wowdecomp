@@ -9,6 +9,9 @@
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Storm/H/storm.h"
+#if defined(__APPLE__)
+CGxDevice* CreateCGxDeviceMetal();
+#endif
 
 // STATIC: 0x00A2D57C
 static const uint32_t s_texelSize[GxTexFormats_Last] = { 0, 4, 4, 2, 2, 2, 2, 4, 4, 2, 4, 4, 4 };
@@ -21,7 +24,7 @@ static BlitFormat s_blitFormats[GxTexFormats_Last] = {
 };
 
 // STATIC: 0x00AD87E4
-const char* g_gxApiNames[GxApis_Last] = { "OpenGL", "D3D9", "D3D9Ex", "D3D10", "D3D11", "GLL" };
+const char* g_gxApiNames[GxApis_Last] = { "OpenGL", "D3D9", "D3D9Ex", "D3D10", "D3D11", "GLL", "Metal" };
 
 // STATIC: 0x00C5DF74
 static uint32_t s_maxFPSBk;
@@ -94,12 +97,19 @@ static int (*s_drawListSorters[GxuSorts_Last])(const void*, const void*) = { Dra
 // VERIFY: 0b88acbc auto
 // OFFSET: 0x008C8DE0
 EGxApi GxDefaultApi() {
+#if defined(__APPLE__)
+    return GxApi_Metal;
+#else
     return GxApi_D3d9;
+#endif
 }
 
 // VERIFY: cef2b995 auto
 // OFFSET: 0x006811D0
 int32_t GxApiSupported(EGxApi api) {
+#if defined(__APPLE__)
+    return api == GxApi_Metal;
+#else
     switch (api) {
         case GxApi_OpenGl:
         case GxApi_D3d9:
@@ -109,6 +119,7 @@ int32_t GxApiSupported(EGxApi api) {
         default:
             return 0;
     }
+#endif
 }
 
 // VERIFY: f1ff254c auto
@@ -138,9 +149,14 @@ int32_t GxAdapterDesktopMode(CGxMonitorMode& mode) {
 // VERIFY: ca53a8f5 auto
 // OFFSET: 0x00681290
 CGxDevice* CreateGxDevice(EGxApi api, GxWindowProc windowProc, const CGxFormat& format) {
-    CGxDevice* device;
+    CGxDevice* device = nullptr;
 
     switch (api) {
+#if defined(__APPLE__)
+        case GxApi_Metal:
+            device = CreateCGxDeviceMetal();
+            break;
+#else
         case GxApi_OpenGl:
             device = CreateCGxDeviceOpenGl();
             g_theGxDevicePtr = device;
@@ -155,18 +171,21 @@ CGxDevice* CreateGxDevice(EGxApi api, GxWindowProc windowProc, const CGxFormat& 
             device = CreateCGxDeviceD3d9Ex();
             g_theGxDevicePtr = device;
             break;
+#endif
 
         default:
-            device = g_theGxDevicePtr;
-            break;
+            return nullptr;
     }
 
+    if (!device) { return nullptr; }
+    g_theGxDevicePtr = device;
     if (device->DeviceCreate(windowProc, format)) {
         return g_theGxDevicePtr;
     }
 
     if (g_theGxDevicePtr) {
         delete g_theGxDevicePtr;
+        g_theGxDevicePtr = nullptr;
     }
 
     return nullptr;

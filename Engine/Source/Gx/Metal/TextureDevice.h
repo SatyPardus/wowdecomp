@@ -45,6 +45,8 @@ struct GeometryDraw {
     uint32_t culling = 0; // Gx: none, clockwise, counterclockwise
     bool scissorEnabled = false;
     MTLScissorRect scissor{};
+    bool viewportEnabled = false;
+    MTLViewport viewport{};
 };
 
 // Native texture/unlit geometry primitives. This is not yet a CGxDevice backend.

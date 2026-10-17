@@ -1219,7 +1219,7 @@ void CGxDevice::IRsSync(int32_t force) {
         CGxStateBom& hw = this->m_hwRenderStates[which];
 
         if (state.m_dirty) {
-            if ((state.m_value.m_data.i[0] - hw.m_data.i[0]) | (state.m_value.m_data.i[1] - hw.m_data.i[1]) | (state.m_value.m_data.i[2] - hw.m_data.i[2]) | (state.m_value.m_filler - hw.m_filler)) {
+            if ((state.m_value.m_data.u[0] ^ hw.m_data.u[0]) | (state.m_value.m_data.u[1] ^ hw.m_data.u[1]) | (state.m_value.m_data.u[2] ^ hw.m_data.u[2]) | (state.m_value.m_filler ^ hw.m_filler)) {
                 this->IRsSendToHw(which);
             }
         }

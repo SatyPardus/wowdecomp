@@ -74,9 +74,9 @@ The client is written to `bin/Win/`:
 `WowClient_crash.log` when the client crashes. `Wow` is the same client without it. You can also turn the
 logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
-### Apple foundation and Metal texture builds
+### Apple foundation and Metal Gx builds
 
-The native port currently builds **foundation and texture probes**, not a playable client. They
+The native port currently builds **foundation and graphics probes**, not a playable client. They
 link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
 memory, synchronization, pthread threads/TLS, timing and the original Blizzard file
@@ -137,9 +137,16 @@ The native Metal primitive accepts Gx blend/filter/wrap enums, supports all 12
 blend equations (including alpha), independent alpha testing, the Gx channel-write
 mask, blend constants, six filter modes and independent U/V wrap/clamp. Pipeline
 and sampler objects are cached; alpha testing uses an MSL function specialization.
-It is not yet connected to the full CGxDevice interface.
-The original shared Gx sources also compile as a native static library; Apple
-device factories, platform hooks and full client linkage remain pending.
+A partial `CGxDeviceMetal` now connects the shared game device interface, Apple
+factory, UI shader creation/binding, Gx buffer pools, texture callbacks, render
+states and frame submission. Mac/iOS previews use this device. Private buffer
+uploads are encoded before their consuming draws in the same command stream;
+streaming wrap does not overwrite earlier draws. Texture updates replace immutable
+GPU images, including partial rectangles and callbacks whose data starts at the
+updated region. Original Gx base-mip/filter selection is retained (the standalone
+BLP probe separately checks every authored mip). Frames are limited to three in
+flight and drained on suspension. Native hosts still own window/view creation;
+full client startup and input/event integration remain pending.
 The native unlit geometry primitive now links the shared Gx vertex-layout tables
 and consumes packed vertex buffers and 16-bit indexed/nonindexed batches directly.
 It maps Tempest matrices, BGRA vertex colors, Gx depth comparisons/write control,
@@ -153,9 +160,16 @@ vertex permutations. Preview startup reads the mounted `vs_3_0/UI.bls` and
 `ps_3_0/UI.bls`; bounded BLS parsing and recognized code fingerprints prevent a
 modified shader from silently selecting the wrong native implementation. The
 original 2.0 family is recognized too. This is shader identification, not the
-client's signature policy, and full CGx shader creation/binding remains pending.
+client's signature policy. The game shader API accepts only this verified family
+and reports unsupported effects explicitly; it does not lower shader profiles.
+Device-level readback, copies, queries, render targets, partial viewport clears,
+gamma ramps and stereo remain explicit unsupported operations. Geometry draws
+currently open individual render encoders; pass batching, upload allocation reuse
+and texture-update bandwidth optimization remain to be implemented.
 
-The Metal probe verifies known alpha cases, filtering and blending, then draws and
+The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
+texture replacement and partial updates through game APIs. It verifies known alpha
+cases, filtering and blending, then draws and
 reads back each mip through both native and forced-expanded upload paths. Expanded
 samples must match exactly. The tested M2 Pro's native BC interpolation differs by
 up to 2/255 from the D3D9 reference integer equations; the probe reports those

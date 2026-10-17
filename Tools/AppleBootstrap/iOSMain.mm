@@ -15,6 +15,7 @@
 @end
 
 @implementation BootstrapSceneDelegate {
+    std::shared_ptr<ClientData> _client; // Keep mounted archives alive for game shader/resource APIs.
     std::shared_ptr<BLP::Image> _pendingImage;
     std::shared_ptr<GxMetal::UIShader> _pendingUI;
 }
@@ -48,11 +49,12 @@
 
 - (void)renderPendingIfActive {
     if (self.window.windowScene.activationState != UISceneActivationStateForegroundActive || !_pendingImage || !_pendingUI) { return; }
+    [self.renderer suspend];
+    self.renderer = nil;
     std::string report;
     if (AppleBootstrap::CheckMetal(*_pendingImage, *_pendingUI, report)) {
         try {
-            [self.renderer suspend];
-            self.renderer = [[WowTextureRenderer alloc] initWithView:self.metalView image:*_pendingImage uiShader:*_pendingUI];
+            self.renderer = [[WowTextureRenderer alloc] initWithView:self.metalView image:*_pendingImage];
             [self.renderer resume];
         } catch (const std::exception& error) {
             report += std::string("Metal view failed: ") + error.what() + "\n";
@@ -67,9 +69,12 @@
 - (void)sceneWillResignActive:(UIScene*)scene { [self.renderer suspend]; }
 
 - (void)sceneDidBecomeActive:(UIScene*)scene {
-    [self.renderer resume];
+    const bool hadPending = bool(_pendingImage);
     [self renderPendingIfActive];
-    if (self.running) { return; }
+    if (self.running || hadPending) { return; }
+    [self.renderer suspend];
+    self.renderer = nil;
+    _client.reset();
     self.running = YES;
     // Reinspect on foreground, including after importing Data using Files/Finder.
     // File checks run off the main thread. All GPU work is gated on the scene
@@ -86,15 +91,16 @@
         std::string core, data;
         const bool coreOK = AppleBootstrap::CheckCore(scratch.fileSystemRepresentation, core);
         const bool dataOK = coreOK && AppleBootstrap::InspectData(dataRoot.fileSystemRepresentation, data, locale.UTF8String);
+        std::shared_ptr<ClientData> client;
         std::shared_ptr<BLP::Image> image;
         std::shared_ptr<GxMetal::UIShader> ui;
         if (dataOK) {
             try {
-                ClientData client(dataRoot.fileSystemRepresentation, locale.UTF8String);
+                client = std::make_shared<ClientData>(dataRoot.fileSystemRepresentation, locale.UTF8String);
                 ui = std::make_shared<GxMetal::UIShader>(GxMetal::UIShader::FromBls(
-                    client.Read("Shaders\\Vertex\\vs_3_0\\UI.bls", 1024 * 1024).bytes,
-                    client.Read("Shaders\\Pixel\\ps_3_0\\UI.bls", 1024 * 1024).bytes));
-                const auto asset = client.Read(textureName.UTF8String, 64 * 1024 * 1024);
+                    client->Read("Shaders\\Vertex\\vs_3_0\\UI.bls", 1024 * 1024).bytes,
+                    client->Read("Shaders\\Pixel\\ps_3_0\\UI.bls", 1024 * 1024).bytes));
+                const auto asset = client->Read(textureName.UTF8String, 64 * 1024 * 1024);
                 image = std::make_shared<BLP::Image>(BLP::Image::Load(asset.bytes.data(), asset.bytes.size(), 256 * 1024 * 1024));
                 data += "Metal preview resource: " + std::string(textureName.UTF8String) + " from " + asset.archive + "\n";
             } catch (const std::exception& error) { data += std::string("Preview resource load failed: ") + error.what() + "\n"; }
@@ -107,6 +113,7 @@
         dispatch_async(dispatch_get_main_queue(), ^{
             self.output.text = status;
             self.running = NO;
+            self->_client = client;
             self->_pendingImage = image;
             self->_pendingUI = ui;
             [self renderPendingIfActive];

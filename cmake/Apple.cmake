@@ -36,6 +36,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataStore.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/TimeManager.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Processor.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Processor.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/FunctionValidation.cpp
 )
 target_include_directories(AppleFoundation PUBLIC ${CMAKE_SOURCE_DIR})
@@ -95,11 +97,17 @@ set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS Engine/Source/Gx/Metal/TextureQuad.metal)
 file(READ Engine/Source/Gx/Metal/TextureQuad.metal WOW_TEXTURE_QUAD_SOURCE)
 configure_file(Engine/Source/Gx/Metal/ShaderSource.h.in ${CMAKE_BINARY_DIR}/generated/MetalShaderSource.h @ONLY)
-add_library(AppleMetal STATIC Engine/Source/Gx/Metal/TextureDevice.mm Engine/Source/Gx/Metal/GeometryDraw.mm)
+add_library(AppleMetal STATIC Engine/Source/Gx/Metal/TextureDevice.mm Engine/Source/Gx/Metal/GeometryDraw.mm
+    Engine/Source/Gx/Metal/CGxDeviceMetal.mm Engine/Source/Gx/Metal/ApplePlatform.mm)
 target_include_directories(AppleMetal PRIVATE ${CMAKE_BINARY_DIR}/generated)
 target_compile_options(AppleMetal PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetal PUBLIC AppleTextureData Gx "-framework Metal" "-framework Foundation")
-add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm)
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    target_link_libraries(AppleMetal PUBLIC "-framework UIKit")
+else ()
+    target_link_libraries(AppleMetal PUBLIC "-framework AppKit")
+endif ()
+add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm)

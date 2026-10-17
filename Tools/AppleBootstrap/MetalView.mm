@@ -1,93 +1,90 @@
 #include "Tools/AppleBootstrap/MetalView.h"
-#include "Engine/Source/Gx/Metal/TextureDevice.h"
+#include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Gx.h"
+#include <cstring>
 #include <memory>
 #include <stdexcept>
 
+namespace {
+void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t, uint32_t level,
+    void* arg, uint32_t& stride, const void*& data) {
+    if (command != GxTex_Latch) { return; }
+    const auto& image = *static_cast<BLP::Image*>(arg);
+    if (level >= image.mips.size() || image.mips[level].width != width || image.mips[level].height != height) {
+        throw std::runtime_error("Game Gx texture callback requested an unavailable authored mip");
+    }
+    stride = image.mips[level].rowBytes; data = image.mips[level].bytes.data();
+}
+}
+
 @implementation WowTextureRenderer {
-    std::unique_ptr<GxMetal::TextureDevice> _gpu;
-    id<MTLTexture> _texture;
-    GxMetal::GeometryDraw _quad;
-    std::unique_ptr<GxMetal::UIShader> _uiShader;
+    std::unique_ptr<CGxDeviceMetal> _device;
+    std::unique_ptr<BLP::Image> _image;
+    CGxTex* _texture;
+    CGxBuf* _vertices;
+    CGxBuf* _indices;
+    CGxShader* _vertexShaders[2];
+    CGxShader* _pixelShader;
     __weak MTKView* _view;
-    dispatch_semaphore_t _frames;
     BOOL _active;
 }
-- (instancetype)initWithView:(MTKView*)view image:(const BLP::Image&)image uiShader:(const GxMetal::UIShader&)ui {
+- (instancetype)initWithView:(MTKView*)view image:(const BLP::Image&)image {
     if ((self = [super init])) {
-        _gpu = std::make_unique<GxMetal::TextureDevice>(MTLCreateSystemDefaultDevice());
-        _texture = _gpu->Upload(image);
-        _uiShader = std::make_unique<GxMetal::UIShader>(ui);
-        // Immutable Gx PCT vertices and uint16 indices are shared by all frames.
+        if (g_theGxDevicePtr) { throw std::runtime_error("A game Gx device already owns the native host"); }
+        C2iVector size{std::max(1, int32_t(view.drawableSize.width)), std::max(1, int32_t(view.drawableSize.height))};
+        CGxFormat format(true, size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, 0, 1, true, false, false, false, 0);
+        _device.reset(static_cast<CGxDeviceMetal*>(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format)));
+        if (!_device || !_device->DeviceCreate((__bridge void*)view, format)) { throw std::runtime_error("Cannot create the native game Gx device"); }
+        _image = std::make_unique<BLP::Image>(image);
+        const EGxTexFormat formats[] = {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5};
+        const auto textureFormat = formats[unsigned(image.format)];
+        CGxTexFlags flags(GxTex_LinearMipLinear);
+        _device->TexCreate(GxTex_2d, image.mips[0].width, image.mips[0].height, 0, textureFormat, textureFormat,
+            flags, _image.get(), TextureData, "MPQ preview", _texture);
+        _device->ShaderCreate(_vertexShaders, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
+        _device->ShaderCreate(&_pixelShader, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
         struct Vertex { float x, y, z; uint32_t color; float u, v; };
-        static_assert(sizeof(Vertex) == 24, "Gx PCT layout");
         const Vertex vertices[] = {{-1, 1, 0, 0xFFFFFFFF, 0, 0}, {-1, -1, 0, 0xFFFFFFFF, 0, 1},
             {1, 1, 0, 0xFFFFFFFF, 1, 0}, {1, -1, 0, 0xFFFFFFFF, 1, 1}};
         const uint16_t indices[] = {0, 1, 2, 2, 1, 3};
-        _quad.vertices = [_gpu->device newBufferWithBytes:vertices length:sizeof(vertices) options:MTLResourceStorageModeShared];
-        _quad.indices = [_gpu->device newBufferWithBytes:indices length:sizeof(indices) options:MTLResourceStorageModeShared];
-        if (!_quad.vertices || !_quad.indices) { throw std::runtime_error("Cannot allocate native preview geometry"); }
-        _quad.batch = {GxPrim_Triangles, 0, 6, 0, 3};
+        auto* vp = _device->PoolCreate(GxPoolTarget_Vertex, GxPoolUsage_Static, sizeof(vertices), GxPoolHintBit_Unk0, "preview vertices");
+        auto* ip = _device->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Static, sizeof(indices), GxPoolHintBit_Unk0, "preview indices");
+        _vertices = _device->BufCreate(vp, sizeof(Vertex), 4, 0);
+        _indices = _device->BufCreate(ip, sizeof(uint16_t), 6, 0);
+        GxBufData(_vertices, vertices, sizeof(vertices), 0); GxBufData(_indices, indices, sizeof(indices), 0);
         _view = view;
-        _frames = dispatch_semaphore_create(3);
-        view.device = _gpu->device;
+        view.device = _device->GPU().device;
         view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
         view.clearColor = MTLClearColorMake(0.12, 0.14, 0.18, 1);
-        view.paused = YES;
-        view.enableSetNeedsDisplay = YES;
-        view.delegate = self;
+        view.paused = YES; view.enableSetNeedsDisplay = YES; view.delegate = self;
     }
     return self;
 }
-- (void)resume {
-    _active = YES;
-    [_view draw];
-}
-- (void)suspend {
-    _active = NO;
-    // Drain already submitted GPU work before the app completes backgrounding.
-    // The on-demand preview submits nothing while inactive.
-    id<MTLCommandBuffer> fence = [_gpu->queue commandBuffer];
-    [fence commit];
-    [fence waitUntilCompleted];
-}
-- (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
-    if (_active) { [view draw]; }
-}
+- (void)resume { _active = YES; [_view draw]; }
+- (void)suspend { _active = NO; _device->Drain(); }
+- (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size { if (_active) { [view draw]; } }
 - (void)drawInMTKView:(MTKView*)view {
     if (!_active || !view.drawableSize.width || !view.drawableSize.height) { return; }
-    if (dispatch_semaphore_wait(_frames, DISPATCH_TIME_NOW)) { return; }
     MTLRenderPassDescriptor* pass = view.currentRenderPassDescriptor;
     id<CAMetalDrawable> drawable = view.currentDrawable;
-    if (!pass || !drawable) { dispatch_semaphore_signal(_frames); return; }
+    if (!pass || !drawable) { return; }
     try {
-        id<MTLCommandBuffer> command = [_gpu->queue commandBuffer];
-        command.label = @"WoW BLP preview";
-        GxMetal::QuadParameters parameters;
-        const double imageAspect = double(_texture.width) / _texture.height;
+        _device->BeginFrame(pass, drawable);
+        GxRsSet(GxRs_VertexShader, _vertexShaders[0]); GxRsSet(GxRs_PixelShader, _pixelShader);
+        GxRsSet(GxRs_Texture0, _texture);
+        GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Culling, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0);
+        GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Alpha)); GxRsSet(GxRs_AlphaRef, 1);
+        const double imageAspect = double(_image->mips[0].width) / _image->mips[0].height;
         const double viewAspect = view.drawableSize.width / view.drawableSize.height;
-        if (imageAspect > viewAspect) { parameters.scale.y = viewAspect / imageAspect; }
-        else { parameters.scale.x = imageAspect / viewAspect; }
-        _quad.clipFromModel.Identity();
-        _quad.clipFromModel.Scale(C3Vector(parameters.scale.x, parameters.scale.y, 1));
-        const C44Matrix registers = _quad.clipFromModel.Transpose();
-        const auto transform = _uiShader->VertexTransform(&registers.a0, 4, 0);
-        _quad.clipFromModel = transform.clipFromModel;
-        _quad.screenAtDepth = transform.screenAtDepth;
-        GxMetal::TextureDrawState state;
-        state.blend = GxBlend_Alpha;
-        state.alphaRef = 1;
-        _gpu->DrawUnlit(command, pass, _texture, _quad, parameters, state);
-        dispatch_semaphore_t frames = _frames;
-        [command addCompletedHandler:^(id<MTLCommandBuffer> completed) {
-            if (completed.error) { NSLog(@"Metal preview failed: %@", completed.error); }
-            dispatch_semaphore_signal(frames);
-        }];
-        [command presentDrawable:drawable];
-        [command commit];
+        C44Matrix matrix(1);
+        matrix.Scale(C3Vector(imageAspect > viewAspect ? 1 : imageAspect / viewAspect, imageAspect > viewAspect ? viewAspect / imageAspect : 1, 1));
+        const auto registers = matrix.Transpose(); GxShaderConstantsSet(GxSh_Vertex, 0, &registers.a0, 4);
+        GxPrimVertexPtr(_vertices, GxVBF_PCT); _device->PrimIndexPtr(_indices);
+        CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1); GxScenePresent();
     } catch (const std::exception& error) {
-        dispatch_semaphore_signal(_frames);
+        if (_device->FrameCommand()) { _device->ScenePresent(); }
         _active = NO;
-        NSLog(@"Metal preview stopped: %s", error.what());
+        NSLog(@"Metal Gx preview stopped: %s", error.what());
     }
 }
 @end
