@@ -12,4 +12,5 @@ target_include_directories(FrameXML
 target_link_libraries(FrameXML
     PUBLIC
         expat
+        Extension
 )

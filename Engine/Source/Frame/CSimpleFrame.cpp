@@ -30,6 +30,7 @@
 #include "Engine/Source/Tempest/CRect.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00AC154C
 int32_t CSimpleFrame::s_metatable = LUA_NOREF;
@@ -234,6 +235,9 @@ CSimpleFrame::CSimpleFrame(CSimpleFrame* parent) {
 // VERIFY: e1a5b71b manual
 // OFFSET: [0x00492770, 0x004926B0, 0x00492E40]
 CSimpleFrame::~CSimpleFrame() {
+    // Not in the original: the frame is still whole here.
+    sExtensionMgr->OnFrameDestroyed(this);
+
     this->m_lifecycleState = 3;
     this->m_simpleTop->UnregisterFrame(this);
     this->m_simpleTop->ValidateDeletedFrame(this);

@@ -44,6 +44,7 @@
 #include "WoW/Source/DB/Rec/MapRec.h"
 #include "WoW/Source/DB/Rec/SpellItemEnchantmentRec.h"
 #include "WoW/Source/DB/Rec/VehicleSeatRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Game/GameClient/ComSatClient.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
@@ -1714,7 +1715,9 @@ void CGGameUI::InitializeFrameXML() {
     FrameScript_Destroy();
     FrameScript_Initialize(g_scriptProfileCVar->m_intValue);
     LoadScriptFunctions();
-    FrameScript_CreateEvents(g_scriptEvents, NUM_SCRIPT_EVENTS);
+    // Not in the original: extensions register in the new game state, then the game events and the
+    // declared events are created together (FrameScript_CreateEvents replaces the whole array).
+    sExtensionMgr->OnFrameScriptInitialized(FRAMESCRIPT_CONTEXT_GAME, g_scriptEvents, NUM_SCRIPT_EVENTS);
     CGGameUI::RegisterGameCVars();
     CGUIBindings::Initialize();
     CGWorldFrame::RegisterFrames();

@@ -19,6 +19,7 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/Hash.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/MD5.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00B32038
 static SFileStreamingStatus s_streamingStatus;
@@ -1021,6 +1022,13 @@ int32_t STORMAPI SFile::FileExistsEx(const char* name, uint32_t flags) {
     char path[260];
     uint32_t type;
 
+    // Not in the original: an existence check follows the same redirect as an open.
+    char redirected[260];
+
+    if (sExtensionMgr->OnFileOpen(name, redirected, sizeof(redirected))) {
+        name = redirected;
+    }
+
     return System_SFile2::FindFile(name, path, sizeof(path), flags, &type, nullptr);
 }
 
@@ -1028,6 +1036,14 @@ int32_t STORMAPI SFile::FileExistsEx(const char* name, uint32_t flags) {
 // OFFSET: 0x00424B50
 int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t flags, SFileImpl** result) {
     Blizzard::File::SetLastErrorStack(nullptr);
+
+    // Not in the original: a by-name open may be redirected to another path before the lookup;
+    // the rest of the function then opens, names and reads the substitute.
+    char redirected[260];
+
+    if (!archive && sExtensionMgr->OnFileOpen(name, redirected, sizeof(redirected))) {
+        name = redirected;
+    }
 
     if (CheckIfStreamingAndTrial() && System_SFile2::s_soundCacheArchive && Blizzard::String::FindI(name, ".wav", 0x7FFFFFFF)) {
         *result = new (0u, __FILE__, __LINE__) SFileImpl(3);
@@ -1105,6 +1121,9 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
     }
 
     if (!(flags & 0x20000)) {
+        // Not in the original: the handle is open and about to be handed out.
+        sExtensionMgr->OnFileOpened(name, *result);
+
         return opened;
     }
 
@@ -1117,6 +1136,9 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
 
     (*result)->m_type = 5;
     (*result)->m_position = 0;
+
+    // Not in the original: the whole file is read into the handle and about to be handed out.
+    sExtensionMgr->OnFileOpened(name, *result);
 
     return opened;
 
@@ -1135,6 +1157,13 @@ fail:
 int32_t STORMAPI SFile::FileExists(const char* name) {
     char path[260];
     uint32_t type;
+
+    // Not in the original: an existence check follows the same redirect as an open.
+    char redirected[260];
+
+    if (sExtensionMgr->OnFileOpen(name, redirected, sizeof(redirected))) {
+        name = redirected;
+    }
 
     return System_SFile2::FindFile(name, path, sizeof(path), 0, &type, nullptr);
 }

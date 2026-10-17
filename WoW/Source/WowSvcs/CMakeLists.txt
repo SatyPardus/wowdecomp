@@ -8,3 +8,8 @@ target_include_directories(WowSvcs
     PUBLIC
         ${CMAKE_SOURCE_DIR}
 )
+
+target_link_libraries(WowSvcs
+    PRIVATE
+        Extension
+)

@@ -12,4 +12,5 @@ target_include_directories(Console
 target_link_libraries(Console
     PRIVATE
         freetype
+        Extension
 )

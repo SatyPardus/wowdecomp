@@ -8,3 +8,8 @@ target_include_directories(Model2
     PUBLIC
         ${CMAKE_SOURCE_DIR}
 )
+
+target_link_libraries(Model2
+    PRIVATE
+        Extension
+)

@@ -42,6 +42,7 @@
 #include "WoW/Source/DB/Rec/ChrClassesRec.h"
 #include "WoW/Source/DB/Rec/ChrRacesRec.h"
 #include "WoW/Source/DB/Rec/GameTipsRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Game/GameClient/FFXEffects.h"
 #include "WoW/Source/Game/ValidateName.h"
 #include "WoW/Source/Glue/CharacterCreation.h"
@@ -714,7 +715,9 @@ void CGlueMgr::Resume() {
     AccountMsg_RegisterScriptFunctions();
     CGVideoOptions::RegisterScriptFunctions();
     CGlueMgr::s_scriptFunctionsLoaded = 1;
-    FrameScript_CreateEvents(g_glueScriptEvents, sizeof(g_glueScriptEvents) / sizeof(g_glueScriptEvents[0]));
+    // Not in the original: extensions register in the new glue state, then the glue events and the
+    // declared events are created together (FrameScript_CreateEvents replaces the whole array).
+    sExtensionMgr->OnFrameScriptInitialized(FRAMESCRIPT_CONTEXT_GLUE, g_glueScriptEvents, sizeof(g_glueScriptEvents) / sizeof(g_glueScriptEvents[0]));
 
     CCharacterSelection::Initialize();
     CCharacterCreation::Initialize();

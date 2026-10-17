@@ -14,6 +14,7 @@ target_link_libraries(BlizzardCore
         blast
         lzma
         zlib
+        Extension
 )
 
 if(WIN32)

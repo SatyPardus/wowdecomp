@@ -7,6 +7,7 @@
 #include <new>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 extern int32_t g_clientDbPerformCompress;
 
@@ -163,6 +164,9 @@ void WowClientDB_Common<T>::Load(const char* file, int32_t line) {
 
     SFileCloseFile(f);
     this->m_loaded = 1;
+
+    // Not in the original: records and strings are in memory for this store.
+    sExtensionMgr->OnClientDBLoaded(this, T::GetFilename());
 }
 
 template <class T>

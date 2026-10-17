@@ -9,6 +9,7 @@
 #include "WoW/Source/WorldClient/DayNight.h"
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/MapObj.h"
 #include "WoW/Source/WorldClient/MapObjGroup.h"
@@ -427,6 +428,9 @@ void CMapObj::PostloadCallback(void* arg) {
     }
 
     mapObj->m_isGroupLoaded = 1;
+
+    // Not in the original: the root WMO is parsed and its groups allocated, none loaded.
+    sExtensionMgr->OnMapObjLoaded(mapObj);
 }
 
 // VERIFY: 737e6a62 manual
@@ -600,6 +604,9 @@ void CMapObjGroup::AsyncPostloadCallback(void* arg) {
     group->m_asyncObjPtr = nullptr;
     group->m_asyncLoadLink.Unlink();
     group->Create();
+
+    // Not in the original: the group is parsed (asynchronous read path).
+    sExtensionMgr->OnMapObjGroupLoaded(group);
 }
 
 // VERIFY: 1fdd96d9 manual
@@ -622,6 +629,10 @@ void CMapObj::ReadGroup(uint32_t index, bool preLoad) {
     if (preLoad) {
         CMap::SafeRead(fileName, file, group->m_filePtr, group->m_fileSize);
         group->Create();
+
+        // Not in the original: the group is parsed (synchronous preload path).
+        sExtensionMgr->OnMapObjGroupLoaded(group);
+
         SFileCloseFile(file);
         return;
     }

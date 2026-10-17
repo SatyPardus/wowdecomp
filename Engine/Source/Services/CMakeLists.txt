@@ -12,4 +12,5 @@ target_include_directories(Services
 target_link_libraries(Services
     PUBLIC
         freetype
+        Extension
 )

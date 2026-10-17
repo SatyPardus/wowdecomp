@@ -11,6 +11,7 @@
 #include "WoW/Source/WorldClient/MapChunk.h"
 #include "WoW/Source/WorldClient/MapRenderChunk.h"
 #include "WoW/Source/WorldClient/Types.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/WorldClient/World.h"
 #include <cmath>
 #include "Engine/Source/Tempest/CMath.h"
@@ -43,6 +44,9 @@ void CMapArea::PurgeChunk(CMapChunk* chunk) {
 // VERIFY: 3489b6fa manual
 // OFFSET: 0x007C35F0
 void CMapArea::Purge() {
+    // Not in the original: the tile's chunks and buffer are still in place.
+    sExtensionMgr->OnTerrainTileUnload(this);
+
     if (this->m_asyncObject) {
         if (!AsyncFile::Cancel(this->m_asyncObject, CMapArea::FreeAsyncObject)) {
             this->m_fileBuffer = nullptr;
@@ -234,6 +238,9 @@ CMapChunk* CMapArea::PrepareChunk(int32_t chunkX, int32_t chunkY) {
     chunk->m_sOffset.y = 8 * (chunkY + this->m_tileChunkIndex.y);
     chunk->Create(reinterpret_cast<SIffChunk*>(static_cast<uint8_t*>(this->m_fileBuffer) + this->m_chunkInfo[index].m_offset), firstUse);
 
+    // Not in the original: the chunk is built from its MCNK data.
+    sExtensionMgr->OnTerrainChunkCreated(chunk);
+
     return chunk;
 }
 
@@ -344,6 +351,10 @@ void CMapArea::AsyncCallback(void* param) {
     CMapArea* area = static_cast<CMapArea*>(param);
 
     area->ProcessIffChunks();
+
+    // Not in the original: the ADT is parsed, no chunk is built yet.
+    sExtensionMgr->OnTerrainTileLoaded(area);
+
     AsyncFileReadDestroyObject(area->m_asyncObject);
     area->m_asyncObject = nullptr;
     area->m_file = nullptr;

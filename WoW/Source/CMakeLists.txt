@@ -61,6 +61,7 @@ target_link_libraries(Wow
         Console
         ConsoleDevice
         DB
+        Extension
         Game
         Glue
         LiquidSystem
@@ -76,4 +77,5 @@ target_link_libraries(Wow
         WorldClient
         WowServices
         WowSvcs
+        WowExtensions
 )

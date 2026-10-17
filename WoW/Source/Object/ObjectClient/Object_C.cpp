@@ -48,6 +48,7 @@
 #include "WoW/Source/DB/Rec/SpellVisualEffectNameRec.h"
 #include "WoW/Source/DB/Rec/SpellVisualKitModelAttachRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00ADAC98
 CGObject_C::InteractIcon CGObject_C::s_interactIcons[12] = {
@@ -1542,6 +1543,9 @@ void CGObject_C::PlaySpellVisualKit(const PlaySpellVisuaKitData& data) {
     if (!data.m_impactVisualKit) {
         return;
     }
+
+    // Not in the original: a kit is about to play on this object.
+    sExtensionMgr->OnObjectSpellVisualKit(this, &data);
 
     C3Vector transformed = { 0.0f, 0.0f, 0.0f };
     const C3Vector* position = nullptr;

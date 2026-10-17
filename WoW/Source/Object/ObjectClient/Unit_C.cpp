@@ -140,6 +140,7 @@
 #include "WoW/Source/UIUtil/InputControl.h"
 #include "WoW/Source/UIUtil/SmartScreenRect.h"
 #include "WoW/Source/UIUtil/Tooltip.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
@@ -1193,6 +1194,9 @@ void CGUnit_C::UpdateDisplayInfo(int32_t force) {
 
     this->CreateOrDestroyObjectEffectManager();
     this->m_animationState &= ~0x8000000;
+
+    // Not in the original: the display was rebuilt (the early return above skips both).
+    sExtensionMgr->OnUnitDisplayInfoUpdated(this);
 }
 
 // VERIFY: 8b1cb3ff auto
@@ -8645,6 +8649,9 @@ void CGUnit_C::UpdateAuraEffectMask() {
             }
         }
     }
+
+    // Not in the original: the mask reflects the current aura set.
+    sExtensionMgr->OnUnitAuraEffectMaskUpdated(this);
 }
 
 // VERIFY: 49281665 manual
@@ -9186,6 +9193,9 @@ void CGUnit_C::UpdateWorldTransform(float elapsed) {
         float facing = this->GetRenderFacing();
         model->SetWorldTransform(this->GetPosition(), facing, scale, this->m_groundNormal, 0xFFFFFFFF);
     }
+
+    // Not in the original: ground normal smoothed and the model placed for this frame.
+    sExtensionMgr->OnUnitWorldTransformUpdated(this, elapsed);
 }
 
 // VERIFY: 315f8bea manual
@@ -10002,6 +10012,9 @@ void CGUnit_C::OnMoveUpdate(uint32_t time, int32_t a3, int32_t a4) {
 
     this->UpdateFlightStatus(time);
     this->UpdateSwimmingStatus(time, a3);
+
+    // Not in the original: the unit's movement step is applied.
+    sExtensionMgr->OnUnitMoveUpdate(this, time);
 }
 
 // VERIFY: ac360cae auto
@@ -10201,6 +10214,9 @@ void CGUnit_C::SetStorage(uint32_t* storage, uint32_t* saved) {
 // VERIFY: 3ba2c3ae manual
 // OFFSET: 0x00729220
 void CGUnit_C::OnDeath() {
+    // Not in the original: the unit is still in its living state here.
+    sExtensionMgr->OnUnitDeath(this);
+
     if (this->m_obj->m_type & TYPEMASK_PLAYER) {
         static_cast<CGPlayer_C*>(this)->OnDeath();
     }
@@ -11042,6 +11058,10 @@ int32_t CGUnit_C::SendMovementUpdate(uint32_t time, uint32_t msgId, float value,
     }
 
     msg.Finalize();
+
+    // Not in the original: the movement message is complete and about to be sent.
+    sExtensionMgr->OnUnitMovementMessage(this, msgId, &msg);
+
     ClientServices::Send2(&msg);
     this->m_movementData.UpdateHeartbeatTimerA(time);
     return 1;
@@ -16399,6 +16419,9 @@ float CGUnit_C::GetSpellChanceToCrit() const {
 // VERIFY: 8a2697bd auto
 // OFFSET: 0x00722090
 void CGUnit_C::OnAuraRemoved(uint32_t index, uint8_t a3, AuraData* aura, int32_t spellId) {
+    // Not in the original: the aura is still applied here.
+    sExtensionMgr->OnUnitAuraRemoved(this, index, aura, spellId);
+
     SpellRec spell;
     memset(&spell, 0, sizeof(spell));
     g_spellDB.GetRecord(spellId, &spell);
@@ -16439,6 +16462,9 @@ void CGUnit_C::OnAuraAdded(uint32_t index, uint8_t a3, AuraData* aura, int32_t s
             FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_SHAPESHIFT_FORM, nullptr);
         }
     }
+
+    // Not in the original: the aura and its effect are applied.
+    sExtensionMgr->OnUnitAuraAdded(this, index, aura, spellId);
 }
 
 // VERIFY: 1f07a103 manual

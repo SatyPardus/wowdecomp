@@ -68,6 +68,7 @@ target_link_libraries(WowClient
         Console
         ConsoleDevice
         DB
+        Extension
         Game
         Glue
         Magic
@@ -83,5 +84,6 @@ target_link_libraries(WowClient
         LiquidSystem
         WowServices
         WowSvcs
+        WowExtensions
         dbghelp
 )

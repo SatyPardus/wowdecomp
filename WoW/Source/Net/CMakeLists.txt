@@ -13,4 +13,5 @@ target_link_libraries(Net
     PUBLIC
         ws2_32
         wsock32
+        Extension
 )

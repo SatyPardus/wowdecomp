@@ -35,6 +35,7 @@
 #include "WoW/Source/DB/Rec/MapRec.h"
 #include "WoW/Source/DB/Rec/ScreenEffectRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Game/GameClient/FFXEffects.h"
 #include "WoW/Source/Game/GameClient/PassFogSeed.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
@@ -1476,6 +1477,9 @@ static int32_t UnitUpdateProc(WOWGUID guid, void* param) {
             break;
     }
 
+    // Not in the original: every visible object, after its own display update.
+    sExtensionMgr->OnObjectUpdate(object, FrameTime::s_curTimeMs);
+
     return 1;
 }
 
@@ -2086,6 +2090,9 @@ void CGWorldFrame::OnWorldUpdate() {
 
     CGUnit_C::UpdateAllSmoothFacing();
     CheckEventWorldStateUITimerUpdate();
+
+    // Not in the original: the world is updated for this frame and about to be rendered.
+    sExtensionMgr->OnWorldUpdate(elapsedSec);
 }
 
 // VERIFY: 09c5961f manual
@@ -2101,6 +2108,9 @@ void CGWorldFrame::RenderWorld(void* param) {
     PlayerNameUpdateWorldText();
     worldFrame->OnWorldRender();
     WorldTextRenderBatch();
+
+    // Not in the original: the world is drawn and the device still holds the world camera.
+    sExtensionMgr->OnWorldRendered();
 
     g_theGxDevicePtr->XformSetProjection(projection);
     g_theGxDevicePtr->XformSetView(view);

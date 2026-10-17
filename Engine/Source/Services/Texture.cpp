@@ -18,6 +18,7 @@
 #include "Engine/Source/Services/TextureInt.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/C2Vector.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x009F1028
 static const uint16_t s_pixelFormatBytesPerBlock[NUM_PIXEL_FORMATS] = { 8, 16, 0, 0, 0, 0, 0, 16, 0, 0 };
@@ -1849,6 +1850,9 @@ int32_t PumpBlpTextureAsync(CTexture* texture, void* data) {
 
     s_pumping = 0;
 
+    // Not in the original: the BLP's pixel data is in the Gx texture (both load paths end here).
+    sExtensionMgr->OnTextureLoaded(texture);
+
     return 1;
 }
 
@@ -2529,6 +2533,10 @@ CTexture* TextureCreate(const char* fileName, CGxTexFlags texFlags, CStatus* sta
 
         if (texture) {
             TextureCacheNewTexture(texture, requested);
+
+            // Not in the original: a file texture was created and cached (cache hits returned above).
+            sExtensionMgr->OnTextureCreated(texture, fileName);
+
             return texture;
         }
 

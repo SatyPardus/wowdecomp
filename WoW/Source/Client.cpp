@@ -51,6 +51,7 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/Cfg_ConfigsRec.h"
 #include "WoW/Source/DB/Rec/MapRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Game/DeclinedWords.h"
 #include "WoW/Source/Game/GameClient/ComSatClient.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
@@ -507,6 +508,9 @@ void ZoneDebugDestroy() {
 // VERIFY: a6d33d4d auto
 // OFFSET: 0x00402910
 static void WowClientDestroy() {
+    // Not in the original: mirror of OnClientInitialized, the update handler goes away here.
+    sExtensionMgr->OnClientDestroy();
+
     ValidateNameDestroy();
     DeclinedWordsDestroy();
     SpellVisualsShutdown();
@@ -980,6 +984,9 @@ static int32_t Packet_SMSG_LOGIN_VERIFY_WORLD(void* param, NETMESSAGE msgId, uin
     msg->Get(position.z);
     msg->Get(rotation);
 
+    // Not in the original: the server's world position, before the map-change decision.
+    sExtensionMgr->OnLoginVerifyWorld(zoneID, &position, rotation);
+
     if (zoneID == ClntObjMgrGetMapID()) {
         return 1;
     }
@@ -1014,6 +1021,10 @@ static void InitializeClient() {
     SI2::Init(0);
     ObjectEffectSystem_Initialize();
     FrameXML_RegisterDefault();
+
+    // Not in the original: extension element types join the factory table after the engine's.
+    sExtensionMgr->OnFrameXmlInitialized();
+
     GlueScriptEventsInitialize();
     ScriptEventsInitialize();
     SpecialUnitEffectsInitialize();
@@ -1064,6 +1075,10 @@ static void InitializeClient() {
     CGlueMgr::m_pendingTimerAlert = s_timeTestError;
     SpellVisualsInitialize();
     EventRegister(EVENT_ID_POLL, PollNet);
+
+    // Not in the original: every client system exists and the first frame has not run; the
+    // extension update handler is registered here, after the client's own.
+    sExtensionMgr->OnClientInitialized();
 }
 
 // VERIFY: 56a0f6b5 auto
@@ -1345,6 +1360,9 @@ void ClientInitializeGame(uint32_t mapId, C3Vector position) {
     s_botCheckEnabled = 1;
     BattlenetUI_EnterRealm();
     s_gameInitialized = 1;
+
+    // Not in the original: the world is loaded and the game systems are up.
+    sExtensionMgr->OnEnterWorld(mapId);
 }
 
 // VERIFY: a768ccd6 manual
@@ -1549,6 +1567,9 @@ void ClientDestroyGame(int32_t charSelect, int32_t resumeGlue, int32_t worldLogi
     if (!s_gameInitialized) {
         return;
     }
+
+    // Not in the original: extensions see the world go while everything game-side is still valid.
+    sExtensionMgr->OnLeaveWorld();
 
     s_botCheckEnabled = 0;
     EventUnregister(EVENT_ID_IDLE, ClientIdle);
@@ -1766,12 +1787,20 @@ bool InitializeGlobal() {
     g_rndSeed.SetSeed(OsGetAsyncTimeMs());
     g_clientEventContext = EventCreateContextEx(1, InitializeEngineCallback, DestroyEngineCallback, 0, 0);
 
+    // Not in the original: compiled-in extensions come up once the engine services exist.
+    sExtensionMgr->Initialize();
+    sExtensionMgr->OnStartup();
+
     return true;
 }
 
 // VERIFY: 87ba0ad5 manual
 // OFFSET: 0x00406B70
 void BeginCloseGame() {
+    // Not in the original: extensions go down first, while the CVars and the event system are alive.
+    sExtensionMgr->OnShutdown();
+    sExtensionMgr->Unload();
+
     SMemSetDebugFlags(0, 8);
     OsIMEDestroy();
     OsTimeShutdown();

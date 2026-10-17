@@ -36,6 +36,7 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Object/ObjectClient/Types.h"
 
 // STATIC: 0x00A45570
@@ -6571,6 +6572,9 @@ void CM2Model::ProcessCallbacksRecursive() {
 // VERIFY: d96ccadd manual
 // OFFSET: 0x00832640
 CM2Model::~CM2Model() {
+    // Not in the original: the instance is still complete here.
+    sExtensionMgr->OnModelDestroy(this);
+
     CM2Model* model30 = this->m_model30;
 
     if (model30 && model30->m_refCount-- == 1) {
@@ -7643,6 +7647,10 @@ int32_t CM2Model::InitializeLoaded() {
     this->m_scene->m_time = time;
     this->UpdateLoaded();
     this->m_fFlags &= ~0x800u;
+
+    // Not in the original: the instance is fully built and its queued calls are applied.
+    sExtensionMgr->OnModelLoaded(this);
+
     return 1;
 }
 
@@ -7784,6 +7792,9 @@ int32_t CM2Model::Initialize(CM2Scene* scene, CM2Shared* shared, CM2Model* sourc
             }
         }
     }
+
+    // Not in the original: the instance exists in its scene; loading may still be pending.
+    sExtensionMgr->OnModelCreated(this);
 
     return this->m_shared->CallbackWhenLoaded(this);
 }

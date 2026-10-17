@@ -54,6 +54,7 @@
 #include "WoW/Source/DB/Rec/LiquidTypeRec.h"
 #include "WoW/Source/DB/Rec/MapRec.h"
 #include "WoW/Source/DB/Rec/WMOAreaTableRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/LiquidSystem/Liquid.h"
 #include "WoW/Source/LoadingScreen.h"
 #include "WoW/Source/Object/ObjectClient/Movement_C.h"
@@ -1377,6 +1378,9 @@ void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, in
     Liquid::SetShadersEnabled(shaders);
     Liquid::SetSpecularEnabled(CMap::enableSpecular);
     Liquid::CMaterialBank::Destroy();
+
+    // Not in the original: the map is loaded; zoneID is the Map.dbc id.
+    sExtensionMgr->OnMapLoaded(zoneID, mapName);
 }
 
 // VERIFY: 5c8f2417 manual
@@ -1473,6 +1477,9 @@ void World::UnloadMap() {
     CWorldScene::ClearObjectFadeoutList();
 
     if (CMap::bActive) {
+        // Not in the original: the map is still loaded here.
+        sExtensionMgr->OnMapUnload();
+
         CMap::Unload();
     }
 

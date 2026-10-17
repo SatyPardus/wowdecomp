@@ -24,6 +24,7 @@
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/CiRect.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/DB/Rec/LiquidMaterialRec.h"
 #include "WoW/Source/DB/Rec/LiquidTypeRec.h"
 #include "WoW/Source/LiquidSystem/Liquid.h"
@@ -83,6 +84,9 @@ void CMapChunk::GetVertexPosition(int32_t index, C3Vector* pos) {
 // VERIFY: d0968beb manual
 // OFFSET: 0x007C3370
 void CMapChunk::Purge() {
+    // Not in the original: the chunk's data is still in place here.
+    sExtensionMgr->OnTerrainChunkPurge(this);
+
     if (this->m_renderChunk) {
         CMap::FreeRenderChunk(this->m_renderChunk);
         this->m_renderChunk = nullptr;

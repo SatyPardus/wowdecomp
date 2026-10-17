@@ -8,3 +8,8 @@ target_include_directories(Glue
     PUBLIC
         ${CMAKE_SOURCE_DIR}
 )
+
+target_link_libraries(Glue
+    PRIVATE
+        Extension
+)

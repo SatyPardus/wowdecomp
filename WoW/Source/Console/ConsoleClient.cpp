@@ -23,6 +23,7 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CRect.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00ADBAB4
 static RECTF s_rect = { 0.0f, 1.0f, 1.0f, 1.0f };
@@ -961,6 +962,10 @@ void ConsoleCommandExecute(const char* commandLine, int32_t addToHistory) {
     }
 
     OsValidateFunctionPointer(reinterpret_cast<const void*>(entry->m_handler));
+
+    // Not in the original: the line resolved to a registered command, about to run.
+    sExtensionMgr->OnConsoleCommand(command, arguments);
+
     entry->m_handler(command, arguments);
 
 done:

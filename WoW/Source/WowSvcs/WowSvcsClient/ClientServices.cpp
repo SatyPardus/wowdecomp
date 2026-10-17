@@ -14,6 +14,7 @@
 #include "WoW/Source/Client.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/ChrClassesRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/DB/Rec/ChrRacesRec.h"
 #include "WoW/Source/DB/Rec/MapRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
@@ -1525,6 +1526,9 @@ void ClientConnection::CharacterAbortLogout() {
 // VERIFY: d41a5153 auto
 // OFFSET: 0x006B2180
 void ClientConnection::HandleLogoutComplete() {
+    // Not in the original: the server confirmed the logout; the game is still up here.
+    sExtensionMgr->OnLogoutComplete();
+
     if (this->m_inGame) {
         this->CharacterSetInGame(0);
     }

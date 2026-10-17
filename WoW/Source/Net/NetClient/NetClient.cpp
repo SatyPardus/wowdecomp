@@ -8,6 +8,7 @@
 #include "Engine/Source/Event/Types.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/WowServices/HMAC.h"
 
@@ -277,8 +278,25 @@ int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_
     msg->Get(msgId);
     this->ValidateMessageId(msgId);
 
+    // Not in the original: every incoming message passes here with the cursor at its payload;
+    // a refused message takes the same exit as an opcode without a handler.
+    sExtensionMgr->OnMessageReceived(static_cast<NETMESSAGE>(msgId), timeReceived, msg);
+
+    if (!sExtensionMgr->CanMessageReceive(static_cast<NETMESSAGE>(msgId), timeReceived, msg)) {
+        msg->Reset();
+        return 0;
+    }
+
     if (msgId < NUM_MSG_TYPES && this->m_handlers[msgId]) {
         return this->m_handlers[msgId](this->m_handlerParams[msgId], static_cast<NETMESSAGE>(msgId), timeReceived, msg);
+    }
+
+    // Not in the original: an opcode without a stock handler goes to the handler an extension
+    // registered for it, if any; the stock table above always wins.
+    int32_t result;
+
+    if (sExtensionMgr->DispatchRegisteredMessage(static_cast<NETMESSAGE>(msgId), timeReceived, msg, result)) {
+        return result;
     }
 
     msg->Reset();
@@ -397,6 +415,10 @@ int32_t NetClient::HandleConnect() {
     }
 
     this->m_netState = NS_CONNECTED;
+
+    // Not in the original: the connection is up, nothing sent yet.
+    sExtensionMgr->OnConnected(this);
+
     NetClient::PopObjMgr();
 
     return 1;
@@ -411,6 +433,10 @@ int32_t NetClient::HandleDisconnect() {
 
     this->m_netState = NS_INITIALIZED;
     ConsolePrintf("NetClient::HandleDisconnect()");
+
+    // Not in the original: the connection is gone, the glue has not reacted yet.
+    sExtensionMgr->OnDisconnected(this);
+
     CGlueMgr::NetDisconnectHandler(this);
     NetClient::PopObjMgr();
 
@@ -593,6 +619,9 @@ void NetClient::Send(CDataStore* msg) {
         held->m_msg.Finalize();
         return;
     }
+
+    // Not in the original: every message handed to the connection passes here, held ones included.
+    sExtensionMgr->OnMessageSent(msg);
 
     this->m_serverConnection->SendPacket(msg, 0);
     WowConnection* connection = this->m_serverConnection;

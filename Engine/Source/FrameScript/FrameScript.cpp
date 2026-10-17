@@ -13,6 +13,7 @@
 #include "Engine/Source/lua-5.1/src/lmemPool.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "Engine/Source/lua-5.1/src/lualib.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00D3F780
 double s_scriptTimeDivisor;
@@ -1434,6 +1435,11 @@ void FrameScript_UnregisterScriptEvent(FrameScript_Object* object, FrameScript_E
 // VERIFY: 29317daf manual
 // OFFSET: 0x0081A9A0
 void FrameScript_Destroy() {
+    // Not in the original: the state is still open here.
+    if (s_context) {
+        sExtensionMgr->OnFrameScriptDestroy(s_context);
+    }
+
     lua_close(s_context);
     s_context = nullptr;
     luaM_freePool(s_mempool);

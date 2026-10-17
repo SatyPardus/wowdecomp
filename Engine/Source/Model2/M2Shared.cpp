@@ -24,6 +24,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Os/OsMemory.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00A45644
 static const uint32_t s_skinProfileBoneCounts[4] = { 256, 64, 53, 21 };
@@ -1322,6 +1323,9 @@ int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
 
     this->m_flags |= 2;
 
+    // Not in the original: the skin profile is usable, the waiting models are not initialised yet.
+    sExtensionMgr->OnModelSkinLoaded(this);
+
     while (this->m_callbackList) {
         CM2Model* model = this->m_callbackList;
         model->UnlinkFromCallbackList();
@@ -1566,6 +1570,9 @@ int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint
 
     sequence->m_flags = (sequence->m_flags & ~0x30u) | 0x20;
 
+    // Not in the original: this sequence's .anim data is relocated and the sequence flagged loaded.
+    sExtensionMgr->OnModelSequenceLoaded(this, sequenceIndex);
+
     return 1;
 }
 
@@ -1716,6 +1723,9 @@ int32_t CM2Shared::Initialize() {
         }
     }
 
+    // Not in the original: one CTexture per M2Texture exists now.
+    sExtensionMgr->OnModelTexturesCreated(this);
+
     for (uint32_t i = 0; i < this->m_data->m_bones.m_count; i++) {
         if (this->m_data->m_bones[i].m_flags & 0x2F8) {
             this->m_billboardBoneCount++;
@@ -1755,6 +1765,9 @@ int32_t CM2Shared::FinishLoading() {
     this->m_lowPrioritySequenceCapacity = count;
     this->m_flags |= 1;
     this->m_lowPrioritySequenceCount = 0;
+
+    // Not in the original: the .m2 data is relocated and initialised; the skin read is in flight.
+    sExtensionMgr->OnModelSharedLoaded(this);
 
     return 1;
 }
@@ -1847,6 +1860,9 @@ void CM2Shared::CancelAllDeferredSequences() {
 // VERIFY: 7f65a462 manual
 // OFFSET: 0x0083D5B0
 CM2Shared::~CM2Shared() {
+    // Not in the original: everything the shared owns is still allocated here.
+    sExtensionMgr->OnModelSharedDestroy(this);
+
     this->CancelAllDeferredSequences();
 
     int32_t pending = 0;

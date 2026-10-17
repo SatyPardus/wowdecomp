@@ -1085,6 +1085,9 @@ void InitTerrainTypeFlags() {
 // VERIFY: ccd0205b manual
 // OFFSET: 0x00634C60
 void ClientDBShutdown() {
+    // Not in the original: mirror of OnClientDBInitialize, before the derived tables go.
+    sExtensionMgr->OnClientDBShutdown();
+
     s_resistances.Clear();
     s_terrainTypeSoundIDs.Clear();
 }
@@ -1147,6 +1150,9 @@ void ClientDBInitialize() {
     InitWeaponSubclasses();
     SDBItemSubclassInitialize();
     InitLights(1);
+
+    // Not in the original: every stock store and derived table is ready; extension stores load here.
+    sExtensionMgr->OnClientDBInitialize();
 }
 
 // VERIFY: 144a65d1 auto

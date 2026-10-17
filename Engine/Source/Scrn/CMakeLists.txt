@@ -12,4 +12,5 @@ target_include_directories(Scrn
 target_link_libraries(Scrn
     PRIVATE
         freetype
+        Extension
 )

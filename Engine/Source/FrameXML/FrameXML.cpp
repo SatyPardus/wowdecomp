@@ -26,6 +26,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/MD5.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00AF5718
 static CFrameXMLStatus s_frameXMLStatus;
@@ -284,6 +285,9 @@ CSimpleFrame* FrameXML_CreateFrame(XMLNode* node, CSimpleFrame* parent, CStatus*
     FrameFactoryNode* factory = s_factories.Ptr(node->m_name.m_str);
 
     if (!factory) {
+        // Not in the original: the element type is in no factory table.
+        sExtensionMgr->OnUnknownFrameType(node->m_name.m_str, node);
+
         status->Add(STATUS_WARNING, "Unknown frame type: %s", node->m_name.m_str);
         return nullptr;
     }
@@ -357,6 +361,9 @@ CSimpleFrame* FrameXML_CreateFrame(XMLNode* node, CSimpleFrame* parent, CStatus*
     frame->PreLoadXML(node, status);
     frame->LoadXML(node, status);
     frame->PostLoadXML(node, status);
+
+    // Not in the original: the frame is built from its element.
+    sExtensionMgr->OnFrameCreated(frame, node);
 
     return frame;
 }

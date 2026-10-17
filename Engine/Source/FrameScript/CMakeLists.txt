@@ -8,3 +8,8 @@ target_include_directories(FrameScript
     PUBLIC
         ${CMAKE_SOURCE_DIR}
 )
+
+target_link_libraries(FrameScript
+    PRIVATE
+        Extension
+)

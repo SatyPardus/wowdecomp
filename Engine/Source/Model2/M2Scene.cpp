@@ -21,6 +21,7 @@
 #include "Engine/Source/Tempest/C33Matrix.h"
 #include "Engine/Source/Tempest/C3Ray.h"
 #include "Engine/Source/Tempest/NTempest.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00A45374
 const uint32_t s_localLighting[7] = { 1, 1, 1, 1, 1, 0, 0 };
@@ -1738,6 +1739,16 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
     for (CM2Model* model = this->m_animateList; model; model = model->m_animateNext) {
         if (!model->m_attachParent) {
             model->AnimateST();
+        }
+    }
+
+    // Not in the original: every root model animated this frame, on the main thread, before
+    // lighting setup; skipped entirely when no ModelScript is registered.
+    if (!ScriptRegistry<ModelScript>::ScriptPointerList.empty()) {
+        for (CM2Model* model = this->m_animateList; model; model = model->m_animateNext) {
+            if (!model->m_attachParent) {
+                sExtensionMgr->OnModelAnimated(model);
+            }
         }
     }
 

@@ -13,6 +13,11 @@ target_include_directories(Ui
         ${CMAKE_SOURCE_DIR}
 )
 
+target_link_libraries(Ui
+    PRIVATE
+        Extension
+)
+
 if (WIN32)
     target_link_libraries(Ui
         PRIVATE
