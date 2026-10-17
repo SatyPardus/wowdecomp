@@ -235,7 +235,7 @@ The shared `WorldClient` static library now builds for all three Apple targets.
 Its platform fixes retain Windows headers on Windows, use the shared allocator
 type-name helper and portable stack allocation/finite checks, and keep anisotropic
 filtering's flag at its original 32-bit width. This is a compilation milestone;
-world startup and terrain rendering are not yet connected to the native host.
+full world startup is not yet connected to the native host.
 The shared terrain surface reader now copies unaligned ADT numeric data into
 aligned arrays, validates chunk/index extents, texture references and compressed
 alpha rows, and leaves archive bytes unchanged. Original world-space PN/PNC vertex
@@ -255,8 +255,20 @@ interpolation and big-alpha weighted sums retain their distinct semantics.
 256 GPU draws compare independent position/UV/light/fog/material references,
 including packed and RGBA blend maps. macOS ASan/UBSan and Metal validation pass;
 both iOS targets build and the simulator passes the checks and presents 120 frames.
-Actual terrain tiles are not yet connected to the host. Terrain0/2/3, projected
-shadows, cube reflection and fixed-function terrain paths remain unsupported.
+The native host can now draw a complete authored ADT surface with
+`WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
+This selection is mutually exclusive with the model/creature variables. It uses
+the original Services texture lifecycle and specular `_s.blp` selection, all
+material layers, WDT-selected vertex colors, hole indices and packed/RGBA blend
+maps. UV animation and per-layer lighting flags are preserved; cube-reflection
+materials fail explicitly. The preview supplies an orbiting camera and explicit
+lighting/fog; World DayNight, WMO/doodads, liquids and sound are not integrated.
+Both real tiles draw 256 chunks in one render pass and reproduce resident-frame
+pixels across two resource/context cycles. macOS ASan/UBSan, Metal validation and
+an Elwynn 120-frame window run pass; both iOS targets build and the simulator
+passes the checks and presents 120 frames of Northrend. This is surface rendering,
+not full world loading. Terrain0/2/3, projected shadows, cube reflection and
+fixed-function terrain paths remain unsupported.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
