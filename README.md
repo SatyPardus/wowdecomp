@@ -165,8 +165,9 @@ vertex permutations. Preview startup reads the mounted `vs_3_0/UI.bls` and
 `ps_3_0/UI.bls`; bounded BLS parsing and recognized code fingerprints prevent a
 modified shader from silently selecting the wrong native implementation. The
 original 2.0 family is recognized too. This is shader identification, not the
-client's signature policy. The game shader API accepts only this verified family
-and reports unsupported effects explicitly; it does not lower shader profiles.
+client's signature policy. The game shader API accepts verified UI and FFX filter
+families and reports unsupported effects explicitly. It retains the original
+profile lookup order for absent assets and rejects unknown code in present assets.
 The device supports synchronous BGRA pixel and Depth32Float depth readback,
 clipped top-left rectangles, continuation of drawing after a readback, and the
 original deferred screenshot interface. Only explicit readback waits for GPU
@@ -200,8 +201,13 @@ that their glyph textures reproduce the same pixels after reupload.
 Native primitives for the original `FFXBox4` and `FFXGauss4` assets now preserve
 four independent coordinates, textures and samplers. Box4 averages RGB with
 vertex alpha; Gauss4 filters RGBA using the original tap weights. GPU checks cover
-both effects and two-pass intermediate sampling. Their game shader factory and
-original FFX pass integration are still pending.
+both effects and two-pass intermediate sampling. The original `PassBox4` and
+`PassGauss4` now execute through Services textures and the Gx shader factory,
+using their custom PCT4 stream and fixed vertex matrices. Metal quad coordinates
+preserve D3D9 sampling at integer screen centers, including fractional downsample
+ratios. The pass checks cover padded targets, intermediate pixels, shader caching
+and restoration of caller matrices/state. The full FFX effect graph and remaining
+post-processing shader families are not yet connected.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

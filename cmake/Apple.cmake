@@ -103,6 +103,9 @@ add_library(AppleGameResources STATIC
     Engine/Source/Services/TextureBlob.cpp
     Engine/Source/Services/SysMessage.cpp
     Engine/Source/Services/AsyncFile.cpp
+    Engine/Source/FFX/FFX.cpp
+    Engine/Source/FFX/PassBox4.cpp
+    Engine/Source/FFX/PassGauss4.cpp
     Engine/Source/Base/Prop.cpp
 )
 target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile)
@@ -125,7 +128,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
 else ()
     target_link_libraries(AppleMetal PUBLIC "-framework AppKit")
 endif ()
-add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm)
+add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm)

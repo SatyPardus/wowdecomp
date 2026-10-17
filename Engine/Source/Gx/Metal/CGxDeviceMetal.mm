@@ -23,23 +23,46 @@ struct Pool {
     std::vector<Update> updates;
 };
 struct Texture { BLP::Image image; id<MTLTexture> gpu; uint32_t base = 0; bool renderTarget = false; };
-struct Shader { std::shared_ptr<GxMetal::UIShader> ui; uint32_t permutation; };
-std::vector<uint8_t> ReadShader(const char* path) {
+struct Shader { std::shared_ptr<GxMetal::UIShader> ui; uint32_t permutation; GxMetal::FragmentEffect effect; };
+std::vector<uint8_t> ReadShader(const char* path, bool optional = false) {
     SFileImpl* file = nullptr;
-    Require(SFileOpenFile(path, &file) && file, "Cannot open required UI shader from mounted Data");
+    if (!SFileOpenFile(path, &file) || !file) {
+        Require(optional, "Cannot open required shader from mounted Data");
+        return {};
+    }
     struct Close { SFileImpl* file; ~Close() { SFileCloseFile(file); } } close{file};
     uint32_t high = 0;
     const uint32_t size = SFileGetFileSize(file, &high);
-    Require(!high && size && size <= 1024 * 1024, "Invalid UI shader file size");
+    Require(!high && size && size <= 1024 * 1024, "Invalid shader file size");
     std::vector<uint8_t> data(size);
     uint32_t read = 0;
-    Require(SFileReadFile(file, data.data(), size, &read, nullptr, 0) && read == size, "Incomplete UI shader file");
+    Require(SFileReadFile(file, data.data(), size, &read, nullptr, 0) && read == size, "Incomplete shader file");
     return data;
 }
 std::shared_ptr<GxMetal::UIShader> LoadUI() {
     return std::make_shared<GxMetal::UIShader>(GxMetal::UIShader::FromBls(
         ReadShader("Shaders\\Vertex\\vs_3_0\\UI.bls"), ReadShader("Shaders\\Pixel\\ps_3_0\\UI.bls")));
 }
+const char* ShaderFamily(GxMetal::FragmentEffect effect) {
+    switch (effect) {
+        case GxMetal::FragmentEffect::Box4: return "FFXBox4";
+        case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
+        default: return "UI";
+    }
+}
+void LoadFilter(GxMetal::FragmentEffect effect) {
+    // Match IShaderLoad's asset lookup. A present but unknown higher-profile
+    // shader must fail validation, never silently select a different effect.
+    for (const char* profile : {"ps_3_0", "ps_2_0"}) {
+        const auto path = std::string("Shaders\\Pixel\\") + profile + "\\" + ShaderFamily(effect) + ".bls";
+        auto bytes = ReadShader(path.c_str(), true);
+        if (bytes.empty()) { continue; }
+        GxMetal::Filter4Shader::FromBls(bytes, effect);
+        return;
+    }
+    throw std::runtime_error("Cannot find the original FFX filter shader in mounted Data");
+}
+
 BLP::Format ImageFormat(EGxTexFormat format) {
     switch (format) {
         case GxTex_Argb8888: return BLP::Format::BGRA8;
@@ -211,7 +234,7 @@ struct CGxDeviceMetal::Impl {
 
 CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(device)) {
     m_api = GxApi_Metal;
-    m_caps.m_numTmus = 1;
+    m_caps.m_numTmus = 4;
     m_caps.m_numStreams = 1;
     m_caps.m_streamOffset = 1;
     m_caps.m_colorFormat = GxCF_argb;
@@ -226,7 +249,7 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
     m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
     m_caps.m_texNonPow2 = 1;
-    // Select the original 3.0 assets, without falling back to a lower profile.
+    // Advertise the original profile; resolve missing assets in the game order.
     // ShaderCreate still rejects every family lacking a verified native effect.
     m_caps.m_shaderTargets[GxSh_Vertex] = 3;
     m_caps.m_shaderTargets[GxSh_Pixel] = 4;
@@ -584,30 +607,36 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
 
 void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const char* path, const char* name, uint32_t count) {
     Require(shaders && path && name && (target == GxSh_Vertex || target == GxSh_Pixel), "Invalid Metal Gx shader request");
-    Require(SStrCmpI(name, "UI", STORM_MAX_STR) == 0 && count == (target == GxSh_Vertex ? 2u : 1u) &&
+    const auto effect = SStrCmpI(name, "FFXBox4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Box4 :
+        SStrCmpI(name, "FFXGauss4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Gauss4 : GxMetal::FragmentEffect::Unlit;
+    const char* family = ShaderFamily(effect);
+    Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
+        count == (effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : 2u) &&
+        (effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
     bool cached = true;
     for (uint32_t i = 0; i < count; ++i) {
-        const std::string key = count == 1 ? "UI" : "UI:" + std::to_string(i);
+        const std::string key = count == 1 ? family : std::string(family) + ":" + std::to_string(i);
         cached = cached && m_shaderList[target].Ptr(key.c_str());
     }
     if (cached) {
         for (uint32_t i = 0; i < count; ++i) {
-            const std::string key = count == 1 ? "UI" : "UI:" + std::to_string(i);
+            const std::string key = count == 1 ? family : std::string(family) + ":" + std::to_string(i);
             shaders[i] = m_shaderList[target].Ptr(key.c_str()); ++shaders[i]->m_refCount;
         }
         return;
     }
     // Validate the mounted assets before adding any live shader objects.
-    auto ui = LoadUI();
+    std::shared_ptr<GxMetal::UIShader> ui;
+    if (effect == GxMetal::FragmentEffect::Unlit) { ui = LoadUI(); } else { LoadFilter(effect); }
     for (uint32_t i = 0; i < count; ++i) {
-        const std::string key = count == 1 ? "UI" : "UI:" + std::to_string(i);
+        const std::string key = count == 1 ? family : std::string(family) + ":" + std::to_string(i);
         CGxShader* shader = m_shaderList[target].Ptr(key.c_str());
         if (!shader) {
             shader = m_shaderList[target].New(key.c_str(), 0, 0);
             shader->m_target = target;
-            auto entry = m->shaders.emplace(shader, Shader{ui, i});
+            auto entry = m->shaders.emplace(shader, Shader{ui, i, effect});
             shader->m_apiSpecific = &entry.first->second;
             shader->m_loaded = shader->m_valid = 1;
         }
@@ -627,9 +656,11 @@ void CGxDeviceMetal::ShaderDestroy(CGxShader*& shader) {
 }
 void CGxDeviceMetal::IShaderCreate(CGxShader* shader) { Require(m->shaders.count(shader), "Unknown native Gx shader"); shader->m_valid = shader->m_loaded = 1; }
 void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const char* name) {
-    Require(shader && m->shaders.count(shader) && path && name && SStrCmpI(name, "UI", STORM_MAX_STR) == 0 &&
+    Require(shader && m->shaders.count(shader) && path && name && SStrCmpI(name, ShaderFamily(m->shaders.at(shader).effect), STORM_MAX_STR) == 0 &&
         SStrCmpI(path, shader->m_target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0, "Unsupported native shader reload");
-    m->shaders.at(shader).ui = LoadUI(); IShaderCreate(shader);
+    auto& native = m->shaders.at(shader);
+    if (native.effect == GxMetal::FragmentEffect::Unlit) { native.ui = LoadUI(); } else { LoadFilter(native.effect); }
+    IShaderCreate(shader);
 }
 void CGxDeviceMetal::ShaderConstantsSet(EGxShTarget target, uint32_t index, const float* values, uint32_t count) {
     Require((target == GxSh_Vertex || target == GxSh_Pixel) && values && index <= 256 && count <= 256 - index, "Invalid Gx shader constant range");
@@ -637,33 +668,54 @@ void CGxDeviceMetal::ShaderConstantsSet(EGxShTarget target, uint32_t index, cons
 }
 
 void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
-    Require(m->command && batch && m_primVertexBuf, "Gx draw requires an active frame and vertices");
+    Require(m->command && batch, "Gx draw requires an active frame and batch");
     auto integer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.u[0]; };
     auto pointer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.p; };
     auto* vertex = static_cast<CGxShader*>(pointer(GxRs_VertexShader));
     auto* pixel = static_cast<CGxShader*>(pointer(GxRs_PixelShader));
-    Require(vertex && pixel && m->shaders.count(vertex) && m->shaders.count(pixel) && vertex->m_target == GxSh_Vertex && pixel->m_target == GxSh_Pixel,
-        "Gx draw requires verified native UI vertex and pixel shaders; fixed function is pending");
+    Require(pixel && m->shaders.count(pixel) && pixel->m_target == GxSh_Pixel, "Gx draw requires a verified native pixel shader");
+    const auto effect = m->shaders.at(pixel).effect;
+    const bool filter = effect != GxMetal::FragmentEffect::Unlit;
+    Require(filter ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex && m->shaders.at(vertex).ui,
+        "Unsupported native Gx vertex/pixel shader combination");
+    CGxBuf* vertices = filter ? m_primVertexFormatBuf[GxVA_Position] : m_primVertexBuf;
+    Require(vertices, "Gx draw requires vertices");
+    if (filter) {
+        Require(m_primVertexFormat == GxVertexBufferFormats_Last && m_primVertexMask == 0x3D1 && vertices->m_itemSize == 48 &&
+            !integer(GxRs_Lighting), "FFX requires the original unlit PCT4 vertex stream");
+        const CGxVertexAttrib expected[] = {{GxVA_Position, 4, 0, 48}, {GxVA_Color0, 0, 12, 48},
+            {GxVA_TexCoord0, 3, 16, 48}, {GxVA_TexCoord1, 3, 24, 48}, {GxVA_TexCoord2, 3, 32, 48}, {GxVA_TexCoord3, 3, 40, 48}};
+        for (const auto& attr : expected) {
+            const auto& actual = m_primVertexFormatAttrib[attr.m_attrib];
+            Require(m_primVertexFormatBuf[attr.m_attrib] == vertices && actual.m_type == attr.m_type &&
+                actual.m_offset == attr.m_offset && actual.m_bufSize == attr.m_bufSize, "Unsupported FFX vertex attribute layout");
+        }
+        for (unsigned i = 0; i < 4; ++i) {
+            Require(!integer(EGxRenderState(GxRs_TexGen0 + i)) && integer(EGxRenderState(GxRs_TextureCoord0 + i)) == i &&
+                (m_xforms[i].m_flags[m_xforms[i].m_level] & CGxMatrixStack::F_Identity), "FFX texture transforms or generated coordinates are not implemented");
+        }
+    }
     Require(!(MasterEnable(GxMasterEnable_Fog) && integer(GxRs_Fog)) && !integer(GxRs_ClipPlaneMask) &&
         !integer(GxRs_PointSprite) && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] == 0 && MasterEnable(GxMasterEnable_PolygonFill),
         "Gx fog, clip planes, point sprites, depth bias or wireframe path is not implemented");
-    Require(m_primVertexFormat < GxVertexBufferFormats_Last && GxVertexSize(m_primVertexFormat) == m_primVertexBuf->m_itemSize,
+    Require(filter || (m_primVertexFormat < GxVertexBufferFormats_Last && GxVertexSize(m_primVertexFormat) == vertices->m_itemSize),
         "Custom or split Gx vertex streams are not implemented");
     Require(!m_bufLocked[GxPoolTarget_Vertex] && !m_bufLocked[GxPoolTarget_Index], "Gx draw uses locked buffers");
     Require(indexed ? m_primIndexBuf && m_primIndexBuf->m_itemSize == 2 && batch->m_start <= m_primIndexBuf->m_itemCount &&
-        batch->m_count <= m_primIndexBuf->m_itemCount - batch->m_start && batch->m_maxIndex < m_primVertexBuf->m_itemCount :
-        batch->m_count <= m_primVertexBuf->m_itemCount, "Gx draw exceeds its logical buffer range");
-    auto* texture = static_cast<CGxTex*>(pointer(GxRs_Texture0));
-    Require(texture != nullptr, "Native UI draw requires texture 0");
-    Require(texture != m_textureTarget[GxBuffers_Color].m_texture, "Gx draw cannot sample its active color target");
-    ITexMarkAsUpdated(texture);
+        batch->m_count <= m_primIndexBuf->m_itemCount - batch->m_start && batch->m_maxIndex < vertices->m_itemCount :
+        batch->m_count <= vertices->m_itemCount, "Gx draw exceeds its logical buffer range");
     GxMetal::GeometryDraw draw;
-    draw.vertices = m->Flush(m_primVertexBuf); draw.vertexOffset = m_primVertexBuf->m_index;
+    draw.vertices = m->Flush(vertices); draw.vertexOffset = vertices->m_index;
     if (indexed) { draw.indices = m->Flush(m_primIndexBuf); draw.indexOffset = m_primIndexBuf->m_index; }
-    draw.format = m_primVertexFormat; draw.batch = *batch;
-    const auto& shader = m->shaders.at(vertex);
-    const auto transform = shader.ui->VertexTransform(s_shadowConstants[1].constants, 256, shader.permutation);
-    draw.clipFromModel = transform.clipFromModel; draw.screenAtDepth = transform.screenAtDepth;
+    draw.format = m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
+    if (filter) {
+        const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
+        draw.clipFromModel = world.m_mtx[world.m_level] * view.m_mtx[view.m_level] * m_projNative;
+    } else {
+        const auto& shader = m->shaders.at(vertex);
+        const auto transform = shader.ui->VertexTransform(s_shadowConstants[1].constants, 256, shader.permutation);
+        draw.clipFromModel = transform.clipFromModel; draw.screenAtDepth = transform.screenAtDepth;
+    }
     draw.depthTest = MasterEnable(GxMasterEnable_DepthTest) && integer(GxRs_DepthTest);
     draw.depthWrite = MasterEnable(GxMasterEnable_DepthWrite) && integer(GxRs_DepthWrite);
     draw.depthFunction = integer(GxRs_DepthFunc);
@@ -682,10 +734,20 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     state.blend = EGxBlend(integer(GxRs_BlendingMode)); state.alphaRef = integer(GxRs_AlphaRef);
     state.colorWrite = MasterEnable(GxMasterEnable_ColorWrite) ? integer(GxRs_ColorWrite) : 0;
     state.blendFactor = m_appRenderStates[Unk84].m_value.m_data.f[0];
-    state.filter = EGxTexFilter(texture->m_flags.m_filter);
-    state.wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); state.wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
-    state.anisotropy = texture->m_flags.m_maxAnisotropy;
-    m->gpu.DrawUnlit(m->command, m->pass, m->textures.at(texture).gpu, draw, {}, state);
+    std::array<id<MTLTexture>, 4> textures{};
+    std::array<GxMetal::TextureDrawState, 4> states;
+    for (unsigned i = 0; i < (filter ? 4u : 1u); ++i) {
+        auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
+        Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");
+        ITexMarkAsUpdated(texture);
+        textures[i] = m->textures.at(texture).gpu;
+        states[i] = state;
+        states[i].filter = EGxTexFilter(texture->m_flags.m_filter);
+        states[i].wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); states[i].wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
+        states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
+    }
+    if (filter) { m->gpu.DrawFilter4(m->command, m->pass, textures, draw, states); }
+    else { m->gpu.DrawUnlit(m->command, m->pass, textures[0], draw, {}, states[0]); }
     m->ConsumedPass();
 }
 void CGxDeviceMetal::XformSetProjection(const C44Matrix& matrix) {
