@@ -1,13 +1,24 @@
 #include "Engine/Source/Services/AsyncFile.h"
+#include "Engine/Source/Services/Texture.h"
+#include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/Source/SThread.h"
+#include "Engine/Source/BLPFile/BlpImage.h"
+#include "Engine/Source/BLPFile/Types.h"
+#include <filesystem>
+#include <fstream>
+#include <cstring>
+#include <cstdlib>
+#include <unistd.h>
 #include <chrono>
 #include <memory>
 #include <stdexcept>
 #include <thread>
 #include <vector>
+
+void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference);
 
 namespace {
 void Require(bool value, const char* message) { if (!value) { throw std::runtime_error(message); } }
@@ -45,8 +56,8 @@ struct Read {
         if (read.cleanupOnFailure) { AsyncFileReadDestroyObject(read.object); read.object = nullptr; }
     }
 };
-int32_t Initialize(const void*, void*) { AsyncFileReadInitialize(0, 20); return 1; }
-int32_t Destroy(const void*, void*) { AsyncFileReadDestroy(); return 1; }
+int32_t Initialize(const void*, void*) { AsyncFileReadInitialize(0, 20); TextureInitialize(); return 1; }
+int32_t Destroy(const void*, void*) { TextureDestroy(); AsyncFileReadDestroy(); return 1; }
 }
 
 void CheckGameAsyncFiles() {
@@ -55,6 +66,49 @@ void CheckGameAsyncFiles() {
         struct Cleanup { bool active = true; ~Cleanup() { if (active) { EventDestroy(); } PropDestroy(); } } cleanup;
         EventCreateContextEx(1, Initialize, Destroy, 1, 0);
         EventProcessPending();
+        {
+            CStatus status;
+            auto* texture = TextureCreate("Interface\\GLUES\\COMMON\\GLUES-WOW-BCLOGO.BLP", CGxTexFlags(GxTex_NearestMipNearest), &status, 1);
+            Require(texture != nullptr, "Original TextureCreate returned no texture");
+            struct CloseTexture { CTexture* texture; ~CloseTexture() { HandleClose(reinterpret_cast<HOBJECT>(texture)); } } close{texture};
+            Require(TextureGetGxTex(texture, 1, &status) != nullptr && status.IsEmpty(), "Original Services texture did not become ready");
+            uint32_t width = 0, height = 0;
+            Require(TextureGetDimensions(texture, &width, &height, 1) && width == 256 && height == 128, "Original Services texture dimensions changed");
+            auto* cached = TextureCreate("interface\\glues\\common\\glues-wow-bclogo.blp", CGxTexFlags(GxTex_NearestMipNearest), &status, 1);
+            Require(cached == texture && TextureGetRefCnt(texture) == 2, "Services filename/flags cache failed");
+            HandleClose(reinterpret_cast<HOBJECT>(cached));
+            Read source("Interface\\GLUES\\COMMON\\GLUES-WOW-BCLOGO.BLP");
+            CheckServicesTexturePixels(texture->m_gxTex, BLP::Image::Load(source.expected.data(), source.expected.size(), 256 * 1024 * 1024));
+        }
+        if (!cycle) {
+            const auto pattern = (std::filesystem::temp_directory_path() / "wow-texture-XXXXXX").string();
+            std::vector<char> temporary(pattern.begin(), pattern.end()); temporary.push_back(0);
+            char* directory = temporary.data();
+            Require(mkdtemp(directory) != nullptr, "Cannot create texture probe scratch directory");
+            struct Remove { const char* path; ~Remove() { std::filesystem::remove_all(path); } } remove{directory};
+            BLPHeader header{};
+            header.m_magic = 0x32504C42; header.m_formatVersion = 1; header.m_colorEncoding = 1;
+            header.m_preferredFormat = PIXEL_ARGB8888; header.m_alphaSize = 8;
+            header.m_width = header.m_height = 2048;
+            header.m_mipOffsets[0] = sizeof(header); header.m_mipSizes[0] = 2048 * 2048 * 2;
+            header.m_extended.m_palette[1] = {17, 34, 51, 0};
+            std::vector<uint8_t> bytes(sizeof(header) + header.m_mipSizes[0], 255);
+            std::memcpy(bytes.data(), &header, sizeof(header));
+            std::memset(bytes.data() + sizeof(header), 1, 2048 * 2048);
+            const auto filename = std::string(directory) + "/large.blp";
+            { std::ofstream file(filename, std::ios::binary); file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size()); Require(bool(file), "Cannot save texture probe asset"); }
+            CStatus status;
+            auto* large = TextureCreate(filename.c_str(), CGxTexFlags(GxTex_Linear), &status, 1);
+            Require(large && large->m_asyncObject && large->m_asyncObject->m_buffer, "Oversized async texture never started");
+            struct Close { CTexture* t; ~Close() { HandleClose(reinterpret_cast<HOBJECT>(t)); } } close{large};
+            auto* queued = TextureCreate(filename.c_str(), CGxTexFlags(GxTex_Nearest), &status, 1);
+            Require(queued && queued != large && queued->m_asyncObject && !queued->m_asyncObject->m_buffer, "Texture budget did not queue the second request");
+            HandleClose(reinterpret_cast<HOBJECT>(queued));
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            while (large->m_asyncObject && std::chrono::steady_clock::now() < deadline) { EventProcessPending(); std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+            Require(!large->m_asyncObject && large->m_gxTex && large->m_status.IsEmpty(), "Oversized asynchronous palette texture failed");
+            CheckServicesTexturePixels(large->m_gxTex, BLP::Image::Load(bytes.data(), bytes.size(), 256 * 1024 * 1024));
+        }
         {
             std::vector<std::unique_ptr<Read>> reads;
             for (const char* name : {"DBFilesClient\\Map.dbc", "Interface\\GlueXML\\GlueStrings.lua", "Cameras\\FlyByDwarf.m2",

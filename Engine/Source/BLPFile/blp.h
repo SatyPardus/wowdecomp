@@ -37,7 +37,7 @@ class CBLPFile {
     int32_t LockChain2(const char* fileName, PIXEL_FORMAT format, MipBits*& images, uint32_t mipLevel, int32_t inPlace);
     int32_t Open(const char* fileName, int32_t flags);
     uint32_t Pixels(uint32_t mipLevel) const;
-    int32_t Source(void* data);
+    int32_t Source(void* data, size_t size);
     int32_t Unlock(uint32_t mipLevel);
     uint32_t Width(uint32_t mipLevel) const;
 

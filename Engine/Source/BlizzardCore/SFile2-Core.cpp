@@ -1020,6 +1020,18 @@ bool System_SFile2::FindFile(const char* name, char* path, uint32_t size, uint32
         *archive = nullptr;
     }
 
+#if defined(__APPLE__)
+    // Native absolute paths identify a local file directly. Do not prepend the
+    // game install root or search MPQs for a sandbox Documents/cache filename.
+    if (name[0] == '/') {
+        Blizzard::File::FileInfo info;
+        if (Blizzard::String::Length(name) >= size || !Blizzard::File::GetFileInfo(name, &info) || !info.m_regularFile) { return false; }
+        Blizzard::String::Copy(path, name, size);
+        *type = 0;
+        return true;
+    }
+#endif
+
     if (s_useOldFindFile || (name[0] == '\\' && name[1] == '\\') || name[1] == ':') {
         return OldFindFile(name, path, size, flags, type);
     }

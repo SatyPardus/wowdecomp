@@ -113,7 +113,7 @@ int32_t LoadBlpWithAlias(char* fileName, int32_t flags, MipBits** images);
 uint32_t LoadPredrawnMips(CTgaFile* image, const char* format, int32_t flags, MipBits* images);
 int32_t LoadTgaMips(char* fileName, char* extension, int32_t flags, MipBits** images, uint32_t* width, uint32_t* height, EGxTexFormat* gxTexFormat, int32_t* opaque, uint32_t* alphaBits, PIXEL_FORMAT* pixelFormat);
 char* OsPathFindExtensionWithDot(const char* path);
-int32_t PumpBlpTextureAsync(CTexture* texture, void* data);
+int32_t PumpBlpTextureAsync(CTexture* texture, void* data, size_t size);
 void GxTexNullUserFunc(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t face, uint32_t level, void* userArg, uint32_t& texelStrideInBytes, const void*& texels);
 void RequestImageDimensions(uint32_t* width, uint32_t* height, uint32_t* bestMip);
 void ResolveMipLevel(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t face, uint32_t level, void* userArg, uint32_t& texelStrideInBytes, const void*& texels);

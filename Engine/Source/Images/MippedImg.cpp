@@ -36,11 +36,11 @@ uint32_t CalcLevelSize(uint32_t level, uint32_t width, uint32_t height, uint32_t
 
     if (format == PIXEL_DXT1 || format == PIXEL_DXT3 || format == PIXEL_DXT5) {
         if (levelWidth == 6 * levelHeight) {
-            levelHeight = levelHeight > 4 ? levelHeight : 4;
+            levelHeight = (levelHeight + 3) & ~3u;
             levelWidth = 6 * levelHeight;
         } else {
-            levelWidth = levelWidth > 4 ? levelWidth : 4;
-            levelHeight = levelHeight > 4 ? levelHeight : 4;
+            levelWidth = (levelWidth + 3) & ~3u;
+            levelHeight = (levelHeight + 3) & ~3u;
         }
     }
 

@@ -148,10 +148,15 @@ workers wait for queued work or shutdown. Failed/short reads select cleanup
 instead of successful loading, retries restore the starting file offset, and
 cancellation/destruction synchronize with active readers. Checks compare real
 DBC, script, M2, ADT and WMO bytes with synchronous reads, then exercise failure,
-cancellation and worker recreation. The visible native preview loads its texture
-through this queue and the bounded BLP decoder before uploading authored mips.
-The complete Services texture loader, model loader and client startup are still
-being connected.
+cancellation and worker recreation. The visible native preview now uses the
+original `TextureCreate` handle, filename/flags cache, async BLP decoding and Gx
+upload/recreation callbacks. Original BLP reads validate file/mip extents and
+memory budgets; decode scratch grows for actual asset dimensions. An oversized
+texture can run alone above the normal 4 MiB queue budget, and cancellation of
+unallocated requests preserves the budget. Native absolute SFile2 paths allow
+resources in app-owned directories. Real cached texture mip reloads and a 2048
+square palette upload are checked through GPU readback. Remaining texture formats,
+atlases, model loading and full client startup are still being connected.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -84,6 +85,16 @@ static int32_t s_atlasEnable;
 
 // STATIC: 0x00B49C90
 static MipBits* s_mipBits;
+static uint32_t s_mipBitsCapacity;
+
+// Shared, game-thread scratch storage; pointers into it remain valid through
+// the immediate Gx upload. Grow for actual assets, never a fixed 1024 square.
+static void EnsureMipScratch(uint32_t width, uint32_t height) {
+    const uint32_t required = MippedImgCalcSize(PIXEL_ARGB8888, width, height);
+    if (required <= s_mipBitsCapacity) { return; }
+    s_mipBits = static_cast<MipBits*>(SMemReAlloc(s_mipBits, required, __FILE__, __LINE__, 0));
+    s_mipBitsCapacity = required;
+}
 
 // STATIC: 0x00B49C94
 static int32_t s_pumping;
@@ -96,6 +107,10 @@ static int32_t s_gxTexCacheMaxSize;
 
 // STATIC: 0x00B49CA0
 static uint32_t s_asyncLoadBufferUsed;
+
+static uint32_t AvailableAsyncTextureBytes() {
+    return s_asyncLoadBufferUsed >= 0x400000 ? 0 : 0x400000 - s_asyncLoadBufferUsed;
+}
 
 // STATIC: 0x00B49CA4
 static TSHashTableReuse<CTexture, HASHKEY_TEXTUREFILE> s_textureCache;
@@ -207,6 +222,7 @@ int32_t TextureBuildAliasPath(char* buffer, const char* fileName) {
 // VERIFY: a6ae9dde manual
 // OFFSET: 0x004B5280
 MipBits* GetDefaultTexture(uint32_t width, uint32_t height) {
+    EnsureMipScratch(width, height);
     MipBits* images = s_mipBits;
     MipBits* level = images;
 
@@ -717,6 +733,7 @@ int32_t TextureLoadBlpMips(char* fileName, char* extension, int32_t flags, MipBi
         *pixelFormat = pixels;
     }
 
+    if (images == &s_mipBits) { EnsureMipScratch(imageWidth, imageHeight); }
     if (!image.LockChain(pixels, *images, bestMip)) {
         return 0;
     }
@@ -1209,14 +1226,14 @@ void FillInSolidTexture(const CImVector& color, CTexture* texture) {
 // VERIFY: f77dd4dd manual
 // OFFSET: 0x004B69E0
 void AsyncTextureHandler() {
-    uint32_t available = 0x400000 - s_asyncLoadBufferUsed;
+    uint32_t available = AvailableAsyncTextureBytes();
 
     for (CAsyncObject* object = s_asyncLoadList.Head(); !s_asyncLoadList.IsEnd(object); ) {
         CAsyncObject* next = s_asyncLoadList.RawNext(object);
 
-        if (available >= object->m_size) {
+        if (available >= object->m_size || !s_asyncLoadBufferUsed) {
             AsyncTextureProcess(object, 0);
-            available -= object->m_size;
+            available = AvailableAsyncTextureBytes();
         }
 
         object = next;
@@ -1225,9 +1242,9 @@ void AsyncTextureHandler() {
     for (CAsyncObject* object = s_asyncTextureList.Head(); !s_asyncTextureList.IsEnd(object); ) {
         CAsyncObject* next = s_asyncTextureList.RawNext(object);
 
-        if (available >= object->m_size) {
+        if (available >= object->m_size || !s_asyncLoadBufferUsed) {
             AsyncTextureProcess(object, 0);
-            available -= object->m_size;
+            available = AvailableAsyncTextureBytes();
         }
 
         object = next;
@@ -1769,11 +1786,11 @@ void UpdateTgaTexture(EGxTexCommand command, uint32_t width, uint32_t height, ui
 
 // VERIFY: c0a503e5 manual
 // OFFSET: 0x004B7BD0
-int32_t PumpBlpTextureAsync(CTexture* texture, void* data) {
+int32_t PumpBlpTextureAsync(CTexture* texture, void* data, size_t size) {
     CBLPFile image;
 
-    if (!image.Source(data)) {
-        texture->m_status.Add(STATUS_FATAL, "BLP Texture failure: \"%s\" invalid file version\n", texture->m_filename);
+    if (!image.Source(data, size)) {
+        texture->m_status.Add(STATUS_FATAL, "BLP Texture failure: \"%s\" invalid or truncated BLP data\n", texture->m_filename);
         return 0;
     }
 
@@ -1793,11 +1810,17 @@ int32_t PumpBlpTextureAsync(CTexture* texture, void* data) {
     RequestImageDimensions(&width, &height, &bestMip);
     texture->m_bestMip = bestMip;
 
-    PIXEL_FORMAT pixelFormat;
-    EGxTexFormat gxTexFormat;
+    PIXEL_FORMAT pixelFormat = PIXEL_UNSPECIFIED;
+    EGxTexFormat gxTexFormat = GxTex_Unknown;
     TextureGetTextureFormats(pixelFormat, gxTexFormat, static_cast<PIXEL_FORMAT>(image.m_header.m_preferredFormat), image.m_header.m_alphaSize);
+    if (gxTexFormat == GxTex_Unknown) {
+        texture->m_status.Add(STATUS_FATAL, "BLP Texture failure: %s: unsupported preferred format %u\n", texture->m_filename, image.m_header.m_preferredFormat);
+        return 0;
+    }
 
+    EnsureMipScratch(width, height);
     s_pumping = 1;
+    struct PumpScope { ~PumpScope() { s_pumping = 0; } } pumpScope;
 
     if (!image.LockChain2(texture->m_filename, pixelFormat, s_mipBits, texture->m_bestMip, 1)) {
         s_pumping = 0;
@@ -1858,13 +1881,23 @@ int32_t PumpBlpTextureAsync(CTexture* texture, void* data) {
 // VERIFY: 85a7ce70 manual
 // OFFSET: 0x004B7E80
 void AsyncTextureSuccessCallback(CTexture* texture) {
-    if (!PumpBlpTextureAsync(texture, texture->m_asyncObject->m_buffer)) {
+#if defined(__APPLE__)
+    try {
+        PumpBlpTextureAsync(texture, texture->m_asyncObject->m_buffer, texture->m_asyncObject->m_size);
+    } catch (const std::exception& error) {
+        texture->m_status.Add(STATUS_FATAL, "BLP Texture failure: %s: %s\n", texture->m_filename, error.what());
+    }
+    if (!texture->m_status.IsEmpty()) { SysMsgAdd(&texture->m_status); }
+#else
+    if (!PumpBlpTextureAsync(texture, texture->m_asyncObject->m_buffer, texture->m_asyncObject->m_size)) {
         if (!texture->m_status.IsEmpty()) {
             SysMsgAdd(&texture->m_status);
         }
 
         FillInSolidTexture(*reinterpret_cast<const CImVector*>(&s_defaultColor), texture);
     }
+
+#endif
 
     SFileCloseFile(texture->m_asyncObject->m_file);
     texture->m_asyncObject->m_file = nullptr;
@@ -1893,7 +1926,7 @@ int32_t AsyncTextureStatus() {
 // VERIFY: f4a9a3e6 manual
 // OFFSET: 0x004B7F80
 void TextureInitialize() {
-    s_mipBits = static_cast<MipBits*>(SMemAlloc(MippedImgCalcSize(PIXEL_ARGB8888, 1024, 1024), __FILE__, __LINE__, 0));
+    EnsureMipScratch(1024, 1024);
     AsyncFileReadAddPollHandler(AsyncTextureHandler);
     AsyncFileReadAddStatusHandler(AsyncTextureStatus);
     s_currentTime = OsGetAsyncTimeMs();
@@ -2046,6 +2079,7 @@ void TextureDestroy() {
     s_gxTexCacheFree.Clear();
     SMemFree(s_mipBits, __FILE__, __LINE__, 0);
     s_mipBits = nullptr;
+    s_mipBitsCapacity = 0;
 
     for (int32_t x = 0; x < 6; x++) {
         for (int32_t y = 0; y < 6; y++) {
@@ -2121,9 +2155,10 @@ CTexture::~CTexture() {
             this->m_asyncObject->m_userPostloadCallback = this->m_asyncObject->m_userPostUnloadCallback;
         } else {
             void* buffer = this->m_asyncObject->m_buffer;
+            const uint32_t allocatedSize = buffer ? this->m_asyncObject->m_size : 0;
 
             if (AsyncFile::Cancel(this->m_asyncObject, AsyncTextureDestroyedCallback)) {
-                s_asyncLoadBufferUsed -= this->m_asyncObject->m_size;
+                s_asyncLoadBufferUsed -= allocatedSize;
                 SMemFree(buffer, __FILE__, __LINE__, 0);
             }
         }
@@ -2148,6 +2183,14 @@ CTexture* CreateBlpSync(const char* fileName, char* extension, uint32_t flags, C
         return nullptr;
     }
 
+    uint32_t high = 0;
+    const uint32_t fileSize = SFileGetFileSize(file, &high);
+    if (high || fileSize < offsetof(BLPHeader, m_extended) || fileSize > 64 * 1024 * 1024) {
+        SFileCloseFile(file);
+        SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
+        return nullptr;
+    }
+
     CTexture* texture = new ("HTEXTURE", SLOG_OBJECT) CTexture;
     texture->m_gxTexFlags = texFlags;
 
@@ -2164,14 +2207,13 @@ CTexture* CreateBlpSync(const char* fileName, char* extension, uint32_t flags, C
     }
 
     SStrCopy(texture->m_filename, fileName, STORM_MAX_STR);
-    uint32_t size = SFileGetFileSize(file, nullptr);
+    uint32_t size = fileSize;
     void* data = SMemAlloc(size, __FILE__, __LINE__, 0);
 
-    if (!SFileReadFile(file, data, size, nullptr, nullptr, 0)) {
-        DebugLog("CreateBlpTexture() failed read: %s.\n", fileName);
-    }
-
-    if (!PumpBlpTextureAsync(texture, data)) {
+    uint32_t bytesRead = 0;
+    const bool read = SFileReadFile(file, data, size, &bytesRead, nullptr, 0) && bytesRead == size;
+    if (!read) { texture->m_status.Add(STATUS_FATAL, "BLP Texture read failure: %s\n", fileName); }
+    if (!read || !PumpBlpTextureAsync(texture, data, size)) {
         FillInSolidTexture(*reinterpret_cast<const CImVector*>(&s_defaultColor), texture);
     }
 
@@ -2196,6 +2238,14 @@ CTexture* CreateBlpAsync(char* extension, const char* fileName, uint32_t flags, 
     }
 
     if (!file) {
+        return nullptr;
+    }
+
+    uint32_t high = 0;
+    const uint32_t fileSize = SFileGetFileSize(file, &high);
+    if (high || fileSize < offsetof(BLPHeader, m_extended) || fileSize > 64 * 1024 * 1024) {
+        SFileCloseFile(file);
+        SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return nullptr;
     }
 
@@ -2235,7 +2285,7 @@ CTexture* CreateBlpAsync(char* extension, const char* fileName, uint32_t flags, 
     texture->m_asyncObject->m_userPostloadCallback = reinterpret_cast<void*>(AsyncTextureSuccessCallback);
     texture->m_asyncObject->m_userPostUnloadCallback = reinterpret_cast<void*>(AsyncTextureFailureCallback);
     texture->m_asyncObject->m_file = file;
-    texture->m_asyncObject->m_size = SFileGetFileSize(file, nullptr);
+    texture->m_asyncObject->m_size = fileSize;
 
     if (blobTexture) {
         texture->m_asyncObject->m_priority = 131;
@@ -2247,7 +2297,7 @@ CTexture* CreateBlpAsync(char* extension, const char* fileName, uint32_t flags, 
 
     CAsyncObject* object = texture->m_asyncObject;
 
-    if (0x400000 - s_asyncLoadBufferUsed < object->m_size) {
+    if (s_asyncLoadBufferUsed && AvailableAsyncTextureBytes() < object->m_size) {
         s_asyncTextureList.LinkNode(object, 2, nullptr);
     } else {
         AsyncTextureProcess(object, 0);

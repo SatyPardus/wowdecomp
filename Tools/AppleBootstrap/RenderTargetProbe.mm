@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/BLPFile/BlpImage.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -362,4 +363,40 @@ void CheckGxRenderTargets(CGxDeviceMetal& device) {
     CheckClears(device, large, white);
     CheckRecreation(device);
     GxTexDestroy(large); GxTexDestroy(white);
+}
+
+// Called with the original Services/Event lifecycle active. Recreate the same
+// handle at each resident base mip, which exercises its synchronous reload too.
+void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference) {
+    auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
+    CGxShader* vertex[2]{}; CGxShader* pixel = nullptr;
+    device.ShaderCreate(vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
+    device.ShaderCreate(&pixel, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
+    GxRsSet(GxRs_VertexShader, vertex[0]); GxRsSet(GxRs_PixelShader, pixel);
+    GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Lighting, 0); GxRsSet(GxRs_Culling, 0);
+    GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_ScissorTest, 0);
+    GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Opaque)); GxRsSet(GxRs_AlphaRef, 0); GxRsSet(GxRs_ColorWrite, 15);
+    GxXformSetViewport(0, 1, 0, 1, 0, 1);
+    for (uint32_t requested : {0u, 2u, 0u}) {
+        device.DeviceSetBaseMipLevel(requested);
+        uint32_t width, height, base, end;
+        device.ITexWHDStartEnd(texture, width, height, base, end);
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
+        descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+        auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+        pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+        pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+        device.BeginFrame(pass); Draw(device, texture, 0xFFFFFFFF, 0);
+        const auto actual = Read(device, width, height);
+        const auto expected = reference.DecodeBGRA(base);
+        Require(expected.width == width && expected.height == height, "Services texture resident mip changed");
+        const int tolerance = reference.format == BLP::Format::BGRA8 || !device.GPU().SupportsBC() ? 0 : 2;
+        const auto* bytes = reinterpret_cast<const uint8_t*>(actual.data());
+        for (size_t i = 0; i < expected.bytes.size(); ++i) {
+            Require(std::abs(int(bytes[i]) - expected.bytes[i]) <= tolerance, "Services texture/reload differs from authored mip");
+        }
+        GxScenePresent();
+    }
+    GxRsSet(GxRs_Texture0, static_cast<CGxTex*>(nullptr));
+    device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
 }

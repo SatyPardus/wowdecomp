@@ -97,23 +97,41 @@ int32_t CBLPFile::ValidateHeader(const BLPHeader& header) {
 
 // VERIFY: ec3a562c manual
 // OFFSET: 0x006AE900
-int32_t CBLPFile::Source(void* data) {
+int32_t CBLPFile::Source(void* data, size_t size) {
     this->Close();
-
+    this->m_numLevels = 0;
     this->m_inMemoryNeedsFree = 0;
+    this->m_lockDecompMem = nullptr;
+    memset(&this->m_header, 0, sizeof(this->m_header));
+    constexpr size_t headerSize = offsetof(BLPHeader, m_extended);
+    if (!data || size < headerSize) { return 0; }
+    memcpy(&this->m_header, data, headerSize);
+    const auto& header = this->m_header;
+    if (!ValidateHeader(header) || !header.m_width || !header.m_height ||
+        header.m_width > 16384 || header.m_height > 16384 ||
+        (header.m_alphaSize != 0 && header.m_alphaSize != 1 && header.m_alphaSize != 4 && header.m_alphaSize != 8)) { return 0; }
+    size_t requiredHeader = headerSize;
+    if (header.m_colorEncoding == 1) {
+        requiredHeader = sizeof(BLPHeader);
+        if (size < requiredHeader || header.m_preferredFormat >= NUM_PIXEL_FORMATS) { return 0; }
+        memcpy(&this->m_header.m_extended, static_cast<uint8_t*>(data) + headerSize, sizeof(header.m_extended));
+    } else if (header.m_colorEncoding == 2) {
+        if (header.m_preferredFormat != PIXEL_DXT1 && header.m_preferredFormat != PIXEL_DXT3 && header.m_preferredFormat != PIXEL_DXT5) { return 0; }
+    } else if (header.m_colorEncoding != 3 || header.m_preferredFormat != PIXEL_ARGB8888) { return 0; }
+    const uint32_t levels = this->HasMips() ? CalcLevelCount(header.m_width, header.m_height) : 1;
+    if (levels > 16) { return 0; }
+    uint64_t decodedBytes = 0;
+    for (uint32_t level = 0; level < levels; ++level) {
+        const uint64_t pixels = uint64_t(this->Width(level)) * this->Height(level);
+        decodedBytes += pixels * 4;
+        if (decodedBytes > 256 * 1024 * 1024) { return 0; }
+        const uint64_t needed = header.m_colorEncoding == 1 ? pixels + (pixels * header.m_alphaSize + 7) / 8 :
+            CalcLevelSize(level, header.m_width, header.m_height, header.m_preferredFormat);
+        const size_t offset = header.m_mipOffsets[level], stored = header.m_mipSizes[level];
+        if (offset < requiredHeader || offset > size || stored > size - offset || stored < needed) { return 0; }
+    }
+    this->m_numLevels = levels;
     this->m_inMemoryImage = data;
-    memcpy(&this->m_header, data, sizeof(this->m_header));
-
-    if (!CBLPFile::ValidateHeader(this->m_header)) {
-        return 0;
-    }
-
-    if (this->HasMips()) {
-        this->m_numLevels = CalcLevelCount(this->m_header.m_width, this->m_header.m_height);
-    } else {
-        this->m_numLevels = 1;
-    }
-
     return 1;
 }
 
@@ -620,6 +638,7 @@ uint32_t CBLPFile::Pixels(uint32_t mipLevel) const {
 int32_t CBLPFile::Unlock(uint32_t mipLevel) {
     if (this->m_lockDecompMem) {
         SMemFree(this->m_lockDecompMem, __FILE__, __LINE__, 0);
+        this->m_lockDecompMem = nullptr;
     }
 
     return this->IsValidMip(mipLevel);
@@ -860,7 +879,7 @@ int32_t CBLPFile::Lock2(const char* fileName, PIXEL_FORMAT format, uint32_t mipL
                 case PIXEL_DXT1:
                 case PIXEL_DXT3:
                 case PIXEL_DXT5:
-                    memcpy(data, image, imageSize);
+                    memcpy(data, image, CalcLevelSize(mipLevel, this->m_header.m_width, this->m_header.m_height, format));
                     return 1;
 
                 case PIXEL_ARGB8888:
@@ -887,7 +906,7 @@ int32_t CBLPFile::Lock2(const char* fileName, PIXEL_FORMAT format, uint32_t mipL
         }
 
         case 3:
-            memcpy(data, image, imageSize);
+            memcpy(data, image, CalcLevelSize(mipLevel, this->m_header.m_width, this->m_header.m_height, format));
             return 1;
 
         default:
@@ -912,13 +931,14 @@ int32_t CBLPFile::Open(const char* fileName, int32_t flags) {
         return 0;
     }
 
-    s_blpFileLoadBuffer.SetCount(SFileGetFileSize(file, nullptr));
-
-    uint32_t bytesRead;
-    SFileReadFile(file, s_blpFileLoadBuffer.Ptr(), s_blpFileLoadBuffer.Count(), &bytesRead, nullptr, 0);
+    uint32_t high = 0;
+    const uint32_t size = SFileGetFileSize(file, &high);
+    if (high || size > 64 * 1024 * 1024) { SFileCloseFile(file); return 0; }
+    s_blpFileLoadBuffer.SetCount(size);
+    uint32_t bytesRead = 0;
+    const bool read = SFileReadFile(file, s_blpFileLoadBuffer.Ptr(), size, &bytesRead, nullptr, 0);
     SFileCloseFile(file);
-
-    return this->Source(s_blpFileLoadBuffer.Ptr());
+    return read && bytesRead == size && this->Source(s_blpFileLoadBuffer.Ptr(), size);
 }
 
 // VERIFY: 3d8e87b0 manual
@@ -944,8 +964,8 @@ int32_t CBLPFile::LockChain2(const char* fileName, PIXEL_FORMAT format, MipBits*
         }
 
         if (!setImages) {
-            for (uint32_t i = 0; this->m_header.m_mipSizes[i]; i++) {
-                images[i].m_mip[0] = reinterpret_cast<C4Pixel*>(static_cast<uint8_t*>(this->m_inMemoryImage) + this->m_header.m_mipOffsets[i]);
+            for (uint32_t i = 0; mipLevel + i < this->m_numLevels; i++) {
+                images[i].m_mip[0] = reinterpret_cast<C4Pixel*>(static_cast<uint8_t*>(this->m_inMemoryImage) + this->m_header.m_mipOffsets[mipLevel + i]);
             }
 
             this->m_inMemoryImage = nullptr;

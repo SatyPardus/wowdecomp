@@ -21,6 +21,7 @@
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/BLPFile/Types.h"
+#include "Engine/Source/BLPFile/blp.h"
 #include "Engine/Source/Gx/ShaderBinary.h"
 #include "Engine/Source/Gx/Metal/UIShader.h"
 #include "Engine/Source/Base/CDataStore.h"
@@ -180,6 +181,7 @@ void CheckBlpLoading() {
     header.m_formatVersion = 1;
     header.m_colorEncoding = 1;
     header.m_alphaSize = 4;
+    header.m_preferredFormat = PIXEL_ARGB8888;
     header.m_width = 2; header.m_height = 1;
     header.m_mipOffsets[0] = sizeof(header); header.m_mipSizes[0] = 3;
     header.m_extended.m_palette[1] = {10, 20, 30, 77};
@@ -190,16 +192,23 @@ void CheckBlpLoading() {
     const auto image = BLP::Image::Load(data.data(), data.size(), 8);
     Require(image.mips.size() == 1 && image.mips[0].bytes == std::vector<uint8_t>({10, 20, 30, 0, 40, 50, 60, 255}),
         "BLP palette/packed alpha mismatch");
+    CBLPFile original;
+    Require(original.Source(data.data(), data.size()), "Original BLP rejected bounded palette input");
+    uint8_t* pixels = nullptr; uint32_t stride = 0;
+    Require(original.Lock(PIXEL_ARGB8888, 0, pixels, stride) && stride == 8 &&
+        !std::memcmp(pixels, image.mips[0].bytes.data(), 8), "Original BLP palette differs from bounded decoder");
+    original.Unlock(0);
+    Require(!original.Source(data.data(), data.size() - 1) && !original.Source(data.data(), 20), "Original BLP accepted truncated input");
     auto rejects = [&](size_t size, size_t budget) {
         try { BLP::Image::Load(data.data(), size, budget); } catch (const std::runtime_error&) { return true; }
         return false;
     };
     Require(rejects(data.size() - 1, 8) && rejects(data.size(), 7), "BLP truncated mip/memory budget accepted");
     data[11] = 1;
-    Require(rejects(data.size(), 16), "BLP missing authored mip accepted");
+    Require(rejects(data.size(), 16) && !original.Source(data.data(), data.size()), "BLP missing authored mip accepted");
     data[11] = 0;
     data[20] = data[21] = data[22] = data[23] = 255;
-    Require(rejects(data.size(), 8), "BLP out-of-range offset accepted");
+    Require(rejects(data.size(), 8) && !original.Source(data.data(), data.size()), "BLP out-of-range offset accepted");
 }
 
 void InspectArchive(const std::filesystem::path& path, std::ostream& out) {
@@ -289,7 +298,17 @@ void InspectArchive(const std::filesystem::path& path, std::ostream& out) {
             << (hasDigest ? " (archive MD5 matched)" : " (no archive MD5)") << '\n';
         if (extension == ".blp") {
             const auto image = BLP::Image::Load(data.data(), data.size(), 256 * 1024 * 1024);
-            for (size_t level = 0; level < image.mips.size(); ++level) { image.DecodeBGRA(level); }
+            CBLPFile original;
+            Require(original.Source(data.data(), data.size()), "Original BLP rejected a real bounded asset");
+            const PIXEL_FORMAT formats[] = {PIXEL_ARGB8888, PIXEL_DXT1, PIXEL_DXT3, PIXEL_DXT5};
+            for (size_t level = 0; level < image.mips.size(); ++level) {
+                image.DecodeBGRA(level);
+                MipBits* mips = nullptr;
+                Require(original.LockChain(formats[unsigned(image.format)], mips, uint32_t(level)), "Original BLP mip loading failed");
+                Require(!std::memcmp(mips[0].m_mip[0], image.mips[level].bytes.data(), image.mips[level].bytes.size()),
+                    "Original BLP authored mip differs from bounded decoder");
+                SMemFree(mips, __FILE__, __LINE__, 0);
+            }
             out << "    BLP: " << image.mips[0].width << 'x' << image.mips[0].height << ' ' << BLP::FormatName(image.format)
                 << ", " << image.mips.size() << " authored mips decoded\n";
         }
