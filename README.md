@@ -231,6 +231,12 @@ bootstrap, not a playable client or a replacement for the game's UI.
 materials; `WOW_CREATURE_DISPLAY=25870` selects the motorcycle and its layered
 materials.
 
+The shared `WorldClient` static library now builds for all three Apple targets.
+Its platform fixes retain Windows headers on Windows, use the shared allocator
+type-name helper and portable stack allocation/finite checks, and keep anisotropic
+filtering's flag at its original 32-bit width. This is a compilation milestone;
+world startup and terrain rendering are not yet connected to the native host.
+
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
 It uploads original BC blocks when the device supports them; otherwise it expands

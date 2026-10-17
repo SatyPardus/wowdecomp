@@ -1,6 +1,10 @@
 #include "MapObj.h"
 #include <cstdlib>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include <new>
 #include "Engine/Source/Gx/CGxVertexPC.h"
 #include "WoW/Source/WorldClient/PolyClipper.h"

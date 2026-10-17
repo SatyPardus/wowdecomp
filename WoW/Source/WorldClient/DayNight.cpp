@@ -1867,7 +1867,7 @@ void DayNight::RenderSky(CPortalView* view) {
 
 // VERIFY: 9ccd52e0 manual
 // OFFSET: 0x007F0D40
-DayNight::LightQueue::LightQueue(const uint32_t* params) : CMemBlock(sizeof(LightQE) * params[0], 0, typeid(LightQE).raw_name(), SLOG_OBJECT) {
+DayNight::LightQueue::LightQueue(const uint32_t* params) : CMemBlock(sizeof(LightQE) * params[0], 0, StormTypeName(typeid(LightQE)), SLOG_OBJECT) {
     uint32_t count = params[0];
     uint32_t chunk = params[1];
 
@@ -2357,7 +2357,7 @@ void DayNight::UnloadMap() {
     }
 
     s_areaLightOverrides.m_count = 0;
-    s_lightAllocator.Clear(typeid(LightRec).raw_name(), SLOG_OBJECT, 1);
+    s_lightAllocator.Clear(StormTypeName(typeid(LightRec)), SLOG_OBJECT, 1);
 
     if (DayNight::g_forceFullUpdate) {
         if (DayNight::g_clouds.m_textures[0]) {
@@ -3224,7 +3224,7 @@ void DayNight::AddLightOverride(int32_t lightId, int32_t overrideId, uint32_t du
         return;
     }
 
-    void* data = s_lightAllocator.GetData(0, typeid(LightRec).raw_name(), SLOG_OBJECT);
+    void* data = s_lightAllocator.GetData(0, StormTypeName(typeid(LightRec)), SLOG_OBJECT);
 
     if (!data) {
         return;

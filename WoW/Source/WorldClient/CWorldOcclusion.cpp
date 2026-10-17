@@ -1,5 +1,9 @@
 #include "CWorldOcclusion.h"
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include <cmath>
 #include <cstring>
 #include "Engine/Source/Tempest/C44Matrix.h"

@@ -149,6 +149,9 @@ target_link_libraries(Model2 PUBLIC AppleGameResources ShaderEffect)
 add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance.cpp)
 target_link_libraries(CreatureAppearance PUBLIC Model2)
 
+add_subdirectory(WoW/Source/WorldClient)
+target_link_libraries(WorldClient PUBLIC Model2)
+
 add_library(AppleTextureData ALIAS BLPFile)
 
 enable_language(OBJCXX)

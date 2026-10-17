@@ -3,7 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Object/ObjectClient/Object_C.h"
 #include "WoW/Source/Object/ObjectClient/Types.h"

@@ -7,7 +7,11 @@
 #include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "WoW/Source/WorldClient/MapObj.h"
 #include <cmath>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Tempest/C2iVector.h"
 #include "Engine/Source/Tempest/C3Ray.h"
 #include "Engine/Source/Tempest/CiRect.h"

@@ -76,7 +76,7 @@ static void LerpInteriorFog(SMOFog::Fog* dst, const SMOFog::Fog* src, float t) {
 
 // VERIFY: a41b0f80 manual
 // OFFSET: 0x007A0ED0
-FogQueue::FogQueue(const uint32_t* params) : CMemBlock(sizeof(FogQ) * params[0], 0, typeid(FogQ).raw_name(), SLOG_OBJECT) {
+FogQueue::FogQueue(const uint32_t* params) : CMemBlock(sizeof(FogQ) * params[0], 0, StormTypeName(typeid(FogQ)), SLOG_OBJECT) {
     uint32_t count = params[0];
     uint32_t chunk = params[1];
 
