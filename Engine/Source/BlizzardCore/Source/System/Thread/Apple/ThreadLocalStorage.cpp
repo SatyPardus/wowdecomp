@@ -79,4 +79,8 @@ void System_Thread::RunTLSDestructors() {
         if (!destroyed) { break; }
     }
 }
+
+namespace System_Thread {
+void ShutdownThreadLocalStorage() { RunTLSDestructors(); }
+}
 #endif

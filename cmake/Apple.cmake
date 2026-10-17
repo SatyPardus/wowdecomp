@@ -16,9 +16,19 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>)
 add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SMem.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Diagnostics.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/soprintf.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Lock/Apple/Lock.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/Apple/Thread.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/Apple/ThreadLocalStorage.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/ThreadLocalStorage.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Using/Using.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Memory/MemoryStorm.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Debug/ErrorStack.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/String/String.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/String/Path.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/File/File.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/File/Apple/Filestack.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Time/Apple/Time.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnit.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.cpp
@@ -29,6 +39,9 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/FunctionValidation.cpp
 )
 target_include_directories(AppleFoundation PUBLIC ${CMAKE_SOURCE_DIR})
+# Full local installations are supported first. The remote streaming filesystem
+# must not be installed until its transport/cache backend has been ported.
+target_compile_definitions(AppleFoundation PUBLIC WOW_LOCAL_FILES_ONLY=1)
 
 add_subdirectory(Engine/Source/Tempest)
 target_link_libraries(Tempest PUBLIC AppleFoundation)

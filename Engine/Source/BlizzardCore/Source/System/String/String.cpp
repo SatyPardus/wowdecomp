@@ -1,6 +1,11 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstring>
+#if !defined(_WIN32)
+#include <strings.h>
+#define _stricmp strcasecmp
+#define _strnicmp strncasecmp
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/Storm/H/storm.h"
 

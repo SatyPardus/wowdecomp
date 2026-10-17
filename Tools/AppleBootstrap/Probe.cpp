@@ -17,6 +17,9 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
+#include "Engine/Source/BlizzardCore/Source/System/File/File.h"
+#include "Engine/Source/BlizzardCore/Source/System/String/String.h"
+#include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
 #include "Engine/Source/Storm/H/SCritSect.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CRandom.h"
@@ -135,6 +138,55 @@ struct ScratchFile {
     }
     ~ScratchFile() { unlink(path.c_str()); rmdir(directory.c_str()); }
 };
+
+void CheckFileStack(const std::string& scratchDirectory) {
+    namespace File = Blizzard::File;
+    ScratchFile scratch(scratchDirectory);
+    Require(File::Exists(scratch.directory.c_str()) == 2, "file stack directory lookup failed");
+    Require(File::IsAbsolutePath(scratch.path.c_str()) && File::GetRootChars(scratch.path.c_str()) == 1, "POSIX root lookup failed");
+    struct CloseStream { void operator()(File::StreamRecord* stream) const { if (stream) { File::Close(stream); } } };
+    using Stream = std::unique_ptr<File::StreamRecord, CloseStream>;
+    File::StreamRecord* opened = nullptr;
+    Require(File::Open(scratch.path.c_str(), 0x803, opened), "file stack exclusive create failed");
+    Stream file(opened);
+    Require(!File::Open(scratch.path.c_str(), 0x803, opened), "exclusive create overwrote existing file");
+    Require(File::SetPos(file.get(), 7, 0), "file stack seek failed");
+    constexpr int64_t offset = (int64_t(1) << 32) + 23;
+    const char marker[] = "engine-native-io";
+    int32_t count = sizeof(marker);
+    Require(File::Write(file.get(), marker, offset, &count) && count == sizeof(marker), "file stack 64-bit write failed");
+    int64_t position;
+    Require(File::GetPos(file.get(), &position) && position == 7, "positional IO changed sequential cursor");
+    Require(File::GetFileInfo(file.get())->m_size == offset + sizeof(marker), "file stack cached size stale after write");
+    bool success[2]{};
+    auto read = [&](int index) {
+        char buffer[64]{};
+        int32_t bytes = sizeof(buffer);
+        success[index] = File::Read(file.get(), buffer, offset, &bytes) && bytes == sizeof(marker) && !std::memcmp(buffer, marker, bytes);
+    };
+    std::thread a(read, 0), b(read, 1);
+    a.join(); b.join();
+    Require(success[0] && success[1], "concurrent positional file reads failed");
+    Require(File::SetEOF(file.get(), 13, 0) && File::GetFileInfo(file.get())->m_size == 13, "file truncate/cache invalidation failed");
+    file.reset();
+    std::string backslash = scratch.path;
+    std::replace(backslash.begin(), backslash.end(), '/', '\\');
+    Require(File::Open(backslash.c_str(), 0x1005, opened), "engine path separator conversion failed");
+    file.reset(opened);
+    count = sizeof(marker);
+    Require(!File::Write(file.get(), marker, 0, &count) && File::GetFileInfo(file.get())->m_size == 13, "file stack read-only mode accepted write");
+    Require(File::GetLastErrorStack() && File::GetLastErrorStack()->FindCategory(1), "native file error lost details");
+    file.reset();
+    char formatted[64];
+    Blizzard::String::Format(formatted, sizeof(formatted), "%2$s %1$I64d", int64_t(4294967297), "offset");
+    Require(!std::strcmp(formatted, "offset 4294967297"), "ordered 64-bit error formatting failed");
+    char small[4];
+    Require(Blizzard::String::Format(small, sizeof(small), "%s", "abcdef") == 3 && !std::strcmp(small, "abc"), "bounded formatter truncated incorrectly");
+    Blizzard::Time::TimeRec date{};
+    Blizzard::Time::BreakTime(-1, date);
+    Require(date.year == 1999 && date.month == 12 && date.day == 31 && date.nanosecond == 999999999 &&
+        Blizzard::Time::MakeTime(date) == -1 && Blizzard::Time::FromFileTime(125911584000000000ULL) == 0, "Blizzard timestamp epoch mismatch");
+}
 }
 
 bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string& report) {
@@ -221,7 +273,8 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(memcmp(marker, buffer.data(), sizeof(marker)) == 0, "positional read mismatch");
         Require(!range->Read(buffer.data(), 0, buffer.size(), nullptr), "exact read incorrectly accepted EOF");
         Require(!range->Read(buffer.data(), -1, 1, &bytes), "negative offset accepted");
-        report = "PASS: native locks/events, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling and read-only/64-bit file IO.\n";
+        CheckFileStack(scratchDirectory);
+        report = "PASS: native locks/events, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
         report = std::string("Core check failed: ") + error.what() + "\n";

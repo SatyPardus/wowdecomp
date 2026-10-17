@@ -2,8 +2,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <windows.h>
+#if !defined(WOW_LOCAL_FILES_ONLY)
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Debug/ErrorStack.h"
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/BlizzardCore/Source/System/Memory/MemoryStorm.h"
@@ -1120,9 +1121,11 @@ bool Blizzard::File::RemoveDirectoryAndContents_Internal::Callback(const Process
         Blizzard::File::SetAttributes(path, 0x20);
     }
 
+#if !defined(WOW_LOCAL_FILES_ONLY)
     if (Blizzard::Streaming::IsStreamedFile(path)) {
         return true;
     }
+#endif
 
     if (!Blizzard::File::Delete(path)) {
         state->m_success = false;

@@ -3,7 +3,9 @@
 
 #include "Engine/Source/BlizzardCore/Source/System/Using/Using.h"
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Debug/ErrorStack.h"
 #include "Engine/Source/BlizzardCore/Source/System/File/Filestack.h"
 #include "Engine/Source/BlizzardCore/Source/System/File/Types.h"
@@ -89,12 +91,18 @@ struct FileError {
     ~FileError();
 };
 
+#if defined(_WIN32)
 typedef bool (*IOFunc)(Blizzard::File::StreamRecord* file, void* buffer, OVERLAPPED* overlapped, int32_t* count);
+#endif
 
 extern Blizzard::Thread::LocalObject<FileError> s_error;
 extern const Blizzard::File::FileInfo s_noinfo;
+#if defined(_WIN32)
 extern IOFunc read_func;
+#endif
+#if defined(_WIN32)
 extern IOFunc write_func;
+#endif
 extern bool s_read_init;
 extern bool s_write_init;
 extern Blizzard::Lock::Atomic s_readInitCount;
@@ -127,9 +135,15 @@ bool Move(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms
 bool Open(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 bool ProcessDirFast(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 bool Read(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
+#if defined(_WIN32)
 bool read_first(Blizzard::File::StreamRecord* file, void* buffer, OVERLAPPED* overlapped, int32_t* count);
+#endif
+#if defined(_WIN32)
 bool read_locked(Blizzard::File::StreamRecord* file, void* buffer, OVERLAPPED* overlapped, int32_t* count);
+#endif
+#if defined(_WIN32)
 bool read_overlapped(Blizzard::File::StreamRecord* file, void* buffer, OVERLAPPED* overlapped, int32_t* count);
+#endif
 bool ReadP(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 bool RemoveDirectory(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 bool SetAttributes(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
@@ -137,14 +151,22 @@ bool SetCacheMode(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParm
 bool SetEOF(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 bool SetPos(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 bool SetWorkingDirectory(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
+#if defined(_WIN32)
 bool ToCreateFlags(uint32_t flags, DWORD* sharemode, DWORD* desiredaccess, DWORD* creationdisposition, DWORD* flagsandattributes);
+#endif
 int32_t ToNativeAttributes(int32_t attributes);
 void Shutdown();
 bool Shutdown(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 bool Write(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
+#if defined(_WIN32)
 bool write_first(Blizzard::File::StreamRecord* file, void* buffer, OVERLAPPED* overlapped, int32_t* count);
+#endif
+#if defined(_WIN32)
 bool write_locked(Blizzard::File::StreamRecord* file, void* buffer, OVERLAPPED* overlapped, int32_t* count);
+#endif
+#if defined(_WIN32)
 bool write_overlapped(Blizzard::File::StreamRecord* file, void* buffer, OVERLAPPED* overlapped, int32_t* count);
+#endif
 bool WriteP(Blizzard::File::Filesystem* fs, System_File::Stacked::FileParms* parms);
 
 }

@@ -5,6 +5,18 @@
 #include <cstring>
 #include "Engine/Source/Storm/H/storm.h"
 
+#if !defined(_WIN32)
+// The caller reserves the terminator separately; MSVC's _snprintf takes
+// character capacity, whereas snprintf takes capacity including the NUL.
+static int32_t _snprintf(char* out, size_t capacity, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    const int result = std::vsnprintf(out, capacity + 1, format, args);
+    va_end(args);
+    return result;
+}
+#endif
+
 #define MAX_ARGUMENTS 64
 #define MAX_SPECIFIER_LENGTH 64
 #define UNBOUNDED_OUTPUT_SIZE 0x100000
@@ -121,12 +133,19 @@ static int32_t ParseFormatSpecifier(const char** format, ArgumentSize* size, int
 // VERIFY: 7c8d9894 manual
 // OFFSET: 0x00773E10
 static void FixUpLongLongFormatSpecifier(char* specifier) {
+#if defined(_WIN32)
     char* ll = strstr(specifier, "ll");
 
     if (ll) {
         memmove(ll + 3, ll + 2, strlen(ll) - 1);
         memcpy(ll, "I64", 3);
     }
+#else
+    if (char* native = strstr(specifier, "I64")) {
+        memcpy(native, "ll", 2);
+        memmove(native + 2, native + 3, strlen(native + 3) + 1);
+    }
+#endif
 }
 
 // VERIFY: 33f0aefe manual
