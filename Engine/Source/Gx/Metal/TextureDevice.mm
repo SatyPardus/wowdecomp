@@ -39,6 +39,8 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     m_vertex = [library newFunctionWithName:@"textureQuadVertex"];
     m_filterVertex = [library newFunctionWithName:@"filter4Vertex"];
     Require(m_filterVertex != nil, "Missing native FFX vertex function");
+    m_glowVertex = [library newFunctionWithName:@"glowVertex"];
+    Require(m_glowVertex != nil, "Missing native FFX glow vertex function");
     m_clearVertex = [library newFunctionWithName:@"clearVertex"];
     m_clearFragment = [library newFunctionWithName:@"clearFragment"];
     Require(m_clearVertex && m_clearFragment, "Missing native attachment clear functions");
@@ -56,6 +58,8 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
         [constants setConstantValue:&alphaTest type:MTLDataTypeBool atIndex:0];
         m_fragment[alphaTest] = [library newFunctionWithName:@"textureQuadFragment" constantValues:constants error:&error];
         if (!m_fragment[alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal specialization failed"); }
+        m_glowFragment[alphaTest] = [library newFunctionWithName:@"glowFragment" constantValues:constants error:&error];
+        if (!m_glowFragment[alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal glow specialization failed"); }
         for (uint32_t filter = 1; filter <= 2; ++filter) {
             [constants setConstantValue:&filter type:MTLDataTypeUInt atIndex:2];
             m_filterFragment[filter - 1][alphaTest] = [library newFunctionWithName:@"filter4Fragment" constantValues:constants error:&error];
@@ -114,7 +118,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     }
     if (depthAttachment) { descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float; }
     descriptor.fragmentFunction = m_fragment[state.alphaRef != 0];
-    if (effect != FragmentEffect::Unlit) {
+    if (effect == FragmentEffect::Box4 || effect == FragmentEffect::Gauss4) {
         Require((effect == FragmentEffect::Box4 || effect == FragmentEffect::Gauss4) && !screenAtDepth,
             "Invalid native FFX filter pipeline");
         descriptor.vertexFunction = m_filterVertex;
@@ -127,6 +131,14 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             layout.attributes[i].bufferIndex = 1; layout.attributes[i].offset = offsets[i]; layout.attributes[i].format = formats[i];
         }
         layout.layouts[1].stride = 48; descriptor.vertexDescriptor = layout;
+    }
+    if (effect == FragmentEffect::Glow) {
+        Require(format == GxVBF_PCT2 && !screenAtDepth, "Invalid native FFX glow pipeline");
+        descriptor.vertexFunction = m_glowVertex;
+        descriptor.fragmentFunction = m_glowFragment[state.alphaRef != 0];
+        descriptor.vertexDescriptor.attributes[3].bufferIndex = 1;
+        descriptor.vertexDescriptor.attributes[3].offset = GxVertexAttribOffset(format, GxVA_TexCoord1);
+        descriptor.vertexDescriptor.attributes[3].format = MTLVertexFormatFloat2;
     }
     auto attachment = descriptor.colorAttachments[0];
     attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;

@@ -4,7 +4,7 @@
 #include <simd/simd.h>
 #include <array>
 #include <unordered_map>
-#include "Engine/Source/Gx/Metal/Filter4Shader.h"
+#include "Engine/Source/Gx/Metal/PostProcessShader.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -71,6 +71,8 @@ public:
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state);
     void DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states);
+    void DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states);
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
         uint32_t mask, simd_float4 color);
     bool SupportsBC() const;
@@ -80,6 +82,7 @@ private:
     id<MTLFunction> m_fragment[2];
     id<MTLFunction> m_geometryVertex[2][4];
     id<MTLFunction> m_filterVertex, m_filterFragment[2][2];
+    id<MTLFunction> m_glowVertex, m_glowFragment[2];
     id<MTLFunction> m_clearVertex, m_clearFragment;
     id<MTLRenderPipelineState> m_clearPipelines[2][2]{};
     id<MTLDepthStencilState> m_clearDepth[2]{};

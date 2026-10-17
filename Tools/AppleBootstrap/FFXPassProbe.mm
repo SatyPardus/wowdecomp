@@ -3,6 +3,7 @@
 #include "Engine/Source/Gxu/Gxu.h"
 #include "Engine/Source/FFX/PassBox4.h"
 #include "Engine/Source/FFX/PassGauss4.h"
+#include "Engine/Source/FFX/PassGlow.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Base/Handle.h"
 #include <algorithm>
@@ -53,8 +54,21 @@ Image Reference(const Image& source, unsigned width, unsigned height, float sour
     } }
     return result;
 }
+Image GlowReference(const Image& scene, const Image& blur, CImVector color) {
+    Image result = scene;
+    for (unsigned y = 0; y < scene.height; ++y) { for (unsigned x = 0; x < scene.width; ++x) {
+        auto filtered = Sample(blur, float(x * blur.width) / scene.width, float(y * blur.height) / scene.height);
+        for (unsigned c = 0; c < 3; ++c) {
+            const float base = scene.pixels[y * scene.width + x][c] * (1 - color.b / 255.0f) + filtered[c] * color.b / 255.0f;
+            const float glow = filtered[c] * filtered[c] * color.a / (255.0f * 255.0f);
+            result.pixels[y * scene.width + x][c] = std::clamp(int(std::lround(base + glow)), 0, 255);
+        }
+        result.pixels[y * scene.width + x][3] = 255;
+    } }
+    return result;
+}
 Image Read(CGxDeviceMetal& device, FFX::Tex& texture) {
-    GxRenderTargetSet(GxBuffers_Color, TextureGetGxTex(texture.m_texture, 1, nullptr), 0);
+    GxRenderTargetSet(GxBuffers_Color, texture.m_texture ? TextureGetGxTex(texture.m_texture, 1, nullptr) : nullptr, 0);
     CiRect rect(0, 0, texture.m_texSize.y, texture.m_texSize.x); TSGrowableArray<CImVector> pixels;
     GxReadPixels(rect, pixels);
     Image image{unsigned(texture.m_texSize.x), unsigned(texture.m_texSize.y), std::vector<Pixel>(pixels.Count())};
@@ -140,4 +154,34 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
         Compare(Read(device, output), Reference(horizontal, 8, 8, 8, 8, {{{0,-2.5f},{0,-0.5f},{0,0.5f},{0,2.5f}}}, false), 2);
         GxScenePresent();
     }
+    // Run the original scene -> Box4 -> Gauss4 -> Glow sequence with no
+    // intermediate CPU readback, including the original in-place blur output.
+    source = pattern(32, 32); input = Texture(32, 32, 32, 32, &source);
+    scope.textures.push_back(input.m_texture);
+    descriptor.width = descriptor.height = 32;
+    frame.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    FFX::Tex screen{nullptr, {32, 32}, {32, 32}, {1.0f / 32, 1.0f / 32}};
+    FFX::Tex* blurredInput[] = {&output}; FFX::Tex* glowInputs[] = {&input, &output};
+    PassBox4 box(inputs, 1, &output, GxBlend_Opaque, false);
+    PassGauss4 gauss(blurredInput, 1, &output, GxBlend_Opaque, false);
+    PassGlow glow(glowInputs, 2, &screen, GxBlend_Opaque, true);
+    Require(glow.Valid(), "Original FFX Glow shader is invalid");
+    Image expected = Reference(source, 8, 8, 32, 32, {{{-1.5f,-1.5f},{0.5f,-1.5f},{0.5f,0.5f},{-1.5f,0.5f}}}, true);
+    expected = Reference(expected, 8, 8, 8, 8, {{{-2.5f,0},{-0.5f,0},{0.5f,0},{2.5f,0}}}, false);
+    expected = Reference(expected, 8, 8, 8, 8, {{{0,-2.5f},{0,-0.5f},{0,0.5f},{0,2.5f}}}, false);
+    bool first = true;
+    for (const CImVector color : {CImVector(85, 11, 219, 173), CImVector(0, 37, 93, 0),
+        CImVector(0, 197, 3, 255), CImVector(255, 71, 17, 0), CImVector(255, 13, 201, 255)}) {
+        device.BeginFrame(frame);
+        if (first) { box.Execute(); gauss.Execute(); }
+        glow.m_color = color; GxRsSet(GxRs_AlphaRef, 255); glow.Execute(); checkRestore();
+        Compare(Read(device, screen), GlowReference(source, expected, color), first ? 3 : 1);
+        if (first) {
+            auto actual = Read(device, output); Compare(actual, expected, 2);
+            expected = std::move(actual); first = false;
+        }
+        GxScenePresent();
+    }
+    GxRsSet(GxRs_AlphaRef, 0);
+
 }

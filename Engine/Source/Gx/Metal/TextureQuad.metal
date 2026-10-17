@@ -93,3 +93,24 @@ fragment float4 filter4Fragment(Filter4Raster v [[stage_in]], constant QuadParam
     if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }
     return color;
 }
+
+struct GlowVertex {
+    float3 position [[attribute(0)]]; float4 color [[attribute(1)]];
+    float2 sceneUV [[attribute(2)]]; float2 blurUV [[attribute(3)]];
+};
+struct GlowRaster { float4 position [[position]]; float4 color; float2 sceneUV, blurUV; };
+vertex GlowRaster glowVertex(GlowVertex v [[stage_in]], constant GeometryParameters& p [[buffer(0)]]) {
+    return {p.clipFromModel * float4(v.position, 1), v.color, v.sceneUV, v.blurUV};
+}
+fragment float4 glowFragment(GlowRaster v [[stage_in]], constant QuadParameters& p [[buffer(0)]],
+    texture2d<float> scene [[texture(0)]], texture2d<float> blurred [[texture(1)]],
+    sampler sceneSampling [[sampler(0)]], sampler blurSampling [[sampler(1)]]) {
+    const float3 sceneColor = scene.sample(sceneSampling, v.sceneUV).rgb;
+    const float3 blurColor = blurred.sample(blurSampling, v.blurUV).rgb;
+    // Original FFXGlow: blue controls scene/blur interpolation; alpha controls
+    // the squared blur contribution. Texture alpha does not affect the result.
+    const float3 base = mix(sceneColor, blurColor, v.color.b);
+    const float4 color = float4(fma(blurColor * blurColor, v.color.a, base), 1);
+    if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }
+    return color;
+}

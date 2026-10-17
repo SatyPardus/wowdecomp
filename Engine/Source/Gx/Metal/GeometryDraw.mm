@@ -22,9 +22,15 @@ void GxMetal::TextureDevice::DrawFilter4(id<MTLCommandBuffer> command, MTLRender
     Require(geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4, "Invalid FFX filter effect");
     DrawGeometry(command, pass, textures, geometry, {}, states);
 }
+void GxMetal::TextureDevice::DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states) {
+    Require(geometry.effect == FragmentEffect::Glow, "Invalid FFX glow effect");
+    DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}});
+}
 void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
     const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 4>& states) {
-    const bool filter = geometry.effect != FragmentEffect::Unlit;
+    const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
+    const unsigned inputs = filter ? 4 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
     const auto& state = states[0];
     Require(command && pass && textures[0] && geometry.vertices, "Missing Metal geometry resource");
     Require(filter ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
@@ -74,7 +80,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     }
     id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect);
     std::array<id<MTLSamplerState>, 4> samplers{};
-    for (unsigned i = 0; i < (filter ? 4u : 1u); ++i) {
+    for (unsigned i = 0; i < inputs; ++i) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
         samplers[i] = Sampler(states[i]);
     }
@@ -108,7 +114,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
     [encoder setFragmentBytes:&constants.texture length:sizeof(constants.texture) atIndex:0];
-    for (unsigned i = 0; i < (filter ? 4u : 1u); ++i) {
+    for (unsigned i = 0; i < inputs; ++i) {
         [encoder setFragmentTexture:textures[i] atIndex:i];
         [encoder setFragmentSamplerState:samplers[i] atIndex:i];
     }

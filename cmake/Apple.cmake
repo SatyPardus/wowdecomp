@@ -106,6 +106,7 @@ add_library(AppleGameResources STATIC
     Engine/Source/FFX/FFX.cpp
     Engine/Source/FFX/PassBox4.cpp
     Engine/Source/FFX/PassGauss4.cpp
+    Engine/Source/FFX/PassGlow.cpp
     Engine/Source/Base/Prop.cpp
 )
 target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile)

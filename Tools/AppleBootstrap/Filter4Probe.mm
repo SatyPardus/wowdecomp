@@ -100,13 +100,13 @@ void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
     geometry.vertices = Quad(gpu, offsets, 0x55112233);
     for (auto effect : {GxMetal::FragmentEffect::Box4, GxMetal::FragmentEffect::Gauss4}) {
         auto bytes = Asset(effect == GxMetal::FragmentEffect::Box4 ? "Shaders\\Pixel\\ps_2_0\\FFXBox4.bls" : "Shaders\\Pixel\\ps_2_0\\FFXGauss4.bls");
-        auto shader = GxMetal::Filter4Shader::FromBls(bytes, effect);
+        auto shader = GxMetal::PostProcessShader::FromBls(bytes, effect);
         geometry.effect = shader.Effect();
         auto pass = Target(gpu, 8, 8); auto command = [gpu.queue commandBuffer];
         gpu.DrawFilter4(command, pass, textures, geometry, states);
         Compare(Read(gpu, command, pass.colorAttachments[0].texture), Reference(inputs, states, offsets, 8, effect, 0x55), 1);
         bool rejected = false; bytes.back() ^= 1;
-        try { GxMetal::Filter4Shader::FromBls(bytes, effect); } catch (const std::runtime_error&) { rejected = true; }
+        try { GxMetal::PostProcessShader::FromBls(bytes, effect); } catch (const std::runtime_error&) { rejected = true; }
         Require(rejected, "Modified FFX code silently selected the original effect");
     }
     geometry.effect = GxMetal::FragmentEffect::Box4;
