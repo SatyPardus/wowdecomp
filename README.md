@@ -179,8 +179,11 @@ needs original Windows verification. BGRA8 color render targets now support
 offscreen drawing/sampling, switching back to the current default surface, and
 reusing a scratch Depth32Float surface across smaller targets. Binding and texture
 contents survive frame boundaries; host resizing and bound-target destruction
-restore the correct default surface. Other render-target formats, explicit depth
-textures, copies, queries, partial viewport clears, gamma ramps and stereo remain
+restore the correct default surface. BGRA8 surface copies preserve partial rectangles
+and target mips; framebuffer copy/stretch reads the default color surface even
+while an offscreen target is bound. Exact copies use GPU blits, while nearest/linear
+scaling uses native sampling on the same command stream without a CPU round trip.
+Other render-target formats, explicit depth textures, queries, partial viewport clears, gamma ramps and stereo remain
 explicit unsupported operations. Geometry draws
 currently open individual render encoders; pass batching, upload allocation reuse
 and texture-update bandwidth optimization remain to be implemented.

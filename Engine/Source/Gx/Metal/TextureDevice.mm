@@ -202,7 +202,7 @@ id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forc
 }
 
 void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-    const QuadParameters& parameters, const TextureDrawState& state) {
+    const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport) {
     // Resolve/validate before opening an encoder so failures cannot leave a pass open.
     id<MTLRenderPipelineState> pipeline = Pipeline(state);
     id<MTLSamplerState> sampler = Sampler(state);
@@ -215,6 +215,7 @@ void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDes
     [encoder setRenderPipelineState:pipeline];
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
     [encoder setCullMode:MTLCullModeNone];
+    if (viewport) { [encoder setViewport:*viewport]; }
     [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setFragmentBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setFragmentTexture:texture atIndex:0];

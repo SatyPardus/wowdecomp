@@ -50,6 +50,13 @@ BLP::Format ImageFormat(EGxTexFormat format) {
         default: Unsupported("texture format conversion");
     }
 }
+CiRect SurfaceRect(id<MTLTexture> texture, uint32_t level) {
+    return {0, 0, int32_t(std::max(NSUInteger(1), texture.height >> level)), int32_t(std::max(NSUInteger(1), texture.width >> level))};
+}
+bool RectFits(const CiRect& rect, const CiRect& surface) {
+    return rect.minX >= 0 && rect.minY >= 0 && rect.maxX > rect.minX && rect.maxY > rect.minY &&
+        rect.maxX <= surface.maxX && rect.maxY <= surface.maxY;
+}
 }
 
 struct CGxDeviceMetal::Impl {
@@ -79,6 +86,60 @@ struct CGxDeviceMetal::Impl {
     }
     void EnsurePass() { EnsureLoads(pass); }
     void ConsumedPass() { ConsumedLoads(pass); }
+    bool CopyColor(id<MTLTexture> source, const CiRect& sourceRect, id<MTLTexture> dest, uint32_t destLevel,
+        const CiRect& destRect, bool linear) {
+        Require(command && source && dest, "Gx surface copy requires an active frame and allocated textures");
+        Require(source.pixelFormat == MTLPixelFormatBGRA8Unorm && dest.pixelFormat == MTLPixelFormatBGRA8Unorm &&
+            source.sampleCount == 1 && dest.sampleCount == 1 && !source.framebufferOnly && !dest.framebufferOnly,
+            "Gx surface copy format, multisampling or framebuffer-only attachment is not supported");
+        // D3D9 StretchRect rejects a stretch within the same surface. Do not
+        // introduce undefined Metal read/write feedback, even for an exact copy.
+        if (source == dest || destLevel >= dest.mipmapLevelCount || !RectFits(sourceRect, SurfaceRect(source, 0)) ||
+            !RectFits(destRect, SurfaceRect(dest, destLevel))) { return false; }
+        const int sw = sourceRect.maxX - sourceRect.minX, sh = sourceRect.maxY - sourceRect.minY;
+        const int dw = destRect.maxX - destRect.minX, dh = destRect.maxY - destRect.minY;
+        EnsurePass();
+        if (source == defaultPass.colorAttachments[0].texture) { EnsureLoads(defaultPass); }
+        if (sw == dw && sh == dh) {
+            // Equal-sized rectangles land on the same texel centers even for
+            // LINEAR. A blit preserves all four UNORM8 channels exactly.
+            id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
+            Require(encoder != nil, "Cannot encode Gx texture copy");
+            [encoder copyFromTexture:source sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(sourceRect.minX, sourceRect.minY, 0)
+                sourceSize:MTLSizeMake(sw, sh, 1) toTexture:dest destinationSlice:0 destinationLevel:destLevel
+                destinationOrigin:MTLOriginMake(destRect.minX, destRect.minY, 0)];
+            [encoder endEncoding];
+            return true;
+        }
+        Require((dest.usage & MTLTextureUsageRenderTarget) != 0, "Gx stretched copy requires a renderable destination");
+        if (!(source.usage & MTLTextureUsageShaderRead)) {
+            // Some hosts provide a blit-readable but not sampleable attachment.
+            // Keep its snapshot on the GPU and on this frame's command stream.
+            Require(source.width <= ResourceBudget / 4 / source.height, "Gx copy snapshot exceeds memory budget");
+            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:source.pixelFormat width:source.width height:source.height mipmapped:NO];
+            descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageShaderRead;
+            id<MTLTexture> snapshot = [gpu.device newTextureWithDescriptor:descriptor];
+            Require(snapshot != nil, "Cannot allocate Gx surface snapshot");
+            id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
+            Require(encoder != nil, "Cannot encode Gx surface snapshot");
+            [encoder copyFromTexture:source sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0, 0, 0)
+                sourceSize:MTLSizeMake(source.width, source.height, 1) toTexture:snapshot destinationSlice:0 destinationLevel:0
+                destinationOrigin:MTLOriginMake(0, 0, 0)];
+            [encoder endEncoding]; source = snapshot;
+        }
+        auto copyPass = [MTLRenderPassDescriptor renderPassDescriptor];
+        copyPass.colorAttachments[0].texture = dest; copyPass.colorAttachments[0].level = destLevel;
+        copyPass.colorAttachments[0].loadAction = MTLLoadActionLoad; copyPass.colorAttachments[0].storeAction = MTLStoreActionStore;
+        GxMetal::QuadParameters parameters;
+        parameters.explicitMip = 1;
+        parameters.uvScale = {float(sw) / source.width, float(sh) / source.height};
+        parameters.uvOffset = {float(sourceRect.minX) / source.width, float(sourceRect.minY) / source.height};
+        GxMetal::TextureDrawState state;
+        state.filter = linear ? GxTex_Linear : GxTex_Nearest;
+        const MTLViewport viewport{double(destRect.minX), double(destRect.minY), double(dw), double(dh), 0, 1};
+        gpu.Draw(command, copyPass, source, parameters, state, &viewport);
+        return true;
+    }
     void ReadSurface(id<MTLTexture> surface, CiRect& rect, void* output) {
         Require(command && surface && !surface.framebufferOnly && surface.sampleCount == 1,
             "Gx readback requires an active frame and a readable single-sample attachment");
@@ -225,6 +286,8 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     Require(m_context && !m->command && pass.colorAttachments[0].texture, "Invalid Metal frame lifecycle");
     Require(pass.colorAttachments[0].texture.pixelFormat == MTLPixelFormatBGRA8Unorm && pass.colorAttachments[0].texture.sampleCount == 1,
         "Unsupported Metal frame attachment");
+    Require(pass.colorAttachments[0].level == 0 && pass.colorAttachments[0].slice == 0 && pass.depthAttachment.level == 0 &&
+        pass.depthAttachment.slice == 0, "Metal host frame must use base-level attachments");
     Require(!pass.depthAttachment.texture || pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float, "Unsupported Metal frame depth");
     dispatch_semaphore_wait(m->frames, DISPATCH_TIME_FOREVER);
     m->command = [m->gpu.queue commandBuffer];
@@ -660,9 +723,37 @@ void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, ui
 void CGxDeviceMetal::DeviceSaveDepthSurface() { Unsupported("save depth surface"); }
 void CGxDeviceMetal::DeviceRestoreDepthSurface() { Unsupported("restore depth surface"); }
 void CGxDeviceMetal::DeviceResolveDepthBuffer(CGxTex*) { Unsupported("resolve depth"); }
-void CGxDeviceMetal::DeviceCopyTex(CGxTex*, uint32_t, CGxTex*, uint32_t) { Unsupported("texture copy"); }
-int32_t CGxDeviceMetal::TexCopy(CGxTex*, const C2iVector&, const C2iVector&, const C2iVector&, uint32_t, uint32_t) { Unsupported("framebuffer copy"); }
-int32_t CGxDeviceMetal::TexStretch(CGxTex*, const CiRect*, const CiRect*, uint32_t, uint32_t) { Unsupported("texture stretch"); }
+void CGxDeviceMetal::DeviceCopyTex(CGxTex* source, uint32_t sourcePlane, CGxTex* dest, uint32_t destPlane) {
+    if (!m_context || !source || !dest) { return; }
+    Require(sourcePlane == 0 && destPlane == 0 && dest->m_flags.m_renderTarget && source->m_format == GxTex_Argb8888 &&
+        dest->m_format == GxTex_Argb8888, "Unsupported Gx texture copy format, target or plane");
+    ITexMarkAsUpdated(source); ITexMarkAsUpdated(dest);
+    id<MTLTexture> src = m->textures.at(source).gpu, dst = m->textures.at(dest).gpu;
+    Require(m->CopyColor(src, SurfaceRect(src, 0), dst, 0, SurfaceRect(dst, 0), false), "Invalid Gx texture copy");
+}
+int32_t CGxDeviceMetal::TexCopy(CGxTex* dest, const C2iVector& destPos, const C2iVector& sourcePos, const C2iVector& size, uint32_t level, uint32_t plane) {
+    if (!m_context) { return 0; }
+    Require(m->command && dest && dest->m_flags.m_renderTarget && plane == 0, "Unsupported Gx framebuffer copy target, plane or lifecycle");
+    ITexMarkAsUpdated(dest);
+    id<MTLTexture> src = m->defaultPass.colorAttachments[0].texture, dst = m->textures.at(dest).gpu;
+    if (level >= dst.mipmapLevelCount || size.x <= 0 || size.y <= 0 || sourcePos.x < 0 || sourcePos.y < 0 || destPos.x < 0 || destPos.y < 0) { return 0; }
+    const auto extent = SurfaceRect(dst, level);
+    if (int64_t(sourcePos.x) + size.x > int64_t(src.width) || int64_t(sourcePos.y) + size.y > int64_t(src.height) ||
+        int64_t(destPos.x) + size.x > extent.maxX || int64_t(destPos.y) + size.y > extent.maxY) { return 0; }
+    return m->CopyColor(src, {sourcePos.y, sourcePos.x, sourcePos.y + size.y, sourcePos.x + size.x}, dst, level,
+        {destPos.y, destPos.x, destPos.y + size.y, destPos.x + size.x}, false);
+}
+int32_t CGxDeviceMetal::TexStretch(CGxTex* dest, const CiRect* destRect, const CiRect* sourceRect, uint32_t level, uint32_t face) {
+    if (!m_context) { return 0; }
+    Require(m->command && dest && dest->m_flags.m_renderTarget && face == 0, "Unsupported Gx stretch target, face or lifecycle");
+    ITexMarkAsUpdated(dest);
+    id<MTLTexture> src = m->defaultPass.colorAttachments[0].texture, dst = m->textures.at(dest).gpu;
+    if (level >= dst.mipmapLevelCount) { return 0; }
+    const CiRect s = sourceRect ? *sourceRect : SurfaceRect(src, 0), d = destRect ? *destRect : SurfaceRect(dst, level);
+    const bool linear = !sourceRect || !destRect || int64_t(s.maxX) - s.minX != int64_t(d.maxX) - d.minX ||
+        int64_t(s.maxY) - s.minY != int64_t(d.maxY) - d.minY;
+    return m->CopyColor(src, s, dst, level, d, linear);
+}
 bool CGxDeviceMetal::QueryBegin(CGxQuery*) { Unsupported("query begin"); }
 void CGxDeviceMetal::QueryCreate(CGxQuery*& query, EGxQueryType) { query = nullptr; Unsupported("query creation"); }
 bool CGxDeviceMetal::QueryEnd(CGxQuery*) { Unsupported("query end"); }

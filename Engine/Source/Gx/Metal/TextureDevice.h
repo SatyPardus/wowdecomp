@@ -63,7 +63,7 @@ public:
     id<MTLCommandQueue> queue;
     id<MTLTexture> Upload(const BLP::Image& image, bool forceExpansion = false);
     void Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-        const QuadParameters& parameters, const TextureDrawState& state);
+        const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport = nullptr);
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state);
     bool SupportsBC() const;
