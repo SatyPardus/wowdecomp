@@ -259,8 +259,14 @@ chunk lengths when patched files contain stale header counts. Original async
 postload allocates the world groups and loads the altar's material textures through
 Services/Gx. Truncation, failed-read cleanup/retry, cancellation and recreation
 pass on macOS with ASan/UBSan and Metal validation, and in the iOS simulator;
-both iOS targets build. WMO group geometry loading,
-native WMO shaders and world placement/rendering remain to be connected.
+both iOS targets build. The original group loader also owns aligned geometry,
+BSP, colors and optional payloads; packed MLIQ vertices have separate aligned
+storage. Fifteen actual groups (including twelve liquid grids) preserve authored
+geometry/batches, the original vertex-color correction, liquid heights and tile
+flags. Async and synchronous reads, failed group reads/retry and cancellation pass
+with macOS ASan/UBSan and Metal validation and in the iOS simulator; both iOS
+targets build. Native WMO shaders, world placement/rendering and liquid rendering
+remain to be connected.
 Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against

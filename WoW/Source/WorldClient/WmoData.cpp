@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <cstring>
 
-WmoData::WmoData(const void* data, size_t size) {
-    if (!data || size < 12 || size > MaxBytes) throw std::runtime_error("Invalid WMO byte size or resource budget exceeded");
+WmoData::WmoData(const void* data, size_t size, Stream stream) {
+    if (!data || (stream == Stream::File && size < 12) || size > MaxBytes) throw std::runtime_error("Invalid WMO byte size or resource budget exceeded");
     const auto* bytes = static_cast<const uint8_t*>(data);
     for (size_t offset = 0; offset < size;) {
         if (size - offset < 8 || m_chunks.size() >= 4096) throw std::runtime_error("Invalid WMO chunk table");
@@ -19,9 +19,16 @@ WmoData::WmoData(const void* data, size_t size) {
         offset += chunk.size;
         m_chunks.push_back(std::move(chunk));
     }
-    auto& version = Require(0x4D564552);
-    if (m_chunks.front().token != version.token || version.size != 4 || *version.Records<uint32_t>() != 17)
-        throw std::runtime_error("Unsupported WMO version");
+    if (stream == Stream::File) {
+        auto& version = Require(0x4D564552);
+        if (m_chunks.front().token != version.token || version.size != 4 || *version.Records<uint32_t>() != 17)
+            throw std::runtime_error("Unsupported WMO version");
+    }
+}
+WmoData::Chunk& WmoData::At(size_t index, uint32_t token) {
+    if (index >= m_chunks.size() || (token && m_chunks[index].token != token))
+        throw std::runtime_error("Invalid WMO group chunk sequence");
+    return m_chunks[index];
 }
 WmoData::Chunk* WmoData::Find(uint32_t token) {
     Chunk* found = nullptr;

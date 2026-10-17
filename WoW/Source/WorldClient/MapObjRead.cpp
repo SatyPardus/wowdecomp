@@ -302,130 +302,135 @@ CMapObjGroup* CMapObj::AttenTransVerts(CMapObjGroup* group) {
 
 // VERIFY: 5789fe57 manual
 // OFFSET: 0x007D7C30
-void CMapObjGroup::CreateOptionalDataPointers(SIffChunk* dataChunk) {
-    SIffChunk* chunk = dataChunk;
-    uint32_t flags = this->m_flags;
-
+void CMapObjGroup::CreateOptionalDataPointers(size_t index) {
+    auto& data = *this->m_groupData;
+    const uint32_t flags = this->m_flags;
     if (flags & 0x200) {
-        this->m_lightRefList = reinterpret_cast<uint16_t*>(&chunk->m_data);
-        this->m_lightRefListCount = chunk->m_size >> 1;
-        chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
+        auto& chunk = data.At(index++, 0x4D4F4C52);
+        this->m_lightRefList = chunk.Records<uint16_t>();
+        this->m_lightRefListCount = chunk.Count<uint16_t>();
+        for (int i = 0; i < this->m_lightRefListCount; ++i)
+            if (this->m_lightRefList[i] >= this->m_parent->m_ligtsCount) throw std::runtime_error("WMO light reference out of bounds");
     }
-
     if (flags & 0x800) {
-        this->m_doodadRefList = reinterpret_cast<uint16_t*>(&chunk->m_data);
-        this->m_doodadRefListCount = chunk->m_size >> 1;
-        chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
+        auto& chunk = data.At(index++, 0x4D4F4452);
+        this->m_doodadRefList = chunk.Records<uint16_t>();
+        this->m_doodadRefListCount = chunk.Count<uint16_t>();
+        for (int i = 0; i < this->m_doodadRefListCount; ++i)
+            if (this->m_doodadRefList[i] >= this->m_parent->m_doodadDefCount) throw std::runtime_error("WMO doodad reference out of bounds");
     }
-
     if (flags & 0x1) {
-        uint32_t nodeSize = chunk->m_size;
-        CAaBspNode* nodes = reinterpret_cast<CAaBspNode*>(&chunk->m_data);
-        chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + nodeSize);
-        uint32_t faceSize = chunk->m_size;
-        uint16_t* faces = reinterpret_cast<uint16_t*>(&chunk->m_data);
-        chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + faceSize);
-        this->m_cAaBspNodePtr1.Set(nodes, nodeSize >> 4, faces, faceSize >> 1, this->m_bbox);
-    }
-
-    if (this->m_flags & 0x400) {
-        for (uint32_t i = 0; i < 4; i++) {
-            chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
+        auto& nodeChunk = data.At(index++, 0x4D4F424E);
+        auto& faceChunk = data.At(index++, 0x4D4F4252);
+        auto* nodes = nodeChunk.Records<CAaBspNode>(); const auto nodeCount = nodeChunk.Count<CAaBspNode>();
+        auto* faces = faceChunk.Records<uint16_t>(); const auto faceCount = faceChunk.Count<uint16_t>();
+        if (!nodeCount) throw std::runtime_error("Empty WMO BSP tree");
+        for (uint32_t i = 0; i < faceCount; ++i)
+            if (faces[i] >= this->m_polyListSize) throw std::runtime_error("WMO BSP face out of bounds");
+        for (uint32_t i = 0; i < nodeCount; ++i) {
+            const auto& node = nodes[i];
+            if (node.m_faceStart > faceCount || node.m_nFaces > faceCount - node.m_faceStart ||
+                (!(node.m_flags & 4) && ((node.m_flags & 3) > 2 ||
+                 (node.m_posChild != 0xFFFF && node.m_posChild >= nodeCount) ||
+                 (node.m_negChild != 0xFFFF && node.m_negChild >= nodeCount))))
+                throw std::runtime_error("Invalid WMO BSP node");
         }
+        this->m_cAaBspNodePtr1.Set(nodes, nodeCount, faces, faceCount, this->m_bbox);
     }
-
-    if (this->m_flags & 0x4) {
-        CMapObj* parent = this->m_parent;
-        this->m_colorVertexList = reinterpret_cast<CImVector*>(&chunk->m_data);
-        this->m_colorVertexListSize = chunk->m_size >> 2;
-        chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-
-        if (!(parent->m_header->m_flags & 0x8)) {
-            this->FixColorVertexAlpha();
-        }
+    if (flags & 0x400) for (unsigned i = 0; i < 4; ++i) data.At(index++);
+    if (flags & 0x4) {
+        auto& chunk = data.At(index++, 0x4D4F4356);
+        this->m_colorVertexList = chunk.Records<CImVector>();
+        this->m_colorVertexListSize = chunk.Count<CImVector>();
+        if (this->m_colorVertexListSize != this->m_vertexListCount) throw std::runtime_error("WMO vertex color count mismatch");
+        if (!(this->m_parent->m_header->m_flags & 0x8)) this->FixColorVertexAlpha();
     }
-
-    if (this->m_flags & 0x1000) {
-        uint32_t* header = reinterpret_cast<uint32_t*>(&chunk->m_data);
-        this->m_liquidVerts.x = header[0];
-        this->m_liquidVerts.y = header[1];
-        this->m_liquidTiles.x = header[2];
-        this->m_liquidTiles.y = header[3];
-        this->m_liquidCorner = *reinterpret_cast<C3Vector*>(&header[4]);
-
-        uint16_t materialId = *reinterpret_cast<uint16_t*>(&header[7]);
-        uint8_t* data = reinterpret_cast<uint8_t*>(&header[7]) + 2;
-        this->m_liquidVertexList = reinterpret_cast<SMOLiquidVert*>(data);
-        data += 8 * this->m_liquidVerts.x * this->m_liquidVerts.y;
-        this->m_liquidTileList = reinterpret_cast<SMOLTile*>(data);
-        data += this->m_liquidTiles.x * this->m_liquidTiles.y;
-        chunk = reinterpret_cast<SIffChunk*>(data);
-        this->m_liquidMaterialId = materialId;
-
-        if (!this->m_liquidType) {
-            this->m_liquidType = this->GetLiquidType(this->FindLiquidType());
-        }
-
-        CMapObjGroup::AllocVertArray(&this->m_liquidVertArray, this->m_liquidVerts.x * this->m_liquidVerts.y);
+    if (flags & 0x1000) {
+        auto& chunk = data.At(index++, 0x4D4C4951);
+        if (chunk.size < 30) throw std::runtime_error("Truncated WMO liquid header");
+        const auto* bytes = static_cast<const uint8_t*>(chunk.Data());
+        uint32_t dimensions[4]; std::memcpy(dimensions, bytes, sizeof(dimensions));
+        const uint64_t vertices = uint64_t(dimensions[0]) * dimensions[1];
+        const uint64_t tiles = uint64_t(dimensions[2]) * dimensions[3];
+        if (!dimensions[0] || !dimensions[1] || dimensions[0] > INT32_MAX || dimensions[1] > INT32_MAX ||
+            dimensions[2] >= dimensions[0] || dimensions[3] >= dimensions[1] || vertices > INT32_MAX || tiles > INT32_MAX ||
+            vertices > (chunk.size - 30) / sizeof(SMOLiquidVert) || tiles > chunk.size - 30 - vertices * sizeof(SMOLiquidVert))
+            throw std::runtime_error("Invalid WMO liquid grid");
+        this->m_liquidVerts = C2iVector{int32_t(dimensions[0]), int32_t(dimensions[1])};
+        this->m_liquidTiles = C2iVector{int32_t(dimensions[2]), int32_t(dimensions[3])};
+        std::memcpy(&this->m_liquidCorner, bytes + 16, sizeof(C3Vector));
+        std::memcpy(&this->m_liquidMaterialId, bytes + 28, sizeof(uint16_t));
+        if (this->m_liquidMaterialId >= this->m_parent->m_materialsCount) throw std::runtime_error("WMO liquid material out of bounds");
+        // The serialized vertex array starts at byte 30, even within an aligned
+        // MLIQ chunk. Preserve its exact records in separately aligned storage.
+        this->m_nativeLiquidVertices.resize(size_t(vertices));
+        std::memcpy(this->m_nativeLiquidVertices.data(), bytes + 30, size_t(vertices) * sizeof(SMOLiquidVert));
+        this->m_liquidVertexList = this->m_nativeLiquidVertices.data();
+        this->m_liquidTileList = reinterpret_cast<SMOLTile*>(static_cast<uint8_t*>(chunk.Data()) + 30 + vertices * sizeof(SMOLiquidVert));
+        if (!this->m_liquidType) this->m_liquidType = this->GetLiquidType(this->FindLiquidType());
+        CMapObjGroup::AllocVertArray(&this->m_liquidVertArray, uint32_t(vertices));
         this->GenLiquidVerts();
     }
-
-    if (this->m_flags & 0x20000) {
-        this->m_stripIndices = reinterpret_cast<uint16_t*>(&chunk->m_data);
-        this->m_stripIndexCount = chunk->m_size >> 1;
-        chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size + 8);
-        this->m_stripBatches = reinterpret_cast<uint8_t*>(chunk);
-
-        if (CMap::s_enableTriangleStrips) {
-            for (uint32_t i = 0; i < static_cast<uint32_t>(this->m_batchListCount); i++) {
-                this->m_batchList[i].m_indexStart = *reinterpret_cast<uint32_t*>(&this->m_stripBatches[8 * i]);
-                this->m_batchList[i].m_indexCount = *reinterpret_cast<uint16_t*>(&this->m_stripBatches[8 * i + 4]);
-            }
+    if (flags & 0x20000) {
+        auto& indices = data.At(index++);
+        auto& batches = data.At(index++);
+        this->m_stripIndices = indices.Records<uint16_t>();
+        this->m_stripIndexCount = indices.Count<uint16_t>();
+        this->m_stripBatches = static_cast<uint8_t*>(batches.Data());
+        if (batches.size < uint64_t(this->m_batchListCount) * 8) throw std::runtime_error("Truncated WMO strip batches");
+        for (int i = 0; i < this->m_stripIndexCount; ++i)
+            if (this->m_stripIndices[i] >= this->m_vertexListCount) throw std::runtime_error("WMO strip vertex out of bounds");
+        for (int i = 0; i < this->m_batchListCount; ++i) {
+            uint32_t start; uint16_t count;
+            std::memcpy(&start, this->m_stripBatches + 8 * i, 4);
+            std::memcpy(&count, this->m_stripBatches + 8 * i + 4, 2);
+            if (start > this->m_stripIndexCount || count > this->m_stripIndexCount - start) throw std::runtime_error("WMO strip batch out of bounds");
+            if (CMap::s_enableTriangleStrips) { this->m_batchList[i].m_indexStart = start; this->m_batchList[i].m_indexCount = count; }
         }
     }
-
-    flags = this->m_flags;
-
     if (flags & 0x2000000) {
-        this->m_textureVertexList2 = reinterpret_cast<C2Vector*>(&chunk->m_data);
-        this->m_textureVertexList2Count = chunk->m_size >> 3;
-        chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
+        auto& chunk = data.At(index++, 0x4D4F5456);
+        this->m_textureVertexList2 = chunk.Records<C2Vector>();
+        this->m_textureVertexList2Count = chunk.Count<C2Vector>();
+        if (this->m_textureVertexList2Count != this->m_vertexListCount) throw std::runtime_error("WMO second UV count mismatch");
     }
-
     if (flags & 0x1000000) {
-        this->m_colorVertexListExtra = reinterpret_cast<CImVector*>(&chunk->m_data);
-        this->m_colorVertexListExtraSize = chunk->m_size >> 2;
+        auto& chunk = data.At(index++, 0x4D4F4356);
+        this->m_colorVertexListExtra = chunk.Records<CImVector>();
+        this->m_colorVertexListExtraSize = chunk.Count<CImVector>();
+        if (this->m_colorVertexListExtraSize != this->m_vertexListCount) throw std::runtime_error("WMO extra vertex color count mismatch");
     }
 }
 
-// VERIFY: 182a9a50 manual
 // OFFSET: 0x007D7F50
-void CMapObjGroup::CreateDataPointers(SIffChunk* dataChunk) {
-    SIffChunk* chunk = dataChunk;
-    this->m_polyList = reinterpret_cast<SMOPoly*>(&chunk->m_data);
-    this->m_polyListSize = chunk->m_size >> 1;
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_indices = reinterpret_cast<uint16_t*>(&chunk->m_data);
-    this->m_indicesCount = chunk->m_size >> 1;
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_vertexList = reinterpret_cast<C3Vector*>(&chunk->m_data);
-    this->m_vertexListCount = chunk->m_size / sizeof(C3Vector);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_normalList = reinterpret_cast<C3Vector*>(&chunk->m_data);
-    this->m_normalListCount = chunk->m_size / sizeof(C3Vector);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_textureVertexList = reinterpret_cast<C2Vector*>(&chunk->m_data);
-    this->m_textureVertexListCount = chunk->m_size >> 3;
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_batchList = reinterpret_cast<SMOBatch*>(&chunk->m_data);
-    this->m_batchListCount = chunk->m_size / sizeof(SMOBatch);
-
-    this->CreateOptionalDataPointers(reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size));
+void CMapObjGroup::CreateDataPointers() {
+    auto& data = *this->m_groupData;
+    auto& polygons = data.At(0, 0x4D4F5059);
+    auto& indices = data.At(1, 0x4D4F5649);
+    auto& vertices = data.At(2, 0x4D4F5654);
+    auto& normals = data.At(3, 0x4D4F4E52);
+    auto& uv = data.At(4, 0x4D4F5456);
+    auto& batches = data.At(5, 0x4D4F4241);
+    this->m_polyList = polygons.Records<SMOPoly>(); this->m_polyListSize = polygons.Count<SMOPoly>();
+    this->m_indices = indices.Records<uint16_t>(); this->m_indicesCount = indices.Count<uint16_t>();
+    this->m_vertexList = vertices.Records<C3Vector>(); this->m_vertexListCount = vertices.Count<C3Vector>();
+    this->m_normalList = normals.Records<C3Vector>(); this->m_normalListCount = normals.Count<C3Vector>();
+    this->m_textureVertexList = uv.Records<C2Vector>(); this->m_textureVertexListCount = uv.Count<C2Vector>();
+    this->m_batchList = batches.Records<SMOBatch>(); this->m_batchListCount = batches.Count<SMOBatch>();
+    if (this->m_indicesCount != this->m_polyListSize * 3 || this->m_normalListCount != this->m_vertexListCount ||
+        this->m_textureVertexListCount != this->m_vertexListCount ||
+        uint32_t(this->m_transparencyBatchesCount) + this->m_intBatchCount + this->m_extBatchCount > uint32_t(this->m_batchListCount))
+        throw std::runtime_error("WMO geometry counts disagree");
+    for (int i = 0; i < this->m_indicesCount; ++i)
+        if (this->m_indices[i] >= this->m_vertexListCount) throw std::runtime_error("WMO triangle vertex out of bounds");
+    for (int i = 0; i < this->m_batchListCount; ++i) {
+        const auto& batch = this->m_batchList[i];
+        if (batch.m_texture >= this->m_parent->m_materialsCount || batch.m_indexStart > this->m_indicesCount ||
+            batch.m_indexCount > this->m_indicesCount - batch.m_indexStart ||
+            (batch.m_indexCount && (batch.m_vertexStart > batch.m_vertexEnd || batch.m_vertexEnd >= this->m_vertexListCount)))
+            throw std::runtime_error("WMO draw batch out of bounds");
+    }
+    this->CreateOptionalDataPointers(6);
 }
 
 // VERIFY: aea1ef5e manual
@@ -542,7 +547,19 @@ void CMapObjGroup::HandleAntiportal() {
 // VERIFY: 579978be manual
 // OFFSET: 0x007D82E0
 void CMapObjGroup::Create() {
-    SMOGroupHeader* header = reinterpret_cast<SMOGroupHeader*>(static_cast<uint8_t*>(this->m_filePtr) + 20);
+    static_assert(sizeof(SMOGroupHeader) == 68, "WMO group header disk layout changed");
+    if (!this->m_parent || !this->m_parent->m_rootData || !this->m_filePtr || this->m_fileSize < 88 ||
+        uint32_t(this->m_fileSize) > WmoData::MaxBytes) throw std::runtime_error("Invalid WMO group input");
+    const auto* bytes = static_cast<const uint8_t*>(this->m_filePtr);
+    uint32_t prefix[5]; std::memcpy(prefix, bytes, sizeof(prefix));
+    if (prefix[0] != 0x4D564552 || prefix[1] != 4 || prefix[2] != 17 || prefix[3] != 0x4D4F4750 || prefix[4] != this->m_fileSize - 20)
+        throw std::runtime_error("Invalid WMO group container");
+    SMOGroupHeader nativeHeader; std::memcpy(&nativeHeader, bytes + 20, sizeof(nativeHeader));
+    const auto* header = &nativeHeader;
+    this->m_parent->m_rootData->Require(0x4D4F474E).CheckString(header->m_groupName);
+    if (header->m_portalStart > this->m_parent->m_portalRefCount || header->m_portalCount > this->m_parent->m_portalRefCount - header->m_portalStart)
+        throw std::runtime_error("WMO group portal range out of bounds");
+    this->m_groupData = std::make_unique<WmoData>(bytes + 88, this->m_fileSize - 88, WmoData::Stream::Children);
     this->m_parent->m_mapObjGroupList.LinkToTail(this);
 
     CMapObj* parent = this->m_parent;
@@ -568,7 +585,7 @@ void CMapObjGroup::Create() {
         this->m_liquidType = this->GetLiquidType(header->m_groupLiquid == 15 ? 0 : header->m_groupLiquid + 1);
     }
 
-    this->CreateDataPointers(reinterpret_cast<SIffChunk*>(header + 1));
+    this->CreateDataPointers();
 
     CMapObj* mapObj = this->m_parent;
 
@@ -641,39 +658,56 @@ void CMapObjGroup::AsyncPostloadCallback(void* arg) {
     AsyncFileReadDestroyObject(group->m_asyncObjPtr);
     group->m_asyncObjPtr = nullptr;
     group->m_asyncLoadLink.Unlink();
-    group->Create();
+    try { group->Create(); }
+    catch (...) { group->Clear(); group->m_groupReadFailed = true; throw; }
+}
+
+static void GroupReadFailed(void* arg) {
+    auto* group = static_cast<CMapObjGroup*>(arg);
+    AsyncFileReadDestroyObject(group->m_asyncObjPtr);
+    group->m_asyncObjPtr = nullptr;
+    group->Clear();
+    group->m_groupReadFailed = true;
 }
 
 // VERIFY: 1fdd96d9 manual
 // OFFSET: 0x007D85E0
 void CMapObj::ReadGroup(uint32_t index, bool preLoad) {
+    if (!this->m_isGroupLoaded || index >= uint32_t(this->m_mapObjGroupCount)) throw std::runtime_error("WMO group index out of bounds");
     CMapObjGroup* group = this->m_mapObjGroupArray[index];
+    if (group->m_asyncObjPtr || (group->m_unkLoadedFlag & 1)) return;
+    group->m_groupReadFailed = false;
 
-    char fileName[256];
-    strcpy(fileName, this->m_wmoName);
-    SStrPrintf(strrchr(fileName, '.'), sizeof(fileName), "_%03d", index);
-    strcat(fileName, ".wmo");
+    const char* extension = strrchr(this->m_wmoName, '.');
+    if (!extension) throw std::runtime_error("WMO root name has no extension");
+    char fileName[sizeof(this->m_wmoName) + 16];
+    SStrPrintf(fileName, sizeof(fileName), "%.*s_%03u.wmo", int(extension - this->m_wmoName), this->m_wmoName, index);
 
     SFileImpl* file = nullptr;
-    CMap::SafeOpen(fileName, &file);
+    if (!CMap::SafeOpen(fileName, &file)) { group->m_groupReadFailed = true; return; }
+    std::unique_ptr<SFileImpl, decltype(&SFileCloseFile)> closeFile(file, SFileCloseFile);
 
-    group->m_fileSize = SFileGetFileSize(file, nullptr);
+    const uint32_t size = SFileGetFileSize(file, nullptr);
+    if (size < 88 || size > WmoData::MaxBytes) { group->m_groupReadFailed = true; throw std::runtime_error("Invalid WMO group byte size or resource budget exceeded"); }
+    group->m_fileSize = size;
     group->m_filePtr = SMemAlloc(group->m_fileSize, __FILE__, __LINE__, 0);
     group->m_parent = this;
 
     if (preLoad) {
-        CMap::SafeRead(fileName, file, group->m_filePtr, group->m_fileSize);
-        group->Create();
-        SFileCloseFile(file);
+        try {
+            if (!CMap::SafeRead(fileName, file, group->m_filePtr, group->m_fileSize)) throw std::runtime_error("WMO group read failed");
+            group->Create();
+        } catch (...) { group->Clear(); group->m_groupReadFailed = true; throw; }
         return;
     }
 
     CAsyncObject* object = AsyncFileReadAllocObject();
-    object->m_file = file;
+    object->m_file = closeFile.release();
     object->m_buffer = group->m_filePtr;
     object->m_size = group->m_fileSize;
     object->m_userArg = group;
     object->m_userPostloadCallback = reinterpret_cast<void*>(CMapObjGroup::AsyncPostloadCallback);
+    object->m_userPostUnloadCallback = reinterpret_cast<void*>(GroupReadFailed);
     group->m_asyncObjPtr = object;
     AsyncFileReadObject(object, 0);
 

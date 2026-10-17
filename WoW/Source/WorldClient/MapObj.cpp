@@ -2065,11 +2065,13 @@ CMapObjGroup* CMapObj::GetGroup(int32_t index, int32_t a3) {
 // VERIFY: 0d13eb33 auto
 // OFFSET: 0x007AEAB0
 void CMapObj::WaitLoadGroup(uint32_t index) {
+    if (index >= uint32_t(this->m_mapObjGroupCount)) throw std::runtime_error("WMO group index out of bounds");
     CMapObjGroup* group = this->m_mapObjGroupArray[index];
 
     while (group->m_asyncObjPtr) {
         AsyncFileReadWait(group->m_asyncObjPtr);
     }
+    if (group->m_groupReadFailed) throw std::runtime_error("WMO group read failed");
 }
 
 // VERIFY: ca64417c auto

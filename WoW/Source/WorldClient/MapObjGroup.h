@@ -3,6 +3,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <vector>
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/C3Ray.h"
@@ -29,6 +31,7 @@ struct CGxBuf;
 struct CGxPool;
 class CImVector;
 class CMapObj;
+class WmoData;
 class CMapObjDef;
 class CMapObjGroup;
 struct SMOBatch;
@@ -224,6 +227,9 @@ class CMapObjGroup {
     /* 01A6 */ uint16_t m_vertexMax;
     /* 01A8 */ TSExplicitList<CMapObjOccluder, offsetof(CMapObjOccluder, m_link)> m_occluderList;
     /* 01B4 */ TSLink<CMapObjGroup> m_asyncLoadLink;
+    std::unique_ptr<WmoData> m_groupData;
+    std::vector<SMOLiquidVert> m_nativeLiquidVertices;
+    bool m_groupReadFailed = false;
 
     CMapObjGroup();
     ~CMapObjGroup();
@@ -232,8 +238,8 @@ class CMapObjGroup {
     void FreeVB();
     void InitPtrs();
     void Create();
-    void CreateDataPointers(SIffChunk* dataChunk);
-    void CreateOptionalDataPointers(SIffChunk* dataChunk);
+    void CreateDataPointers();
+    void CreateOptionalDataPointers(size_t index);
     void AllocVB();
     void AllocLiquidVB(EGxVertexBufferFormat format, uint32_t vertexCount, uint32_t indexCount, CGxBatch** batch);
     void FreeLiquidVB();

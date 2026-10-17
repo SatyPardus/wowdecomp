@@ -25,6 +25,42 @@ void SetBytes(CMapObj& object, const std::vector<uint8_t>& bytes) {
     object.m_wmoFileSize = int32_t(bytes.size());
     std::memcpy(object.m_pWmoData, bytes.data(), bytes.size());
 }
+void CheckGroup(CMapObjGroup& group) {
+    Require((group.m_unkLoadedFlag & 1) && group.m_vertexListCount && group.m_indicesCount && group.m_cAaBspNodePtr1.m_nNodes,
+        "Original WMO group geometry did not load");
+    WmoData source(static_cast<const uint8_t*>(group.m_filePtr) + 88, group.m_fileSize - 88, WmoData::Stream::Children);
+    const void* views[] = {group.m_polyList, group.m_indices, group.m_vertexList, group.m_normalList, group.m_textureVertexList, group.m_batchList};
+    for (unsigned i = 0; i < 6; ++i)
+        Require(!std::memcmp(views[i], source.At(i).Data(), source.At(i).size), "WMO authored geometry or batch bytes changed");
+    Require(reinterpret_cast<uintptr_t>(group.m_cAaBspNodePtr1.m_nodes) % alignof(CAaBspNode) == 0,
+        "WMO BSP nodes are unaligned");
+    if (group.m_colorVertexList) {
+        auto* colors = source.Require(0x4D4F4356).Records<CImVector>();
+        const uint32_t split = group.m_transparencyBatchesCount ? group.m_batchList[group.m_transparencyBatchesCount - 1].m_vertexEnd + 1 : 0;
+        for (int i = 0; i < group.m_colorVertexListSize; ++i) {
+            CImVector expected = colors[i];
+            if (!(group.m_parent->m_header->m_flags & 8)) {
+                for (auto* value : {&expected.r, &expected.g, &expected.b}) {
+                    const unsigned scaled = uint32_t(i) < split ? *value / 2 : (*value + (expected.a * *value / 64)) / 2;
+                    *value = uint8_t(scaled > 255 ? 255 : scaled);
+                }
+                if (uint32_t(i) >= split) expected.a = 255;
+            }
+            Require(!std::memcmp(&expected, group.m_colorVertexList + i, sizeof(expected)), "WMO original vertex color correction changed");
+        }
+    }
+    if (group.m_liquidVertexList) {
+        const auto* raw = static_cast<const uint8_t*>(source.Require(0x4D4C4951).Data());
+        const size_t count = size_t(group.m_liquidVerts.x) * group.m_liquidVerts.y;
+        Require(reinterpret_cast<uintptr_t>(group.m_liquidVertexList) % alignof(SMOLiquidVert) == 0 &&
+            !std::memcmp(group.m_liquidVertexList, raw + 30, count * sizeof(SMOLiquidVert)), "WMO liquid vertices changed or remain unaligned");
+        for (size_t i = 0; i < count; ++i)
+            Require(group.m_liquidVertArray->m_verts[i].z == group.m_liquidVertexList[i].m_waterVert.m_height,
+                "Original WMO liquid generation changed authored heights");
+        Require(!std::memcmp(group.m_liquidTileList, raw + 30 + count * sizeof(SMOLiquidVert),
+            size_t(group.m_liquidTiles.x) * group.m_liquidTiles.y), "WMO liquid tile flags changed");
+    }
+}
 }
 
 void CheckWmoRoots(const ClientData& client, std::ostream& report) {
@@ -71,6 +107,13 @@ void CheckGameWmoRoots() {
         Require(object.Read(name.data()), "Original WMO async read did not start"); object.WaitLoad();
         Require(!object.m_asyncObject && object.m_isGroupLoaded && object.m_mapObjGroupCount == object.m_groupInfoCount,
             "Original WMO postload did not create its groups");
+        std::vector<unsigned> indices{0};
+        if (path == roots[1]) indices.insert(indices.end(), {224, 281, 282, 283, 284});
+        if (path == roots[2]) indices.insert(indices.end(), {48, 65, 69, 70, 71, 72, 73});
+        for (auto index : indices) {
+            object.ReadGroup(index); object.WaitLoadGroup(index);
+            CheckGroup(*object.m_mapObjGroupArray[index]);
+        }
         if (path == roots[0]) for (int32_t i = 0; i < object.m_materialsCount; ++i) {
             object.CreateMaterial(uint8_t(i)); CStatus status;
             auto* texture = object.m_materialList[i].Textures()[0];
@@ -92,7 +135,29 @@ void CheckGameWmoRoots() {
     Require(rejected && failed.m_rootReadFailed && !failed.m_asyncObject && !failed.m_pWmoData && !failed.m_header,
         "Failed WMO read retained pending or partial resources");
     Require(failed.Read(name.data()), "Cannot retry WMO read after failure"); failed.WaitLoad();
-    Require(failed.m_isGroupLoaded && !failed.m_rootReadFailed, "WMO read did not recover after failure"); failed.Clear();
+    Require(failed.m_isGroupLoaded && !failed.m_rootReadFailed, "WMO read did not recover after failure");
+    auto* group = failed.m_mapObjGroupArray[0];
+    {
+        AsyncFile::EnterQueueLock();
+        struct Unlock { ~Unlock() { AsyncFile::LeaveQueueLock(); } } unlock;
+        failed.ReadGroup(0);
+        SFile::SetFilePointer(group->m_asyncObjPtr->m_file, 1, nullptr, 0);
+    }
+    rejected = false;
+    try { failed.WaitLoadGroup(0); } catch (const std::runtime_error&) { rejected = true; }
+    Require(rejected && group->m_groupReadFailed && !group->m_asyncObjPtr && !group->m_filePtr && !group->m_groupData &&
+        !CMapObj::s_loadedGroups.Head(), "Failed WMO group read retained resources or queue entry");
+    failed.ReadGroup(0, true); CheckGroup(*group);
+    Require(!group->m_groupReadFailed, "WMO synchronous group retry did not recover");
+    group->Clear();
+    {
+        AsyncFile::EnterQueueLock();
+        struct Unlock { ~Unlock() { AsyncFile::LeaveQueueLock(); } } unlock;
+        failed.ReadGroup(0); group->Clear();
+    }
+    Require(!group->m_asyncObjPtr && !group->m_filePtr && !CMapObj::s_loadedGroups.Head(), "Canceled WMO group retained resources");
+    failed.ReadGroup(0); failed.WaitLoadGroup(0); CheckGroup(*group);
+    failed.Clear();
     {
         AsyncFile::EnterQueueLock();
         struct Unlock { ~Unlock() { AsyncFile::LeaveQueueLock(); } } unlock;

@@ -1,4 +1,5 @@
 #include "MapObjGroup.h"
+#include "WmoData.h"
 #include "WoW/Source/WorldClient/BspQuery_SegmentLink.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "Engine/Source/Tempest/CFacet.h"
@@ -702,12 +703,14 @@ void CMapObjGroup::InitPtrs() {
     this->m_vertexListCount = 0;
     this->m_normalListCount = 0;
     this->m_textureVertexListCount = 0;
+    this->m_textureVertexList2Count = 0;
     this->m_indicesCount = 0;
     this->m_stripIndexCount = 0;
     this->m_batchListCount = 0;
     this->m_lightRefListCount = 0;
     this->m_doodadRefListCount = 0;
     this->m_colorVertexListSize = 0;
+    this->m_colorVertexListExtraSize = 0;
     this->m_liquidVerts.x = 0;
     this->m_liquidVerts.y = 0;
     this->m_liquidTiles.x = 0;
@@ -959,7 +962,7 @@ int32_t CMapObjGroup::FindLiquidType() {
 // VERIFY: f0e93fe5 auto
 // OFFSET: 0x007C9BC0
 void CMapObjGroup::Init() {
-    this->m_unkLoadedFlag &= ~0xF;
+    this->m_unkLoadedFlag = 0;
     this->unused_0190 = 0.0f;
     this->m_flags = 0;
     this->m_bbox.b = C3Vector(0.0f, 0.0f, 0.0f);
@@ -1524,6 +1527,7 @@ void CMapObjGroup::FreeLiquidVB() {
 // VERIFY: 200c714f manual
 // OFFSET: 0x007CBE80
 void CMapObjGroup::Clear() {
+    this->m_asyncLoadLink.Unlink();
     int32_t freeFile = 1;
 
     if (this->m_asyncObjPtr) {
@@ -1540,6 +1544,9 @@ void CMapObjGroup::Clear() {
     }
 
     this->InitPtrs();
+
+    this->m_groupData.reset();
+    std::vector<SMOLiquidVert>().swap(this->m_nativeLiquidVertices);
 
     if (this->m_filePtr) {
         if (freeFile) {
