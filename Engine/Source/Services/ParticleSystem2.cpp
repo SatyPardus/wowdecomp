@@ -2143,7 +2143,7 @@ CParticleEmitter2::Params::Params() {
     this->m_spin = 0.0f;
     this->m_spinVariation = 0.0f;
     this->m_materialBlend = 0;
-    this->m_materialFlags |= 0x7;
+    this->m_materialFlags = 0x7;
     this->m_colorTrack = nullptr;
     this->m_alphaTrack = nullptr;
     this->m_scaleTrack = nullptr;

@@ -31,7 +31,10 @@ ModelPreview::ModelPreview(const char* name, uint32_t creatureDisplay) : m_name(
         }
         m_blobLoaded = ModelBlobLoad("World\\model.blob");
         if (!m_blobLoaded) throw std::runtime_error("Cannot load model bounds index");
-        CShaderEffect::InitShaderSystem(1, 0);
+        CShaderEffect::InitShaderSystem(1, 0); m_effectsInitialized = true;
+        CShaderEffectManager::AddEffectFile("Particle.wfx");
+        if (!CShaderEffectManager::GetEffect("Particle") || !CShaderEffectManager::GetEffect("Particle_Unlit"))
+            throw std::runtime_error("Required original particle effect definitions are missing");
         M2Initialize(8, 16); m_initialized = true;
         m_scene = M2CreateScene();
         if (!m_scene) throw std::runtime_error("Cannot create preview model scene");
@@ -52,7 +55,8 @@ ModelPreview::ModelPreview(const char* name, uint32_t creatureDisplay) : m_name(
 ModelPreview::~ModelPreview() { Shutdown(); }
 void ModelPreview::Shutdown() {
     if (m_scene) { m_scene->Release(); m_scene = nullptr; m_model = nullptr; }
-    if (m_initialized) { M2Destroy(); CShaderEffectManager::DestroyAllEffects(); m_initialized = false; }
+    if (m_initialized) { M2Destroy(); m_initialized = false; }
+    if (m_effectsInitialized) { CShaderEffectManager::DestroyAllEffects(); m_effectsInitialized = false; }
     if (m_blobLoaded) { ModelBlobDestroy(); m_blobLoaded = false; }
 }
 bool ModelPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
@@ -82,7 +86,7 @@ bool ModelPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     if (aspect > 1) projection.a0 /= aspect; else projection.b1 *= aspect;
     g_theGxDevicePtr->XformSetView(identity); g_theGxDevicePtr->XformSetProjection(projection);
     GxXformSetViewport(0.5f, 0.98f, 0.2f, 0.92f, 0, 1);
-    m_model->m_fFlags |= 8;
+    m_model->m_fFlags |= 0x10008; // World requests geometry and particles separately.
     m_model->SetAnimating(1); m_scene->Animate(C3Vector(0, 0, 0));
     m_scene->Draw(M2PASS_0); m_scene->Draw(M2PASS_1); m_scene->Draw(M2PASS_2);
     GxXformSetViewport(0, 1, 0, 1, 0, 1);

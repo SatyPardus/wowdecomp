@@ -4,7 +4,7 @@
 #include <simd/simd.h>
 #include <array>
 #include <unordered_map>
-#include "Engine/Source/Gx/Metal/PostProcessShader.h"
+#include "Engine/Source/Gx/Metal/ModelShader.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -59,6 +59,7 @@ struct ModelDrawParameters {
     ModelFragmentParameters fragment{};
     std::array<ModelAffine, 75> bones{};
     uint32_t permutation = 0, boneCount = 1;
+    ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse;
     bool shaderAlphaTest = false;
 };
 
@@ -118,7 +119,7 @@ public:
 
 private:
     id<MTLLibrary> m_library;
-    id<MTLFunction> m_modelVertex[30]{};
+    id<MTLFunction> m_modelVertex[3][30]{};
     id<MTLFunction> m_modelFragment[2][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
@@ -134,7 +135,7 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false);
+        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 4>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 4>&);

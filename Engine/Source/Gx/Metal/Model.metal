@@ -2,6 +2,8 @@
 constant uint modelPermutation [[function_constant(5)]];
 constant bool modelShaderAlphaTest [[function_constant(6)]];
 constant bool modelTextureAlpha [[function_constant(7)]];
+// 0: material diffuse, 1: Color_T1, 2: CDiffuse_T1.
+constant uint modelColorMode [[function_constant(8)]];
 struct ModelAffine { float4 x, y, z; };
 struct ModelVertexParameters {
     float4x4 projection;
@@ -25,12 +27,14 @@ struct ModelSkinVertex {
     uint4 bones [[attribute(4)]];
 };
 struct ModelRaster { float4 position [[position]]; float4 color; float2 uv; float fog; float pointSize [[point_size]]; };
-inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv,
+inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, float4 vertexColor,
     ModelAffine viewFromModel, constant ModelVertexParameters& p) {
     const float4 point = float4(position, 1);
     const float3 view = float3(dot(viewFromModel.x, point), dot(viewFromModel.y, point), dot(viewFromModel.z, point));
     float4 color;
-    if (modelPermutation & 1) {
+    if (modelColorMode == 1) {
+        color = (modelPermutation & 1) ? float4(1) : vertexColor;
+    } else if (modelPermutation & 1) {
         const float3 direction = normalize(float3(dot(viewFromModel.x.xyz, normal),
             dot(viewFromModel.y.xyz, normal), dot(viewFromModel.z.xyz, normal)));
         float3 lighting = fma(saturate(dot(-p.sunDirection.xyz, direction)), p.sunDiffuse.xyz, p.sunAmbient.xyz);
@@ -44,8 +48,8 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv,
             const float diffuse = max(dot(toLight, direction) * inverseDistance, 0.0f);
             lighting = fma(p.lightColor[i].xyz, attenuation * diffuse, lighting);
         }
-        color = saturate(fma(p.diffuse, float4(saturate(lighting), 1), p.emissive));
-    } else { color = saturate(p.diffuse + p.emissive); }
+        color = saturate(fma(modelColorMode == 2 ? vertexColor : p.diffuse, float4(saturate(lighting), 1), p.emissive));
+    } else { color = modelColorMode == 2 ? vertexColor : saturate(p.diffuse + p.emissive); }
     const float fog = min(pow(max(fma(view.z, p.fog.x, p.fog.y), 0.0f), p.fog.z), 1.0f);
     const float3 texturePoint = float3(uv, 1);
     return {p.projection * float4(view, 1), color,
@@ -53,7 +57,7 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv,
 }
 vertex ModelRaster modelRigidVertex(ModelVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
     constant ModelAffine* palette [[buffer(2)]]) {
-    return modelTransform(v.position, v.normal, v.uv, palette[0], p);
+    return modelTransform(v.position, v.normal, v.uv, float4(1), palette[0], p);
 }
 vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
     constant ModelAffine* palette [[buffer(2)]]) {
@@ -71,7 +75,31 @@ vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant Mode
         transform.y = fma(palette[v.bones.w].y, v.weights.w, transform.y);
         transform.z = fma(palette[v.bones.w].z, v.weights.w, transform.z);
     }
-    return modelTransform(v.position, v.normal, v.uv, transform, p);
+    return modelTransform(v.position, v.normal, v.uv, float4(1), transform, p);
+}
+struct ModelColorVertex {
+    float3 position [[attribute(0)]];
+    float2 uv [[attribute(2)]];
+    float4 color [[attribute(5)]];
+};
+struct ModelColorLitVertex {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float2 uv [[attribute(2)]];
+    float4 color [[attribute(5)]];
+};
+struct ModelWhiteVertex { float3 position [[attribute(0)]]; float2 uv [[attribute(2)]]; };
+vertex ModelRaster modelColorVertex(ModelColorVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, float3(0, 0, 1), v.uv, v.color, palette[0], p);
+}
+vertex ModelRaster modelColorLitVertex(ModelColorLitVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, v.normal, v.uv, v.color, palette[0], p);
+}
+vertex ModelRaster modelWhiteVertex(ModelWhiteVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, float3(0, 0, 1), v.uv, float4(1), palette[0], p);
 }
 fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]]) {

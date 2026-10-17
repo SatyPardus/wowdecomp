@@ -4,10 +4,18 @@
 #include <stdexcept>
 #include <string>
 
-bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation) {
-    return target == GxSh_Vertex ? permutation < 30 : permutation < 16 && (permutation & 3) == 0;
+const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
+    switch (effect) {
+        case ModelVertexEffect::Diffuse: return "Diffuse_T1";
+        case ModelVertexEffect::Color: return "Color_T1";
+        case ModelVertexEffect::ColorDiffuse: return "CDiffuse_T1";
+    }
+    throw std::runtime_error("Invalid native model vertex family");
 }
-void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect) {
+bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect) {
+    return target == GxSh_Vertex ? permutation < (vertexEffect == ModelVertexEffect::Diffuse ? 30u : 10u) : permutation < 16 && (permutation & 3) == 0;
+}
+void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect) {
     if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
     const auto shaders = GxReadShaderBinary(bytes, 1024 * 1024);
     if (shaders.size() != (target == GxSh_Vertex ? 90u : 16u)) {
@@ -49,12 +57,38 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         "548b9cd8094d5a518266ca5d13fce67b",
         "9226c755d99d09b6f86eeefbcf62d3b5",
     };
+    static const char* coloredVertex[2][10] = {
+        {
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "b4215c33c04ed75779d25e8b5884a19d",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "b4215c33c04ed75779d25e8b5884a19d",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "b4215c33c04ed75779d25e8b5884a19d",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "b4215c33c04ed75779d25e8b5884a19d",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "b4215c33c04ed75779d25e8b5884a19d",
+        },
+        {
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "2889ffba6227e08bff1ef82b9ef83968",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "319a3528a3638e297f185691619aa643",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "643d5a2656432376cd77ac536e390208",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "045c27469adfee6b8f5843ddbeb9d3fc",
+            "3e86c7bd92207b6eb87db98dbef85234",
+            "99d04c70b44aa87dd41647907ab99c8b",
+        }
+    };
     static const char* pixel[][2] = {
         {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"},
         {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
-        if (!SupportsModelPermutation(target, i)) continue;
+        if (!SupportsModelPermutation(target, i, vertexEffect)) continue;
         const auto& shader = shaders[i];
         Blizzard::Util::MD5 hash;
         hash.Process(shader.code.data(), uint32_t(shader.code.size()));
@@ -62,7 +96,10 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         const char hex[] = "0123456789abcdef";
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
-        if (fingerprint != (target == GxSh_Vertex ? vertex[i] : pixel[effect == FragmentEffect::ModelMod][i >> 3])) {
+        const char* expected = target == GxSh_Vertex ?
+            (vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
+            pixel[effect == FragmentEffect::ModelMod][i >> 3];
+        if (fingerprint != expected) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");
         }
     }

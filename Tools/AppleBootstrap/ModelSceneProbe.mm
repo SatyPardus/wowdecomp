@@ -6,6 +6,7 @@
 #include "Engine/Source/Services/Camera.h"
 #include "Engine/Source/Services/CameraInt.h"
 #include "Engine/Source/Services/ModelBlob.h"
+#include "Engine/Source/Services/ParticleSystem2.h"
 #include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/ShaderEffect/ShaderEffectManager.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
@@ -21,8 +22,11 @@ void CheckGameModels() {
     if (!ModelBlobLoad("World\\model.blob")) throw std::runtime_error("Original model bounds index failed to load");
     struct BlobCleanup { ~BlobCleanup() { ModelBlobDestroy(); } } blobCleanup;
     CShaderEffect::InitShaderSystem(1, 0);
-    M2Initialize(8, 16);
-    struct Shutdown { ~Shutdown() { M2Destroy(); CShaderEffectManager::DestroyAllEffects(); } } shutdown;
+    struct Shutdown { bool cache = false; ~Shutdown() { if (cache) M2Destroy(); CShaderEffectManager::DestroyAllEffects(); } } shutdown;
+    CShaderEffectManager::AddEffectFile("Particle.wfx");
+    if (!CShaderEffectManager::GetEffect("Particle") || !CShaderEffectManager::GetEffect("Particle_Unlit"))
+        throw std::runtime_error("Required original particle effect definitions are missing");
+    M2Initialize(8, 16); shutdown.cache = true;
     auto* scene = M2CreateScene();
     if (!scene) throw std::runtime_error("M2 scene creation failed");
     struct Release { CM2Scene* scene; ~Release() { scene->Release(); } } release{scene};
@@ -117,4 +121,39 @@ void CheckGameModels() {
         changedPixels += std::memcmp(&pixels[i], &animated[i], sizeof(CImVector)) != 0;
     if (changedPixels < 16) throw std::runtime_error("Animated wolf pose did not reach Metal drawing");
     std::fprintf(stderr, "M2 native wolf scene: %u covered pixels, %u changed by original walk animation\n", covered, changedPixels);
+    device.ScenePresent();
+    auto* spellScene = M2CreateScene();
+    if (!spellScene) throw std::runtime_error("Particle scene creation failed");
+    Release releaseSpell{spellScene};
+    auto* spell = spellScene->CreateModel("Spells\\Fireball_Missile_Low.m2", 0);
+    if (!spell || !spell->IsLoaded(1, 0) || !spell->IsDrawable(1, 0))
+        throw std::runtime_error("Original fireball resources failed to load");
+    const auto& spellBounds = spell->m_shared->m_data->m_bounds;
+    C44Matrix spellWorld(1); spellWorld.Scale(0.8f / spellBounds.m_radius);
+    spellWorld.Translate((spellBounds.m_extent.b + spellBounds.m_extent.t) * -0.5f);
+    spell->SetWorldTransform(spellWorld); spell->m_lightingCallback = visible->m_lightingCallback;
+    unsigned particleDraws = 0, rendered = 0;
+    for (unsigned frame = 0; frame < 32; ++frame) {
+        spell->m_fFlags |= 0x10008; spell->SetAnimating(1);
+        spellScene->AdvanceTime(16); spellScene->Animate(C3Vector(0, 0, 0));
+        if (frame != 31) continue;
+        for (unsigned i = 0; i < spellScene->m_elements.Count(); ++i) particleDraws += spellScene->m_elements[i].m_type == 4;
+        device.BeginFrame(pass);
+        spellScene->Draw(M2PASS_0); spellScene->Draw(M2PASS_1); spellScene->Draw(M2PASS_2);
+        for (unsigned i = 0; i < spell->m_shared->m_data->m_particles.m_count; ++i)
+            rendered += spell->m_particleEmitters[i]->m_renderedParticles;
+        TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect, image);
+        unsigned visiblePixels = 0;
+        for (unsigned i = 0; i < image.Count(); ++i) visiblePixels += image[i].r || image[i].g || image[i].b;
+        if (!particleDraws || !rendered || visiblePixels < 16) {
+            std::fprintf(stderr, "Fireball diagnostics: model flags %x, batches %u, particles %u, pixels %u\n", spell->m_fFlags, particleDraws, rendered, visiblePixels);
+            for (unsigned i = 0; i < spell->m_shared->m_data->m_particles.m_count; ++i) {
+                auto& e = *spell->m_particleEmitters[i]; const auto& p = spell->m_particles[i];
+                std::fprintf(stderr, "Emitter %u: flags %x, active %u emitting %u visible %u, rate %f life %f, live %u\n", i, e.m_flags, p.m_active, p.m_emitting, p.m_visibilityTrack.m_currentValue, e.m_params.m_emissionRate, e.m_params.m_life, e.m_liveList.Count());
+            }
+            throw std::runtime_error("Original fireball particles did not reach Metal drawing");
+        }
+        std::fprintf(stderr, "M2 fireball: %u particle batches, %u rendered particles, %u visible pixels\n", particleDraws, rendered, visiblePixels);
+    }
+
 }

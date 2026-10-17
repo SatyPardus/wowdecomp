@@ -183,8 +183,15 @@ become typed native data, and only the referenced palette range is uploaded.
 Original SM3 bytecode fingerprints guard supported variants; selecting a shadow
 variant fails explicitly. GPU checks cover those variants, both real wolf material
 batches and changing bone/pixel output as its original animation advances, including
-scene/cache recreation. Other model materials, shadows and full world rendering
-remain open; these checks are not a Windows visual-equivalence claim.
+scene/cache recreation. The original `Particle.wfx` now loads both particle effects;
+`Color_T1` and `CDiffuse_T1` cover their ten rigid vertex variants each, preserving
+vertex color, the original white-output branch, directional/local lighting and fog.
+The original fireball emits and renders four particle batches through its own
+billboard geometry and blending. Effect loading checks complete bounded reads,
+argument lengths, scopes and the original pass/stage capacities. Model and particle
+constructors initialize reserved flag bits instead of retaining allocator contents.
+Other model materials, colored skinning, shadows and full world rendering remain
+open; these checks are not a Windows visual-equivalence claim.
 
 The macOS preview and iOS Metal view run that original M2 scene beside the texture
 and font preview. Model/skin/texture loading is asynchronous; the game Event update
@@ -192,7 +199,9 @@ drives animation time. The default is CreatureDisplayInfo 165 (timber wolf), pla
 its original walk animation. Set `WOW_CREATURE_DISPLAY` to another positive DBC ID,
 or `WOW_MODEL` to an explicit archive path without creature appearance replacement.
 These options are mutually exclusive. Character composition is not integrated;
-an unsupported shader reports its name and stops rendering. The view owns depth,
+an unsupported shader reports its name and stops rendering.
+`WOW_MODEL='Spells\Fireball_Missile_Low.m2'` exercises original particle emission
+and drawing. The view owns depth,
 scene/cache lifetime and foreground recreation. This remains a native rendering
 bootstrap, not a playable client or a replacement for the game's UI.
 

@@ -1,6 +1,7 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Model2/M2Data.h"
+#include "Engine/Source/ShaderEffect/ShaderEffectParser.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -23,17 +24,28 @@ float Sat(float value) { return std::clamp(value, 0.0f, 1.0f); }
 }
 
 void CheckModelShaders(CGxDeviceMetal& device) {
-    CGxShader* vertex[90]{}; CGxShader* pixel[16]{}; CGxShader* modPixel[16]{};
-    device.ShaderCreate(vertex, GxSh_Vertex, "Shaders\\Vertex", "Diffuse_T1", 90);
+    // Truncated scopes/arguments and over-capacity pass lists used to read or
+    // write beyond the parser's stack records before any shader was created.
+    for (std::string malformed : {std::string("Effect(Broken"), std::string("Effect(Test){Shader(){Pass(){VertexShader(" + std::string(80, 'x') + ");}}}"),
+        std::string("Effect(Test){Shader(){Pass(){VertexShader(Color_T1);PixelShader(Combiners_Mod);}Pass(){}}}"),
+        std::string("Effect(Test){FixedFunc(){Pass(3){ColorOp0(Mod);}}}")}) {
+        bool rejected = false;
+        try { CShaderEffectParser::ParseEffectFile(malformed.data(), uint32_t(malformed.size()), [](const auto&, void*) {}, nullptr); }
+        catch (const std::runtime_error&) { rejected = true; }
+        if (!rejected) throw std::runtime_error("Malformed shader effect escaped its bounds checks: " + malformed);
+    }
+    CGxShader* vertex[3][90]{}; CGxShader* pixel[16]{}; CGxShader* modPixel[16]{};
+    for (unsigned family = 0; family < 3; ++family)
+        device.ShaderCreate(vertex[family], GxSh_Vertex, "Shaders\\Vertex", GxMetal::ModelVertexFamily(GxMetal::ModelVertexEffect(family)), 90);
     device.ShaderCreate(pixel, GxSh_Pixel, "Shaders\\Pixel", "Combiners_Opaque", 16);
     device.ShaderCreate(modPixel, GxSh_Pixel, "Shaders\\Pixel", "Combiners_Mod", 16);
     device.RsPush();
     struct Cleanup {
-        CGxDeviceMetal& device; CGxShader** vertex; CGxShader** pixel; CGxShader** modPixel; CGxTex* texture[2]{};
+        CGxDeviceMetal& device; CGxShader* (*vertex)[90]; CGxShader** pixel; CGxShader** modPixel; CGxTex* texture[2]{};
         ~Cleanup() {
             if (device.FrameCommand()) device.ScenePresent();
             device.RsPop(); for (auto& image : texture) device.TexDestroy(image);
-            for (unsigned i = 0; i < 90; ++i) device.ShaderDestroy(vertex[i]);
+            for (unsigned family = 0; family < 3; ++family) for (unsigned i = 0; i < 90; ++i) device.ShaderDestroy(vertex[family][i]);
             for (unsigned i = 0; i < 16; ++i) { device.ShaderDestroy(pixel[i]); device.ShaderDestroy(modPixel[i]); }
         }
     } cleanup{device, vertex, pixel, modPixel};
@@ -71,15 +83,25 @@ void CheckModelShaders(CGxDeviceMetal& device) {
     source.m_texcoord[0] = C2Vector(0.25f, 0.7f);
     const uint8_t weights[] = {32, 64, 96, 63}, indices[] = {4, 2, 1, 3};
     std::memcpy(&source.m_weights, weights, 4); std::memcpy(&source.m_indices, indices, 4);
-    auto* buffer = GxBufStream(GxPoolTarget_Vertex, sizeof(source), 1);
-    std::memcpy(device.BufLock(buffer), &source, sizeof(source)); device.BufUnlock(buffer, 0);
-    GxPrimVertexPtr(buffer, GxVBF_PBNT2);
     CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
     const Vec fogColor{0.12f, 0.23f, 0.34f, 0.6f};
     // Independently evaluate the original SM3 vertex equations at one vertex.
     // A point checks position, UV matrix, palette indexing, light accumulation,
     // fog and opaque alpha without introducing triangle-interpolation error.
-    for (unsigned permutation = 0; permutation < 30; ++permutation) {
+    for (unsigned family = 0; family < 3; ++family) for (unsigned permutation = 0; permutation < (family ? 10u : 30u); ++permutation) {
+        const auto format = family == 0 ? GxVBF_PBNT2 : family == 2 && (permutation & 1) ? GxVBF_PNCT :
+            family == 1 && (permutation & 1) ? GxVBF_PT : GxVBF_PCT;
+        auto* vertices = GxBufStream(GxPoolTarget_Vertex, GxVertexSize(format), 1);
+        auto* bytes = reinterpret_cast<uint8_t*>(device.BufLock(vertices));
+        if (!family) std::memcpy(bytes, &source, sizeof(source));
+        else {
+            std::memcpy(bytes + GxVertexAttribOffset(format, GxVA_Position), &source.m_position, 12);
+            std::memcpy(bytes + GxVertexAttribOffset(format, GxVA_TexCoord0), &source.m_texcoord[0], 8);
+            if (GxVertexHasAttrib(format, GxVA_Normal)) std::memcpy(bytes + GxVertexAttribOffset(format, GxVA_Normal), &source.m_normal, 12);
+            const uint32_t packedColor = 0xB380A0C0;
+            if (GxVertexHasAttrib(format, GxVA_Color0)) std::memcpy(bytes + GxVertexAttribOffset(format, GxVA_Color0), &packedColor, 4);
+        }
+        device.BufUnlock(vertices, 0); GxPrimVertexPtr(vertices, format);
         Vec rows[3]{};
         for (unsigned row = 0; row < 3; ++row) for (unsigned component = 0; component < 4; ++component) {
             if (permutation < 20) rows[row][component] = c[31 + (permutation < 10 ? 0 : indices[0] * 3) + row][component];
@@ -92,7 +114,9 @@ void CheckModelShaders(CGxDeviceMetal& device) {
         Vec transformedNormal{Dot(rows[0], normal), Dot(rows[1], normal), Dot(rows[2], normal), 0};
         const float length = std::sqrt(Dot(transformedNormal, transformedNormal, 3));
         for (unsigned i = 0; i < 3; ++i) transformedNormal[i] /= length;
-        Vec color = c[28];
+        const Vec vertexColor{128.0f / 255, 160.0f / 255, 192.0f / 255, 179.0f / 255};
+        Vec color = family ? vertexColor : c[28];
+        if (family == 1 && (permutation & 1)) color = {1, 1, 1, 1};
         for (unsigned channel = 0; channel < 3; ++channel) {
             float lighting = Sat(transformedNormal[2]) * c[10][channel] + c[11][channel];
             for (unsigned light = 0; light < (permutation / 2) % 5; ++light) {
@@ -101,7 +125,8 @@ void CheckModelShaders(CGxDeviceMetal& device) {
                 lighting += c[17 + light][channel] * std::max(0.0f, Dot(delta, transformedNormal, 3) / distance) /
                     (c[25][light] + c[26][light] * distance + c[27][light] * distance * distance);
             }
-            color[channel] = Sat(c[28][channel] * ((permutation & 1) ? Sat(lighting) : 1) + c[29][channel]);
+            if (family == 0) color[channel] = Sat(c[28][channel] * ((permutation & 1) ? Sat(lighting) : 1) + c[29][channel]);
+            else if (family == 2 && (permutation & 1)) color[channel] = Sat(vertexColor[channel] * Sat(lighting) + c[29][channel]);
         }
         const float fog = std::min(1.0f, std::pow(std::max(0.0f, view[2] * c[30][0] + c[30][1]), c[30][2]));
         const Vec texel{96.0f / 255, 160.0f / 255, 224.0f / 255, 0}; // UV matrix selects (1,0).
@@ -116,13 +141,13 @@ void CheckModelShaders(CGxDeviceMetal& device) {
             device.BeginFrame(pass);
             GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 256);
             GxShaderConstantsSet(GxSh_Pixel, 2, pixelFog.data(), 1);
-            device.RsSet(GxRs_VertexShader, vertex[permutation]); device.RsSet(GxRs_PixelShader, (mod ? modPixel : pixel)[pixelPermutation]);
+            device.RsSet(GxRs_VertexShader, vertex[family][permutation]); device.RsSet(GxRs_PixelShader, (mod ? modPixel : pixel)[pixelPermutation]);
             GxDraw(&batch, 0);
             CiRect rect(0, 0, 32, 32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect, pixels);
             const auto& sample = pixels[y * 32 + x]; const uint8_t channels[] = {sample.r, sample.g, sample.b, sample.a};
             for (unsigned channel = 0; channel < 4; ++channel)
                 if (std::abs(int(channels[channel]) - int(std::lround(expected[channel] * 255))) > 2)
-                    throw std::runtime_error((mod ? "Mod" : "Opaque") + std::string(" model shader mismatch: VS ") + std::to_string(permutation) + " PS " + std::to_string(pixelPermutation) +
+                    throw std::runtime_error((mod ? "Mod" : "Opaque") + std::string(" model shader mismatch: family ") + std::to_string(family) + " VS " + std::to_string(permutation) + " PS " + std::to_string(pixelPermutation) +
                         " channel " + std::to_string(channel) + " at " + std::to_string(x) + "," + std::to_string(y) +
                         " actual " + std::to_string(channels[channel]) + " expected " + std::to_string(expected[channel] * 255));
             unsigned covered = 0; for (uint32_t i = 0; i < pixels.Count(); ++i) covered += pixels[i].a != 0;
@@ -141,7 +166,7 @@ void CheckModelShaders(CGxDeviceMetal& device) {
             device.BeginFrame(pass);
             c[28][3] = mod ? 0.5f : alpha; Vec fog = fogColor; fog[3] = test.shaderRef;
             GxShaderConstantsSet(GxSh_Vertex, 28, c[28].data(), 1); GxShaderConstantsSet(GxSh_Pixel, 2, fog.data(), 1);
-            device.RsSet(GxRs_VertexShader, vertex[0]); device.RsSet(GxRs_PixelShader, (mod ? modPixel : pixel)[test.pixel]);
+            device.RsSet(GxRs_VertexShader, vertex[0][0]); device.RsSet(GxRs_PixelShader, (mod ? modPixel : pixel)[test.pixel]);
             GxRsSet(GxRs_AlphaRef, int32_t(test.stateRef)); GxDraw(&batch, 0);
             CiRect rect(0, 0, 32, 32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect, pixels);
             unsigned covered = 0; for (uint32_t i = 0; i < pixels.Count(); ++i) covered += pixels[i].a != 0;
@@ -150,7 +175,7 @@ void CheckModelShaders(CGxDeviceMetal& device) {
         }
     }
     device.BeginFrame(pass);
-    device.RsSet(GxRs_VertexShader, vertex[30]); device.RsSet(GxRs_PixelShader, pixel[1]);
+    device.RsSet(GxRs_VertexShader, vertex[0][30]); device.RsSet(GxRs_PixelShader, pixel[1]);
     bool rejected = false; try { GxDraw(&batch, 0); } catch (const std::runtime_error&) { rejected = true; }
     Require(rejected, "Unimplemented model shadow permutation was silently replaced");
     device.ScenePresent();

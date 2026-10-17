@@ -18,7 +18,7 @@ private:
     std::string m_name;
     CM2Scene* m_scene = nullptr;
     CM2Model* m_model = nullptr;
-    bool m_initialized = false, m_blobLoaded = false;
+    bool m_initialized = false, m_effectsInitialized = false, m_blobLoaded = false;
     double m_fractionalMilliseconds = 0;
     float m_rotation = 0;
 };
