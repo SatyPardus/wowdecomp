@@ -247,7 +247,16 @@ Original terrain alpha/shadow unpacking is now shared as well: four-bit maps sta
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against
 the three tiles' raw alpha/shadow data and verify that disabling shadows leaves
-material weights unchanged. Terrain GPU shading is still pending.
+material weights unchanged.
+The native Terrain/Terrain1 path now supports 32 vertex and 16 pixel variants:
+one to four layers plus their independent blend/shadow map, PN/PNC input,
+three point lights, specular, vertex fog and per-layer lighting masks. Old-alpha
+interpolation and big-alpha weighted sums retain their distinct semantics.
+256 GPU draws compare independent position/UV/light/fog/material references,
+including packed and RGBA blend maps. macOS ASan/UBSan and Metal validation pass;
+both iOS targets build and the simulator passes the checks and presents 120 frames.
+Actual terrain tiles are not yet connected to the host. Terrain0/2/3, projected
+shadows, cube reflection and fixed-function terrain paths remain unsupported.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.

@@ -89,18 +89,23 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     Require(!IsModelEffect(effect) || SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect),
         "Unsupported native model vertex permutation");
+    Require(effect != FragmentEffect::Terrain || (terrain &&
+        SupportsTerrainPermutation(GxSh_Vertex, terrain->vertexPermutation) && SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
+        TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation)),
+        "Unsupported native terrain permutation or mismatched layer count");
     // Leave eight bits for effect families; a growing material set must not
     // collide with the independent sampler/vertex specialization flags.
     const uint64_t key = uint64_t(state.blend) | (uint64_t(state.alphaRef != 0) << 4) | (uint64_t(state.colorWrite) << 5) |
         (uint64_t(format) << 9) | (uint64_t(depthAttachment) << 13) | (uint64_t(screenAtDepth) << 14) |
         (uint64_t(effect) << 15) | (uint64_t(signedWave) << 23) | (uint64_t(decodePacked) << 24) |
-        (uint64_t(modelPermutation) << 25) | (uint64_t(shaderAlphaTest) << 30) | (uint64_t(vertexEffect) << 31);
+        (uint64_t(modelPermutation) << 25) | (uint64_t(shaderAlphaTest) << 30) | (uint64_t(vertexEffect) << 31) |
+        (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -173,7 +178,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && !IsModelEffect(effect)) {
+    if (decodePacked && !IsModelEffect(effect) && effect != FragmentEffect::Terrain) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -241,6 +246,33 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         if (modelPermutation >= 10) {
             attribute(3, GxVA_BlendWeight, MTLVertexFormatUChar4Normalized);
             attribute(4, GxVA_BlendIndices, MTLVertexFormatUChar4);
+        }
+        layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
+    }
+    if (effect == FragmentEffect::Terrain) {
+        const uint32_t vertexPermutation = terrain->vertexPermutation, pixelPermutation = terrain->pixelPermutation;
+        const bool color = (vertexPermutation & 4) != 0;
+        Require(!screenAtDepth && GxVertexHasAttrib(format, GxVA_Normal) && (!color || GxVertexHasAttrib(format, GxVA_Color0)),
+            "Unsupported native terrain vertex layout");
+        auto& vertex = m_terrainVertex[vertexPermutation / 4];
+        auto& fragment = m_terrainFragment[pixelPermutation / 2][state.alphaRef != 0][decodePacked];
+        auto constants = [MTLFunctionConstantValues new];
+        const bool alpha = state.alphaRef != 0;
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&vertexPermutation type:MTLDataTypeUInt atIndex:12];
+        [constants setConstantValue:&pixelPermutation type:MTLDataTypeUInt atIndex:13];
+        NSError* error = nil;
+        if (!vertex) vertex = [m_library newFunctionWithName:color ? @"terrainColorVertex" : @"terrainVertex" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:@"terrainFragment" constantValues:constants error:&error];
+        if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Terrain specialization failed");
+        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        const EGxVertexAttrib attributes[] = {GxVA_Position, GxVA_Normal, GxVA_Color0};
+        for (unsigned i = 0; i < (color ? 3u : 2u); ++i) {
+            layout.attributes[i].bufferIndex = 1;
+            layout.attributes[i].offset = GxVertexAttribOffset(format, attributes[i]);
+            layout.attributes[i].format = i == 2 ? MTLVertexFormatUChar4Normalized_BGRA : MTLVertexFormatFloat3;
         }
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
