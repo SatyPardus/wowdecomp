@@ -1,0 +1,84 @@
+// Original Diffuse_T1 and Combiners_Opaque, expressed in model/material terms.
+constant uint modelPermutation [[function_constant(5)]];
+constant bool modelShaderAlphaTest [[function_constant(6)]];
+struct ModelAffine { float4 x, y, z; };
+struct ModelVertexParameters {
+    float4x4 projection;
+    float4 uv[2];
+    float4 sunDiffuse, sunAmbient, sunDirection;
+    float4 diffuse, emissive, fog;
+    float4 lightColor[4], lightPosition[4];
+    float4 attenuationConstant, attenuationLinear, attenuationQuadratic;
+};
+struct ModelFragmentParameters { float4 fogColorAlphaRef, decodeScale; float stateAlphaRef; float padding[3]; };
+struct ModelVertex {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float2 uv [[attribute(2)]];
+};
+struct ModelSkinVertex {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float2 uv [[attribute(2)]];
+    float4 weights [[attribute(3)]];
+    uint4 bones [[attribute(4)]];
+};
+struct ModelRaster { float4 position [[position]]; float4 color; float2 uv; float fog; float pointSize [[point_size]]; };
+inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv,
+    ModelAffine viewFromModel, constant ModelVertexParameters& p) {
+    const float4 point = float4(position, 1);
+    const float3 view = float3(dot(viewFromModel.x, point), dot(viewFromModel.y, point), dot(viewFromModel.z, point));
+    float4 color;
+    if (modelPermutation & 1) {
+        const float3 direction = normalize(float3(dot(viewFromModel.x.xyz, normal),
+            dot(viewFromModel.y.xyz, normal), dot(viewFromModel.z.xyz, normal)));
+        float3 lighting = fma(saturate(dot(-p.sunDirection.xyz, direction)), p.sunDiffuse.xyz, p.sunAmbient.xyz);
+        const uint count = (modelPermutation / 2) % 5;
+        for (uint i = 0; i < count; ++i) {
+            const float3 toLight = p.lightPosition[i].xyz - view;
+            const float distanceSquared = dot(toLight, toLight);
+            const float inverseDistance = rsqrt(distanceSquared);
+            const float attenuation = 1 / (fma(distanceSquared, p.attenuationQuadratic[i],
+                distanceSquared * inverseDistance * p.attenuationLinear[i]) + p.attenuationConstant[i]);
+            const float diffuse = max(dot(toLight, direction) * inverseDistance, 0.0f);
+            lighting = fma(p.lightColor[i].xyz, attenuation * diffuse, lighting);
+        }
+        color = saturate(fma(p.diffuse, float4(saturate(lighting), 1), p.emissive));
+    } else { color = saturate(p.diffuse + p.emissive); }
+    const float fog = min(pow(max(fma(view.z, p.fog.x, p.fog.y), 0.0f), p.fog.z), 1.0f);
+    const float3 texturePoint = float3(uv, 1);
+    return {p.projection * float4(view, 1), color,
+        float2(dot(p.uv[0].xyw, texturePoint), dot(p.uv[1].xyw, texturePoint)), fog, 1};
+}
+vertex ModelRaster modelRigidVertex(ModelVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, v.normal, v.uv, palette[0], p);
+}
+vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    ModelAffine transform = palette[v.bones.x];
+    if (modelPermutation >= 20) {
+        // Match the original's y,x,z,w weighted-matrix association; do not
+        // normalize weights or blend already-normalized vertex normals.
+        transform.x = fma(palette[v.bones.x].x, v.weights.x, palette[v.bones.y].x * v.weights.y);
+        transform.y = fma(palette[v.bones.x].y, v.weights.x, palette[v.bones.y].y * v.weights.y);
+        transform.z = fma(palette[v.bones.x].z, v.weights.x, palette[v.bones.y].z * v.weights.y);
+        transform.x = fma(palette[v.bones.z].x, v.weights.z, transform.x);
+        transform.y = fma(palette[v.bones.z].y, v.weights.z, transform.y);
+        transform.z = fma(palette[v.bones.z].z, v.weights.z, transform.z);
+        transform.x = fma(palette[v.bones.w].x, v.weights.w, transform.x);
+        transform.y = fma(palette[v.bones.w].y, v.weights.w, transform.y);
+        transform.z = fma(palette[v.bones.w].z, v.weights.w, transform.z);
+    }
+    return modelTransform(v.position, v.normal, v.uv, transform, p);
+}
+fragment float4 modelOpaqueFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
+    texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]]) {
+    // Combiners_Opaque ignores texture alpha. Shader alpha test and the Gx
+    // fixed alpha test can both be enabled and have independent references.
+    if (modelShaderAlphaTest && v.color.a < p.fogColorAlphaRef.a) discard_fragment();
+    if (alphaTest && v.color.a < p.stateAlphaRef) discard_fragment();
+    const float3 texel = decoded(image.sample(filtering, v.uv), p.decodeScale).rgb;
+    const float3 shaded = fma(texel, v.color.rgb, -p.fogColorAlphaRef.rgb);
+    return float4(fma(float3(v.fog), shaded, p.fogColorAlphaRef.rgb), v.color.a);
+}

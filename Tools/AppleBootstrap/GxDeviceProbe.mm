@@ -11,6 +11,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device);
 void CheckGxFFXEffect(CGxDeviceMetal& device);
 void CheckGameEvents();
 void CheckGameAsyncFiles();
+void CheckModelShaders(CGxDeviceMetal& device);
 void CheckGxFont(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
 void CheckPackedTextureFormats(CGxDeviceMetal& device);
@@ -193,6 +194,7 @@ void CheckGxDevice() {
     CheckGxFont(device);
     CheckGxFFXPasses(device);
     CheckGxFFXEffect(device);
+    CheckModelShaders(device);
     CheckGameEvents();
     CheckGameAsyncFiles();
     device.DeviceDestroy();

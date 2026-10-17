@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Metal/UIShader.h"
+#include "Engine/Source/Gx/Metal/ModelShader.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -7,6 +8,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -43,12 +45,13 @@ std::shared_ptr<GxMetal::UIShader> LoadUI() {
     return std::make_shared<GxMetal::UIShader>(GxMetal::UIShader::FromBls(
         ReadShader("Shaders\\Vertex\\vs_3_0\\UI.bls"), ReadShader("Shaders\\Pixel\\ps_3_0\\UI.bls")));
 }
-const char* ShaderFamily(GxMetal::FragmentEffect effect) {
+const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = GxSh_Pixel) {
     switch (effect) {
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
         case GxMetal::FragmentEffect::Glow: return "FFXGlow";
         case GxMetal::FragmentEffect::GlowWave: return "FFXGlowWave";
+        case GxMetal::FragmentEffect::ModelOpaque: return target == GxSh_Vertex ? "Diffuse_T1" : "Combiners_Opaque";
         default: return "UI";
     }
 }
@@ -63,6 +66,12 @@ void LoadPostProcess(GxMetal::FragmentEffect effect) {
         return;
     }
     throw std::runtime_error("Cannot find the original FFX filter shader in mounted Data");
+}
+
+void LoadModelShader(EGxShTarget target) {
+    const auto path = std::string(target == GxSh_Vertex ? "Shaders\\Vertex\\vs_3_0\\" : "Shaders\\Pixel\\ps_3_0\\") +
+        ShaderFamily(GxMetal::FragmentEffect::ModelOpaque, target) + ".bls";
+    GxMetal::ValidateModelShader(ReadShader(path.c_str()), target);
 }
 
 BLP::Format ImageFormat(EGxTexFormat format) {
@@ -625,14 +634,18 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
 
 void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const char* path, const char* name, uint32_t count) {
     Require(shaders && path && name && (target == GxSh_Vertex || target == GxSh_Pixel), "Invalid Metal Gx shader request");
-    const auto effect = SStrCmpI(name, "FFXBox4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Box4 :
+    const bool model = SStrCmpI(name, target == GxSh_Vertex ? "Diffuse_T1" : "Combiners_Opaque", STORM_MAX_STR) == 0;
+    const auto effect = model ? GxMetal::FragmentEffect::ModelOpaque : SStrCmpI(name, "FFXBox4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Box4 :
         SStrCmpI(name, "FFXGauss4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Gauss4 :
         SStrCmpI(name, "FFXGlow", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Glow :
         SStrCmpI(name, "FFXGlowWave", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::GlowWave : GxMetal::FragmentEffect::Unlit;
-    const char* family = ShaderFamily(effect);
+    const char* family = ShaderFamily(effect, target);
+    if (SStrCmpI(name, family, STORM_MAX_STR) != 0) {
+        throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
+    }
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
-        (effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
+        count == (model ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
+        (model || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
     bool cached = true;
@@ -649,7 +662,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     }
     // Validate the mounted assets before adding any live shader objects.
     std::shared_ptr<GxMetal::UIShader> ui;
-    if (effect == GxMetal::FragmentEffect::Unlit) { ui = LoadUI(); } else { LoadPostProcess(effect); }
+    if (model) { LoadModelShader(target); }
+    else if (effect == GxMetal::FragmentEffect::Unlit) { ui = LoadUI(); } else { LoadPostProcess(effect); }
     for (uint32_t i = 0; i < count; ++i) {
         const std::string key = count == 1 ? family : std::string(family) + ":" + std::to_string(i);
         CGxShader* shader = m_shaderList[target].Ptr(key.c_str());
@@ -676,10 +690,11 @@ void CGxDeviceMetal::ShaderDestroy(CGxShader*& shader) {
 }
 void CGxDeviceMetal::IShaderCreate(CGxShader* shader) { Require(m->shaders.count(shader), "Unknown native Gx shader"); shader->m_valid = shader->m_loaded = 1; }
 void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const char* name) {
-    Require(shader && m->shaders.count(shader) && path && name && SStrCmpI(name, ShaderFamily(m->shaders.at(shader).effect), STORM_MAX_STR) == 0 &&
+    Require(shader && m->shaders.count(shader) && path && name && SStrCmpI(name, ShaderFamily(m->shaders.at(shader).effect, EGxShTarget(shader->m_target)), STORM_MAX_STR) == 0 &&
         SStrCmpI(path, shader->m_target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0, "Unsupported native shader reload");
     auto& native = m->shaders.at(shader);
-    if (native.effect == GxMetal::FragmentEffect::Unlit) { native.ui = LoadUI(); } else { LoadPostProcess(native.effect); }
+    if (native.effect == GxMetal::FragmentEffect::ModelOpaque) { LoadModelShader(EGxShTarget(shader->m_target)); }
+    else if (native.effect == GxMetal::FragmentEffect::Unlit) { native.ui = LoadUI(); } else { LoadPostProcess(native.effect); }
     IShaderCreate(shader);
 }
 void CGxDeviceMetal::ShaderConstantsSet(EGxShTarget target, uint32_t index, const float* values, uint32_t count) {
@@ -688,19 +703,26 @@ void CGxDeviceMetal::ShaderConstantsSet(EGxShTarget target, uint32_t index, cons
 }
 
 void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
-    Require(m->command && batch, "Gx draw requires an active frame and batch");
+    Require(m->command && batch && batch->m_count, "Gx draw requires an active frame and nonempty batch");
     auto integer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.u[0]; };
     auto pointer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.p; };
     auto* vertex = static_cast<CGxShader*>(pointer(GxRs_VertexShader));
     auto* pixel = static_cast<CGxShader*>(pointer(GxRs_PixelShader));
     Require(pixel && m->shaders.count(pixel) && pixel->m_target == GxSh_Pixel, "Gx draw requires a verified native pixel shader");
     const auto effect = m->shaders.at(pixel).effect;
-    const bool postProcess = effect != GxMetal::FragmentEffect::Unlit;
+    const bool model = effect == GxMetal::FragmentEffect::ModelOpaque;
+    const bool postProcess = !model && effect != GxMetal::FragmentEffect::Unlit;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
     const unsigned inputs = filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
-    Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex && m->shaders.at(vertex).ui,
+    Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
+        (model ? m->shaders.at(vertex).effect == effect : bool(m->shaders.at(vertex).ui)),
         "Unsupported native Gx vertex/pixel shader combination");
+    if (model && (!GxMetal::SupportsModelPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) ||
+        !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation))) {
+        throw std::runtime_error("Metal model shadow permutation is not implemented (vertex " +
+            std::to_string(m->shaders.at(vertex).permutation) + ", pixel " + std::to_string(m->shaders.at(pixel).permutation) + ")");
+    }
     CGxBuf* vertices = postProcess ? m_primVertexFormatBuf[GxVA_Position] : m_primVertexBuf;
     Require(vertices, "Gx draw requires vertices");
     if (postProcess) {
@@ -731,12 +753,43 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         batch->m_count <= m_primIndexBuf->m_itemCount - batch->m_start && batch->m_maxIndex < vertices->m_itemCount :
         batch->m_count <= vertices->m_itemCount, "Gx draw exceeds its logical buffer range");
     GxMetal::GeometryDraw draw;
+    std::optional<GxMetal::ModelDrawParameters> modelParameters;
     draw.vertices = m->Flush(vertices); draw.vertexOffset = vertices->m_index;
     if (indexed) { draw.indices = m->Flush(m_primIndexBuf); draw.indexOffset = m_primIndexBuf->m_index; }
     draw.format = m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
     if (postProcess) {
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
         draw.clipFromModel = world.m_mtx[world.m_level] * view.m_mtx[view.m_level] * m_projNative;
+    } else if (model) {
+        auto& native = modelParameters.emplace();
+        draw.model = &native;
+        native.permutation = m->shaders.at(vertex).permutation;
+        native.shaderAlphaTest = (m->shaders.at(pixel).permutation & 8) != 0;
+        const float* constants = s_shadowConstants[1].constants;
+        auto vector = [&](uint32_t index) { simd_float4 value; std::memcpy(&value, constants + index * 4, sizeof(value)); return value; };
+        // Gx stores dot-product rows. Metal uses column-vector matrices.
+        simd_float4x4 rows;
+        std::memcpy(&rows, constants + 8, sizeof(rows)); native.vertex.projection = simd_transpose(rows);
+        for (unsigned i = 0; i < 2; ++i) native.vertex.uv[i] = vector(6 + i);
+        native.vertex.sunDiffuse = vector(10); native.vertex.sunAmbient = vector(11); native.vertex.sunDirection = vector(12);
+        for (unsigned i = 0; i < 4; ++i) { native.vertex.lightColor[i] = vector(17 + i); native.vertex.lightPosition[i] = vector(21 + i); }
+        native.vertex.attenuationConstant = vector(25); native.vertex.attenuationLinear = vector(26); native.vertex.attenuationQuadratic = vector(27);
+        native.vertex.diffuse = vector(28); native.vertex.emissive = vector(29); native.vertex.fog = vector(30);
+        std::memcpy(&native.fragment.fogColorAlphaRef, s_shadowConstants[0].constants + 8, sizeof(simd_float4));
+        if (native.permutation >= 10) {
+            Require(draw.format == GxVBF_PBNT2, "Native model skinning requires the packed bone vertex layout");
+            const auto& storage = m->Storage(vertices->m_pool);
+            const auto offset = GxVertexAttribOffset(draw.format, GxVA_BlendIndices);
+            const size_t first = indexed ? batch->m_minIndex : 0, last = indexed ? batch->m_maxIndex : batch->m_count - 1;
+            for (size_t i = first; i <= last; ++i) {
+                const uint8_t* indices = storage.shadow.data() + vertices->m_index + i * vertices->m_itemSize + offset;
+                for (unsigned j = 0; j < (native.permutation >= 20 ? 4u : 1u); ++j) {
+                    Require(indices[j] < native.bones.size(), "Model bone index exceeds the native palette");
+                    native.boneCount = std::max(native.boneCount, uint32_t(indices[j]) + 1);
+                }
+            }
+        }
+        std::memcpy(native.bones.data(), constants + 31 * 4, native.boneCount * sizeof(GxMetal::ModelAffine));
     } else {
         const auto& shader = m->shaders.at(vertex);
         const auto transform = shader.ui->VertexTransform(s_shadowConstants[1].constants, 256, shader.permutation);
@@ -778,7 +831,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         states[i].wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); states[i].wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
     }
-    if (filter) { m->gpu.DrawFilter4(m->command, m->pass, textures, draw, states); }
+    if (model) { m->gpu.DrawModel(m->command, m->pass, textures[0], draw, states[0]); }
+    else if (filter) { m->gpu.DrawFilter4(m->command, m->pass, textures, draw, states); }
     else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}); }
     else if (postProcess) { m->gpu.DrawGlow(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}); }
     else { m->gpu.DrawUnlit(m->command, m->pass, textures[0], draw, {}, states[0]); }

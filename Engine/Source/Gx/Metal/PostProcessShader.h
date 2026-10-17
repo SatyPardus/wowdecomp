@@ -3,7 +3,7 @@
 #include <vector>
 
 namespace GxMetal {
-enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave };
+enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque };
 
 // Original FFX filters and glow composition, including wave displacement.
 // D3D9 permutations use normalized coordinates; RECT belongs to OpenGL assets.

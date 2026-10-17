@@ -34,6 +34,34 @@ struct TextureDrawState {
     float blendFactor = 1; // Gx render state Unk84, quantized to UNORM8
 };
 
+// View-space palette: three affine rows per bone, already composed with the
+// original model/view transforms by Model2. Native typed constants replace the
+// legacy register bank at the Gx boundary.
+struct ModelAffine { simd_float4 x, y, z; };
+struct ModelVertexParameters {
+    simd_float4x4 projection;
+    simd_float4 uv[2];
+    simd_float4 sunDiffuse, sunAmbient, sunDirection;
+    simd_float4 diffuse, emissive, fog;
+    simd_float4 lightColor[4], lightPosition[4];
+    simd_float4 attenuationConstant, attenuationLinear, attenuationQuadratic;
+};
+struct ModelFragmentParameters {
+    simd_float4 fogColorAlphaRef;
+    simd_float4 decodeScale;
+    float stateAlphaRef;
+    float padding[3]{};
+};
+static_assert(sizeof(ModelAffine) == 48 && sizeof(ModelVertexParameters) == 368 && sizeof(ModelFragmentParameters) == 48,
+    "Native model constant layout");
+struct ModelDrawParameters {
+    ModelVertexParameters vertex{};
+    ModelFragmentParameters fragment{};
+    std::array<ModelAffine, 75> bones{};
+    uint32_t permutation = 0, boneCount = 1;
+    bool shaderAlphaTest = false;
+};
+
 // Unlit geometry consumes the original packed Gx vertex layout directly. The
 // caller supplies a transform to Metal clip space (z in [0,w]); it is not a
 // replacement for lighting, skinning, fog or the game's programmable effects.
@@ -43,6 +71,7 @@ struct GeometryDraw {
     EGxVertexBufferFormat format = GxVBF_PCT;
     FragmentEffect effect = FragmentEffect::Unlit;
     CGxBatch batch{};
+    const ModelDrawParameters* model = nullptr;
     C44Matrix clipFromModel{1.0f};
     simd_float2 waveSceneScale{}, waveBlurScale{};
     bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
@@ -73,6 +102,8 @@ public:
         const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport = nullptr);
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state);
+    void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
+        const GeometryDraw& geometry, const TextureDrawState& state);
     void DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states);
     void DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
@@ -87,6 +118,8 @@ public:
 
 private:
     id<MTLLibrary> m_library;
+    id<MTLFunction> m_modelVertex[30]{};
+    id<MTLFunction> m_modelFragment[2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
@@ -101,7 +134,7 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false);
+        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 4>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 4>&);

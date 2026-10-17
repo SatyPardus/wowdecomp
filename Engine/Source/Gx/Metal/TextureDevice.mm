@@ -89,12 +89,12 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5) |
-        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15) | (uint32_t(signedWave) << 18) | (uint32_t(decodePacked) << 19);
+        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15) | (uint32_t(signedWave) << 18) | (uint32_t(decodePacked) << 19) | (modelPermutation << 20) | (uint32_t(shaderAlphaTest) << 25);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -167,7 +167,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked) {
+    if (decodePacked && effect != FragmentEffect::ModelOpaque) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -184,6 +184,39 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             if (!fragment) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Packed texture specialization failed"); }
         }
         descriptor.fragmentFunction = fragment;
+    }
+    if (effect == FragmentEffect::ModelOpaque) {
+        Require(modelPermutation < 30 && !screenAtDepth &&
+            (modelPermutation < 10 || format == GxVBF_PBNT2) &&
+            GxVertexHasAttrib(format, GxVA_Normal) && GxVertexHasAttrib(format, GxVA_TexCoord0),
+            "Unsupported native model vertex layout or shadow permutation");
+        auto& vertex = m_modelVertex[modelPermutation];
+        auto& fragment = m_modelFragment[shaderAlphaTest][state.alphaRef != 0][decodePacked];
+        auto constants = [MTLFunctionConstantValues new];
+        const bool alpha = state.alphaRef != 0;
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&modelPermutation type:MTLDataTypeUInt atIndex:5];
+        [constants setConstantValue:&shaderAlphaTest type:MTLDataTypeBool atIndex:6];
+        NSError* error = nil;
+        if (!vertex) vertex = [m_library newFunctionWithName:modelPermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:@"modelOpaqueFragment" constantValues:constants error:&error];
+        if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Model specialization failed");
+        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        auto attribute = [&](unsigned index, EGxVertexAttrib gx, MTLVertexFormat type) {
+            layout.attributes[index].bufferIndex = 1;
+            layout.attributes[index].offset = GxVertexAttribOffset(format, gx);
+            layout.attributes[index].format = type;
+        };
+        attribute(0, GxVA_Position, MTLVertexFormatFloat3);
+        attribute(1, GxVA_Normal, MTLVertexFormatFloat3);
+        attribute(2, GxVA_TexCoord0, MTLVertexFormatFloat2);
+        if (modelPermutation >= 10) {
+            attribute(3, GxVA_BlendWeight, MTLVertexFormatUChar4Normalized);
+            attribute(4, GxVA_BlendIndices, MTLVertexFormatUChar4);
+        }
+        layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     auto attachment = descriptor.colorAttachments[0];
     attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;

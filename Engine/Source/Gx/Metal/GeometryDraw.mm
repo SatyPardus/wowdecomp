@@ -23,6 +23,11 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
     Require(geometry.effect == FragmentEffect::Unlit, "Unlit draw received a different native effect");
     DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state});
 }
+void GxMetal::TextureDevice::DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
+    const GeometryDraw& geometry, const TextureDrawState& state) {
+    Require(geometry.effect == FragmentEffect::ModelOpaque, "Invalid native model effect");
+    DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, {}, {state, state, state, state});
+}
 void GxMetal::TextureDevice::DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
     const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states) {
     Require(geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4, "Invalid FFX filter effect");
@@ -41,13 +46,15 @@ void GxMetal::TextureDevice::DrawGlowWave(id<MTLCommandBuffer> command, MTLRende
 void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
     const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 4>& states) {
     const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
+    const bool model = geometry.effect == FragmentEffect::ModelOpaque;
+    Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const unsigned inputs = filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
     const auto& state = states[0];
     Require(command && pass && textures[0] && geometry.vertices, "Missing Metal geometry resource");
     Require((filter || wave) ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
         "Invalid Gx vertex format for native effect");
-    Require(geometry.format != GxVBF_PBNT2, "Skinned Gx vertices require a skinning effect");
+    Require(model || geometry.format != GxVBF_PBNT2, "Skinned Gx vertices require a skinning effect");
     const auto& batch = geometry.batch;
     Require(batch.m_primType >= GxPrim_Points && batch.m_primType < GxPrim_TriangleFan,
         "This Metal geometry path requires points, lines, line strips, triangles or triangle strips");
@@ -92,7 +99,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     }
     bool decodePacked = false;
     for (unsigned i = 0; i < inputs; ++i) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest);
     std::array<id<MTLSamplerState>, 4> samplers{};
     for (unsigned i = 0; i < inputs; ++i) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
@@ -126,9 +133,16 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     if (geometry.scissorEnabled) { [encoder setScissorRect:geometry.scissor]; }
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
-    [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0];
+    if (model) {
+        [encoder setVertexBytes:&geometry.model->vertex length:sizeof(ModelVertexParameters) atIndex:0];
+        [encoder setVertexBytes:geometry.model->bones.data() length:geometry.model->boneCount * sizeof(ModelAffine) atIndex:2];
+    } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
-    if (wave) {
+    if (model) {
+        ModelFragmentParameters material = geometry.model->fragment;
+        material.stateAlphaRef = state.alphaRef / 255.0f; material.decodeScale = state.decodeScale;
+        [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
+    } else if (wave) {
         WaveParameters waveConstants{geometry.waveSceneScale, geometry.waveBlurScale, constants.texture.alphaRef};
         for (unsigned i = 0; i < 3; ++i) { waveConstants.decodeScale[i] = states[i].decodeScale; }
         [encoder setFragmentBytes:&waveConstants length:sizeof(waveConstants) atIndex:0];

@@ -156,7 +156,7 @@ texture can run alone above the normal 4 MiB queue budget, and cancellation of
 unallocated requests preserves the budget. Native absolute SFile2 paths allow
 resources in app-owned directories. Real cached texture mip reloads and a 2048
 square palette upload are checked through GPU readback. Remaining texture formats,
-atlases, model loading and full client startup are still being connected.
+atlases, complete model rendering and full client startup are still being connected.
 
 The original Model2 and ShaderEffect sources now compile for all Apple targets.
 The data probe relocates the original camera and NorthrendSkeleton M2 arrays,
@@ -169,7 +169,19 @@ sets; the same kernels retain an SSE path for x86. The original scene/model
 instance path also loads the real FlyByDwarf cinematic model and skin through
 Services workers, plays its camera animation, and recreates the scene/cache.
 It uses the original AnimationData DBC and bounded `World/model.blob` index.
-Visible model materials and Metal model drawing remain to be connected.
+The native instance arena aligns pointer-bearing arrays for 64-bit hosts.
+The original `CM2SceneRender` now draws `Spells\ErrorCube.m2` through Services
+textures, original packed vertices/indices and a native `Diffuse_T1` /
+`Combiners_Opaque` material. Its 30 unshadowed vertex variants preserve rigid,
+one-bone and four-weight skinning, directional and up to four local lights,
+material colors, UV matrices and vertex fog. Four pixel variants preserve
+opaque alpha and independent shader/state alpha tests. Runtime function constants
+specialize the original choices; Gx register uploads become typed native data,
+and only the referenced palette range is uploaded. The original SM3 bytecode
+fingerprints guard supported variants; selecting a shadow variant fails explicitly.
+GPU checks cover those variants and a complete model scene, including cache
+recreation. Other model materials, shadows and full world rendering remain open;
+these checks are not a Windows visual-equivalence claim.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
