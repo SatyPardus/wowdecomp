@@ -123,6 +123,42 @@ void CheckGameModels() {
     if (changedPixels < 16) throw std::runtime_error("Animated wolf pose did not reach Metal drawing");
     std::fprintf(stderr, "M2 native wolf scene: %u covered pixels, %u changed by original walk animation\n", covered, changedPixels);
     device.ScenePresent();
+    {
+        auto* reflectionScene = M2CreateScene();
+        if (!reflectionScene) throw std::runtime_error("Environment model scene creation failed");
+        Release releaseReflection{reflectionScene};
+        auto* appearance = g_creatureDisplayInfoDB.GetRecord(110);
+        auto* appearanceModel = appearance ? g_creatureModelDataDB.GetRecord(appearance->m_modelID) : nullptr;
+        if (!appearanceModel) throw std::runtime_error("Water elemental appearance is missing");
+        auto* elemental = reflectionScene->CreateModel(appearanceModel->m_modelName, 0);
+        if (!elemental) throw std::runtime_error("Water elemental model creation failed");
+        CCharacterComponent::ApplyMonsterGeosets(elemental, appearance);
+        CCharacterComponent::ReplaceMonsterSkin(elemental, appearance, appearanceModel);
+        elemental->SetBoneSequence(0xFFFFFFFF, 4, 0xFFFFFFFF, 0, 1.0f, 0, 1);
+        if (!elemental->IsLoaded(1, 0) || !elemental->IsDrawable(1, 0)) throw std::runtime_error("Water elemental resources did not load");
+        const auto& bounds = elemental->m_shared->m_data->m_bounds;
+        C44Matrix world(1); world.RotateAroundX(-0.65f); world.Scale(0.8f / bounds.m_radius);
+        world.Translate((bounds.m_extent.b + bounds.m_extent.t) * -0.5f);
+        elemental->SetWorldTransform(world); elemental->m_lightingCallback = visible->m_lightingCallback;
+        elemental->m_fFlags |= 0x10008; elemental->SetAnimating(1);
+        reflectionScene->AdvanceTime(137); reflectionScene->Animate(C3Vector(0, 0, 0));
+        unsigned reflectedBatches = 0, reflectedMaterials = 0;
+        for (unsigned i = 0; i < reflectionScene->m_elements.Count(); ++i) {
+            const auto& element = reflectionScene->m_elements[i];
+            if (element.m_type > 2 || !element.m_batch || element.m_batch->m_textureCount != 2) continue;
+            ++reflectedBatches;
+            reflectedMaterials |= 1u << elemental->m_shared->m_data->m_materials[element.m_batch->m_materialIndex].m_blendMode;
+        }
+        device.BeginFrame(pass);
+        reflectionScene->Draw(M2PASS_0); reflectionScene->Draw(M2PASS_1); reflectionScene->Draw(M2PASS_2);
+        TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect, image);
+        unsigned pixels = 0;
+        for (unsigned i = 0; i < image.Count(); ++i) pixels += image[i].r || image[i].g || image[i].b;
+        if (reflectedBatches != 3 || reflectedMaterials != 3 || pixels < 256)
+            throw std::runtime_error("Original water elemental environment materials did not reach Metal drawing");
+        std::fprintf(stderr, "M2 water elemental: %u environment batches, opaque/cutout AddNA materials, %u visible pixels\n", reflectedBatches, pixels);
+        device.ScenePresent();
+    }
     for (const bool ribbons : {false, true}) {
         auto* spellScene = M2CreateScene();
         if (!spellScene) throw std::runtime_error("Spell scene creation failed");

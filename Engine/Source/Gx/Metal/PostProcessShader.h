@@ -3,9 +3,13 @@
 #include <vector>
 
 namespace GxMetal {
-enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod };
+enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod, ModelOpaqueAddNA, ModelModAddNA };
 constexpr bool IsModelEffect(FragmentEffect effect) {
-    return effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod;
+    return effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod ||
+        effect == FragmentEffect::ModelOpaqueAddNA || effect == FragmentEffect::ModelModAddNA;
+}
+constexpr unsigned ModelTextureCount(FragmentEffect effect) {
+    return effect == FragmentEffect::ModelOpaqueAddNA || effect == FragmentEffect::ModelModAddNA ? 2 : 1;
 }
 
 // Original FFX filters and glow composition, including wave displacement.

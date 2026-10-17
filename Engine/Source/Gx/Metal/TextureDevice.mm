@@ -93,8 +93,14 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
-    const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5) |
-        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15) | (uint32_t(signedWave) << 18) | (uint32_t(decodePacked) << 19) | (modelPermutation << 20) | (uint32_t(shaderAlphaTest) << 25) | (uint32_t(vertexEffect) << 26);
+    Require(!IsModelEffect(effect) || SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect),
+        "Unsupported native model vertex permutation");
+    // Leave eight bits for effect families; a growing material set must not
+    // collide with the independent sampler/vertex specialization flags.
+    const uint64_t key = uint64_t(state.blend) | (uint64_t(state.alphaRef != 0) << 4) | (uint64_t(state.colorWrite) << 5) |
+        (uint64_t(format) << 9) | (uint64_t(depthAttachment) << 13) | (uint64_t(screenAtDepth) << 14) |
+        (uint64_t(effect) << 15) | (uint64_t(signedWave) << 23) | (uint64_t(decodePacked) << 24) |
+        (uint64_t(modelPermutation) << 25) | (uint64_t(shaderAlphaTest) << 30) | (uint64_t(vertexEffect) << 31);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -186,17 +192,19 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         descriptor.fragmentFunction = fragment;
     }
     if (IsModelEffect(effect)) {
-        const bool material = vertexEffect == ModelVertexEffect::Diffuse;
+        const bool material = UsesModelMaterial(vertexEffect);
+        const bool environment = vertexEffect == ModelVertexEffect::DiffuseEnvironment;
+        const bool environmentAdd = ModelTextureCount(effect) == 2;
         const bool normal = material || (vertexEffect == ModelVertexEffect::ColorDiffuse && (modelPermutation & 1));
         const bool color = !material && !(vertexEffect == ModelVertexEffect::Color && (modelPermutation & 1));
-        Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth &&
+        Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth && (!environmentAdd || environment) &&
             (modelPermutation < 10 || format == GxVBF_PBNT2) &&
             (!normal || GxVertexHasAttrib(format, GxVA_Normal)) &&
             (!color || GxVertexHasAttrib(format, GxVA_Color0)) && GxVertexHasAttrib(format, GxVA_TexCoord0),
             "Unsupported native model vertex layout or permutation");
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation];
-        const bool textureAlpha = effect == FragmentEffect::ModelMod;
-        auto& fragment = m_modelFragment[textureAlpha][shaderAlphaTest][state.alphaRef != 0][decodePacked];
+        const bool textureAlpha = effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA;
+        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -204,8 +212,10 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&modelPermutation type:MTLDataTypeUInt atIndex:5];
         [constants setConstantValue:&shaderAlphaTest type:MTLDataTypeBool atIndex:6];
         [constants setConstantValue:&textureAlpha type:MTLDataTypeBool atIndex:7];
-        const uint32_t colorMode = unsigned(vertexEffect);
+        const uint32_t colorMode = material ? 0 : unsigned(vertexEffect);
         [constants setConstantValue:&colorMode type:MTLDataTypeUInt atIndex:8];
+        [constants setConstantValue:&environment type:MTLDataTypeBool atIndex:9];
+        [constants setConstantValue:&environmentAdd type:MTLDataTypeBool atIndex:10];
         NSError* error = nil;
         NSString* vertexName = material ? (modelPermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex") :
             normal ? @"modelColorLitVertex" : color ? @"modelColorVertex" : @"modelWhiteVertex";

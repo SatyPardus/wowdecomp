@@ -86,6 +86,8 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::GlowWave: return "FFXGlowWave";
         case GxMetal::FragmentEffect::ModelOpaque: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Opaque";
         case GxMetal::FragmentEffect::ModelMod: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Mod";
+        case GxMetal::FragmentEffect::ModelOpaqueAddNA: return "Combiners_Opaque_AddNA";
+        case GxMetal::FragmentEffect::ModelModAddNA: return "Combiners_Mod_AddNA";
         default: return "UI";
     }
 }
@@ -718,10 +720,14 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
 void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const char* path, const char* name, uint32_t count) {
     Require(shaders && path && name && (target == GxSh_Vertex || target == GxSh_Pixel), "Invalid Metal Gx shader request");
     const auto vertexEffect = target == GxSh_Vertex && SStrCmpI(name, "Color_T1", STORM_MAX_STR) == 0 ? GxMetal::ModelVertexEffect::Color :
-        target == GxSh_Vertex && SStrCmpI(name, "CDiffuse_T1", STORM_MAX_STR) == 0 ? GxMetal::ModelVertexEffect::ColorDiffuse : GxMetal::ModelVertexEffect::Diffuse;
+        target == GxSh_Vertex && SStrCmpI(name, "CDiffuse_T1", STORM_MAX_STR) == 0 ? GxMetal::ModelVertexEffect::ColorDiffuse :
+        target == GxSh_Vertex && SStrCmpI(name, "Diffuse_T1_Env", STORM_MAX_STR) == 0 ? GxMetal::ModelVertexEffect::DiffuseEnvironment : GxMetal::ModelVertexEffect::Diffuse;
     const bool mod = target == GxSh_Pixel && SStrCmpI(name, "Combiners_Mod", STORM_MAX_STR) == 0;
-    const bool model = mod || SStrCmpI(name, target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Opaque", STORM_MAX_STR) == 0;
-    const auto effect = mod ? GxMetal::FragmentEffect::ModelMod : model ? GxMetal::FragmentEffect::ModelOpaque : SStrCmpI(name, "FFXBox4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Box4 :
+    const bool opaqueAdd = target == GxSh_Pixel && SStrCmpI(name, "Combiners_Opaque_AddNA", STORM_MAX_STR) == 0;
+    const bool modAdd = target == GxSh_Pixel && SStrCmpI(name, "Combiners_Mod_AddNA", STORM_MAX_STR) == 0;
+    const bool model = mod || opaqueAdd || modAdd || SStrCmpI(name, target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Opaque", STORM_MAX_STR) == 0;
+    const auto effect = opaqueAdd ? GxMetal::FragmentEffect::ModelOpaqueAddNA : modAdd ? GxMetal::FragmentEffect::ModelModAddNA :
+        mod ? GxMetal::FragmentEffect::ModelMod : model ? GxMetal::FragmentEffect::ModelOpaque : SStrCmpI(name, "FFXBox4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Box4 :
         SStrCmpI(name, "FFXGauss4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Gauss4 :
         SStrCmpI(name, "FFXGlow", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Glow :
         SStrCmpI(name, "FFXGlowWave", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::GlowWave : GxMetal::FragmentEffect::Unlit;
@@ -800,7 +806,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool postProcess = !model && effect != GxMetal::FragmentEffect::Unlit;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
-    const unsigned inputs = filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
+    const unsigned inputs = model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
     Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
         (model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui)),
         "Unsupported native Gx vertex/pixel shader combination");
@@ -923,7 +929,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
     }
     const auto encoder = m->Render();
-    if (model) { m->gpu.DrawModel(m->command, m->pass, textures[0], draw, states[0], encoder); }
+    if (model) { m->gpu.DrawModel(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (filter) { m->gpu.DrawFilter4(m->command, m->pass, textures, draw, states, encoder); }
     else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}, encoder); }
     else if (postProcess) { m->gpu.DrawGlow(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }

@@ -9,11 +9,12 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
         case ModelVertexEffect::Diffuse: return "Diffuse_T1";
         case ModelVertexEffect::Color: return "Color_T1";
         case ModelVertexEffect::ColorDiffuse: return "CDiffuse_T1";
+        case ModelVertexEffect::DiffuseEnvironment: return "Diffuse_T1_Env";
     }
     throw std::runtime_error("Invalid native model vertex family");
 }
 bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect) {
-    return target == GxSh_Vertex ? permutation < (vertexEffect == ModelVertexEffect::Diffuse ? 30u : 10u) : permutation < 16 && (permutation & 3) == 0;
+    return target == GxSh_Vertex ? permutation < (UsesModelMaterial(vertexEffect) ? 30u : 10u) : permutation < 16 && (permutation & 3) == 0;
 }
 void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect) {
     if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
@@ -83,9 +84,43 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
             "99d04c70b44aa87dd41647907ab99c8b",
         }
     };
+    static const char* environmentVertex[] = {
+        "3f3cadc99a29016bfd8e991941d6766a",
+        "6900828bca505cae2812746ac208431f",
+        "3f3cadc99a29016bfd8e991941d6766a",
+        "4157d46fb8d910cf0bc154fcadf2a42d",
+        "3f3cadc99a29016bfd8e991941d6766a",
+        "55b6a7348edf9c25b3f84bc729f23357",
+        "3f3cadc99a29016bfd8e991941d6766a",
+        "ff398f00fbcf9dcbd83b98a76e1e6e80",
+        "3f3cadc99a29016bfd8e991941d6766a",
+        "73ef5a5c3cc1a97501407fb5608fd933",
+        "5b5c38b4908b9e9c4fe07718fc8d850a",
+        "4fa54f49a6e4c7599f3c004d657c8e38",
+        "5b5c38b4908b9e9c4fe07718fc8d850a",
+        "7129d62ea4130ec9ada489e03ac8225c",
+        "5b5c38b4908b9e9c4fe07718fc8d850a",
+        "04a8c94c851aacd462f6a1c08c5650c7",
+        "5b5c38b4908b9e9c4fe07718fc8d850a",
+        "f71fc90ddb5cc35946f559cd9187b4ef",
+        "5b5c38b4908b9e9c4fe07718fc8d850a",
+        "8bd86be6209d9737cf0715bb0fe99cbd",
+        "a14eeef1e4f268078b0ba9a86692c4a0",
+        "35ffc9468b600487edf489dc93090874",
+        "a14eeef1e4f268078b0ba9a86692c4a0",
+        "b7a8fb4df133aaee6cf74e691305e2dd",
+        "a14eeef1e4f268078b0ba9a86692c4a0",
+        "6649616cd48dada880abc2c04c64a35f",
+        "a14eeef1e4f268078b0ba9a86692c4a0",
+        "70c70bba80a6b12dd2b232b096b3fb29",
+        "a14eeef1e4f268078b0ba9a86692c4a0",
+        "37ffa88b730684fb2f74101f916b3adc",
+    };
     static const char* pixel[][2] = {
         {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"},
-        {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"}
+        {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"},
+        {"7751ab618fb321ce2818312a85dab5f6", "9e6e050436798f2d9e2070bc0f0add60"},
+        {"80dec97eb1bddae15fcf8bee0bc09445", "ada818ef0b3cdca6a8f59f971d74fc98"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i, vertexEffect)) continue;
@@ -97,8 +132,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
         const char* expected = target == GxSh_Vertex ?
-            (vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
-            pixel[effect == FragmentEffect::ModelMod][i >> 3];
+            (vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
+            pixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3];
         if (fingerprint != expected) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");
         }

@@ -196,6 +196,15 @@ constructors initialize reserved flag bits instead of retaining allocator conten
 Other model materials, colored skinning, shadows and full world rendering remain
 open; these checks are not a Windows visual-equivalence claim.
 
+`Diffuse_T1_Env` adds 30 unshadowed model vertex variants with original view-space
+sphere reflection. `Combiners_Opaque_AddNA` and `Combiners_Mod_AddNA` add a separately
+sampled environment RGB contribution before fog, retaining their distinct base
+alpha and alpha tests. Function constants remove unused reflection work, and the
+pipeline key has separate space for the growing effect set. Numeric GPU checks
+cover both texture samplers, reflected normal directions, skinning, lighting and
+alpha boundaries; the real water elemental uses its original DBC-selected skins,
+three environment batches and remaining single-texture material passes.
+
 The macOS preview and iOS Metal view run that original M2 scene beside the texture
 and font preview. Model/skin/texture loading is asynchronous; the game Event update
 drives animation time. The default is CreatureDisplayInfo 165 (timber wolf), playing
@@ -208,6 +217,8 @@ and drawing; `WOW_MODEL='Spells\Rejuvenation_Impact_Base.m2'` also exercises rib
 and sphere emitters. The view owns depth,
 scene/cache lifetime and foreground recreation. This remains a native rendering
 bootstrap, not a playable client or a replacement for the game's UI.
+`WOW_CREATURE_DISPLAY=110` selects the original water elemental and its environment
+materials.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.

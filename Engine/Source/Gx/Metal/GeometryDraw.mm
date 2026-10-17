@@ -23,10 +23,10 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
     Require(geometry.effect == FragmentEffect::Unlit, "Unlit draw received a different native effect");
     DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state}, encoder);
 }
-void GxMetal::TextureDevice::DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-    const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
+void GxMetal::TextureDevice::DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(IsModelEffect(geometry.effect), "Invalid native model effect");
-    DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, {}, {state, state, state, state}, encoder);
+    DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}}, encoder);
 }
 void GxMetal::TextureDevice::DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
     const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder) {
@@ -49,7 +49,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const bool model = IsModelEffect(geometry.effect);
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
-    const unsigned inputs = filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
+    const unsigned inputs = model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
     const auto& state = states[0];
     Require(command && pass && textures[0] && geometry.vertices, "Missing Metal geometry resource");
     Require((filter || wave) ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
@@ -141,7 +141,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
     if (model) {
         ModelFragmentParameters material = geometry.model->fragment;
-        material.stateAlphaRef = state.alphaRef / 255.0f; material.decodeScale = state.decodeScale;
+        material.stateAlphaRef = state.alphaRef / 255.0f;
+        for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
     } else if (wave) {
         WaveParameters waveConstants{geometry.waveSceneScale, geometry.waveBlurScale, constants.texture.alphaRef};

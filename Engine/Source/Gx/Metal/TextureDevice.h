@@ -48,11 +48,11 @@ struct ModelVertexParameters {
 };
 struct ModelFragmentParameters {
     simd_float4 fogColorAlphaRef;
-    simd_float4 decodeScale;
+    simd_float4 decodeScale[2];
     float stateAlphaRef;
     float padding[3]{};
 };
-static_assert(sizeof(ModelAffine) == 48 && sizeof(ModelVertexParameters) == 368 && sizeof(ModelFragmentParameters) == 48,
+static_assert(sizeof(ModelAffine) == 48 && sizeof(ModelVertexParameters) == 368 && sizeof(ModelFragmentParameters) == 64,
     "Native model constant layout");
 struct ModelDrawParameters {
     ModelVertexParameters vertex{};
@@ -105,8 +105,8 @@ public:
     // Without one, these helpers encode an independent complete pass.
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
-    void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-        const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
@@ -121,8 +121,8 @@ public:
 
 private:
     id<MTLLibrary> m_library;
-    id<MTLFunction> m_modelVertex[3][30]{};
-    id<MTLFunction> m_modelFragment[2][2][2][2]{};
+    id<MTLFunction> m_modelVertex[4][30]{};
+    id<MTLFunction> m_modelFragment[4][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
@@ -133,7 +133,7 @@ private:
     id<MTLFunction> m_clearVertex, m_clearFragment;
     id<MTLRenderPipelineState> m_clearPipelines[2][2]{};
     id<MTLDepthStencilState> m_clearDepth[2]{};
-    std::unordered_map<uint32_t, id<MTLRenderPipelineState>> m_pipelines;
+    std::unordered_map<uint64_t, id<MTLRenderPipelineState>> m_pipelines;
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
