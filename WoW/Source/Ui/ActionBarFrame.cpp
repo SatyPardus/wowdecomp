@@ -812,8 +812,7 @@ const char* CGActionBar::GetTexture(int32_t slot) {
     }
 
     if (CGActionBar::IsItem(slot)) {
-        ItemRec* item = g_itemDB.GetRecord(CGActionBar::GetItem(slot));
-        int32_t displayId = item ? item->m_displayInfoID : 0;
+        int32_t displayId = CGItem_C::GetDisplayID(CGActionBar::GetItem(slot));
         SStrPrintf(s_texture, sizeof(s_texture), "%s%s%s", s_iconPath, *s_iconPath ? "\\" : "", CGItem_C::GetInventoryArt(displayId));
         return s_texture;
     }
@@ -1129,8 +1128,8 @@ void CGActionBar::PutActionInSlot(int32_t slot) {
         }
 
         if (CGActionBar::IsItem(slot)) {
-            ItemRec* rec = g_itemDB.GetRecord(CGActionBar::GetItem(slot));
-            CGGameUI::SetCursorVirtualItem(CGActionBar::GetItem(slot), rec ? rec->m_displayInfoID : 0, slot, 7, 0);
+            int32_t actionItemId = CGActionBar::GetItem(slot);
+            CGGameUI::SetCursorVirtualItem(actionItemId, CGItem_C::GetDisplayID(actionItemId), slot, 7, 0);
         } else if (CGActionBar::IsSpell(slot)) {
             int32_t spellId = CGActionBar::GetSpell(slot, petSpell);
 
@@ -1161,14 +1160,10 @@ void CGActionBar::PutActionInSlot(int32_t slot) {
             return;
         }
 
-        ItemRec* itemRec = g_itemDB.GetRecord(itemId);
-
-        if (!itemRec) {
-            return;
-        }
+        uint32_t inventoryType = CGItem_C::GetInventoryType(itemId);
 
         if (!CGItem_C::GetUseSpell(itemId) && ((!item && !(item = CGActionBar::FindUseEnchantItemPtr(itemId))) || !item->GetEnchantmentSpell(0))) {
-            if (!itemRec->m_inventoryType || itemRec->m_inventoryType == 18) {
+            if (!inventoryType || inventoryType == 18) {
                 return;
             }
         }
@@ -1181,8 +1176,7 @@ void CGActionBar::PutActionInSlot(int32_t slot) {
                 return;
             }
 
-            ItemRec* rec = g_itemDB.GetRecord(slotItem);
-            CGGameUI::SetCursorVirtualItem(slotItem, rec ? rec->m_displayInfoID : 0, slot, 7, 0);
+            CGGameUI::SetCursorVirtualItem(slotItem, CGItem_C::GetDisplayID(slotItem), slot, 7, 0);
         } else if (CGActionBar::IsSpell(slot)) {
             CGGameUI::SetCursorSpell(CGActionBar::GetSpell(slot, petSpell));
         } else if (CGActionBar::IsMacro(slot) && CGActionBar::HasMacro(slot)) {
@@ -1203,8 +1197,8 @@ void CGActionBar::PutActionInSlot(int32_t slot) {
         action = itemId | 0x80000000;
     } else if (cursorMacro) {
         if (CGActionBar::IsItem(slot)) {
-            ItemRec* rec = g_itemDB.GetRecord(CGActionBar::GetItem(slot));
-            CGGameUI::SetCursorVirtualItem(CGActionBar::GetItem(slot), rec ? rec->m_displayInfoID : 0, slot, 7, 0);
+            int32_t actionItemId = CGActionBar::GetItem(slot);
+            CGGameUI::SetCursorVirtualItem(actionItemId, CGItem_C::GetDisplayID(actionItemId), slot, 7, 0);
         } else if (CGActionBar::IsSpell(slot)) {
             CGGameUI::SetCursorSpell(CGActionBar::GetSpell(slot, petSpell));
         } else if (CGActionBar::IsMacro(slot) && CGActionBar::HasMacro(slot)) {
@@ -1236,8 +1230,8 @@ void CGActionBar::PutActionInSlot(int32_t slot) {
         }
 
         if (CGActionBar::IsItem(slot)) {
-            ItemRec* rec = g_itemDB.GetRecord(CGActionBar::GetItem(slot));
-            CGGameUI::SetCursorVirtualItem(CGActionBar::GetItem(slot), rec ? rec->m_displayInfoID : 0, slot, 7, 0);
+            int32_t actionItemId = CGActionBar::GetItem(slot);
+            CGGameUI::SetCursorVirtualItem(actionItemId, CGItem_C::GetDisplayID(actionItemId), slot, 7, 0);
         } else if (CGActionBar::IsSpell(slot)) {
             CGGameUI::SetCursorSpell(CGActionBar::GetSpell(slot, petSpell));
         } else if (CGActionBar::IsMacro(slot) && CGActionBar::HasMacro(slot)) {
@@ -1330,17 +1324,13 @@ void CGActionBar::UseAction(int32_t slot, const WOWGUID& target, const char* but
         }
 
         int32_t itemId = CGActionBar::GetItem(slot);
-        ItemRec* rec = g_itemDB.GetRecord(itemId);
-
-        if (!rec) {
-            return;
-        }
+        uint32_t inventoryType = CGItem_C::GetInventoryType(itemId);
 
         CGItem_C* enchantItem = CGActionBar::FindUseEnchantItemPtr(itemId);
         int32_t charges = enchantItem ? enchantItem->GetUsableSpellCharges() : CGItem_C::NumBaseCharges(itemId);
         CGItem_C* item;
 
-        if (rec->m_inventoryType) {
+        if (inventoryType) {
             uint32_t flags = charges != -1 && charges ? 161 : 129;
             item = player->m_bag.FindItemOfType(itemId, flags);
 
@@ -1510,9 +1500,8 @@ int32_t CGActionBar::IsEquippedAction(uint32_t slot) {
     }
 
     int32_t itemId = CGActionBar::GetItem(slot);
-    ItemRec* item = g_itemDB.GetRecord(itemId);
 
-    if (!item || !item->m_inventoryType) {
+    if (!CGItem_C::GetInventoryType(itemId)) {
         return 0;
     }
 
@@ -2016,9 +2005,8 @@ void CGActionBar::PickupAction(uint32_t slot) {
     }
 
     if (CGActionBar::IsItem(slot)) {
-        ItemRec* rec = g_itemDB.GetRecord(CGActionBar::GetItem(slot));
-        int32_t displayId = rec ? rec->m_displayInfoID : 0;
-        CGGameUI::SetCursorVirtualItem(CGActionBar::GetItem(slot), displayId, slot, 7, 0);
+        int32_t itemId = CGActionBar::GetItem(slot);
+        CGGameUI::SetCursorVirtualItem(itemId, CGItem_C::GetDisplayID(itemId), slot, 7, 0);
         CGActionBar::RemoveAction(slot);
     } else if (CGActionBar::IsSpell(slot)) {
         int32_t petSpell;
