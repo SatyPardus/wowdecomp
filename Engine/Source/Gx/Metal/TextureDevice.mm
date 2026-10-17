@@ -41,6 +41,8 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Require(m_filterVertex != nil, "Missing native FFX vertex function");
     m_glowVertex = [library newFunctionWithName:@"glowVertex"];
     Require(m_glowVertex != nil, "Missing native FFX glow vertex function");
+    m_waveVertex = [library newFunctionWithName:@"glowWaveVertex"];
+    Require(m_waveVertex != nil, "Missing native FFX wave vertex function");
     m_clearVertex = [library newFunctionWithName:@"clearVertex"];
     m_clearFragment = [library newFunctionWithName:@"clearFragment"];
     Require(m_clearVertex && m_clearFragment, "Missing native attachment clear functions");
@@ -60,6 +62,11 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
         if (!m_fragment[alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal specialization failed"); }
         m_glowFragment[alphaTest] = [library newFunctionWithName:@"glowFragment" constantValues:constants error:&error];
         if (!m_glowFragment[alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal glow specialization failed"); }
+        for (bool signedWave : {false, true}) {
+            [constants setConstantValue:&signedWave type:MTLDataTypeBool atIndex:3];
+            m_waveFragment[signedWave][alphaTest] = [library newFunctionWithName:@"glowWaveFragment" constantValues:constants error:&error];
+            if (!m_waveFragment[signedWave][alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal wave specialization failed"); }
+        }
         for (uint32_t filter = 1; filter <= 2; ++filter) {
             [constants setConstantValue:&filter type:MTLDataTypeUInt atIndex:2];
             m_filterFragment[filter - 1][alphaTest] = [library newFunctionWithName:@"filter4Fragment" constantValues:constants error:&error];
@@ -75,12 +82,12 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5) |
-        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15);
+        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15) | (uint32_t(signedWave) << 18);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -139,6 +146,19 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         descriptor.vertexDescriptor.attributes[3].bufferIndex = 1;
         descriptor.vertexDescriptor.attributes[3].offset = GxVertexAttribOffset(format, GxVA_TexCoord1);
         descriptor.vertexDescriptor.attributes[3].format = MTLVertexFormatFloat2;
+    }
+    if (effect == FragmentEffect::GlowWave) {
+        Require(format == GxVertexBufferFormats_Last && !screenAtDepth, "Invalid native FFX wave pipeline");
+        descriptor.vertexFunction = m_waveVertex;
+        descriptor.fragmentFunction = m_waveFragment[signedWave][state.alphaRef != 0];
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        const MTLVertexFormat formats[] = {MTLVertexFormatFloat3, MTLVertexFormatUChar4Normalized_BGRA,
+            MTLVertexFormatFloat2, MTLVertexFormatFloat2, MTLVertexFormatFloat2};
+        const size_t offsets[] = {0, 12, 16, 24, 32};
+        for (unsigned i = 0; i < 5; ++i) {
+            layout.attributes[i].bufferIndex = 1; layout.attributes[i].offset = offsets[i]; layout.attributes[i].format = formats[i];
+        }
+        layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
     auto attachment = descriptor.colorAttachments[0];
     attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;

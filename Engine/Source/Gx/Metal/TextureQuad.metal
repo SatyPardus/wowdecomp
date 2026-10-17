@@ -13,6 +13,7 @@ struct QuadParameters {
 };
 constant bool alphaTest [[function_constant(0)]];
 constant bool screenAtDepth [[function_constant(1)]];
+constant bool signedWave [[function_constant(3)]];
 constant uint filter4Kernel [[function_constant(2)]];
 struct QuadVertex { float4 position [[position]]; float2 uv; float4 color; };
 
@@ -109,6 +110,30 @@ fragment float4 glowFragment(GlowRaster v [[stage_in]], constant QuadParameters&
     const float3 blurColor = blurred.sample(blurSampling, v.blurUV).rgb;
     // Original FFXGlow: blue controls scene/blur interpolation; alpha controls
     // the squared blur contribution. Texture alpha does not affect the result.
+    const float3 base = mix(sceneColor, blurColor, v.color.b);
+    const float4 color = float4(fma(blurColor * blurColor, v.color.a, base), 1);
+    if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }
+    return color;
+}
+
+struct GlowWaveVertex {
+    float3 position [[attribute(0)]]; float4 color [[attribute(1)]];
+    float2 waveUV [[attribute(2)]]; float2 sceneUV [[attribute(3)]]; float2 blurUV [[attribute(4)]];
+};
+struct GlowWaveRaster { float4 position [[position]]; float4 color; float2 waveUV, sceneUV, blurUV; };
+struct WaveParameters { float2 sceneScale, blurScale; float alphaRef; float padding[3]; };
+vertex GlowWaveRaster glowWaveVertex(GlowWaveVertex v [[stage_in]], constant GeometryParameters& p [[buffer(0)]]) {
+    return {p.clipFromModel * float4(v.position, 1), v.color, v.waveUV, v.sceneUV, v.blurUV};
+}
+fragment float4 glowWaveFragment(GlowWaveRaster v [[stage_in]], constant WaveParameters& p [[buffer(0)]],
+    texture2d<float> waveTexture [[texture(0)]], texture2d<float> scene [[texture(1)]], texture2d<float> blurred [[texture(2)]],
+    sampler waveSampling [[sampler(0)]], sampler sceneSampling [[sampler(1)]], sampler blurSampling [[sampler(2)]]) {
+    float2 wave = waveTexture.sample(waveSampling, v.waveUV).rg;
+    if (!signedWave) { wave = (wave - 0.5f) * 2; }
+    const float2 sceneUV = fma(wave, p.sceneScale, v.sceneUV);
+    const float2 blurUV = fma(wave, p.blurScale, v.blurUV);
+    const float3 sceneColor = scene.sample(sceneSampling, sceneUV).rgb;
+    const float3 blurColor = blurred.sample(blurSampling, blurUV).rgb;
     const float3 base = mix(sceneColor, blurColor, v.color.b);
     const float4 color = float4(fma(blurColor * blurColor, v.color.a, base), 1);
     if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }

@@ -210,8 +210,12 @@ and restoration of caller matrices/state. Original `PassGlow` now combines scene
 and blur textures through the game PCT2 layout, retaining its blue-channel mix,
 squared blur weighted by vertex alpha, and opaque output alpha. The probe executes
 Box4, both Gauss4 passes and Glow without an intermediate CPU wait, then checks
-composition parameters, saturation and texture-coordinate scaling. The complete
-FFX effect setup and remaining shader families are not yet connected.
+composition parameters, saturation and texture-coordinate scaling. `PassGlowWave`
+also runs its original procedural wave texture and time-dependent PCT3 vertices,
+with independent scene/blur displacement scales from pixel constants. Its GPU
+output is checked against the actual generated RG data and submitted coordinates.
+The reachable RG-in-BGRA8 branch is verified; UV88 texture support remains pending.
+The complete FFX effect setup and other shader families are not yet connected.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

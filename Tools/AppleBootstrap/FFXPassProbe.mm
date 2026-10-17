@@ -4,6 +4,8 @@
 #include "Engine/Source/FFX/PassBox4.h"
 #include "Engine/Source/FFX/PassGauss4.h"
 #include "Engine/Source/FFX/PassGlow.h"
+#include "Engine/Source/FFX/PassGlowWave.h"
+#include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Base/Handle.h"
 #include <algorithm>
@@ -27,12 +29,13 @@ FFX::Tex Texture(unsigned width, unsigned height, unsigned logicalWidth, unsigne
     Require(texture, "Cannot create original Services texture for FFX");
     return {texture, {int(width), int(height)}, {int(logicalWidth), int(logicalHeight)}, {1.0f / width, 1.0f / height}};
 }
-std::array<float, 4> Sample(const Image& image, float x, float y) {
+std::array<float, 4> Sample(const Image& image, float x, float y, bool wrap = false) {
     const int left = int(std::floor(x)), top = int(std::floor(y));
     const float fx = x - left, fy = y - top;
     std::array<float, 4> result{};
     for (int dy = 0; dy < 2; ++dy) { for (int dx = 0; dx < 2; ++dx) {
-        const int ix = std::clamp(left + dx, 0, int(image.width) - 1), iy = std::clamp(top + dy, 0, int(image.height) - 1);
+        auto address = [&](int i, int size) { return wrap ? (i % size + size) % size : std::clamp(i, 0, size - 1); };
+        const int ix = address(left + dx, image.width), iy = address(top + dy, image.height);
         const float weight = (dx ? fx : 1 - fx) * (dy ? fy : 1 - fy);
         for (unsigned c = 0; c < 4; ++c) { result[c] += image.pixels[iy * image.width + ix][c] * weight; }
     } }
@@ -62,6 +65,28 @@ Image GlowReference(const Image& scene, const Image& blur, CImVector color) {
             const float base = scene.pixels[y * scene.width + x][c] * (1 - color.b / 255.0f) + filtered[c] * color.b / 255.0f;
             const float glow = filtered[c] * filtered[c] * color.a / (255.0f * 255.0f);
             result.pixels[y * scene.width + x][c] = std::clamp(int(std::lround(base + glow)), 0, 255);
+        }
+        result.pixels[y * scene.width + x][3] = 255;
+    } }
+    return result;
+}
+Image WaveReference(const Image& scene, const Image& blur, const Image& wave, const FFX::VertexPCT3* vertices, CImVector color) {
+    Image result = scene;
+    for (unsigned y = 0; y < scene.height; ++y) { for (unsigned x = 0; x < scene.width; ++x) {
+        C2Vector uv[3];
+        for (unsigned i = 0; i < 3; ++i) {
+            const auto& topLeft = vertices[1].tc[i]; const auto& topRight = vertices[2].tc[i]; const auto& bottomLeft = vertices[0].tc[i];
+            const float fx = (x + 0.5f) / scene.width, fy = (y + 0.5f) / scene.height;
+            uv[i].x = topLeft.x + (topRight.x - topLeft.x) * fx + (bottomLeft.x - topLeft.x) * fy;
+            uv[i].y = topLeft.y + (topRight.y - topLeft.y) * fx + (bottomLeft.y - topLeft.y) * fy;
+        }
+        const auto sample = Sample(wave, uv[0].x * wave.width - 0.5f, uv[0].y * wave.height - 0.5f, true);
+        const float dx = sample[2] * (2.0f / 255) - 1, dy = sample[1] * (2.0f / 255) - 1;
+        const auto original = Sample(scene, uv[1].x * scene.width - 0.5f + dx * 3, uv[1].y * scene.height - 0.5f + dy * 3);
+        const auto filtered = Sample(blur, uv[2].x * blur.width - 0.5f + dx * 0.75f, uv[2].y * blur.height - 0.5f + dy * 0.75f);
+        for (unsigned c = 0; c < 3; ++c) {
+            const float base = original[c] * (1 - color.b / 255.0f) + filtered[c] * color.b / 255.0f;
+            result.pixels[y * scene.width + x][c] = std::clamp(int(std::lround(base + filtered[c] * filtered[c] * color.a / (255.0f * 255.0f))), 0, 255);
         }
         result.pixels[y * scene.width + x][3] = 255;
     } }
@@ -180,6 +205,31 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
             auto actual = Read(device, output); Compare(actual, expected, 2);
             expected = std::move(actual); first = false;
         }
+        GxScenePresent();
+    }
+    FFX::Tex* waveInputs[] = {&PassGlowWave::s_waveTex, &input, &output};
+    PassGlowWave wave(waveInputs, 3, &screen, GxBlend_Opaque, true);
+    Require(wave.Valid() && wave.m_shaderIndex == 2, "FFX wave did not select the original RG-in-UNORM permutation");
+    auto* waveTexture = TextureGetGxTex(PassGlowWave::s_waveTex.m_texture, 1, nullptr);
+    Image waveData{128, 128, std::vector<Pixel>(128 * 128)};
+    uint32_t rowBytes = 0; const void* pixels = nullptr;
+    waveTexture->m_userFunc(GxTex_Lock, 128, 128, 0, 0, waveTexture->m_userArg, rowBytes, pixels);
+    waveTexture->m_userFunc(GxTex_Latch, 128, 128, 0, 0, waveTexture->m_userArg, rowBytes, pixels);
+    Require(rowBytes == 128 * 4 && pixels, "Original wave texture producer returned invalid pixels");
+    std::memcpy(waveData.pixels.data(), pixels, waveData.pixels.size() * 4);
+    waveTexture->m_userFunc(GxTex_Unlock, 128, 128, 0, 0, waveTexture->m_userArg, rowBytes, pixels);
+    // Capture the real pass's time-dependent UVs from the existing CPU shadow,
+    // then independently evaluate texture filtering, displacement and composition.
+    for (CImVector color : {CImVector(0, 23, 101, 0), CImVector(83, 11, 197, 173)}) {
+        device.BeginFrame(frame); wave.m_color = color; wave.Execute(); checkRestore();
+        const auto* buffer = device.m_primVertexFormatBuf[GxVA_Position];
+        Require(buffer && buffer->m_itemSize == sizeof(FFX::VertexPCT3) && buffer->m_itemCount == 4, "FFX wave did not submit PCT3 vertices");
+        FFX::VertexPCT3 vertices[4];
+        std::memcpy(vertices, static_cast<const uint8_t*>(buffer->m_pool->m_mem) + buffer->m_index, sizeof(vertices));
+        const float* constants = device.ShaderConstantsLock(GxSh_Pixel);
+        Require(constants[0] == 3.0f / 32 && constants[3] == 3.0f / 32 && constants[4] == 0.75f / 8 && constants[7] == 0.75f / 8,
+            "Original FFX wave pixel constants changed");
+        Compare(Read(device, screen), WaveReference(source, expected, waveData, vertices, color), 2);
         GxScenePresent();
     }
     GxRsSet(GxRs_AlphaRef, 0);

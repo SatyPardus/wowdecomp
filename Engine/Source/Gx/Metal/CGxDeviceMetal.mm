@@ -48,6 +48,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect) {
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
         case GxMetal::FragmentEffect::Glow: return "FFXGlow";
+        case GxMetal::FragmentEffect::GlowWave: return "FFXGlowWave";
         default: return "UI";
     }
 }
@@ -610,10 +611,11 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     Require(shaders && path && name && (target == GxSh_Vertex || target == GxSh_Pixel), "Invalid Metal Gx shader request");
     const auto effect = SStrCmpI(name, "FFXBox4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Box4 :
         SStrCmpI(name, "FFXGauss4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Gauss4 :
-        SStrCmpI(name, "FFXGlow", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Glow : GxMetal::FragmentEffect::Unlit;
+        SStrCmpI(name, "FFXGlow", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Glow :
+        SStrCmpI(name, "FFXGlowWave", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::GlowWave : GxMetal::FragmentEffect::Unlit;
     const char* family = ShaderFamily(effect);
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : 2u) &&
+        count == (effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
         (effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
@@ -679,14 +681,15 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const auto effect = m->shaders.at(pixel).effect;
     const bool postProcess = effect != GxMetal::FragmentEffect::Unlit;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
-    const unsigned inputs = filter ? 4 : postProcess ? 2 : 1;
+    const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
+    const unsigned inputs = filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
     Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex && m->shaders.at(vertex).ui,
         "Unsupported native Gx vertex/pixel shader combination");
     CGxBuf* vertices = postProcess ? m_primVertexFormatBuf[GxVA_Position] : m_primVertexBuf;
     Require(vertices, "Gx draw requires vertices");
     if (postProcess) {
         const unsigned stride = 16 + inputs * 8;
-        Require(m_primVertexFormat == (filter ? GxVertexBufferFormats_Last : GxVBF_PCT2) &&
+        Require(m_primVertexFormat == ((filter || wave) ? GxVertexBufferFormats_Last : GxVBF_PCT2) &&
             m_primVertexMask == (0x11u | (((1u << inputs) - 1) << GxVA_TexCoord0)) && vertices->m_itemSize == stride &&
             !integer(GxRs_Lighting), "FFX requires the original unlit vertex stream");
         const CGxVertexAttrib expected[] = {{GxVA_Position, 4, 0, 48}, {GxVA_Color0, 0, 12, 48},
@@ -723,6 +726,11 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         const auto transform = shader.ui->VertexTransform(s_shadowConstants[1].constants, 256, shader.permutation);
         draw.clipFromModel = transform.clipFromModel; draw.screenAtDepth = transform.screenAtDepth;
     }
+    if (wave) {
+        const float* constants = s_shadowConstants[0].constants;
+        draw.waveSceneScale = {constants[0], constants[3]}; draw.waveBlurScale = {constants[4], constants[7]};
+        draw.signedWave = m->shaders.at(pixel).permutation < 2;
+    }
     draw.depthTest = MasterEnable(GxMasterEnable_DepthTest) && integer(GxRs_DepthTest);
     draw.depthWrite = MasterEnable(GxMasterEnable_DepthWrite) && integer(GxRs_DepthWrite);
     draw.depthFunction = integer(GxRs_DepthFunc);
@@ -754,6 +762,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
     }
     if (filter) { m->gpu.DrawFilter4(m->command, m->pass, textures, draw, states); }
+    else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}); }
     else if (postProcess) { m->gpu.DrawGlow(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}); }
     else { m->gpu.DrawUnlit(m->command, m->pass, textures[0], draw, {}, states[0]); }
     m->ConsumedPass();

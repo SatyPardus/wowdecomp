@@ -42,6 +42,8 @@ struct GeometryDraw {
     FragmentEffect effect = FragmentEffect::Unlit;
     CGxBatch batch{};
     C44Matrix clipFromModel{1.0f};
+    simd_float2 waveSceneScale{}, waveBlurScale{};
+    bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
     bool depthTest = false, depthWrite = false;
     uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
@@ -73,6 +75,8 @@ public:
         const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states);
     void DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states);
+    void DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states);
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
         uint32_t mask, simd_float4 color);
     bool SupportsBC() const;
@@ -83,6 +87,7 @@ private:
     id<MTLFunction> m_geometryVertex[2][4];
     id<MTLFunction> m_filterVertex, m_filterFragment[2][2];
     id<MTLFunction> m_glowVertex, m_glowFragment[2];
+    id<MTLFunction> m_waveVertex, m_waveFragment[2][2];
     id<MTLFunction> m_clearVertex, m_clearFragment;
     id<MTLRenderPipelineState> m_clearPipelines[2][2]{};
     id<MTLDepthStencilState> m_clearDepth[2]{};
@@ -90,7 +95,7 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit);
+        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 4>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 4>&);

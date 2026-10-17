@@ -9,6 +9,11 @@ struct alignas(16) GeometryParameters {
     C44Matrix clipFromModel;
     GxMetal::QuadParameters texture;
 };
+struct alignas(16) WaveParameters {
+    simd_float2 sceneScale, blurScale;
+    float alphaRef, padding[3]{};
+};
+static_assert(sizeof(WaveParameters) == 32, "Metal wave constant layout");
 static_assert(sizeof(GeometryParameters) == 128 && offsetof(GeometryParameters, texture) == 64, "Metal geometry constant layout");
 }
 
@@ -27,13 +32,19 @@ void GxMetal::TextureDevice::DrawGlow(id<MTLCommandBuffer> command, MTLRenderPas
     Require(geometry.effect == FragmentEffect::Glow, "Invalid FFX glow effect");
     DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}});
 }
+void GxMetal::TextureDevice::DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states) {
+    Require(geometry.effect == FragmentEffect::GlowWave, "Invalid FFX wave effect");
+    DrawGeometry(command, pass, {textures[0], textures[1], textures[2], nil}, geometry, {}, {states[0], states[1], states[2], {}});
+}
 void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
     const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 4>& states) {
     const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
-    const unsigned inputs = filter ? 4 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
+    const bool wave = geometry.effect == FragmentEffect::GlowWave;
+    const unsigned inputs = filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
     const auto& state = states[0];
     Require(command && pass && textures[0] && geometry.vertices, "Missing Metal geometry resource");
-    Require(filter ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
+    Require((filter || wave) ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
         "Invalid Gx vertex format for native effect");
     Require(geometry.format != GxVBF_PBNT2, "Skinned Gx vertices require a skinning effect");
     const auto& batch = geometry.batch;
@@ -45,7 +56,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     if (batch.m_primType == GxPrim_Lines) { count -= count % 2; }
     if (batch.m_primType == GxPrim_Triangles) { count -= count % 3; }
     Require(count >= (batch.m_primType >= GxPrim_Triangles ? 3 : batch.m_primType >= GxPrim_Lines ? 2 : 1), "Empty Gx geometry batch");
-    const size_t stride = filter ? 48 : GxVertexSize(geometry.format);
+    const size_t stride = filter ? 48 : wave ? 40 : GxVertexSize(geometry.format);
     Require(geometry.vertexOffset % 4 == 0 && geometry.vertexOffset <= geometry.vertices.length, "Invalid Gx vertex buffer offset");
     const size_t availableVertices = (geometry.vertices.length - geometry.vertexOffset) / stride;
     size_t indexOffset = geometry.indexOffset;
@@ -78,7 +89,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
             v.originX + v.width <= target.width && v.originY + v.height <= target.height &&
             v.znear >= 0 && v.zfar <= 1 && v.znear <= v.zfar, "Invalid Metal geometry viewport");
     }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave);
     std::array<id<MTLSamplerState>, 4> samplers{};
     for (unsigned i = 0; i < inputs; ++i) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
@@ -113,7 +124,10 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
     [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
-    [encoder setFragmentBytes:&constants.texture length:sizeof(constants.texture) atIndex:0];
+    if (wave) {
+        const WaveParameters waveConstants{geometry.waveSceneScale, geometry.waveBlurScale, constants.texture.alphaRef};
+        [encoder setFragmentBytes:&waveConstants length:sizeof(waveConstants) atIndex:0];
+    } else { [encoder setFragmentBytes:&constants.texture length:sizeof(constants.texture) atIndex:0]; }
     for (unsigned i = 0; i < inputs; ++i) {
         [encoder setFragmentTexture:textures[i] atIndex:i];
         [encoder setFragmentSamplerState:samplers[i] atIndex:i];
