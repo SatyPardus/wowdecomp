@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
                 delegate.window.releasedWhenClosed = NO;
                 MTKView* view = [[MTKView alloc] initWithFrame:delegate.window.contentView.bounds];
                 delegate.window.contentView = view;
-                delegate.renderer = [[WowTextureRenderer alloc] initWithView:view image:image];
+                delegate.renderer = [[WowTextureRenderer alloc] initWithView:view textureName:argv[4]];
                 [delegate.window center];
                 [delegate.window makeKeyAndOrderFront:nil];
                 [NSApp activateIgnoringOtherApps:YES];

@@ -18,6 +18,7 @@
     std::shared_ptr<ClientData> _client; // Keep mounted archives alive for game shader/resource APIs.
     std::shared_ptr<BLP::Image> _pendingImage;
     std::shared_ptr<GxMetal::UIShader> _pendingUI;
+    NSString* _pendingTextureName;
 }
 - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options {
     self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene*)scene];
@@ -54,7 +55,7 @@
     std::string report;
     if (AppleBootstrap::CheckMetal(*_pendingImage, *_pendingUI, report)) {
         try {
-            self.renderer = [[WowTextureRenderer alloc] initWithView:self.metalView image:*_pendingImage];
+            self.renderer = [[WowTextureRenderer alloc] initWithView:self.metalView textureName:_pendingTextureName.UTF8String];
             [self.renderer resume];
         } catch (const std::exception& error) {
             report += std::string("Metal view failed: ") + error.what() + "\n";
@@ -64,6 +65,7 @@
     os_log(OS_LOG_DEFAULT, "%{public}s", report.c_str());
     _pendingImage.reset();
     _pendingUI.reset();
+    _pendingTextureName = nil;
 }
 
 - (void)sceneWillResignActive:(UIScene*)scene { [self.renderer suspend]; }
@@ -116,6 +118,7 @@
             self->_client = client;
             self->_pendingImage = image;
             self->_pendingUI = ui;
+            self->_pendingTextureName = textureName;
             [self renderPendingIfActive];
         });
     });

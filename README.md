@@ -142,6 +142,17 @@ wall-clock timers. Context shutdown and recreation release property TLS, call
 contexts, queues and timers. Native stepping currently requires the client's
 single scheduler thread; server network pumping is explicitly unsupported.
 
+The original Services asynchronous file queue now runs on native workers and
+returns completion through Event poll handlers on the game thread. Idle Apple
+workers wait for queued work or shutdown. Failed/short reads select cleanup
+instead of successful loading, retries restore the starting file offset, and
+cancellation/destruction synchronize with active readers. Checks compare real
+DBC, script, M2, ADT and WMO bytes with synchronous reads, then exercise failure,
+cancellation and worker recreation. The visible native preview loads its texture
+through this queue and the bounded BLP decoder before uploading authored mips.
+The complete Services texture loader, model loader and client startup are still
+being connected.
+
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
 It uploads original BC blocks when the device supports them; otherwise it expands

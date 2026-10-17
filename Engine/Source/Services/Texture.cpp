@@ -232,6 +232,8 @@ void AsyncTextureFailureCallback(CTexture* texture) {
     CAsyncObject* object = texture->m_asyncObject;
     s_asyncLoadBufferUsed -= object->m_size;
     void* buffer = object->m_buffer;
+    if (object->m_readFailed) { texture->m_status.Add(STATUS_FATAL, "Asynchronous read failed: %s\n", texture->m_filename); }
+    texture->m_asyncObject = nullptr;
     AsyncFileReadDestroyObject(object);
     SMemFree(buffer, __FILE__, __LINE__, 0);
 }
@@ -1329,6 +1331,7 @@ CGxTex* TextureGetGxTex(CTexture* texture, int32_t wait, CStatus* status) {
     }
 
     if (!texture->m_gxTex) {
+        if (!texture->m_asyncObject) { if (status) { status->Add(texture->m_status); } return nullptr; }
         if (wait != 1 && (wait != 2 || texture->m_asyncObject->m_char24)) {
             return nullptr;
         }

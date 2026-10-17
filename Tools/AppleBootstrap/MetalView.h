@@ -4,7 +4,7 @@
 #include "Engine/Source/Gx/Metal/UIShader.h"
 
 @interface WowTextureRenderer : NSObject <MTKViewDelegate>
-- (instancetype)initWithView:(MTKView*)view image:(const BLP::Image&)image;
+- (instancetype)initWithView:(MTKView*)view textureName:(const char*)textureName;
 - (void)resume;
 - (void)suspend;
 @end

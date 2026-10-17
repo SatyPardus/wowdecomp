@@ -4,13 +4,19 @@
 #include <cstddef>
 #include <cstdint>
 #include "Engine/Source/Services/Types.h"
+#if defined(__APPLE__)
+#include "Engine/Source/Storm/Source/SLock.h"
+#endif
 #include "Engine/Source/Storm/H/stpl.h"
 
 class CAsyncQueue : public TSLinkedNode<CAsyncQueue> {
     public:
     /* 0008 */ TSExplicitList<CAsyncObject, offsetof(CAsyncObject, m_link)> m_readList;
     /* 0014 */ TSExplicitList<CAsyncObject, offsetof(CAsyncObject, m_link)> m_staleList;
-    /* 0020 */ int32_t m_frameLimited;
+    /* 0020 */ int32_t m_frameLimited = 0;
+#if defined(__APPLE__)
+    SEvent m_workAvailable{0, 0};
+#endif
 
     ~CAsyncQueue();
 };

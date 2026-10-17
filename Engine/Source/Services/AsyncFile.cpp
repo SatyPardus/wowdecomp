@@ -1,5 +1,7 @@
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <stdexcept>
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/Storm/Source/SThread.h"
 #include "Engine/Source/Base/Prop.h"
@@ -150,8 +152,10 @@ int32_t AsyncFileReadPollHandler(const void* data, void* param) {
         }
 
         object->m_isProcessed = 1;
+        auto callback = reinterpret_cast<void (*)(void*)>(object->m_readFailed ? object->m_userPostUnloadCallback : object->m_userPostloadCallback);
+        void* userArg = object->m_userArg;
         g_queueLock.Leave();
-        reinterpret_cast<void (*)(void*)>(object->m_userPostloadCallback)(object->m_userArg);
+        if (callback) { callback(userArg); }
         s_progressCount--;
 
         if (OsGetAsyncTimeMs() - start > s_handlerTimeout) {
@@ -195,14 +199,9 @@ void AsyncFileReadAddStatusHandler(int32_t (*handler)()) {
 void AsyncFileReadDestroyObject(CAsyncObject* object) {
     g_queueLock.Enter();
 
-    if (object->m_isCurrent) {
-        DebugLog("AsyncFileReadDestroyObject()");
+    while (object->m_isCurrent) {
         g_queueLock.Leave();
-
-        while (object->m_isCurrent) {
-            OsSleep(1);
-        }
-
+        OsSleep(1);
         g_queueLock.Enter();
     }
 
@@ -288,6 +287,7 @@ void AsyncFileReadWait(CAsyncObject* object) {
     }
 
     s_waiting++;
+    struct WaitingGuard { int32_t& value; ~WaitingGuard() { --value; } } waitingGuard{s_waiting};
     g_queueLock.Enter();
 
     if (object->m_isProcessed) {
@@ -330,7 +330,6 @@ void AsyncFileReadWait(CAsyncObject* object) {
         OsSleep(1);
     } while (true);
 
-    s_waiting--;
 }
 
 // VERIFY: 82068864 manual
@@ -355,6 +354,7 @@ CAsyncObject* AsyncFileReadAllocObject() {
     object->m_userPostUnloadCallback = nullptr;
     object->m_queue = nullptr;
     object->m_isProcessed = 0;
+    object->m_readFailed = 0;
     object->m_isRead = 0;
     object->m_isCurrent = 0;
     object->m_char24 = 0;
@@ -443,22 +443,27 @@ uint32_t STORMAPI AsyncFileReadThread(void* param) {
             thread->m_currentObject = object;
             g_queueLock.Leave();
 
-            for (int32_t retries = 10; retries; ) {
+            int32_t offsetHigh = 0;
+            const uint32_t offset = uint32_t(SFile::SetFilePointer(object->m_file, 0, &offsetHigh, 1));
+            bool readOK = false;
+            for (int32_t retries = 10; retries; --retries) {
                 if (SFile::IsStreamingMode() && object->m_file->m_type) {
                     SFile::MakeFileLocal(object->m_file, (object->m_priority > 127) + 1, true);
                 }
-
-                if (SFileReadFile(object->m_file, object->m_buffer, object->m_size, nullptr, nullptr, 0)) {
+                if (retries != 10) {
+                    int32_t high = offsetHigh;
+                    SFile::SetFilePointer(object->m_file, int32_t(offset), &high, 0);
+                }
+                uint32_t bytesRead = 0;
+                if (SFileReadFile(object->m_file, object->m_buffer, object->m_size, &bytesRead, nullptr, 0) && bytesRead == object->m_size) {
+                    readOK = true;
                     break;
                 }
-
-                if (!--retries) {
-                    char name[512];
-                    SFile::GetActualFileName(object->m_file, name, sizeof(name));
-                    char error[512];
-                    SErrGetErrorStr(SErrGetLastError(), error, sizeof(error));
-                    DebugLog("AsyncFileReadThread() failed reading %s: %s", name, error);
-                }
+            }
+            if (!readOK) {
+                char name[512];
+                SFile::GetActualFileName(object->m_file, name, sizeof(name));
+                std::fprintf(stderr, "AsyncFileReadThread failed reading %s (Storm error %u)\n", name, SErrGetLastError());
             }
 
             g_queueLock.Enter();
@@ -466,6 +471,7 @@ uint32_t STORMAPI AsyncFileReadThread(void* param) {
             thread->m_currentObject = nullptr;
             object->m_isCurrent = 0;
             object->m_isRead = 1;
+            object->m_readFailed = !readOK;
             g_queueLock.Leave();
 
             if (s_threadSleep && ++count == s_threadSleep) {
@@ -475,9 +481,13 @@ uint32_t STORMAPI AsyncFileReadThread(void* param) {
         }
 
         g_queueLock.Leave();
+#if defined(__APPLE__)
+        queue->m_workAvailable.Wait(0xFFFFFFFF);
+#else
         OsSleep(1);
+#endif
     }
-
+    PropSelectContext(nullptr);
     return 0;
 }
 
@@ -493,7 +503,10 @@ void AsyncFileReadCreateThread(CAsyncQueue* queue, const char* name) {
     CAsyncThread* thread = s_asyncThreadList.NewNode(2, 0, 0);
     thread->m_queue = queue;
     thread->m_currentObject = nullptr;
-    SThread::Create(AsyncFileReadThread, thread, thread->m_thread, const_cast<char*>(name), 0);
+    if (!SThread::Create(AsyncFileReadThread, thread, thread->m_thread, const_cast<char*>(name), 0)) {
+        s_asyncThreadList.DeleteNode(thread);
+        throw std::runtime_error("Cannot start the game's asynchronous file worker");
+    }
 }
 
 // VERIFY: e94485f6 auto
@@ -525,11 +538,12 @@ void AsyncFileReadInitialize(uint32_t threadSleep, uint32_t handlerTimeout) {
     AsyncFileRead::s_shutdownEvent.Reset();
 
     int32_t queues = SFile::IsStreamingMode() ? 3 : 1;
-
-    for (int32_t i = 0; i < queues; i++) {
-        s_asyncQueues[i] = AsyncFileReadCreateQueue();
-        AsyncFileReadCreateThread(s_asyncQueues[i], s_asyncQueueNames[i]);
-    }
+    try {
+        for (int32_t i = 0; i < queues; i++) {
+            s_asyncQueues[i] = AsyncFileReadCreateQueue();
+            AsyncFileReadCreateThread(s_asyncQueues[i], s_asyncQueueNames[i]);
+        }
+    } catch (...) { AsyncFileReadDestroy(); throw; }
 
     if (SFile::IsStreamingMode()) {
         s_asyncQueues[2]->m_frameLimited = 1;
@@ -567,6 +581,9 @@ void AsyncFileReadObject(CAsyncObject* object, int32_t urgent) {
     }
 
     g_queueLock.Leave();
+#if defined(__APPLE__)
+    queue->m_workAvailable.Set();
+#endif
 
     if (SFile::IsStreamingMode()) {
         SFile::SetFilePriority(object->m_file, 0, 0);
@@ -586,11 +603,21 @@ void AsyncFileReadIncreasePriority(CAsyncObject* object) {
 // VERIFY: 3aa538d7 manual
 // OFFSET: 0x004BAC50
 void AsyncFileReadDestroy() {
+    AsyncFileRead::s_shutdownEvent.Set();
+#if defined(__APPLE__)
+    for (auto* queue = s_asyncQueueList.Head(); queue; queue = s_asyncQueueList.Next(queue)) { queue->m_workAvailable.Set(); }
+#endif
     for (CAsyncThread* thread = s_asyncThreadList.Head(); !s_asyncThreadList.IsEnd(thread); thread = s_asyncThreadList.RawNext(thread)) {
         AsyncFileRead::s_shutdownEvent.Set();
         thread->m_thread.Wait(0xFFFFFFFF);
     }
 
+    // No workers remain. Deliver cleanup for work still queued at shutdown,
+    // before destroying queue nodes or the owning resource context.
+    for (auto* queue = s_asyncQueueList.Head(); queue; queue = s_asyncQueueList.Next(queue)) {
+        while (auto* object = queue->m_readList.Head()) { s_asyncFileReadPostList.LinkToTail(object); object->m_queue = nullptr; }
+        while (auto* object = queue->m_staleList.Head()) { s_asyncFileReadPostList.LinkToTail(object); object->m_queue = nullptr; }
+    }
     AsyncFileReadUnloadPostList();
     AsyncFileRead::s_asyncFileReadFreeList.Clear();
 

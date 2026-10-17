@@ -4,6 +4,8 @@
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Services/Texture.h"
+#include "Engine/Source/Services/AsyncFile.h"
+#include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/Os/Input.h"
@@ -17,23 +19,28 @@ class GameEvents {
     static GameEvents* s_current;
     void (*m_paint)(void*);
     void* m_owner;
+    std::string m_error;
     static int32_t Paint(const void*, void* arg) {
         auto& self = *static_cast<GameEvents*>(arg);
         self.m_paint(self.m_owner);
         return 1;
     }
+    static int32_t Destroy(const void*, void*) { AsyncFileReadDestroy(); return 1; }
     static int32_t Initialize(const void*, void*) {
+        try { AsyncFileReadInitialize(0, 20); }
+        catch (const std::exception& error) { s_current->m_error = error.what(); }
         EventRegisterEx(EVENT_ID_PAINT, Paint, s_current, 0);
         return 1;
     }
 public:
+    void Check() { if (!m_error.empty()) { throw std::runtime_error(m_error); } }
     GameEvents(void (*paint)(void*), void* owner) : m_paint(paint), m_owner(owner) {
         if (s_current) { throw std::logic_error("A native game event host already exists"); }
         s_current = this;
         PropInitialize();
         try {
             EventInitialize(1, 0);
-            if (!EventCreateContextEx(1, Initialize, nullptr, 1, 0)) { throw std::runtime_error("Cannot create native game Event context"); }
+            if (!EventCreateContextEx(1, Initialize, Destroy, 1, 0)) { throw std::runtime_error("Cannot create native game Event context"); }
         } catch (...) {
             EventDestroy(); PropDestroy(); s_current = nullptr; throw;
         }
@@ -45,6 +52,53 @@ public:
     }
 };
 GameEvents* GameEvents::s_current;
+
+// The visible resource follows the original Services worker and Event poll
+// completion path. Its bounded BLP decoder retains the original mip payloads.
+class AsyncImage {
+    CAsyncObject* m_object = nullptr;
+    std::vector<uint8_t> m_bytes;
+    std::unique_ptr<BLP::Image> m_image;
+    std::string m_error;
+    bool m_started = false;
+    void Finish() {
+        AsyncFileReadDestroyObject(m_object); m_object = nullptr;
+        std::vector<uint8_t>().swap(m_bytes);
+    }
+    static void Success(void* arg) {
+        auto& self = *static_cast<AsyncImage*>(arg);
+        try { self.m_image = std::make_unique<BLP::Image>(BLP::Image::Load(self.m_bytes.data(), self.m_bytes.size(), 256 * 1024 * 1024)); }
+        catch (const std::exception& error) { self.m_error = error.what(); }
+        self.Finish();
+    }
+    static void Failure(void* arg) {
+        auto& self = *static_cast<AsyncImage*>(arg);
+        self.m_error = "The native preview's asynchronous resource read failed";
+        self.Finish();
+    }
+public:
+    explicit AsyncImage(const char* name) {
+        SFileImpl* file = nullptr;
+        if (!SFile::OpenEx(nullptr, name, 0, &file)) { throw std::runtime_error("Cannot open the native preview texture"); }
+        try {
+            uint32_t high = 0;
+            const uint32_t size = SFileGetFileSize(file, &high);
+            if (high || !size || size > 64 * 1024 * 1024) { throw std::runtime_error("Native preview texture exceeds the file budget"); }
+            m_bytes.resize(size);
+            m_object = AsyncFileReadAllocObject();
+            m_object->m_file = file; m_object->m_buffer = m_bytes.data(); m_object->m_size = size;
+            m_object->m_userArg = this;
+            m_object->m_userPostloadCallback = reinterpret_cast<void*>(Success);
+            m_object->m_userPostUnloadCallback = reinterpret_cast<void*>(Failure);
+        } catch (...) { SFileCloseFile(file); throw; }
+    }
+    ~AsyncImage() { if (m_object) { AsyncFileReadDestroyObject(m_object); } }
+    const BLP::Image* Get() {
+        if (!m_started) { AsyncFileReadObject(m_object, 0); m_started = true; }
+        if (!m_error.empty()) { throw std::runtime_error(m_error); }
+        return m_image.get();
+    }
+};
 
 class GameText {
     CGxFont* m_font = nullptr;
@@ -100,7 +154,7 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
     // cache are destroyed while their Gx device is still alive.
     std::unique_ptr<GameText> _text;
     std::unique_ptr<GameEvents> _events;
-    std::unique_ptr<BLP::Image> _image;
+    std::unique_ptr<AsyncImage> _image;
     CGxTex* _texture;
     CGxBuf* _vertices;
     CGxBuf* _indices;
@@ -110,19 +164,14 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
     BOOL _active;
     uint32_t _presentedFrames;
 }
-- (instancetype)initWithView:(MTKView*)view image:(const BLP::Image&)image {
+- (instancetype)initWithView:(MTKView*)view textureName:(const char*)textureName {
     if ((self = [super init])) {
         if (g_theGxDevicePtr) { throw std::runtime_error("A game Gx device already owns the native host"); }
         C2iVector size{std::max(1, int32_t(view.drawableSize.width)), std::max(1, int32_t(view.drawableSize.height))};
         CGxFormat format(true, size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, 0, 1, true, false, false, false, 0);
         _device.reset(static_cast<CGxDeviceMetal*>(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format)));
         if (!_device || !_device->DeviceCreate((__bridge void*)view, format)) { throw std::runtime_error("Cannot create the native game Gx device"); }
-        _image = std::make_unique<BLP::Image>(image);
-        const EGxTexFormat formats[] = {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5};
-        const auto textureFormat = formats[unsigned(image.format)];
-        CGxTexFlags flags(GxTex_LinearMipLinear);
-        _device->TexCreate(GxTex_2d, image.mips[0].width, image.mips[0].height, 0, textureFormat, textureFormat,
-            flags, _image.get(), TextureData, "MPQ preview", _texture);
+        _image = std::make_unique<AsyncImage>(textureName);
         _device->ShaderCreate(_vertexShaders, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
         _device->ShaderCreate(&_pixelShader, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
         struct Vertex { float x, y, z; uint32_t color; float u, v; };
@@ -176,23 +225,33 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
     id<CAMetalDrawable> drawable = view.currentDrawable;
     if (!pass || !drawable) { return; }
     try {
+        _events->Check();
+        const auto* image = _image->Get();
         _device->BeginFrame(pass, drawable);
-        GxRsSet(GxRs_VertexShader, _vertexShaders[0]); GxRsSet(GxRs_PixelShader, _pixelShader);
-        GxRsSet(GxRs_Texture0, _texture);
-        GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Culling, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0);
-        GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Alpha)); GxRsSet(GxRs_AlphaRef, 1);
-        const double imageAspect = double(_image->mips[0].width) / _image->mips[0].height;
-        const double viewAspect = view.drawableSize.width / (view.drawableSize.height * 0.72);
-        C44Matrix matrix(1);
-        matrix.Scale(C3Vector(imageAspect > viewAspect ? 1 : imageAspect / viewAspect, 0.72 * (imageAspect > viewAspect ? viewAspect / imageAspect : 1), 1));
-        matrix.Translate(C3Vector(0, 0.24f, 0));
-        const auto registers = matrix.Transpose(); GxShaderConstantsSet(GxSh_Vertex, 0, &registers.a0, 4);
-        GxPrimVertexPtr(_vertices, GxVBF_PCT); _device->PrimIndexPtr(_indices);
-        CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1);
+        if (image) {
+            if (!_texture) {
+                const EGxTexFormat formats[] = {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5};
+                const auto textureFormat = formats[unsigned(image->format)];
+                _device->TexCreate(GxTex_2d, image->mips[0].width, image->mips[0].height, 0, textureFormat, textureFormat,
+                    CGxTexFlags(GxTex_LinearMipLinear), const_cast<BLP::Image*>(image), TextureData, "Async MPQ preview", _texture);
+            }
+            GxRsSet(GxRs_VertexShader, _vertexShaders[0]); GxRsSet(GxRs_PixelShader, _pixelShader);
+            GxRsSet(GxRs_Texture0, _texture);
+            GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Culling, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0);
+            GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Alpha)); GxRsSet(GxRs_AlphaRef, 1);
+            const double imageAspect = double(image->mips[0].width) / image->mips[0].height;
+            const double viewAspect = view.drawableSize.width / (view.drawableSize.height * 0.72);
+            C44Matrix matrix(1);
+            matrix.Scale(C3Vector(imageAspect > viewAspect ? 1 : imageAspect / viewAspect, 0.72 * (imageAspect > viewAspect ? viewAspect / imageAspect : 1), 1));
+            matrix.Translate(C3Vector(0, 0.24f, 0));
+            const auto registers = matrix.Transpose(); GxShaderConstantsSet(GxSh_Vertex, 0, &registers.a0, 4);
+            GxPrimVertexPtr(_vertices, GxVBF_PCT); _device->PrimIndexPtr(_indices);
+            CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1);
+        }
         if (!_text) { _text = std::make_unique<GameText>(); }
         _text->Draw(uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         GxScenePresent();
-        if (++_presentedFrames == 120) { NSLog(@"Original Event native frame loop: 120 frames presented"); }
+        if (image && ++_presentedFrames == 120) { NSLog(@"Original Event native frame loop: 120 frames presented; Services async texture loaded"); }
     } catch (const std::exception& error) {
         if (_device->FrameCommand()) { _device->ScenePresent(); }
         _active = NO;
