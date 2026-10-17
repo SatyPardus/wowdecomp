@@ -42,6 +42,9 @@ static VOID CALLBACK MainFiberProc(LPVOID parameter) {
 
 // OFFSET: 0x0040B7F0
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    
+    SetProcessDPIAware();  // The original client is DPI-aware. Keep Windows from bitmap-scaling the rendered frame on high-DPI desktops.
+
     lpFiber = ConvertThreadToFiber(nullptr);
 
     if (!lpFiber) {

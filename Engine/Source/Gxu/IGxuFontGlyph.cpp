@@ -5,12 +5,20 @@
 #include "Engine/Source/Gxu/GxuFontMiscClasses.h"
 #include "Engine/Source/Storm/H/storm.h"
 
+// FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH:
+// The CJK fonts shipped in the locale/patch MPQs (ZYKai_T, ZYHei, ...) set the
+// `post` table isFixedPitch flag, but their `hhea.advanceWidthMax` is bogus
+// (ZYKai_T in patch-zhCN.MPQ declares 524 while a full-width glyph is 256 design
+// units). FreeType honours isFixedPitch by discarding every per-glyph advance and
+// using that global maximum instead, which stretched every CJK string to roughly
+// twice its correct width. The flag restores the real per-glyph advance, which is
+// the behaviour the original client shows.
 // VERIFY: fff26b99 manual
 // OFFSET: 0x006C8C10
 static int32_t FREETYPE_RenderGlyph(FT_Face face, uint32_t code, bool monochrome) {
     FT_UInt index = FT_Get_Char_Index(face, code);
 
-    if (!index || FT_Load_Glyph(face, index, monochrome ? FT_LOAD_LINEAR_DESIGN | FT_LOAD_PEDANTIC | FT_LOAD_CROP_BITMAP | FT_LOAD_NO_HINTING : FT_LOAD_LINEAR_DESIGN | FT_LOAD_PEDANTIC | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING)) {
+    if (!index || FT_Load_Glyph(face, index, monochrome ? FT_LOAD_LINEAR_DESIGN | FT_LOAD_PEDANTIC | FT_LOAD_CROP_BITMAP | FT_LOAD_NO_HINTING | FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH : FT_LOAD_LINEAR_DESIGN | FT_LOAD_PEDANTIC | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING | FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH)) {
         return 0;
     }
 
