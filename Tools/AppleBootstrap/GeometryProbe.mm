@@ -106,6 +106,8 @@ void CheckGxGeometry(GxMetal::TextureDevice& gpu) {
         green.depthFunction = function;
         Solid(Render(gpu, texture, {green}, 0.125), function == 3 ? background : greenPixel, "Gx depth comparison equality mismatch");
     }
+    red.depthTest = false;
+    Solid(Render(gpu, texture, {red, blue}), redPixel, "Gx disabled depth comparison incorrectly disabled depth writes");
     // Both culling directions must select opposite winding, without altering
     // the no-culling image. Absolute D3D9 winding equivalence needs comparison.
     red.depthTest = red.depthWrite = false;

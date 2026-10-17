@@ -60,8 +60,9 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
         const MTLCompareFunction comparison[] = {MTLCompareFunctionLessEqual, MTLCompareFunctionEqual, MTLCompareFunctionGreaterEqual, MTLCompareFunctionLess};
         MTLDepthStencilDescriptor* descriptor = [MTLDepthStencilDescriptor new];
         descriptor.depthCompareFunction = geometry.depthTest ? comparison[geometry.depthFunction] : MTLCompareFunctionAlways;
-        // D3D9 disables depth writes along with ZENABLE.
-        descriptor.depthWriteEnabled = geometry.depthTest && geometry.depthWrite;
+        // Gx leaves D3D9 ZENABLE on: disabling its DepthTest selects ALWAYS,
+        // while GxRs_DepthWrite remains independent.
+        descriptor.depthWriteEnabled = geometry.depthWrite;
         id<MTLDepthStencilState> created = [device newDepthStencilStateWithDescriptor:descriptor];
         Require(created != nil, "Cannot create Metal depth state");
         depth = m_depthStates.emplace(depthKey, created).first;
