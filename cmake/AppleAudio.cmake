@@ -39,9 +39,12 @@ target_include_directories(fmodex PUBLIC ${FMODEX_DIR}/src PRIVATE
 target_compile_definitions(fmodex PRIVATE FLAC__NO_DLL FLAC__HAS_OGG=1)
 target_link_libraries(SoundEngine PUBLIC fmodex)
 
+add_library(AppleGameAudio STATIC Tools/AppleBootstrap/GameAudioPreview.cpp)
+target_link_libraries(AppleGameAudio PUBLIC SoundEngine)
+
 add_library(AppleAudioProbeCore STATIC Tools/AppleBootstrap/AudioProbe.cpp)
 target_link_libraries(AppleAudioProbeCore PUBLIC fmodex AppleArchives)
 if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(AppleAudioProbe Tools/AppleBootstrap/audio_main.cpp)
-    target_link_libraries(AppleAudioProbe PRIVATE AppleAudioProbeCore)
+    target_link_libraries(AppleAudioProbe PRIVATE AppleAudioProbeCore AppleGameAudio AppleMetal)
 endif ()

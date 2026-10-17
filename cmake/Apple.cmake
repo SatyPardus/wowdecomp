@@ -115,6 +115,7 @@ target_link_libraries(ConsoleBase PUBLIC AppleArchives)
 add_subdirectory(Engine/Source/Event)
 target_link_libraries(Event PUBLIC AppleArchives Tempest)
 add_library(AppleGameResources STATIC
+    WoW/Source/ClientRandom.cpp
     Engine/Source/Base/Status.cpp
     Engine/Source/Services/Texture.cpp
     Engine/Source/Services/TextureBlob.cpp
@@ -153,10 +154,13 @@ target_link_libraries(Model2 PUBLIC AppleGameResources ShaderEffect)
 add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance.cpp)
 target_link_libraries(CreatureAppearance PUBLIC Model2)
 
+add_subdirectory(Engine/Source/FrameScript)
+target_link_libraries(FrameScript PUBLIC AppleGameResources lua)
+
 # Shared sound policy/cache and original software mixer. Full game sound policy
 # is not initialized by the current graphics host.
 add_library(SoundEngine STATIC Engine/Source/SoundEngine/SoundEngine.cpp Engine/Source/SoundEngine/SoundCache.cpp)
-target_link_libraries(SoundEngine PUBLIC AppleGameResources)
+target_link_libraries(SoundEngine PUBLIC AppleGameResources FrameScript)
 add_subdirectory(WoW/Source/SoundInterface)
 target_link_libraries(SoundInterface PUBLIC SoundEngine)
 include(cmake/AppleAudio.cmake)
@@ -196,7 +200,7 @@ target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/ModelPreview.cpp)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView "-framework MetalKit" "-framework CoreGraphics")
+target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore)

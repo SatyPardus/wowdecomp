@@ -279,10 +279,10 @@ fixed-function terrain paths remain unsupported.
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
 on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary
 uses pthread synchronization, monotonic timing, native files and POSIX sockets.
-Audio Unit output uses interleaved float samples and fixed mixer blocks, with
+Audio Unit output preserves the selected PCM16 or float samples and fixed mixer blocks, with
 native callback sizes bridged without changing the original mixer clock. It
 currently exposes the system default mono/stereo route; surround channel layouts,
-recording, full game sound policy and persistent host audio are not integrated.
+recording and full SoundInterface world/music policy are not integrated.
 iOS uses an ambient audio session and handles interruptions; media-service reset
 is reported as an error requiring recreation. Physical audio-CD devices are not
 supported. The socket boundary has not yet been exercised by game networking.
@@ -295,6 +295,21 @@ and resumption. The iOS app runs the resource checks during startup; set
 pass. Windows audio equivalence, surround output and device-route changes still
 need validation. The port fixes negative resampler look-behind offsets on LP64,
 MP3 Huffman bit shifts and overlapping ID3 tag copies without re-encoding assets.
+
+The native host now runs the original SE2/SESound engine, FrameScript Lua setup,
+and asynchronous SFile open/read/seek callbacks. Set
+`WOW_AUDIO='Sound\Music\GlueScreenMusic\Wotlk_main_title.mp3'` to stream the
+original MPQ music alongside the model or terrain preview. The explicit preview
+uses looping 2D playback at 10% volume; it does not select world music or ambience.
+The host's Event heartbeat completes loading and advances sound state. Audio
+output stops on application inactivity and resumes with the host; destruction
+releases sounds before Event and archive teardown. `AppleAudioProbe --data-root
+/path/to/Data --game` checks two engine recreation cycles, archive streaming and
+output suspension/resumption under ASan/UBSan on macOS. Apple enumeration no
+longer opens a second output device. The port also repairs the master channel
+group's negative parent index, Lua's null open-upvalue conversion and the MP3
+decoder's multidimensional end pointer; worker stacks accommodate the original
+archive callbacks on arm64.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.

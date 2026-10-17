@@ -145,7 +145,12 @@ FMOD_RESULT FMOD_OS_Thread_Create(const char* name, THREAD_RETURNTYPE (*callback
     pthread_attr_init(&attr);
     int error = 0;
     if (stack) error = pthread_attr_setstack(&attr, stack, stackSize);
-    else if (stackSize) error = pthread_attr_setstacksize(&attr, (size_t(stackSize) + 16383) & ~size_t(16383));
+    else {
+        // Win32 ignored the legacy 64 KiB hints and used its 1 MiB default.
+        // Decoder callbacks enter the 64-bit MPQ/file stack as well as FMOD.
+        size_t nativeSize = stackSize > 1024 * 1024 ? size_t(stackSize) : 1024 * 1024;
+        error = pthread_attr_setstacksize(&attr, (nativeSize + 16383) & ~size_t(16383));
+    }
     if (!error) error = pthread_attr_set_qos_class_np(&attr, priority >= FMOD_THREAD_PRIORITY_HIGH ? QOS_CLASS_USER_INITIATED :
                                                     priority < FMOD_THREAD_PRIORITY_NORMAL ? QOS_CLASS_UTILITY : QOS_CLASS_DEFAULT, 0);
     if (!error) error = pthread_create(&thread->id, &attr, ThreadEntry, thread);

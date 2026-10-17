@@ -22,9 +22,11 @@ namespace {
 struct OutputState {
     AudioUnit unit = nullptr;
     FMOD_OUTPUT_STATE* mixer = nullptr;
-    std::vector<float> block;
+    std::vector<uint8_t> block;
     unsigned blockFrames = 0, available = 0, offset = 0;
     int rate = 0, channels = 0;
+    unsigned sampleBytes = 0;
+    bool floatSamples = false;
     bool requested = false, active = true, running = false;
     std::atomic<bool> interrupted{false};
     std::atomic<FMOD_RESULT> error{FMOD_OK};
@@ -46,18 +48,19 @@ FMOD_RESULT DriverError(OSStatus status) {
 OSStatus Render(void* ref, AudioUnitRenderActionFlags* flags, const AudioTimeStamp*, UInt32, UInt32 frames, AudioBufferList* buffers) {
     auto* state = static_cast<OutputState*>(ref);
     if (buffers->mNumberBuffers != 1 || !buffers->mBuffers[0].mData ||
-        buffers->mBuffers[0].mDataByteSize < frames * unsigned(state->channels) * sizeof(float)) {
+        buffers->mBuffers[0].mDataByteSize < frames * unsigned(state->channels) * state->sampleBytes) {
         state->error.store(FMOD_ERR_OUTPUT_FORMAT, std::memory_order_relaxed);
         return kAudio_ParamError;
     }
-    auto* destination = static_cast<float*>(buffers->mBuffers[0].mData);
+    auto* destination = static_cast<uint8_t*>(buffers->mBuffers[0].mData);
+    const size_t frameBytes = state->channels * state->sampleBytes;
     unsigned remaining = frames;
     while (remaining) {
         if (!state->available) {
             FMOD_RESULT result = state->mixer->readfrommixer(state->mixer, state->block.data(), state->blockFrames);
             if (result != FMOD_OK) {
                 state->error.store(result, std::memory_order_relaxed);
-                memset(destination, 0, size_t(remaining) * state->channels * sizeof(float));
+                memset(destination, 0, size_t(remaining) * frameBytes);
                 *flags |= kAudioUnitRenderAction_OutputIsSilence;
                 return noErr;
             }
@@ -65,16 +68,21 @@ OSStatus Render(void* ref, AudioUnitRenderActionFlags* flags, const AudioTimeSta
             state->offset = 0;
         }
         unsigned count = remaining < state->available ? remaining : state->available;
-        memcpy(destination, state->block.data() + size_t(state->offset) * state->channels,
-               size_t(count) * state->channels * sizeof(float));
-        destination += size_t(count) * state->channels;
+        memcpy(destination, state->block.data() + size_t(state->offset) * frameBytes,
+               size_t(count) * frameBytes);
+        destination += size_t(count) * frameBytes;
         remaining -= count;
         state->offset += count;
         state->available -= count;
     }
     uint64_t nonzero = 0;
-    auto* samples = static_cast<const float*>(buffers->mBuffers[0].mData);
-    for (size_t i = 0; i < size_t(frames) * state->channels; ++i) nonzero += samples[i] != 0.0f;
+    if (state->floatSamples) {
+        auto* samples = static_cast<const float*>(buffers->mBuffers[0].mData);
+        for (size_t i = 0; i < size_t(frames) * state->channels; ++i) nonzero += samples[i] != 0.0f;
+    } else {
+        auto* samples = static_cast<const int16_t*>(buffers->mBuffers[0].mData);
+        for (size_t i = 0; i < size_t(frames) * state->channels; ++i) nonzero += samples[i] != 0;
+    }
     state->nonzero.fetch_add(nonzero, std::memory_order_relaxed);
     state->frames.fetch_add(frames, std::memory_order_relaxed);
     state->callbacks.fetch_add(1, std::memory_order_relaxed);
@@ -119,6 +127,7 @@ FMOD_RESULT Init(FMOD_OUTPUT_STATE* output, int driver, FMOD_INITFLAGS, int* rat
     // First output path supports the game's mono/stereo configuration. Surround
     // needs an explicit FMOD-to-CoreAudio channel layout before it can be exposed.
     if (channels < 1 || channels > 2) return FMOD_ERR_OUTPUT_FORMAT;
+    if (*format != FMOD_SOUND_FORMAT_PCM16 && *format != FMOD_SOUND_FORMAT_PCMFLOAT) return FMOD_ERR_OUTPUT_FORMAT;
     std::shared_ptr<OutputState>* owner = nullptr;
     try { owner = new std::shared_ptr<OutputState>(std::make_shared<OutputState>()); }
     catch (...) { return FMOD_ERR_MEMORY; }
@@ -127,7 +136,9 @@ FMOD_RESULT Init(FMOD_OUTPUT_STATE* output, int driver, FMOD_INITFLAGS, int* rat
     state->mixer = output;
     state->channels = channels;
     state->blockFrames = unsigned(blockFrames);
-    try { state->block.resize(size_t(blockFrames) * channels); }
+    state->floatSamples = *format == FMOD_SOUND_FORMAT_PCMFLOAT;
+    state->sampleBytes = state->floatSamples ? sizeof(float) : sizeof(int16_t);
+    try { state->block.resize(size_t(blockFrames) * channels * state->sampleBytes); }
     catch (...) { Close(output); return FMOD_ERR_MEMORY; }
     AudioComponentDescription description{};
     description.componentType = kAudioUnitType_Output;
@@ -178,18 +189,18 @@ FMOD_RESULT Init(FMOD_OUTPUT_STATE* output, int driver, FMOD_INITFLAGS, int* rat
     *rate = int(hardwareRate);
 #endif
     state->rate = *rate;
-    *format = FMOD_SOUND_FORMAT_PCMFLOAT;
     AudioComponent component = AudioComponentFindNext(nullptr, &description);
     if (!component) { Close(output); return FMOD_ERR_OUTPUT_INIT; }
     OSStatus result = AudioComponentInstanceNew(component, &state->unit);
     AudioStreamBasicDescription stream{};
     stream.mSampleRate = *rate;
     stream.mFormatID = kAudioFormatLinearPCM;
-    stream.mFormatFlags = kAudioFormatFlagsNativeFloatPacked;
-    stream.mBytesPerPacket = stream.mBytesPerFrame = UInt32(channels) * sizeof(float);
+    stream.mFormatFlags = state->floatSamples ? kAudioFormatFlagsNativeFloatPacked :
+        kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked | kAudioFormatFlagsNativeEndian;
+    stream.mBytesPerPacket = stream.mBytesPerFrame = UInt32(channels) * state->sampleBytes;
     stream.mFramesPerPacket = 1;
     stream.mChannelsPerFrame = channels;
-    stream.mBitsPerChannel = 32;
+    stream.mBitsPerChannel = state->sampleBytes * 8;
     if (!result) result = AudioUnitSetProperty(state->unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &stream, sizeof(stream));
     AURenderCallbackStruct callback{Render, state};
     if (!result) result = AudioUnitSetProperty(state->unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
@@ -205,7 +216,7 @@ FMOD_RESULT DriverName(FMOD_OUTPUT_STATE*, int driver, char* name, int length) {
 }
 FMOD_RESULT Caps(FMOD_OUTPUT_STATE*, int driver, FMOD_CAPS* caps) {
     if (driver || !caps) return FMOD_ERR_INVALID_PARAM;
-    *caps = FMOD_CAPS_OUTPUT_FORMAT_PCMFLOAT;
+    *caps = FMOD_CAPS_OUTPUT_FORMAT_PCM16 | FMOD_CAPS_OUTPUT_FORMAT_PCMFLOAT;
     return FMOD_OK;
 }
 FMOD_RESULT Start(FMOD_OUTPUT_STATE* output) {

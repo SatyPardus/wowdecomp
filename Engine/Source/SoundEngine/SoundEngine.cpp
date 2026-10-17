@@ -2495,7 +2495,8 @@ static void ProcessFadeList() {
         changed = false;
 
         for (uint32_t i = 0; i < s_channelGroups.Count(); i++) {
-            if (!dirty[i] && dirty[s_channelGroups[i].m_parent]) {
+            const int32_t parent = s_channelGroups[i].m_parent;
+            if (!dirty[i] && parent >= 0 && static_cast<uint32_t>(parent) < groupCount && dirty[parent]) {
                 dirty[i] = 1;
                 changed = true;
             }
@@ -2685,6 +2686,9 @@ static void ProcessGoGoGoList() {
 // VERIFY: 1311c084 auto
 // OFFSET: 0x0087C4B0
 int32_t SE2::HeartBeat(const void* data, void* param) {
+    if (!s_system) {
+        return 1;
+    }
     if (!s_initialized) {
         s_system->update();
         return 1;
@@ -3145,9 +3149,13 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
     result = FMOD::System_Create(&s_enumSystem);
     SE_ERRCHECK(result);
 
+#if !defined(__APPLE__)
     if (s_enumSystem && s_enumSystem->init(4, FMOD_INIT_NORMAL, nullptr) != FMOD_OK) {
         s_enumSystem->setOutput(FMOD_OUTPUTTYPE_NOSOUND);
     }
+#endif
+    // Apple's logical output can be enumerated before initialization. Opening a
+    // second live Audio Unit just to list it needlessly owns the audio session.
 
     s_system->setOutput(FMOD_OUTPUTTYPE_AUTODETECT);
 
@@ -3600,6 +3608,7 @@ done:
 // VERIFY: c81668c2 manual
 // OFFSET: 0x0087B490
 void SE2::ShutDown(int32_t restart) {
+    s_initialized = 0;
     SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " ");
     SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, "=> Shutting Down Game Sound");
 

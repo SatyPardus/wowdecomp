@@ -1,6 +1,7 @@
 #include "Tools/AppleBootstrap/MetalView.h"
 #include "Tools/AppleBootstrap/ModelPreview.h"
 #include "Tools/AppleBootstrap/TerrainPreview.h"
+#include "Tools/AppleBootstrap/GameAudioPreview.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/GxuFont.h"
@@ -124,6 +125,7 @@ public:
     std::unique_ptr<CGxDeviceMetal> _device;
     // Texture handles and fonts die before Services; Services dies before Gx.
     std::unique_ptr<GameEvents> _events;
+    std::unique_ptr<GameAudioPreview> _audio;
     std::unique_ptr<GameText> _text;
     std::unique_ptr<GameTexture> _image;
     std::unique_ptr<ModelPreview> _model;
@@ -170,6 +172,8 @@ public:
     return self;
 }
 - (void)resume {
+    try { if (_audio) _audio->SetActive(true); }
+    catch (const std::exception& error) { [self stopAfterError:error.what()]; return; }
     _active = YES;
     EventResetElapsedTime();
     OsQueuePut(OS_INPUT_FOCUS, 1, 0, 0, 0);
@@ -178,6 +182,8 @@ public:
 }
 - (void)suspend {
     _active = NO; _view.paused = YES;
+    try { if (_audio) _audio->SetActive(false); }
+    catch (const std::exception& error) { NSLog(@"Game audio suspension: %s", error.what()); }
     OsQueuePut(OS_INPUT_FOCUS, 0, 0, 0, 0);
     EventProcessPending();
     _device->Drain();
@@ -195,6 +201,7 @@ public:
 - (void)stopAfterError:(const char*)message {
     if (_device->FrameCommand()) _device->ScenePresent();
     _active = NO; _view.paused = YES;
+    _audio.reset();
     NSLog(@"Metal Gx preview stopped: %s", message);
 }
 - (void)renderGameFrame:(float)elapsedSeconds {
@@ -205,6 +212,9 @@ public:
     if (!pass || !drawable) { return; }
     try {
         _events->Check();
+        NSString* audio = NSProcessInfo.processInfo.environment[@"WOW_AUDIO"];
+        if (audio && !_audio) _audio = std::make_unique<GameAudioPreview>(audio.UTF8String);
+        if (_audio) _audio->Stats(); // Surface asynchronous stream/output failures.
         auto* texture = _image->Get();
         NSString* terrain = NSProcessInfo.processInfo.environment[@"WOW_TERRAIN"];
         if (terrain && !_terrain) {
@@ -246,7 +256,13 @@ public:
         if (!_text) { _text = std::make_unique<GameText>(); }
         _text->Draw(uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         GxScenePresent();
-        if (texture && sceneReady && ++_presentedFrames == 120) { NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate and %@ rendered", _terrain ? @"original ADT terrain surface" : @"original M2 scene"); }
+        if (texture && sceneReady && ++_presentedFrames == 120) {
+            NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate and %@ rendered", _terrain ? @"original ADT terrain surface" : @"original M2 scene");
+            if (_audio) {
+                const auto stats = _audio->Stats();
+                NSLog(@"Original SESound archive stream: %llu frames, %llu nonzero samples, playing=%d", stats.frames, stats.nonzeroSamples, _audio->IsPlaying());
+            }
+        }
     } catch (const std::exception& error) {
         [self stopAfterError:error.what()];
     }

@@ -2144,7 +2144,9 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample_ms(float xr[2][SBLIMIT][SSLIMIT], i
 					*xrpnt++ = *xr0pnt++;
 			}
 		}
-		for (i = (int)(&xr[1][SBLIMIT][0] - xrpnt) >> 1; i; i--)
+		// Form the channel end from its last row; indexing row SBLIMIT
+		// dereferences a one-past multidimensional array before taking its address.
+		for (i = (int)((xr[1][SBLIMIT - 1] + SSLIMIT) - xrpnt) >> 1; i; i--)
 		{
 			*xrpnt++ = *xr0pnt++;
 			*xrpnt++ = *xr0pnt++;

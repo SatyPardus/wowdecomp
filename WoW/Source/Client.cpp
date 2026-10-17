@@ -199,9 +199,6 @@ static uint32_t s_numPatchArchives;
 // STATIC: 0x00B2FA18
 static uint32_t s_firstBaseArchive;
 
-// STATIC: 0x00B2FA30
-CRndSeed g_rndSeed(0);
-
 // STATIC: 0x00B2FA38
 static TSGrowableArray<SArchive*> s_archiveHandles;
 
