@@ -18,11 +18,44 @@ namespace {
 void Require(bool ok, const char* message) { if (!ok) { throw std::runtime_error(message); } }
 [[noreturn]] void Unsupported(const char* operation) { throw std::runtime_error(std::string("Metal Gx operation not implemented: ") + operation); }
 constexpr size_t ResourceBudget = 256 * 1024 * 1024;
+struct BufferBinding { id<MTLBuffer> buffer; size_t offset; };
+// Each frame owns append-only shared pages until its GPU completion. Gx's
+// logical streaming pool can wrap independently without overwriting a draw.
+struct StreamFrame {
+    dispatch_semaphore_t ready = dispatch_semaphore_create(1);
+    std::vector<id<MTLBuffer>> pages;
+    size_t usedPages = 0, usedBytes = 0, usedCapacity = 0;
+    void Reset() { usedPages = usedBytes = usedCapacity = 0; }
+    void Trim() { pages.resize(usedPages); }
+    BufferBinding Store(id<MTLDevice> device, const void* source, size_t size, uint64_t& allocations) {
+        Require(size && size <= ResourceBudget, "Invalid Gx streaming snapshot size");
+        const size_t alignedSize = (size + 3) & ~size_t(3);
+        if (!usedPages || alignedSize > pages[usedPages - 1].length - usedBytes) {
+            const size_t capacity = std::max(size_t(1024 * 1024), (alignedSize + 4095) & ~size_t(4095));
+            if (usedPages == pages.size() || pages[usedPages].length < capacity ||
+                pages[usedPages].length > ResourceBudget - usedCapacity) {
+                Require(capacity <= ResourceBudget - usedCapacity, "Gx frame streaming data exceeds memory budget");
+                pages.resize(usedPages); // Drop unused pages left by a larger frame.
+                auto page = [device newBufferWithLength:capacity options:MTLResourceStorageModeShared | MTLResourceCPUCacheModeWriteCombined];
+                Require(page != nil, "Cannot allocate Gx streaming page");
+                page.label = @"Gx immutable frame geometry";
+                pages.push_back(page); ++allocations;
+            }
+            usedCapacity += pages[usedPages++].length; usedBytes = 0;
+        }
+        BufferBinding result{pages[usedPages - 1], usedBytes};
+        std::memcpy(static_cast<uint8_t*>(result.buffer.contents) + result.offset, source, size);
+        usedBytes += alignedSize;
+        return result;
+    }
+};
 struct Update { id<MTLBuffer> staging; size_t offset; };
 struct Pool {
     std::vector<uint8_t> shadow;
     id<MTLBuffer> gpu;
     std::vector<Update> updates;
+    bool streaming = false;
+    std::unordered_map<uint64_t, BufferBinding> snapshots;
 };
 struct Texture { BLP::Image image; id<MTLTexture> gpu; uint32_t base = 0; bool renderTarget = false; };
 struct Shader { std::shared_ptr<GxMetal::UIShader> ui; uint32_t permutation; GxMetal::FragmentEffect effect; GxMetal::ModelVertexEffect vertexEffect = GxMetal::ModelVertexEffect::Diffuse; };
@@ -125,7 +158,9 @@ struct CGxDeviceMetal::Impl {
     void* window = nullptr;
     bool scissorEnabled = false;
     MTLScissorRect scissor{};
-    dispatch_semaphore_t frames = dispatch_semaphore_create(3);
+    std::array<StreamFrame, 3> streamFrames;
+    size_t frameSlot = 0;
+    StreamFrame& CurrentFrame() { return streamFrames[frameSlot]; }
     static void ConsumedLoads(MTLRenderPassDescriptor* descriptor) {
         descriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
         descriptor.depthAttachment.loadAction = MTLLoadActionLoad;
@@ -241,6 +276,7 @@ struct CGxDeviceMetal::Impl {
     }
     void Queue(Pool& pool, size_t offset, size_t size) {
         if (!size) { return; }
+        if (pool.streaming) { pool.snapshots.clear(); return; }
         const size_t start = offset & ~size_t(3), end = (offset + size + 3) & ~size_t(3);
         id<MTLBuffer> staging = [gpu.device newBufferWithBytes:pool.shadow.data() + start length:end - start options:MTLResourceStorageModeShared];
         Require(staging != nil, "Cannot allocate Gx upload staging buffer");
@@ -252,9 +288,13 @@ struct CGxDeviceMetal::Impl {
         const size_t size = (size_t(pool->m_size) + 3) & ~size_t(3);
         if (storage.shadow.size() != size) {
             storage.shadow.resize(size);
-            storage.gpu = [gpu.device newBufferWithLength:size options:MTLResourceStorageModePrivate];
-            Require(storage.gpu != nil, "Cannot allocate private Gx buffer pool");
-            storage.gpu.label = @"Gx buffer pool";
+            storage.streaming = pool->m_usage == GxPoolUsage_Stream;
+            storage.snapshots.clear();
+            if (!storage.streaming) {
+                storage.gpu = [gpu.device newBufferWithLength:size options:MTLResourceStorageModePrivate];
+                Require(storage.gpu != nil, "Cannot allocate private Gx buffer pool");
+                storage.gpu.label = @"Gx buffer pool";
+            }
             storage.updates.clear();
             Queue(storage, 0, size);
         }
@@ -262,9 +302,21 @@ struct CGxDeviceMetal::Impl {
         pool->m_apiSpecific = &storage;
         return storage;
     }
-    id<MTLBuffer> Flush(CGxBuf* buffer) {
+    BufferBinding Flush(CGxBuf* buffer) {
         Require(buffer && buffer->m_valid && buffer->m_hasData, "Gx draw uses an uninitialized buffer");
         auto& storage = Storage(buffer->m_pool);
+        Require(buffer->m_index <= storage.shadow.size() && buffer->m_size <= storage.shadow.size() - buffer->m_index,
+            "Gx buffer snapshot exceeds pool");
+        if (storage.streaming) {
+            const uint64_t key = (uint64_t(buffer->m_index) << 32) | buffer->m_size;
+            auto cached = storage.snapshots.find(key);
+            if (cached != storage.snapshots.end()) return cached->second;
+            auto binding = CurrentFrame().Store(gpu.device, storage.shadow.data() + buffer->m_index,
+                buffer->m_size, statistics.streamPageAllocations);
+            statistics.streamedBytes += buffer->m_size;
+            storage.snapshots.emplace(key, binding);
+            return binding;
+        }
         if (!storage.updates.empty()) {
             EndRender();
             id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
@@ -276,7 +328,7 @@ struct CGxDeviceMetal::Impl {
             [encoder endEncoding];
             storage.updates.clear();
         }
-        return storage.gpu;
+        return {storage.gpu, buffer->m_index};
     }
 };
 
@@ -309,7 +361,7 @@ CGxDeviceMetal::~CGxDeviceMetal() {
     if (m->command) {
         m->EndRender();
         // Preserve already encoded uploads even when a caller unwinds a failed frame.
-        dispatch_semaphore_t frames = m->frames;
+        dispatch_semaphore_t frames = m->CurrentFrame().ready;
         [m->command addCompletedHandler:^(id<MTLCommandBuffer>) { dispatch_semaphore_signal(frames); }];
         [m->command commit];
         m->command = nil;
@@ -367,9 +419,13 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     Require(pass.colorAttachments[0].level == 0 && pass.colorAttachments[0].slice == 0 && pass.depthAttachment.level == 0 &&
         pass.depthAttachment.slice == 0, "Metal host frame must use base-level attachments");
     Require(!pass.depthAttachment.texture || pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float, "Unsupported Metal frame depth");
-    dispatch_semaphore_wait(m->frames, DISPATCH_TIME_FOREVER);
+    const size_t slot = (m->frameSlot + 1) % m->streamFrames.size();
+    auto& frame = m->streamFrames[slot];
+    dispatch_semaphore_wait(frame.ready, DISPATCH_TIME_FOREVER);
     m->command = [m->gpu.queue commandBuffer];
-    if (!m->command) { dispatch_semaphore_signal(m->frames); throw std::runtime_error("Cannot allocate Metal frame command"); }
+    if (!m->command) { dispatch_semaphore_signal(frame.ready); throw std::runtime_error("Cannot allocate Metal frame command"); }
+    m->frameSlot = slot; frame.Reset();
+    for (auto& entry : m->pools) entry.second.snapshots.clear();
     m->command.label = @"Gx game frame";
     m->defaultPass = [pass copy]; m->drawable = drawable;
     m->defaultPass.colorAttachments[0].storeAction = MTLStoreActionStore;
@@ -388,7 +444,8 @@ void CGxDeviceMetal::ScenePresent() {
     m->EnsurePass();
     m->EnsureLoads(m->defaultPass);
     m->EndRender();
-    dispatch_semaphore_t frames = m->frames;
+    m->CurrentFrame().Trim();
+    dispatch_semaphore_t frames = m->CurrentFrame().ready;
     [m->command addCompletedHandler:^(id<MTLCommandBuffer> command) {
         if (command.error) { CGxDevice::Log("Metal frame failed: %s", command.error.localizedDescription.UTF8String); }
         dispatch_semaphore_signal(frames);
@@ -783,8 +840,12 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         batch->m_count <= vertices->m_itemCount, "Gx draw exceeds its logical buffer range");
     GxMetal::GeometryDraw draw;
     std::optional<GxMetal::ModelDrawParameters> modelParameters;
-    draw.vertices = m->Flush(vertices); draw.vertexOffset = vertices->m_index;
-    if (indexed) { draw.indices = m->Flush(m_primIndexBuf); draw.indexOffset = m_primIndexBuf->m_index; }
+    const auto vertexBinding = m->Flush(vertices);
+    draw.vertices = vertexBinding.buffer; draw.vertexOffset = vertexBinding.offset;
+    if (indexed) {
+        const auto indexBinding = m->Flush(m_primIndexBuf);
+        draw.indices = indexBinding.buffer; draw.indexOffset = indexBinding.offset;
+    }
     draw.format = m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
     if (postProcess) {
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];

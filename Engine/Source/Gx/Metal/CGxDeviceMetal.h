@@ -13,6 +13,7 @@ public:
     GxMetal::TextureDevice& GPU();
     struct EncodingStatistics {
         uint64_t geometryDraws = 0, renderPasses = 0, bufferUploadPasses = 0;
+        uint64_t streamedBytes = 0, streamPageAllocations = 0;
     };
     EncodingStatistics EncodingStats() const;
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);

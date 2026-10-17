@@ -202,6 +202,40 @@ void CheckGxDevice() {
         Require(result[y * 16 + x] == (x >= 8 && y >= 8 ? 0xFF0000FF : 0xFF00FF00), "Reused render encoder retained clear/scissor state");
     } }
     std::fprintf(stderr, "Gx pass reuse: 130 geometry draws and a regional clear in one render pass; pixel output preserved\n");
+    // Submit beyond the three in-flight slots before reading any output. Each
+    // frame wraps the same tiny logical stream pool between its two draws.
+    std::vector<id<MTLTexture>> frames;
+    const auto beforeStreams = device.EncodingStats();
+    uint64_t warmedAllocations = 0;
+    for (unsigned frame = 0; frame < 9; ++frame) {
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
+        descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+        frames.push_back([gpu.device newTextureWithDescriptor:descriptor]);
+        MTLRenderPassDescriptor* framePass = [pass copy]; framePass.colorAttachments[0].texture = frames.back();
+        const uint32_t intensity = 16 + frame * 23;
+        device.BeginFrame(framePass);
+        draw(0.5f, -0.5f, 0xFF000000 | (intensity << 8) | intensity);
+        draw(0.5f, 0.5f, 0xFF000000 | ((255 - intensity) << 8) | (255 - intensity));
+        device.ScenePresent();
+        if (frame == 2) warmedAllocations = device.EncodingStats().streamPageAllocations;
+    }
+    const auto afterStreams = device.EncodingStats();
+    Require(afterStreams.geometryDraws - beforeStreams.geometryDraws == 18 &&
+        afterStreams.renderPasses - beforeStreams.renderPasses == 9 &&
+        afterStreams.bufferUploadPasses == beforeStreams.bufferUploadPasses &&
+        afterStreams.streamPageAllocations == warmedAllocations, "Streaming geometry did not reuse frame pages/render passes");
+    device.Drain();
+    for (unsigned frame = 0; frame < frames.size(); ++frame) {
+        MTLRenderPassDescriptor* framePass = [pass copy]; framePass.colorAttachments[0].texture = frames[frame];
+        framePass.colorAttachments[0].loadAction = MTLLoadActionLoad;
+        device.BeginFrame(framePass); result = read();
+        for (size_t y = 0; y < 16; ++y) { for (size_t x = 0; x < 16; ++x) {
+            const uint32_t intensity = x < 8 ? 16 + frame * 23 : 239 - frame * 23;
+            const uint32_t expected = 0xFF000000 | (intensity << (x % 8 >= 4 && y >= 8 ? 0 : 8));
+            Require(result[y * 16 + x] == expected, "Streaming page reuse overwrote an in-flight draw");
+        } }
+    }
+    std::fprintf(stderr, "Gx streaming: 18 wrapped draws in 9 passes across three in-flight slots, no upload blits or page allocations after warmup; exact pixels preserved\n");
     Require(pixels.locks == pixels.unlocks && device.TexIsReadyNow(texture), "Gx texture callback lifecycle mismatch");
     bool rejected = false;
     try { device.ShaderCreate(&shared, GxSh_Pixel, "Shaders\\Pixel", "NotImplemented", 1); } catch (const std::runtime_error&) { rejected = true; }

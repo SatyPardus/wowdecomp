@@ -234,9 +234,12 @@ through GPU readback. The original Gxu/FreeType font layout and rasterizer draw
 the preview text.
 The font probe reads ARIALN from the installation, covers multiline/color,
 AA/monochrome, outline/shadow and drawable-size changes, and checks identical
-pixels after restoring the size or recreating the font cache. Private buffer
-uploads are encoded before their consuming draws in the same command stream;
-streaming wrap does not overwrite earlier draws. Texture updates replace immutable
+pixels after restoring the size or recreating the font cache. Static/dynamic pool
+uploads precede their consuming draws in the same command stream. Transient geometry
+uses append-only, write-combined shared pages owned by each of three in-flight
+frames. Completion of that specific frame gates page reuse; logical pool wrapping
+cannot overwrite earlier draws. Unchanged streaming ranges reuse their snapshot
+within the frame, and unused pages are released after a smaller frame. Texture updates replace immutable
 GPU images, including partial rectangles and callbacks whose data starts at the
 updated region. Original Gx base-mip/filter selection is retained (the standalone
 BLP probe separately checks every authored mip). Frames are limited to three in
@@ -283,8 +286,12 @@ share an encoder while attachments and resource ordering permit. Buffer uploads,
 copies, synchronous readback and target switches end the pass; full clears can be
 consumed by the next draw. A focused check encodes 130 geometry draws and a regional
 clear in one pass, with exact pixel output after viewport/scissor changes. Actual
-particle/ribbon draws still split passes for streaming uploads; upload allocation reuse
-and texture-update bandwidth optimization remain to be implemented.
+particle/ribbon draws use the shared pages without interrupting the pass. The
+original Rejuvenation's eight draws use one render pass and no buffer-upload pass
+(previously eight and thirteen respectively). Nine queued frames exercise wrap and
+all three reusable slots, preserve exact pixels and allocate no new pages after
+warmup. These counts demonstrate reduced encoding work; sustained frame timing,
+private-pool upload allocation reuse and texture-update bandwidth still need work.
 
 Changing the base mip invalidates resident resources and delivers the original
 producer and texture-cache recreation notifications. Reuploads select the authored
