@@ -116,6 +116,8 @@ struct CGxDeviceMetal::Impl {
     std::unordered_map<CGxTex*, Texture> textures;
     std::unordered_map<CGxShader*, Shader> shaders;
     id<MTLCommandBuffer> command;
+    id<MTLRenderCommandEncoder> renderEncoder;
+    EncodingStatistics statistics;
     MTLRenderPassDescriptor* pass;
     MTLRenderPassDescriptor* defaultPass;
     id<MTLTexture> targetDepth;
@@ -128,16 +130,30 @@ struct CGxDeviceMetal::Impl {
         descriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
         descriptor.depthAttachment.loadAction = MTLLoadActionLoad;
     }
+    void EndRender() {
+        if (renderEncoder) { [renderEncoder endEncoding]; renderEncoder = nil; }
+    }
+    id<MTLRenderCommandEncoder> Render() {
+        if (!renderEncoder) {
+            renderEncoder = [command renderCommandEncoderWithDescriptor:pass];
+            Require(renderEncoder != nil, "Cannot begin Gx render pass");
+            renderEncoder.label = @"Gx attachment drawing";
+            ++statistics.renderPasses;
+            ConsumedLoads(pass);
+        }
+        return renderEncoder;
+    }
     void EnsureLoads(MTLRenderPassDescriptor* descriptor) {
         if (descriptor.colorAttachments[0].loadAction != MTLLoadActionLoad ||
             (descriptor.depthAttachment.texture && descriptor.depthAttachment.loadAction != MTLLoadActionLoad)) {
+            EndRender();
             id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:descriptor];
             Require(encoder != nil, "Cannot encode Gx attachment load/clear");
+            ++statistics.renderPasses;
             [encoder endEncoding]; ConsumedLoads(descriptor);
         }
     }
     void EnsurePass() { EnsureLoads(pass); }
-    void ConsumedPass() { ConsumedLoads(pass); }
     bool CopyColor(id<MTLTexture> source, const CiRect& sourceRect, id<MTLTexture> dest, uint32_t destLevel,
         const CiRect& destRect, bool linear) {
         Require(command && source && dest, "Gx surface copy requires an active frame and allocated textures");
@@ -152,6 +168,7 @@ struct CGxDeviceMetal::Impl {
         const int dw = destRect.maxX - destRect.minX, dh = destRect.maxY - destRect.minY;
         EnsurePass();
         if (source == defaultPass.colorAttachments[0].texture) { EnsureLoads(defaultPass); }
+        EndRender();
         if (sw == dw && sh == dh) {
             // Equal-sized rectangles land on the same texel centers even for
             // LINEAR. A blit preserves all four UNORM8 channels exactly.
@@ -190,6 +207,7 @@ struct CGxDeviceMetal::Impl {
         state.filter = linear ? GxTex_Linear : GxTex_Nearest;
         const MTLViewport viewport{double(destRect.minX), double(destRect.minY), double(dw), double(dh), 0, 1};
         gpu.Draw(command, copyPass, source, parameters, state, &viewport);
+        ++statistics.renderPasses;
         return true;
     }
     void ReadSurface(id<MTLTexture> surface, CiRect& rect, void* output) {
@@ -203,6 +221,7 @@ struct CGxDeviceMetal::Impl {
         id<MTLCommandBuffer> continuation = [gpu.queue commandBuffer];
         Require(result && continuation, "Cannot allocate Gx readback resources");
         EnsurePass();
+        EndRender();
         id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
         Require(encoder != nil, "Cannot encode Gx readback");
         [encoder copyFromTexture:surface sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(rect.minX, rect.minY, 0)
@@ -247,8 +266,10 @@ struct CGxDeviceMetal::Impl {
         Require(buffer && buffer->m_valid && buffer->m_hasData, "Gx draw uses an uninitialized buffer");
         auto& storage = Storage(buffer->m_pool);
         if (!storage.updates.empty()) {
+            EndRender();
             id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
             Require(encoder != nil, "Cannot encode Gx buffer uploads");
+            ++statistics.bufferUploadPasses;
             for (const auto& update : storage.updates) {
                 [encoder copyFromBuffer:update.staging sourceOffset:0 toBuffer:storage.gpu destinationOffset:update.offset size:update.staging.length];
             }
@@ -286,6 +307,7 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
 }
 CGxDeviceMetal::~CGxDeviceMetal() {
     if (m->command) {
+        m->EndRender();
         // Preserve already encoded uploads even when a caller unwinds a failed frame.
         dispatch_semaphore_t frames = m->frames;
         [m->command addCompletedHandler:^(id<MTLCommandBuffer>) { dispatch_semaphore_signal(frames); }];
@@ -305,6 +327,7 @@ CGxDeviceMetal::~CGxDeviceMetal() {
     if (g_theGxDevicePtr == this) { g_theGxDevicePtr = nullptr; }
 }
 GxMetal::TextureDevice& CGxDeviceMetal::GPU() { return m->gpu; }
+CGxDeviceMetal::EncodingStatistics CGxDeviceMetal::EncodingStats() const { return m->statistics; }
 void CGxDeviceMetal::Drain() {
     id<MTLCommandBuffer> fence = [m->gpu.queue commandBuffer];
     [fence commit]; [fence waitUntilCompleted];
@@ -364,6 +387,7 @@ void CGxDeviceMetal::ScenePresent() {
     if (m_scrShotClick) { DeviceScreenShot(); }
     m->EnsurePass();
     m->EnsureLoads(m->defaultPass);
+    m->EndRender();
     dispatch_semaphore_t frames = m->frames;
     [m->command addCompletedHandler:^(id<MTLCommandBuffer> command) {
         if (command.error) { CGxDevice::Log("Metal frame failed: %s", command.error.localizedDescription.UTF8String); }
@@ -390,16 +414,17 @@ void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
     if (right <= left || bottom <= top) { return; }
     const auto whole = [&](id<MTLTexture> texture) { return left == 0 && top == 0 && right == texture.width && bottom == texture.height; };
     if ((!(mask & 1) || whole(m->pass.colorAttachments[0].texture)) && (!(mask & 2) || whole(m->pass.depthAttachment.texture))) {
+        m->EndRender();
         if (mask & 1) { m->pass.colorAttachments[0].loadAction = MTLLoadActionClear;
             m->pass.colorAttachments[0].clearColor = MTLClearColorMake(color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0); }
         if (mask & 2) { m->pass.depthAttachment.loadAction = MTLLoadActionClear; m->pass.depthAttachment.clearDepth = 1; }
-        m->EnsurePass();
+        // Keep clears pending until a draw or resource/target boundary needs
+        // their contents. The next draw can consume them in its own pass.
     } else {
         // A load-action clear would erase pixels outside the viewport, or the
         // unused part of a larger scratch depth attachment. Draw only this area.
         m->gpu.ClearRegion(m->command, m->pass, {left, top, right - left, bottom - top}, mask,
-            {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f});
-        m->ConsumedPass();
+            {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f}, m->Render());
     }
 }
 void CGxDeviceMetal::IRsSendToHw(EGxRenderState which) {
@@ -836,12 +861,13 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         states[i].wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); states[i].wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
     }
-    if (model) { m->gpu.DrawModel(m->command, m->pass, textures[0], draw, states[0]); }
-    else if (filter) { m->gpu.DrawFilter4(m->command, m->pass, textures, draw, states); }
-    else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}); }
-    else if (postProcess) { m->gpu.DrawGlow(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}); }
-    else { m->gpu.DrawUnlit(m->command, m->pass, textures[0], draw, {}, states[0]); }
-    m->ConsumedPass();
+    const auto encoder = m->Render();
+    if (model) { m->gpu.DrawModel(m->command, m->pass, textures[0], draw, states[0], encoder); }
+    else if (filter) { m->gpu.DrawFilter4(m->command, m->pass, textures, draw, states, encoder); }
+    else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}, encoder); }
+    else if (postProcess) { m->gpu.DrawGlow(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
+    else { m->gpu.DrawUnlit(m->command, m->pass, textures[0], draw, {}, states[0], encoder); }
+    ++m->statistics.geometryDraws;
 }
 void CGxDeviceMetal::XformSetProjection(const C44Matrix& matrix) {
     CGxDevice::XformSetProjection(matrix);
@@ -926,7 +952,7 @@ void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, ui
     auto& target = m_textureTarget[buffer];
     if (target.m_texture == texture && target.m_plane == plane) { return; }
     if (texture) { ITexMarkAsUpdated(texture); }
-    if (m->command) { m->EnsurePass(); }
+    if (m->command) { m->EnsurePass(); m->EndRender(); }
     CGxDevice::DeviceSetRenderTarget(buffer, texture, plane);
     ApplyRenderTarget();
     m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)};

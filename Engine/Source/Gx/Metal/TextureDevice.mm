@@ -399,7 +399,7 @@ void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDes
 }
 
 void GxMetal::TextureDevice::ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass,
-    const MTLScissorRect& region, uint32_t mask, simd_float4 color) {
+    const MTLScissorRect& region, uint32_t mask, simd_float4 color, id<MTLRenderCommandEncoder> encoder) {
     const bool hasDepth = pass.depthAttachment.texture != nil, writeColor = (mask & 1) != 0, writeDepth = (mask & 2) != 0;
     auto target = pass.colorAttachments[0].texture;
     Require(command && target && target.pixelFormat == MTLPixelFormatBGRA8Unorm && target.sampleCount == 1 &&
@@ -426,7 +426,8 @@ void GxMetal::TextureDevice::ClearRegion(id<MTLCommandBuffer> command, MTLRender
         depth = [device newDepthStencilStateWithDescriptor:descriptor];
         Require(depth != nil, "Cannot create clear depth state");
     }
-    auto encoder = [command renderCommandEncoderWithDescriptor:pass];
+    const bool ownsEncoder = encoder == nil;
+    if (ownsEncoder) encoder = [command renderCommandEncoderWithDescriptor:pass];
     Require(encoder != nil, "Cannot encode regional Gx clear");
     [encoder setRenderPipelineState:pipeline]; [encoder setDepthStencilState:depth];
     [encoder setCullMode:MTLCullModeNone];
@@ -434,5 +435,5 @@ void GxMetal::TextureDevice::ClearRegion(id<MTLCommandBuffer> command, MTLRender
     [encoder setScissorRect:region];
     [encoder setFragmentBytes:&color length:sizeof(color) atIndex:0];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
-    [encoder endEncoding];
+    if (ownsEncoder) [encoder endEncoding];
 }

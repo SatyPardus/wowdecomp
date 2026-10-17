@@ -183,6 +183,25 @@ void CheckGxDevice() {
         } }
     }
     GxTexDestroy(fontTexture);
+    // Reuse immutable geometry across state changes. A regional clear and
+    // disabling scissors must not leak encoder state into later draws.
+    const auto beforeEncoding = device.EncodingStats();
+    device.BeginFrame(pass); GxRsSet(GxRs_Texture0, texture); draw(1, 0, 0xFFFFFFFF);
+    GxXformSetViewport(0.25f, 0.75f, 0.25f, 0.75f, 0, 1);
+    device.SceneClear(1, CImVector(255, 0, 0, 255));
+    GxXformSetViewport(0, 1, 0, 1, 0, 1);
+    device.SetScissor(CRect{0, 0, 0.25f, 1}); GxRsSet(GxRs_ScissorTest, 1);
+    CGxBatch repeated{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&repeated, 1);
+    GxRsSet(GxRs_ScissorTest, 0);
+    for (unsigned i = 0; i < 128; ++i) GxDraw(&repeated, 1);
+    result = read();
+    const auto afterEncoding = device.EncodingStats();
+    Require(afterEncoding.geometryDraws - beforeEncoding.geometryDraws == 130 &&
+        afterEncoding.renderPasses - beforeEncoding.renderPasses == 1, "Compatible Gx draws split the Metal render pass");
+    for (size_t y = 0; y < 16; ++y) { for (size_t x = 0; x < 16; ++x) {
+        Require(result[y * 16 + x] == (x >= 8 && y >= 8 ? 0xFF0000FF : 0xFF00FF00), "Reused render encoder retained clear/scissor state");
+    } }
+    std::fprintf(stderr, "Gx pass reuse: 130 geometry draws and a regional clear in one render pass; pixel output preserved\n");
     Require(pixels.locks == pixels.unlocks && device.TexIsReadyNow(texture), "Gx texture callback lifecycle mismatch");
     bool rejected = false;
     try { device.ShaderCreate(&shared, GxSh_Pixel, "Shaders\\Pixel", "NotImplemented", 1); } catch (const std::runtime_error&) { rejected = true; }

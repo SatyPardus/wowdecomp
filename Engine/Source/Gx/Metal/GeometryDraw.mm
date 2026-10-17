@@ -19,32 +19,32 @@ static_assert(sizeof(GeometryParameters) == 192 && offsetof(GeometryParameters, 
 }
 
 void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-    const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state) {
+    const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::Unlit, "Unlit draw received a different native effect");
-    DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state});
+    DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state}, encoder);
 }
 void GxMetal::TextureDevice::DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-    const GeometryDraw& geometry, const TextureDrawState& state) {
+    const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
     Require(IsModelEffect(geometry.effect), "Invalid native model effect");
-    DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, {}, {state, state, state, state});
+    DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, {}, {state, state, state, state}, encoder);
 }
 void GxMetal::TextureDevice::DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
-    const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states) {
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4, "Invalid FFX filter effect");
-    DrawGeometry(command, pass, textures, geometry, {}, states);
+    DrawGeometry(command, pass, textures, geometry, {}, states, encoder);
 }
 void GxMetal::TextureDevice::DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
-    const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states) {
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::Glow, "Invalid FFX glow effect");
-    DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}});
+    DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}}, encoder);
 }
 void GxMetal::TextureDevice::DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
-    const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states) {
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::GlowWave, "Invalid FFX wave effect");
-    DrawGeometry(command, pass, {textures[0], textures[1], textures[2], nil}, geometry, {}, {states[0], states[1], states[2], {}});
+    DrawGeometry(command, pass, {textures[0], textures[1], textures[2], nil}, geometry, {}, {states[0], states[1], states[2], {}}, encoder);
 }
 void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
-    const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 4>& states) {
+    const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder) {
     const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
     const bool model = IsModelEffect(geometry.effect);
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
@@ -123,14 +123,15 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     for (unsigned i = 0; i < inputs; ++i) { constants.texture.decodeScale[i] = states[i].decodeScale; }
     // Tempest uses row vectors. Its contiguous rows are Metal's columns, so
     // column-vector multiplication reads the same transform without repacking.
-    id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
+    const bool ownsEncoder = encoder == nil;
+    if (ownsEncoder) encoder = [command renderCommandEncoderWithDescriptor:pass];
     Require(encoder != nil, "Cannot create Metal geometry encoder");
     [encoder setRenderPipelineState:pipeline];
     [encoder setDepthStencilState:depth->second];
     [encoder setFrontFacingWinding:MTLWindingClockwise];
-    if (geometry.viewportEnabled) { [encoder setViewport:geometry.viewport]; }
+    [encoder setViewport:geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1}];
     [encoder setCullMode:geometry.culling == 0 ? MTLCullModeNone : geometry.culling == 1 ? MTLCullModeFront : MTLCullModeBack];
-    if (geometry.scissorEnabled) { [encoder setScissorRect:geometry.scissor]; }
+    [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
     if (model) {
@@ -157,5 +158,5 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else {
         [encoder drawPrimitives:primitives[batch.m_primType] vertexStart:0 vertexCount:count];
     }
-    [encoder endEncoding];
+    if (ownsEncoder) [encoder endEncoding];
 }

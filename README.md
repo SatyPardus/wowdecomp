@@ -279,7 +279,11 @@ including the original offscreen Y convention. Full-surface clears use attachmen
 load actions; regional clears preserve surrounding pixels and the unused portion
 of a larger shared depth surface. Other render-target formats, explicit depth textures, queries, gamma ramps and stereo remain
 explicit unsupported operations. Geometry draws
-currently open individual render encoders; pass batching, upload allocation reuse
+share an encoder while attachments and resource ordering permit. Buffer uploads,
+copies, synchronous readback and target switches end the pass; full clears can be
+consumed by the next draw. A focused check encodes 130 geometry draws and a regional
+clear in one pass, with exact pixel output after viewport/scissor changes. Actual
+particle/ribbon draws still split passes for streaming uploads; upload allocation reuse
 and texture-update bandwidth optimization remain to be implemented.
 
 Changing the base mip invalidates resident resources and delivers the original

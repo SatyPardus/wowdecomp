@@ -150,7 +150,9 @@ void CheckGameModels() {
                 ribbonDraws += spellScene->m_elements[i].m_type == 3;
             }
             device.BeginFrame(pass);
+            const auto beforeEncoding = device.EncodingStats();
             spellScene->Draw(M2PASS_0); spellScene->Draw(M2PASS_1); spellScene->Draw(M2PASS_2);
+            const auto afterEncoding = device.EncodingStats();
             for (unsigned i = 0; i < spell->m_shared->m_data->m_particles.m_count; ++i) {
                 rendered += spell->m_particleEmitters[i]->m_renderedParticles;
                 if (spell->m_shared->m_data->m_particles[i].m_emitterType == 2)
@@ -163,6 +165,10 @@ void CheckGameModels() {
             for (unsigned i = 0; i < image.Count(); ++i) visiblePixels += image[i].r || image[i].g || image[i].b;
             std::fprintf(stderr, "M2 %s frame %u: %u particle batches, %u particles, %u ribbon batches, %u ribbon triangles, %u visible pixels\n",
                 name, frame, particleDraws, rendered, ribbonDraws, primitives, visiblePixels);
+            std::fprintf(stderr, "M2 encoding: %llu geometry draws, %llu render passes, %llu buffer upload passes\n",
+                (unsigned long long)(afterEncoding.geometryDraws - beforeEncoding.geometryDraws),
+                (unsigned long long)(afterEncoding.renderPasses - beforeEncoding.renderPasses),
+                (unsigned long long)(afterEncoding.bufferUploadPasses - beforeEncoding.bufferUploadPasses));
             if (visiblePixels < 16 || (ribbons && (!ribbonDraws || !primitives)) ||
                 ((!ribbons || frame == 63) && (!particleDraws || !rendered)) ||
                 (ribbons && (frame == 31 ? particleDraws != 0 : sphereParticles == 0)))

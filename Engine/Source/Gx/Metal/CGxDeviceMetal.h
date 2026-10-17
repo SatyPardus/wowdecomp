@@ -11,6 +11,10 @@ public:
     explicit CGxDeviceMetal(id<MTLDevice> device);
     ~CGxDeviceMetal() override;
     GxMetal::TextureDevice& GPU();
+    struct EncodingStatistics {
+        uint64_t geometryDraws = 0, renderPasses = 0, bufferUploadPasses = 0;
+    };
+    EncodingStatistics EncodingStats() const;
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);
     id<MTLCommandBuffer> FrameCommand() const;
     void Drain();

@@ -101,18 +101,20 @@ public:
     id<MTLTexture> Upload(const BLP::Image& image, bool forceExpansion = false);
     void Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport = nullptr);
+    // A supplied encoder remains open and must belong to the given pass/command.
+    // Without one, these helpers encode an independent complete pass.
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-        const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state);
+        const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-        const GeometryDraw& geometry, const TextureDrawState& state);
+        const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
-        const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states);
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
-        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states);
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
-        const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states);
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
-        uint32_t mask, simd_float4 color);
+        uint32_t mask, simd_float4 color, id<MTLRenderCommandEncoder> encoder = nil);
     bool SupportsBC() const;
     bool SupportsPacked16() const;
     simd_float4 DecodeScale(BLP::Format format) const;
@@ -138,7 +140,7 @@ private:
         bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 4>&,
-        const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 4>&);
+        const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 4>&, id<MTLRenderCommandEncoder>);
 };
 }
 #endif
