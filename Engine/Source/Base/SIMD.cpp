@@ -5,7 +5,7 @@
 // VERIFY: aaf6c69b auto
 // OFFSET: 0x0083DE50
 void* SIMD::AllocA16(uint32_t size, const char* fileName, int32_t lineNumber) {
-    uint8_t* ptr = static_cast<uint8_t*>(SMemAlloc(size + 16, fileName, lineNumber, 0));
+    uint8_t* ptr = static_cast<uint8_t*>(SMemAlloc(static_cast<size_t>(size) + 16, fileName, lineNumber, 0));
 
     if (!ptr) {
         return nullptr;
@@ -23,6 +23,6 @@ void* SIMD::AllocA16(uint32_t size, const char* fileName, int32_t lineNumber) {
 void SIMD::FreeA16(void* ptr) {
     if (ptr) {
         uint8_t* base = static_cast<uint8_t*>(ptr) - static_cast<uint8_t*>(ptr)[-1];
-        delete[] base;
+        SMemFree(base, __FILE__, __LINE__, 0);
     }
 }

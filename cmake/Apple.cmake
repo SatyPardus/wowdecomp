@@ -39,6 +39,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Handle.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RCString.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RefCount.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/SIMD.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Prop.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataAllocator.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataRecycler.cpp
@@ -48,6 +49,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsFile.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsMemory.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/TimeManager.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Processor.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Processor.cpp
@@ -126,6 +128,11 @@ add_library(AppleGameResources STATIC
 )
 target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile ConsoleBase Event)
 
+add_subdirectory(Engine/Source/ShaderEffect)
+target_link_libraries(ShaderEffect PUBLIC Gx AppleArchives)
+add_subdirectory(Engine/Source/Model2)
+target_link_libraries(Model2 PUBLIC AppleGameResources ShaderEffect)
+
 add_library(AppleTextureData ALIAS BLPFile)
 
 enable_language(OBJCXX)
@@ -151,8 +158,8 @@ add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources "-framework MetalKit" "-framework CoreGraphics")
 
-add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase)
+add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
-#include <xmmintrin.h>
+#include "Engine/Source/Model2/M2Vector.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
@@ -371,13 +371,13 @@ uint32_t CM2Scene::SphereTestModels(const C3Vector& start, const C3Vector& dir, 
 
 // VERIFY: d49fadc9 manual
 // OFFSET: 0x0081D2C0
-void M2BlendBoneMatricesSSE(const C44Matrix* bones, ubyte4 weights, ubyte4 indices, C44Matrix* result) {
+void M2BlendBoneMatricesSIMD(const C44Matrix* bones, ubyte4 weights, ubyte4 indices, C44Matrix* result) {
     const float* bone = reinterpret_cast<const float*>(&bones[indices.b[0]]);
-    __m128 weight = _mm_set1_ps(weights.b[0] * 0.0039215689f);
-    __m128 row0 = _mm_mul_ps(_mm_loadu_ps(&bone[0]), weight);
-    __m128 row1 = _mm_mul_ps(_mm_loadu_ps(&bone[4]), weight);
-    __m128 row2 = _mm_mul_ps(_mm_loadu_ps(&bone[8]), weight);
-    __m128 row3 = _mm_mul_ps(_mm_loadu_ps(&bone[12]), weight);
+    M2Vector::Float4 weight = M2Vector::Splat(weights.b[0] * 0.0039215689f);
+    M2Vector::Float4 row0 = M2Vector::Multiply(M2Vector::Load(&bone[0]), weight);
+    M2Vector::Float4 row1 = M2Vector::Multiply(M2Vector::Load(&bone[4]), weight);
+    M2Vector::Float4 row2 = M2Vector::Multiply(M2Vector::Load(&bone[8]), weight);
+    M2Vector::Float4 row3 = M2Vector::Multiply(M2Vector::Load(&bone[12]), weight);
 
     for (uint32_t i = 1; i < 4; i++) {
         if (!weights.b[i]) {
@@ -385,18 +385,18 @@ void M2BlendBoneMatricesSSE(const C44Matrix* bones, ubyte4 weights, ubyte4 indic
         }
 
         bone = reinterpret_cast<const float*>(&bones[indices.b[i]]);
-        weight = _mm_set1_ps(weights.b[i] * 0.0039215689f);
-        row0 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[0]), weight), row0);
-        row1 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[4]), weight), row1);
-        row2 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[8]), weight), row2);
-        row3 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[12]), weight), row3);
+        weight = M2Vector::Splat(weights.b[i] * 0.0039215689f);
+        row0 = M2Vector::Add(M2Vector::Multiply(M2Vector::Load(&bone[0]), weight), row0);
+        row1 = M2Vector::Add(M2Vector::Multiply(M2Vector::Load(&bone[4]), weight), row1);
+        row2 = M2Vector::Add(M2Vector::Multiply(M2Vector::Load(&bone[8]), weight), row2);
+        row3 = M2Vector::Add(M2Vector::Multiply(M2Vector::Load(&bone[12]), weight), row3);
     }
 
     float* out = reinterpret_cast<float*>(result);
-    _mm_storeu_ps(&out[0], row0);
-    _mm_storeu_ps(&out[4], row1);
-    _mm_storeu_ps(&out[8], row2);
-    _mm_storeu_ps(&out[12], row3);
+    M2Vector::Store(&out[0], row0);
+    M2Vector::Store(&out[4], row1);
+    M2Vector::Store(&out[8], row2);
+    M2Vector::Store(&out[12], row3);
     result->a3 = 0.0f;
     result->b3 = 0.0f;
     result->c3 = 0.0f;
@@ -494,7 +494,7 @@ M2HitRec* CM2Scene::IntersectHitTestTriangles(const uint16_t* indices, const uin
 
 // VERIFY: 5ae1f294 manual
 // OFFSET: 0x0081D680
-void CM2Scene::TransformHitTestVerticesBlendSSE(const CM2Model* model, const M2SkinProfile* skinData, const M2SkinSection* section, int32_t normals, const C3Vector& dir, float d) {
+void CM2Scene::TransformHitTestVerticesBlendSIMD(const CM2Model* model, const M2SkinProfile* skinData, const M2SkinSection* section, int32_t normals, const C3Vector& dir, float d) {
     M2Data* data = model->m_shared->m_data;
     C3Vector* out = this->m_hitVerts;
     C44Matrix matrix;
@@ -508,7 +508,7 @@ void CM2Scene::TransformHitTestVerticesBlendSSE(const CM2Model* model, const M2S
         if (*reinterpret_cast<uint32_t*>(&vertex->m_weights) != weights || *reinterpret_cast<uint32_t*>(&vertex->m_indices) != indices) {
             weights = *reinterpret_cast<uint32_t*>(&vertex->m_weights);
             indices = *reinterpret_cast<uint32_t*>(&vertex->m_indices);
-            M2BlendBoneMatricesSSE(model->m_boneMatrices, vertex->m_weights, vertex->m_indices, &matrix);
+            M2BlendBoneMatricesSIMD(model->m_boneMatrices, vertex->m_weights, vertex->m_indices, &matrix);
         }
 
         C3Vector p = vertex->m_position * matrix;
@@ -647,8 +647,8 @@ M2HitRec* CM2Scene::HitTestGeometry(const CM2Model* model, uint32_t pass, const 
 
         if (section->m_boneInfluences == 1) {
             this->TransformHitTestVertices(model, skinData, section, pass, dir, d);
-        } else if (CM2Cache::s_processorFeatures & 4) {
-            this->TransformHitTestVerticesBlendSSE(model, skinData, section, pass, dir, d);
+        } else if (M2Vector::Available(CM2Cache::s_processorFeatures)) {
+            this->TransformHitTestVerticesBlendSIMD(model, skinData, section, pass, dir, d);
         } else {
             this->TransformHitTestVerticesBlend(model, skinData, section, pass, dir, d);
         }

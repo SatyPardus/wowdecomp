@@ -1,10 +1,16 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#define _alloca alloca
+#endif
 #include <new>
 #include <typeinfo>
 #include "Engine/Source/Model2/M2Shared.h"
+#include "Engine/Source/Model2/M2Memory.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/SIMD.h"
 #include "Engine/Source/Base/Status.h"
@@ -29,7 +35,7 @@
 static const uint32_t s_skinProfileBoneCounts[4] = { 256, 64, 53, 21 };
 
 // STATIC: 0x00AF59D8
-static uint32_t s_sequenceIndex = 0xFFFFFFFF;
+static thread_local uint32_t s_sequenceIndex = 0xFFFFFFFF;
 
 // STATIC: 0x00AF59E8
 static const EGxTexOp s_alphaOps[8] = { static_cast<EGxTexOp>(3), static_cast<EGxTexOp>(0), static_cast<EGxTexOp>(3), static_cast<EGxTexOp>(2), static_cast<EGxTexOp>(1), static_cast<EGxTexOp>(3), static_cast<EGxTexOp>(3), static_cast<EGxTexOp>(3) };
@@ -38,10 +44,11 @@ static const EGxTexOp s_alphaOps[8] = { static_cast<EGxTexOp>(3), static_cast<EG
 static const EGxTexOp s_colorOps[8] = { static_cast<EGxTexOp>(0), static_cast<EGxTexOp>(0), static_cast<EGxTexOp>(4), static_cast<EGxTexOp>(2), static_cast<EGxTexOp>(1), static_cast<EGxTexOp>(5), static_cast<EGxTexOp>(1), static_cast<EGxTexOp>(2) };
 
 // STATIC: 0x00D41258
-static uint8_t* s_sequenceData;
+static thread_local uint8_t* s_sequenceData;
 
 // STATIC: 0x00D4125C
-static uint32_t s_sequenceSize;
+static thread_local uint32_t s_sequenceSize;
+static thread_local bool s_sequenceValidate;
 
 // VERIFY: eb5cb8e9 auto
 // OFFSET: 0x00835950
@@ -49,6 +56,12 @@ static void AsyncFileReadFreeA16(CAsyncObject* object) {
     void* buffer = object->m_buffer;
     AsyncFileReadDestroyObject(object);
     SIMD::FreeA16(buffer);
+}
+
+static void AsyncFileReadFreeData(CAsyncObject* object) {
+    void* buffer = object->m_buffer;
+    AsyncFileReadDestroyObject(object);
+    M2FreeData(buffer);
 }
 
 #if defined(WOWDECOMP_ARCH_64)
@@ -132,12 +145,19 @@ static void MakeSkinFileName(const char* fileName, uint32_t profile, char* resul
     sprintf(&result[strlen(result)], "%02d.skin", profile);
 }
 
+// Validate raw file offsets before turning them into self-relative pointers.
+template <class T>
+static bool M2RawArrayValid(uint32_t size, const M2Array<T>& array) {
+    return array.m_offset <= size && array.m_count <= (size - array.m_offset) / sizeof(T)
+        && (!array.m_count || array.m_offset % alignof(T) == 0);
+}
+
 // VERIFY: b5295fba manual
 // OFFSET: [0x00835AE0, 0x00835B30, 0x00835B80, 0x00835BD0, 0x00835C20, 0x00835DF0, 0x00835E40]
 template <class T>
 int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Array<T>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(T) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -152,7 +172,7 @@ int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Array<T>& arr
 template <class T>
 int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Array<T> >& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Array<T>) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -168,64 +188,52 @@ int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Array
     return 1;
 }
 
-// INLINED
-int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2TrackBase& track) {
+template <class T>
+static bool M2InitTrackArray(uint8_t* base, uint32_t size, const M2Data& data,
+    uint16_t loopIndex, M2Array<M2Array<T>>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (track.m_loopIndex == 0xFFFF) {
-            track.m_sequenceTimes.Relocate(base);
-
-            for (uint32_t i = 0; i < track.m_sequenceTimes.m_count; i++) {
-                if (data.m_sequences[i].m_flags & 0x20) {
-                    track.m_sequenceTimes[i].Relocate(base);
-                }
-            }
-        } else if (!M2Init(base, size, data, track.m_sequenceTimes)) {
-            return 0;
+        if (!M2RawArrayValid(size, array)) return false;
+        if (loopIndex == 0xFFFF) {
+            if (array.m_count > data.m_sequences.m_count) return false;
+        } else if (loopIndex >= data.m_loops.m_count) {
+            return false;
         }
-    } else if (s_sequenceIndex < track.m_sequenceTimes.m_count) {
-        track.m_sequenceTimes[s_sequenceIndex].Relocate(s_sequenceData);
+        array.Relocate(base);
+        for (uint32_t i = 0; i < array.m_count; ++i) {
+            if (loopIndex != 0xFFFF || (data.m_sequences[i].m_flags & 0x20)) {
+                if (!M2RawArrayValid(size, array[i])) return false;
+                array[i].Relocate(base);
+            }
+        }
+    } else if (loopIndex == 0xFFFF && s_sequenceIndex < array.m_count) {
+        auto& values = array[s_sequenceIndex];
+        if (s_sequenceValidate) {
+            if (!M2RawArrayValid(s_sequenceSize, values)) return false;
+            if (values.m_count) {
+                const auto target = reinterpret_cast<uintptr_t>(s_sequenceData) + values.m_offset;
+                const auto origin = reinterpret_cast<uintptr_t>(&values);
+                if ((target >= origin && target - origin > INT32_MAX) ||
+                    (target < origin && origin - target > uint64_t(INT32_MAX) + 1)) return false;
+            }
+        } else {
+            values.Relocate(s_sequenceData);
+        }
     }
-
-    return 1;
+    return true;
 }
 
-// INLINED
+int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2TrackBase& track) {
+    return M2InitTrackArray(base, size, data, track.m_loopIndex, track.m_sequenceTimes);
+}
+
 template <class T>
 int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Track<T>& track) {
-    if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (track.m_loopIndex == 0xFFFF) {
-            track.m_sequenceTimes.Relocate(base);
-
-            for (uint32_t i = 0; i < track.m_sequenceTimes.m_count; i++) {
-                if (data.m_sequences[i].m_flags & 0x20) {
-                    track.m_sequenceTimes[i].Relocate(base);
-                }
-            }
-        } else if (!M2Init(base, size, data, track.m_sequenceTimes)) {
-            return 0;
-        }
-
-        if (track.m_loopIndex == 0xFFFF) {
-            track.m_sequenceKeys.Relocate(base);
-
-            for (uint32_t i = 0; i < track.m_sequenceTimes.m_count; i++) {
-                if (data.m_sequences[i].m_flags & 0x20) {
-                    track.m_sequenceKeys[i].Relocate(base);
-                }
-            }
-        } else if (!M2Init(base, size, data, track.m_sequenceKeys)) {
-            return 0;
-        }
-    } else {
-        if (s_sequenceIndex < track.m_sequenceTimes.m_count) {
-            track.m_sequenceTimes[s_sequenceIndex].Relocate(s_sequenceData);
-        }
-
-        if (s_sequenceIndex < track.m_sequenceKeys.m_count) {
-            track.m_sequenceKeys[s_sequenceIndex].Relocate(s_sequenceData);
-        }
+    if (track.m_sequenceTimes.m_count != track.m_sequenceKeys.m_count) return 0;
+    if (!M2InitTrackArray(base, size, data, track.m_loopIndex, track.m_sequenceTimes) ||
+        !M2InitTrackArray(base, size, data, track.m_loopIndex, track.m_sequenceKeys)) return 0;
+    for (uint32_t i = 0; i < track.m_sequenceTimes.m_count; ++i) {
+        if (track.m_sequenceTimes[i].m_count != track.m_sequenceKeys[i].m_count) return 0;
     }
-
     return 1;
 }
 
@@ -233,8 +241,9 @@ int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Track<T>& tra
 // OFFSET: 0x00835C70
 template <>
 int32_t M2Init<M2Sequence>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Sequence>& array) {
+    if (s_sequenceIndex != 0xFFFFFFFF) return 1;
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Sequence) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -690,7 +699,7 @@ void CM2Shared::SubstituteSimpleShaders() {
 template <>
 int32_t M2Init<M2Texture>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Texture>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Texture) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -787,7 +796,7 @@ uint32_t CM2Shared::AllocInstances(uint32_t count) {
 template <>
 int32_t M2Init<M2Event>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Event>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Event) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -876,9 +885,10 @@ void CM2Shared::ConvertTextureValuesToCombos() {
 
     if (comboBytes || transformBytes) {
         uint32_t size = (this->m_fileSize + 15) & ~15u;
-        M2Data* data = static_cast<M2Data*>(SIMD::AllocA16(size + comboBytes + transformBytes, __FILE__, __LINE__));
+        M2Data* data = static_cast<M2Data*>(M2AllocData(size + comboBytes + transformBytes));
+        if (!data) throw std::bad_alloc();
         memcpy(data, this->m_data, this->m_fileSize);
-        SIMD::FreeA16(this->m_data);
+        M2FreeData(this->m_data);
         this->m_data = data;
         this->m_fileSize = size + comboBytes + transformBytes;
         uint8_t* tail = reinterpret_cast<uint8_t*>(data) + size;
@@ -1222,6 +1232,7 @@ int32_t CM2Shared::InitializeSkinProfile() {
 #if defined(WOWDECOMP_ARCH_64)
             uint32_t bytes = sizeof(M2Vertex) * this->m_skinData->m_vertices.m_count;
             M2Vertex* buffer = static_cast<M2Vertex*>(OsAllocNear(this->m_data, bytes));
+            if (!buffer) { delete[] vertices; this->m_flags &= ~8u; return 0; }
             memcpy(buffer, vertices, bytes);
             delete[] vertices;
             this->m_data->m_vertices.Set(buffer);
@@ -1260,7 +1271,7 @@ int32_t CM2Shared::InitializeSkinProfile() {
 template <>
 int32_t M2Init<M2Color>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Color>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Color) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1283,7 +1294,7 @@ int32_t M2Init<M2Color>(uint8_t* base, uint32_t size, const M2Data& data, M2Arra
 template <>
 int32_t M2Init<M2TextureWeight>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2TextureWeight>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2TextureWeight) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1310,7 +1321,7 @@ int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
     M2SkinProfile* skinData = this->m_skinData;
     uint8_t* base = reinterpret_cast<uint8_t*>(skinData);
 
-    if (!M2Init(base, size, *data, skinData->m_vertices) || !M2Init(base, size, *data, skinData->m_indices) || !M2Init(base, size, *data, skinData->m_bones) || !M2Init(base, size, *data, skinData->m_skinSections) || !M2Init(base, size, *data, skinData->m_batches)) {
+    if (size < sizeof(M2SkinProfile) || skinData->m_magic != 0x4E494B53 || !M2Init(base, size, *data, skinData->m_vertices) || !M2Init(base, size, *data, skinData->m_indices) || !M2Init(base, size, *data, skinData->m_bones) || !M2Init(base, size, *data, skinData->m_skinSections) || !M2Init(base, size, *data, skinData->m_batches)) {
         DebugLog("Corrupt skin profile data: %s", this->m_fileName);
         return 0;
     }
@@ -1336,7 +1347,7 @@ int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
 template <>
 int32_t M2Init<M2CompBone>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2CompBone>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2CompBone) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1359,7 +1370,7 @@ int32_t M2Init<M2CompBone>(uint8_t* base, uint32_t size, const M2Data& data, M2A
 template <>
 int32_t M2Init<M2TextureTransform>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2TextureTransform>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2TextureTransform) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1382,7 +1393,7 @@ int32_t M2Init<M2TextureTransform>(uint8_t* base, uint32_t size, const M2Data& d
 template <>
 int32_t M2Init<M2Attachment>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Attachment>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Attachment) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1403,7 +1414,7 @@ int32_t M2Init<M2Attachment>(uint8_t* base, uint32_t size, const M2Data& data, M
 template <>
 int32_t M2Init<M2Light>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Light>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Light) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1426,7 +1437,7 @@ int32_t M2Init<M2Light>(uint8_t* base, uint32_t size, const M2Data& data, M2Arra
 template <>
 int32_t M2Init<M2Camera>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Camera>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Camera) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1449,7 +1460,7 @@ int32_t M2Init<M2Camera>(uint8_t* base, uint32_t size, const M2Data& data, M2Arr
 template <>
 int32_t M2Init<M2Ribbon>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Ribbon>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Ribbon) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1477,7 +1488,7 @@ int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Particle& par
 template <>
 int32_t M2Init<M2Particle>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Particle>& array) {
     if (s_sequenceIndex == 0xFFFFFFFF) {
-        if (array.m_offset > size || array.m_offset + sizeof(M2Particle) * array.m_count > size) {
+        if (!M2RawArrayValid(size, array)) {
             return 0;
         }
 
@@ -1496,7 +1507,7 @@ int32_t M2Init<M2Particle>(uint8_t* base, uint32_t size, const M2Data& data, M2A
 // VERIFY: 95d98bd6 manual
 // OFFSET: 0x0083C5F0
 CM2Shared::CM2Shared(CM2Cache* cache) {
-    this->m_flags &= ~0x7Fu;
+    this->m_flags = 0;
     this->m_cache = cache;
     this->m_callbackList = nullptr;
     this->m_refCount = 1;
@@ -1531,7 +1542,8 @@ CM2Shared::CM2Shared(CM2Cache* cache) {
 
 // INLINED
 int32_t M2Init(uint8_t* base, uint32_t size, M2Data& data) {
-    if (reinterpret_cast<uint8_t*>(&data) < base || reinterpret_cast<uint8_t*>(&data + 1) > base + size) {
+    if (size < sizeof(M2Data) || reinterpret_cast<uint8_t*>(&data) < base ||
+        reinterpret_cast<uintptr_t>(&data) - reinterpret_cast<uintptr_t>(base) > size - sizeof(M2Data)) {
         return 0;
     }
 
@@ -1548,39 +1560,47 @@ int32_t M2Init(uint8_t* base, uint32_t size, M2Data& data) {
 
 // VERIFY: 8000b812 manual
 // OFFSET: 0x0083C6E0
-int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint8_t* buffer, uint32_t size) {
+int32_t M2InitSequence(uint8_t* base, uint32_t size, M2Data& data, uint32_t sequenceIndex, uint8_t* buffer, uint32_t bufferSize, bool validateOnly) {
+    if (!buffer || sequenceIndex >= data.m_sequences.m_count || s_sequenceIndex != 0xFFFFFFFF) return 0;
+    if (data.m_sequences[sequenceIndex].m_flags & 0x20) return 1;
+    struct Reset { ~Reset() { s_sequenceIndex = 0xFFFFFFFF; s_sequenceData = nullptr; s_sequenceSize = 0; s_sequenceValidate = false; } } reset;
     s_sequenceIndex = sequenceIndex;
     s_sequenceData = buffer;
+    s_sequenceSize = bufferSize;
+    // Validate all external offsets first. A rejected/truncated animation must
+    // leave the loaded model intact so a later successful load can retry it.
+    s_sequenceValidate = true;
+    if (!M2Init(base, size, data)) return 0;
+    if (validateOnly) return 1;
+    s_sequenceValidate = false;
+    if (!M2Init(base, size, data)) return 0;
+    auto& sequence = data.m_sequences[sequenceIndex];
+    sequence.m_flags = (sequence.m_flags & ~0x30u) | 0x20;
+    return 1;
+}
 
-    int32_t result = M2Init(reinterpret_cast<uint8_t*>(this->m_data), this->m_fileSize, *this->m_data);
-    M2Sequence* sequence = &this->m_data->m_sequences[sequenceIndex];
-
-    s_sequenceIndex = 0xFFFFFFFF;
-    s_sequenceData = nullptr;
-    s_sequenceSize = 0;
-
-    if (!result) {
+int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint8_t* buffer, uint32_t size) {
+    if (!M2InitSequence(reinterpret_cast<uint8_t*>(this->m_data), this->m_fileSize, *this->m_data, sequenceIndex, buffer, size)) {
         DebugLog("Corrupt model sequence data: %s (%d)", this->m_fileName, sequenceIndex);
         return 0;
     }
-
-    sequence->m_flags = (sequence->m_flags & ~0x30u) | 0x20;
-
     return 1;
 }
 
 // VERIFY: b8d661f9 manual
 // OFFSET: 0x0083CA90
 int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, CAsyncObject* object) {
-    M2Sequence* sequence = &this->m_data->m_sequences[sequenceIndex];
-
-    if (!this->FinishLoadingLowPrioritySequence(sequenceIndex, static_cast<uint8_t*>(object->m_buffer), object->m_size)) {
-        return 0;
-    }
-
-    for (uint16_t* alias = &sequence->m_aliasNext; *alias != sequenceIndex; alias = &this->m_data->m_sequences[*alias].m_aliasNext) {
-        if (!this->FinishLoadingLowPrioritySequence(*alias, static_cast<uint8_t*>(object->m_buffer), object->m_size)) {
-            return 0;
+    auto& data = *this->m_data;
+    // An alias ring shares one allocation. Validate every member before any
+    // member acquires pointers into that allocation.
+    for (int pass = 0; pass < 2; ++pass) {
+        uint32_t index = sequenceIndex;
+        for (uint32_t visited = 0; ; ++visited) {
+            if (index >= data.m_sequences.m_count || visited >= data.m_sequences.m_count ||
+                !M2InitSequence(reinterpret_cast<uint8_t*>(&data), this->m_fileSize, data, index,
+                    static_cast<uint8_t*>(object->m_buffer), object->m_size, pass == 0)) return 0;
+            index = data.m_sequences[index].m_aliasNext;
+            if (index == sequenceIndex) break;
         }
     }
 
@@ -1610,6 +1630,7 @@ int32_t CM2Shared::LoadSkinProfile(uint32_t profile) {
     }
 
     uint32_t size = SFileGetFileSize(file, nullptr);
+    if (size < sizeof(M2SkinProfile) || size > 64 * 1024 * 1024) { SFileCloseFile(file); return 0; }
     this->m_skinData = static_cast<M2SkinProfile*>(SIMD::AllocA16(size, __FILE__, __LINE__));
 
     if (!this->m_skinData) {
@@ -1791,7 +1812,8 @@ CM2SequenceLoad::~CM2SequenceLoad() {
 int32_t CM2Shared::Load(SFileImpl* file, int32_t flags, CAaBox* boundingBox) {
     this->m_flags = (this->m_flags & ~4u) | (flags ? 4 : 0);
     this->m_fileSize = SFileGetFileSize(file, nullptr);
-    this->m_data = static_cast<M2Data*>(SIMD::AllocA16(this->m_fileSize, __FILE__, __LINE__));
+    if (this->m_fileSize < sizeof(M2Data) || this->m_fileSize > 64 * 1024 * 1024) return 0;
+    this->m_data = static_cast<M2Data*>(M2AllocData(this->m_fileSize));
 
     if (!this->m_data) {
         return 0;
@@ -1852,7 +1874,7 @@ CM2Shared::~CM2Shared() {
     int32_t pending = 0;
 
     if (this->m_asyncObject) {
-        pending = !AsyncFile::Cancel(this->m_asyncObject, AsyncFileReadFreeA16);
+        pending = !AsyncFile::Cancel(this->m_asyncObject, this->m_asyncObject->m_buffer == this->m_skinData ? AsyncFileReadFreeA16 : AsyncFileReadFreeData);
     }
 
     if (this->m_cache) {
@@ -1928,7 +1950,7 @@ CM2Shared::~CM2Shared() {
 #endif
 
     if (!pending) {
-        SIMD::FreeA16(this->m_data);
+        M2FreeData(this->m_data);
     }
 }
 
@@ -1938,8 +1960,11 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
     CM2SequenceLoad* load = static_cast<CM2SequenceLoad*>(param);
     CM2Shared* shared = load->m_shared;
 
+    if (!shared->FinishLoadingLowPrioritySequence(load->m_sequenceIndex, load->m_asyncObject)) {
+        LowPrioritySequenceFailedCallback(param);
+        return;
+    }
     shared->m_flags |= 0x10;
-    shared->FinishLoadingLowPrioritySequence(load->m_sequenceIndex, load->m_asyncObject);
 
     CM2SequencePlayBack* playback = load->m_playbacks.Head();
 
@@ -1980,7 +2005,7 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
         shared->m_flags &= ~0x30u;
     } else {
         load->~CM2SequenceLoad();
-        SMemFree(load, typeid(CM2SequenceLoad).raw_name(), SLOG_OBJECT, 0);
+        SMemFree(load, typeid(CM2SequenceLoad).name(), SLOG_OBJECT, 0);
         shared->m_flags &= ~0x10u;
     }
 }
@@ -1989,13 +2014,33 @@ void CM2Shared::LowPrioritySequenceLoadedCallback(void* param) {
 // OFFSET: 0x0083D9F0
 void CM2Shared::LowPrioritySequenceFailedCallback(void* param) {
     CM2SequenceLoad* load = static_cast<CM2SequenceLoad*>(param);
+    CM2Shared* shared = load->m_shared;
+    uint32_t index = load->m_sequenceIndex;
+    for (uint32_t visited = 0; visited < shared->m_data->m_sequences.m_count; ++visited) {
+        if (index >= shared->m_data->m_sequences.m_count) break;
+        auto& sequence = shared->m_data->m_sequences[index];
+        sequence.m_flags &= ~0x10u;
+        index = sequence.m_aliasNext;
+        if (index == load->m_sequenceIndex) break;
+    }
+    auto*& buffer = shared->m_lowPrioritySequenceBuffers[load->m_sequenceBufferIndex];
+#if defined(WOWDECOMP_ARCH_64)
+    OsFreeNear(buffer);
+#else
+    SIMD::FreeA16(buffer);
+#endif
+    buffer = nullptr;
     load->~CM2SequenceLoad();
-    SMemFree(load, typeid(CM2SequenceLoad).raw_name(), SLOG_OBJECT, 0);
+    SMemFree(load, typeid(CM2SequenceLoad).name(), SLOG_OBJECT, 0);
 }
 
 // VERIFY: 0ec0803c manual
 // OFFSET: 0x0083DA10
 CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
+    if (sequenceIndex >= this->m_data->m_sequences.m_count) return nullptr;
+    uint32_t slot = 0;
+    while (slot < this->m_lowPrioritySequenceCount && this->m_lowPrioritySequenceBuffers[slot]) ++slot;
+    if (slot >= this->m_lowPrioritySequenceCapacity || slot > UINT16_MAX) return nullptr;
     M2Sequence* sequence = &this->m_data->m_sequences[sequenceIndex];
     CM2SequenceLoad* load = this->m_sequenceLoads.NewNode(2, 0, 0);
 
@@ -2008,7 +2053,12 @@ CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
 
     M2Sequence* source = sequence;
 
+    uint32_t visited = 0;
     while (source->m_flags & 0x40) {
+        if (source->m_aliasNext >= this->m_data->m_sequences.m_count || ++visited >= this->m_data->m_sequences.m_count) {
+            this->m_sequenceLoads.DeleteNode(load);
+            return nullptr;
+        }
         source = &this->m_data->m_sequences[source->m_aliasNext];
     }
 
@@ -2024,6 +2074,11 @@ CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
     }
 
     uint32_t size = SFileGetFileSize(file, nullptr);
+    if (!size || size > 64 * 1024 * 1024) {
+        this->m_sequenceLoads.DeleteNode(load);
+        SFileCloseFile(file);
+        return nullptr;
+    }
 #if defined(WOWDECOMP_ARCH_64)
     uint8_t* buffer = static_cast<uint8_t*>(OsAllocNear(this->m_data, size));
 #else
@@ -2049,12 +2104,14 @@ CM2SequenceLoad* CM2Shared::LoadLowPrioritySequence(uint16_t sequenceIndex) {
         return nullptr;
     }
 
-    load->m_sequenceBufferIndex = static_cast<uint16_t>(this->m_lowPrioritySequenceCount);
-    this->m_lowPrioritySequenceBuffers[this->m_lowPrioritySequenceCount++] = buffer;
+    load->m_sequenceBufferIndex = static_cast<uint16_t>(slot);
+    this->m_lowPrioritySequenceBuffers[slot] = buffer;
+    if (slot == this->m_lowPrioritySequenceCount) ++this->m_lowPrioritySequenceCount;
 
     sequence->m_flags |= 0x10;
 
-    for (uint16_t i = sequence->m_aliasNext; i != sequenceIndex; i = this->m_data->m_sequences[i].m_aliasNext) {
+    visited = 0;
+    for (uint16_t i = sequence->m_aliasNext; i != sequenceIndex && i < this->m_data->m_sequences.m_count && visited++ < this->m_data->m_sequences.m_count; i = this->m_data->m_sequences[i].m_aliasNext) {
         this->m_data->m_sequences[i].m_flags |= 0x10;
     }
 

@@ -127,7 +127,7 @@ class CM2Scene {
     uint32_t SphereTestModels(const C3Vector& start, const C3Vector& dir, float length, int32_t frameCheck);
     void TransformHitTestVertices(const CM2Model* model, const M2SkinProfile* skinData, const M2SkinSection* section, int32_t normals, const C3Vector& dir, float d);
     void TransformHitTestVerticesBlend(const CM2Model* model, const M2SkinProfile* skinData, const M2SkinSection* section, int32_t normals, const C3Vector& dir, float d);
-    void TransformHitTestVerticesBlendSSE(const CM2Model* model, const M2SkinProfile* skinData, const M2SkinSection* section, int32_t normals, const C3Vector& dir, float d);
+    void TransformHitTestVerticesBlendSIMD(const CM2Model* model, const M2SkinProfile* skinData, const M2SkinSection* section, int32_t normals, const C3Vector& dir, float d);
 };
 
 extern const uint32_t s_blendModes[3][7];
@@ -136,6 +136,6 @@ extern const uint32_t s_localLighting[7];
 uint32_t ParticleBlendToM2Blend(uint32_t blend);
 uint32_t ParticleFlagsToM2Flags(uint32_t flags);
 void M2BlendBoneMatrices(const C44Matrix* bones, ubyte4 weights, ubyte4 indices, C44Matrix* result);
-void M2BlendBoneMatricesSSE(const C44Matrix* bones, ubyte4 weights, ubyte4 indices, C44Matrix* result);
+void M2BlendBoneMatricesSIMD(const C44Matrix* bones, ubyte4 weights, ubyte4 indices, C44Matrix* result);
 
 #endif

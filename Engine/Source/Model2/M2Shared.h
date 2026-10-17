@@ -120,6 +120,7 @@ int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Track<T>& tra
 int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2TrackBase& track);
 int32_t M2Init(uint8_t* base, uint32_t size, const M2Data& data, M2Particle& particle);
 int32_t M2Init(uint8_t* base, uint32_t size, M2Data& data);
+int32_t M2InitSequence(uint8_t* base, uint32_t size, M2Data& data, uint32_t sequenceIndex, uint8_t* buffer, uint32_t bufferSize, bool validateOnly = false);
 void M2HeapSort(int32_t (*compare)(uint32_t, uint32_t, const void*), uint32_t* array, uint32_t count, const void* param);
 
 #endif

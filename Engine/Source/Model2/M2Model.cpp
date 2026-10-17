@@ -5,7 +5,8 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
-#include <xmmintrin.h>
+#include "Engine/Source/Model2/M2Vector.h"
+#include "Engine/Source/Model2/M2Skinning.h"
 #if defined(_MSC_VER)
 #include <malloc.h>
 #else
@@ -2748,8 +2749,8 @@ int32_t CM2Model::GetRegionBounds(M2SkinSection* section, CAaBox& box, C44Matrix
             weights = *reinterpret_cast<uint32_t*>(&vertex->m_weights);
             indices = *reinterpret_cast<uint32_t*>(&vertex->m_indices);
 
-            if (CM2Cache::s_processorFeatures & 4) {
-                M2BlendBoneMatricesSSE(this->m_boneMatrices, vertex->m_weights, vertex->m_indices, &transform);
+            if (M2Vector::Available(CM2Cache::s_processorFeatures)) {
+                M2BlendBoneMatricesSIMD(this->m_boneMatrices, vertex->m_weights, vertex->m_indices, &transform);
             } else {
                 M2BlendBoneMatrices(this->m_boneMatrices, vertex->m_weights, vertex->m_indices, &transform);
             }
@@ -3086,165 +3087,20 @@ void CM2Model::TransformVerticesNoUVSelect_cpp(const CM2Model* model, const M2Sk
     }
 }
 
-// VERIFY: 3101ba14 manual
-// OFFSET: 0x0082A210
 void CM2Model::TransformVertices_cpp(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
-    C44Matrix matrix;
-    uint32_t weights = 0;
-    uint32_t indices = 0;
-    const C44Matrix* bones = model->m_boneMatrices;
-    M2Vertex* vertex = &model->m_shared->m_data->m_vertices[section->m_vertexStart];
-    M2Vertex* end = vertex + section->m_vertexCount;
-    float* out = reinterpret_cast<float*>(vertices);
-
-    for (; vertex < end; vertex++, out += 8) {
-        if (*reinterpret_cast<uint32_t*>(&vertex->m_weights) != weights || *reinterpret_cast<uint32_t*>(&vertex->m_indices) != indices) {
-            weights = *reinterpret_cast<uint32_t*>(&vertex->m_weights);
-            indices = *reinterpret_cast<uint32_t*>(&vertex->m_indices);
-
-            const C44Matrix& bone = bones[vertex->m_indices.b[0]];
-            float weight = vertex->m_weights.b[0] * 0.0039215689f;
-            matrix.a0 = bone.a0 * weight;
-            matrix.a1 = bone.a1 * weight;
-            matrix.a2 = bone.a2 * weight;
-            matrix.b0 = bone.b0 * weight;
-            matrix.b1 = bone.b1 * weight;
-            matrix.b2 = bone.b2 * weight;
-            matrix.c0 = bone.c0 * weight;
-            matrix.c1 = bone.c1 * weight;
-            matrix.c2 = bone.c2 * weight;
-            matrix.d0 = bone.d0 * weight;
-            matrix.d1 = bone.d1 * weight;
-            matrix.d2 = bone.d2 * weight;
-
-            for (uint32_t k = 1; k < 4 && vertex->m_weights.b[k]; k++) {
-                const C44Matrix& next = bones[vertex->m_indices.b[k]];
-                weight = vertex->m_weights.b[k] * 0.0039215689f;
-                matrix.a0 += next.a0 * weight;
-                matrix.a1 += next.a1 * weight;
-                matrix.a2 += next.a2 * weight;
-                matrix.b0 += next.b0 * weight;
-                matrix.b1 += next.b1 * weight;
-                matrix.b2 += next.b2 * weight;
-                matrix.c0 += next.c0 * weight;
-                matrix.c1 += next.c1 * weight;
-                matrix.c2 += next.c2 * weight;
-                matrix.d0 += next.d0 * weight;
-                matrix.d1 += next.d1 * weight;
-                matrix.d2 += next.d2 * weight;
-            }
-        }
-
-        C3Vector position = vertex->m_position * matrix;
-        out[0] = position.x;
-        out[1] = position.y;
-        out[2] = position.z;
-        out[3] = vertex->m_normal.y * matrix.b0 + matrix.c0 * vertex->m_normal.z + matrix.a0 * vertex->m_normal.x;
-        out[4] = vertex->m_normal.y * matrix.b1 + matrix.c1 * vertex->m_normal.z + matrix.a1 * vertex->m_normal.x;
-        out[5] = vertex->m_normal.y * matrix.b2 + matrix.c2 * vertex->m_normal.z + matrix.a2 * vertex->m_normal.x;
-        out[6] = vertex->m_texcoord[texCoord].x;
-        out[7] = vertex->m_texcoord[texCoord].y;
-    }
+    M2TransformVertices_cpp(model->m_boneMatrices, &model->m_shared->m_data->m_vertices[section->m_vertexStart], section->m_vertexCount, vertices, texCoord);
 }
 
-// VERIFY: 3dfd45aa manual
-// OFFSET: 0x0082A4E0
 void CM2Model::TransformVerticesOneBone_cpp(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
-    const C44Matrix* bones = model->m_boneMatrices;
-    M2Vertex* vertex = &model->m_shared->m_data->m_vertices[section->m_vertexStart];
-    M2Vertex* end = vertex + section->m_vertexCount;
-    float* out = reinterpret_cast<float*>(vertices);
-
-    for (; vertex < end; vertex++, out += 8) {
-        const C44Matrix& bone = bones[vertex->m_indices.b[0]];
-        out[0] = bone.c0 * vertex->m_position.z + vertex->m_position.y * bone.b0 + vertex->m_position.x * bone.a0 + bone.d0;
-        out[1] = vertex->m_position.x * bone.a1 + vertex->m_position.y * bone.b1 + bone.c1 * vertex->m_position.z + bone.d1;
-        out[2] = vertex->m_position.x * bone.a2 + vertex->m_position.y * bone.b2 + bone.c2 * vertex->m_position.z + bone.d2;
-        out[3] = vertex->m_normal.x * bone.a0 + bone.c0 * vertex->m_normal.z + bone.b0 * vertex->m_normal.y;
-        out[4] = bone.c1 * vertex->m_normal.z + bone.b1 * vertex->m_normal.y + bone.a1 * vertex->m_normal.x;
-        out[5] = bone.c2 * vertex->m_normal.z + bone.b2 * vertex->m_normal.y + bone.a2 * vertex->m_normal.x;
-        out[6] = vertex->m_texcoord[texCoord].x;
-        out[7] = vertex->m_texcoord[texCoord].y;
-    }
+    M2TransformVerticesOneBone_cpp(model->m_boneMatrices, &model->m_shared->m_data->m_vertices[section->m_vertexStart], section->m_vertexCount, vertices, texCoord);
 }
 
-// VERIFY: edef765a manual
-// OFFSET: 0x0082A600
-void CM2Model::TransformVertices_sse(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
-    if (reinterpret_cast<uintptr_t>(vertices) & 0xF) {
-        CM2Model::TransformVertices_cpp(model, section, vertices, texCoord);
-        return;
-    }
-
-    uint32_t weights = 0;
-    uint32_t indices = 0;
-    const C44Matrix* bones = model->m_boneMatrices;
-    M2Vertex* vertex = &model->m_shared->m_data->m_vertices[section->m_vertexStart];
-    M2Vertex* end = vertex + section->m_vertexCount;
-    float* out = reinterpret_cast<float*>(vertices);
-    __m128 row0;
-    __m128 row1;
-    __m128 row2;
-    __m128 row3;
-
-    while (vertex != end) {
-        if (static_cast<uint32_t>(vertex->m_weights) != weights || static_cast<uint32_t>(vertex->m_indices) != indices) {
-            weights = static_cast<uint32_t>(vertex->m_weights);
-            indices = static_cast<uint32_t>(vertex->m_indices);
-
-            __m128 weight = _mm_set1_ps(vertex->m_weights[0] * 0.0039215689f);
-            const float* bone = reinterpret_cast<const float*>(&bones[vertex->m_indices[0]]);
-            row0 = _mm_mul_ps(_mm_load_ps(&bone[0]), weight);
-            row1 = _mm_mul_ps(_mm_load_ps(&bone[4]), weight);
-            row2 = _mm_mul_ps(_mm_load_ps(&bone[8]), weight);
-            row3 = _mm_mul_ps(_mm_load_ps(&bone[12]), weight);
-
-            for (uint32_t i = 1; i < 4 && vertex->m_weights[i]; i++) {
-                weight = _mm_set1_ps(vertex->m_weights[i] * 0.0039215689f);
-                bone = reinterpret_cast<const float*>(&bones[vertex->m_indices[i]]);
-                row0 = _mm_add_ps(row0, _mm_mul_ps(_mm_load_ps(&bone[0]), weight));
-                row1 = _mm_add_ps(row1, _mm_mul_ps(_mm_load_ps(&bone[4]), weight));
-                row2 = _mm_add_ps(row2, _mm_mul_ps(_mm_load_ps(&bone[8]), weight));
-                row3 = _mm_add_ps(row3, _mm_mul_ps(_mm_load_ps(&bone[12]), weight));
-            }
-        }
-
-        __m128 normal = _mm_add_ps(_mm_add_ps(_mm_mul_ps(_mm_set1_ps(vertex->m_normal.x), row0), _mm_mul_ps(_mm_set1_ps(vertex->m_normal.y), row1)), _mm_mul_ps(_mm_set1_ps(vertex->m_normal.z), row2));
-        __m128 position = _mm_add_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(_mm_set1_ps(vertex->m_position.x), row0), _mm_mul_ps(_mm_set1_ps(vertex->m_position.y), row1)), _mm_mul_ps(_mm_set1_ps(vertex->m_position.z), row2)), row3);
-        _mm_store_ps(&out[0], position);
-        _mm_storeu_ps(&out[3], normal);
-        out[6] = vertex->m_texcoord[texCoord].x;
-        out[7] = vertex->m_texcoord[texCoord].y;
-        vertex++;
-        out += 8;
-    }
+void CM2Model::TransformVertices_simd(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
+    M2TransformVertices_simd(model->m_boneMatrices, &model->m_shared->m_data->m_vertices[section->m_vertexStart], section->m_vertexCount, vertices, texCoord);
 }
 
-// VERIFY: 9d870aa4 manual
-// OFFSET: 0x0082AC10
-void CM2Model::TransformVerticesOneBone_sse(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
-    if (reinterpret_cast<uintptr_t>(vertices) & 0xF) {
-        CM2Model::TransformVerticesOneBone_cpp(model, section, vertices, texCoord);
-        return;
-    }
-
-    const C44Matrix* bones = model->m_boneMatrices;
-    M2Vertex* vertex = &model->m_shared->m_data->m_vertices[section->m_vertexStart];
-    M2Vertex* end = vertex + section->m_vertexCount;
-    float* out = reinterpret_cast<float*>(vertices);
-
-    for (; vertex < end; vertex++, out += 8) {
-        const float* bone = reinterpret_cast<const float*>(&bones[vertex->m_indices.b[0]]);
-        __m128 row0 = _mm_load_ps(&bone[0]);
-        __m128 row1 = _mm_load_ps(&bone[4]);
-        __m128 row2 = _mm_load_ps(&bone[8]);
-        __m128 position = _mm_add_ps(_mm_add_ps(_mm_mul_ps(row2, _mm_set1_ps(vertex->m_position.z)), _mm_add_ps(_mm_mul_ps(row1, _mm_set1_ps(vertex->m_position.y)), _mm_mul_ps(row0, _mm_set1_ps(vertex->m_position.x)))), _mm_load_ps(&bone[12]));
-        __m128 normal = _mm_add_ps(_mm_add_ps(_mm_mul_ps(row0, _mm_set1_ps(vertex->m_normal.x)), _mm_mul_ps(row1, _mm_set1_ps(vertex->m_normal.y))), _mm_mul_ps(_mm_set1_ps(vertex->m_normal.z), row2));
-        _mm_store_ps(&out[0], position);
-        _mm_storeu_ps(&out[3], normal);
-        out[6] = vertex->m_texcoord[texCoord].x;
-        out[7] = vertex->m_texcoord[texCoord].y;
-    }
+void CM2Model::TransformVerticesOneBone_simd(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
+    M2TransformVerticesOneBone_simd(model->m_boneMatrices, &model->m_shared->m_data->m_vertices[section->m_vertexStart], section->m_vertexCount, vertices, texCoord);
 }
 
 // VERIFY: c111136b auto
@@ -3865,12 +3721,12 @@ CM2Model::CM2Model() {
         CM2Model::s_transformVertices[3] = CM2Model::TransformVertices_cpp;
         CM2Model::s_transformVertices[4] = CM2Model::TransformVertices_cpp;
 
-        if (CM2Cache::s_processorFeatures & 4) {
-            CM2Model::s_transformVertices[0] = CM2Model::TransformVertices_sse;
-            CM2Model::s_transformVertices[1] = CM2Model::TransformVerticesOneBone_sse;
-            CM2Model::s_transformVertices[2] = CM2Model::TransformVertices_sse;
-            CM2Model::s_transformVertices[3] = CM2Model::TransformVertices_sse;
-            CM2Model::s_transformVertices[4] = CM2Model::TransformVertices_sse;
+        if (M2Vector::Available(CM2Cache::s_processorFeatures)) {
+            CM2Model::s_transformVertices[0] = CM2Model::TransformVertices_simd;
+            CM2Model::s_transformVertices[1] = CM2Model::TransformVerticesOneBone_simd;
+            CM2Model::s_transformVertices[2] = CM2Model::TransformVertices_simd;
+            CM2Model::s_transformVertices[3] = CM2Model::TransformVertices_simd;
+            CM2Model::s_transformVertices[4] = CM2Model::TransformVertices_simd;
         }
     }
 }

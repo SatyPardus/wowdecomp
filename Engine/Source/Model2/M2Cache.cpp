@@ -1,3 +1,4 @@
+#include "Engine/Source/Model2/M2Vector.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -135,7 +136,7 @@ int32_t CM2Cache::Initialize(uint32_t flags) {
         }
     }
 
-    if (!(this->m_flags & 8) && !(CM2Cache::s_processorFeatures & 4)) {
+    if (!(this->m_flags & 8) && !(M2Vector::Available(CM2Cache::s_processorFeatures))) {
         this->m_flags |= 0x40;
     }
 

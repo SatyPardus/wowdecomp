@@ -158,6 +158,16 @@ resources in app-owned directories. Real cached texture mip reloads and a 2048
 square palette upload are checked through GPU readback. Remaining texture formats,
 atlases, model loading and full client startup are still being connected.
 
+The original Model2 and ShaderEffect sources now compile for all Apple targets.
+The data probe relocates the original camera and NorthrendSkeleton M2 arrays,
+loads a real external animation through `CM2Shared`, and checks bounded nested
+tracks and retry after a truncated animation. Apple model roots use separate VM
+allocations so external animation and expanded vertex data remain within the
+32-bit relative-pointer range, including under ASan. Native NEON matrix blending
+and CPU skinning retain the original weighted/one-bone calculations and both UV
+sets; the same kernels retain an SSE path for x86. These checks do not yet exercise
+the complete model scene, animation playback, material setup or Metal model draw.
+
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
 It uploads original BC blocks when the device supports them; otherwise it expands
