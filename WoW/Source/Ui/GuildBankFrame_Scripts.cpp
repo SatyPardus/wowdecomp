@@ -345,11 +345,39 @@ static int32_t Script_GetGuildBankItemInfo(lua_State* L) {
     uint32_t slot = static_cast<int32_t>(lua_tonumber(L, 2)) - 1;
     GuildBankSlotInfo* info;
     ItemRec* rec;
+    ItemStats_C* stats;
 
-    if (tab < 6 && slot < CGGuildBankInfo::m_tabSlots[tabByte].m_count && (info = &CGGuildBankInfo::m_tabSlots[tab].m_data[slot])->m_itemID && info && ClntObjMgrGetActivePlayerObj() && (rec = g_itemDB.GetRecord(info->m_itemID))) {
+    if (tab < 6 && slot < CGGuildBankInfo::m_tabSlots[tabByte].m_count &&
+        (info = &CGGuildBankInfo::m_tabSlots[tab].m_data[slot]) && info->m_itemID && ClntObjMgrGetActivePlayerObj()) {
+        WOWGUID none = WOWGUID();
+        rec = g_itemDB.GetRecord(info->m_itemID);
+        stats = g_itemDBCache.GetRecord(info->m_itemID, none, nullptr, nullptr, false);
+
+        // Keep the original local-DBC path as the primary source. Server
+        // cache records can describe custom items, but a stale/invalid server
+        // display ID must not replace a valid local record.
+        int32_t displayId = 0;
+        ItemDisplayInfoRec display;
+
+        if (rec && rec->m_displayInfoID && g_itemDisplayInfoDB.GetRecord(rec->m_displayInfoID, &display)) {
+            displayId = rec->m_displayInfoID;
+        } else if (stats && stats->m_displayId && g_itemDisplayInfoDB.GetRecord(stats->m_displayId, &display)) {
+            displayId = static_cast<int32_t>(stats->m_displayId);
+        }
+
+        // GetInventoryArt returns the red question-mark texture for an
+        // unknown display ID. Keep the slot pending/empty until valid item
+        // metadata is available instead of exposing that fallback icon.
+        if (!displayId) {
+            lua_pushnil(L);
+            lua_pushnumber(L, 0.0);
+            lua_pushnil(L);
+            return 3;
+        }
+
         const char* path = ClientDBStringLookup(3);
         char texture[260];
-        SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(rec->m_displayInfoID));
+        SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(displayId));
         lua_pushstring(L, texture);
         lua_pushnumber(L, info->m_count);
 
