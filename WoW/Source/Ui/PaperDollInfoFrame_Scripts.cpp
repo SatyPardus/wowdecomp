@@ -186,7 +186,7 @@ static int32_t Script_GetInventorySlotInfo(lua_State* L) {
         int32_t count = g_paperDollItemFrameDB.m_numRecords;
 
         for (int32_t i = 0; i < count; i++) {
-            PaperDollItemFrameRec* rec = i < 0 || i >= g_paperDollItemFrameDB.m_numRecords ? nullptr : &g_paperDollItemFrameDB.m_records[i];
+            PaperDollItemFrameRec* rec = &g_paperDollItemFrameDB.m_records[i];
 
             if (rec && !SStrCmpI(rec->m_itemButtonName, name, STORM_MAX_STR)) {
                 lua_pushnumber(L, rec->m_slotNumber);
@@ -581,7 +581,7 @@ static int32_t Script_GetInventoryItemsForSlot(lua_State* L) {
             const char* name = lua_tolstring(L, 1, nullptr);
 
             for (int32_t i = 0; i < g_paperDollItemFrameDB.m_numRecords; i++) {
-                PaperDollItemFrameRec* rec = i >= 0 && i < g_paperDollItemFrameDB.m_numRecords ? &g_paperDollItemFrameDB.m_records[i] : nullptr;
+                PaperDollItemFrameRec* rec = &g_paperDollItemFrameDB.m_records[i];
 
                 if (rec && !SStrCmpI(rec->m_itemButtonName, name, STORM_MAX_STR)) {
                     slot = rec->m_slotNumber;

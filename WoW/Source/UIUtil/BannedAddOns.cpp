@@ -256,7 +256,7 @@ static _BANNEDADDON* GetBannedAddOn(int32_t id, const int32_t* lastModified, int
 // OFFSET: 0x005F45B0
 static void LoadDatabase() {
     for (int32_t i = 0; i < g_bannedAddOnsDB.m_numRecords; i++) {
-        BannedAddOnsRec* record = i >= 0 && i < g_bannedAddOnsDB.m_numRecords ? &g_bannedAddOnsDB.m_records[i] : nullptr;
+        BannedAddOnsRec* record = &g_bannedAddOnsDB.m_records[i];
 
         if (!record) {
             continue;

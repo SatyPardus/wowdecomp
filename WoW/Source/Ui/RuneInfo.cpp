@@ -59,15 +59,7 @@ void CGRuneInfo::InitializeGame() {
 // VERIFY: 2b125080 manual
 // OFFSET: 0x005EDFC0
 bool CGRuneInfo::IsRuneIndexValid(int32_t index) {
-    if (index > 7) {
-        return false;
-    }
-
-    if (CGRuneInfo::m_numRunes) {
-        return static_cast<uint32_t>(index) < CGRuneInfo::m_numRunes;
-    }
-
-    return index < 8;
+    return index >= 0 && static_cast<uint32_t>(index) < CGRuneInfo::m_numRunes;
 }
 
 // VERIFY: afb005fb auto

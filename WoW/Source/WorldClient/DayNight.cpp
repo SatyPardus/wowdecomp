@@ -370,7 +370,11 @@ void DayNight::LightLoad(TSGrowableArray<const LightRec*>& lights, int32_t mapId
     uint32_t count = 1;
 
     for (int32_t i = 0; i < g_lightDB.m_numRecords; i++) {
-        const LightRec* light = i >= 0 && i < g_lightDB.m_numRecords ? &g_lightDB.m_records[i] : nullptr;
+        const LightRec* light = &g_lightDB.m_records[i];
+
+        if (!light) {
+            continue;
+        }
 
         if (light->m_continentID == mapId && (light->m_gameCoords[0] != 0.0f || light->m_gameCoords[1] != 0.0f || light->m_gameCoords[2] != 0.0f)) {
             count++;
@@ -382,9 +386,9 @@ void DayNight::LightLoad(TSGrowableArray<const LightRec*>& lights, int32_t mapId
     uint32_t index = 1;
 
     for (int32_t i = 0; i < g_lightDB.m_numRecords; i++) {
-        const LightRec* light = i >= 0 && i < g_lightDB.m_numRecords ? &g_lightDB.m_records[i] : nullptr;
+        const LightRec* light = &g_lightDB.m_records[i];
 
-        if (light->m_continentID != mapId) {
+        if (!light || light->m_continentID != mapId) {
             continue;
         }
 

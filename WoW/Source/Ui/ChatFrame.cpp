@@ -763,7 +763,7 @@ ChatChannel* GetChannelByName(const char* name) {
 // OFFSET: 0x004FE2D0
 int32_t StringToLanguage(const char* string, uint32_t* language) {
     for (int32_t i = 0; i < g_languagesDB.m_numRecords; i++) {
-        LanguagesRec* rec = (i < 0 || i >= g_languagesDB.m_numRecords) ? nullptr : &g_languagesDB.m_records[i];
+        LanguagesRec* rec = &g_languagesDB.m_records[i];
 
         if (rec && !SStrCmpUTF8I(string, rec->m_name, STORM_MAX_STR)) {
             *language = rec->m_id;
@@ -2846,7 +2846,7 @@ int32_t CGChat::OnChannelNotify(void* param, NETMESSAGE msgId, uint32_t time, CD
 // OFFSET: 0x0050EDD0
 void CGChat::InitializeGame() {
     for (int32_t i = 0; i < g_languageWordsDB.m_numRecords; i++) {
-        LanguageWordsRec* rec = (i < 0 || i >= g_languageWordsDB.m_numRecords) ? nullptr : &g_languageWordsDB.m_records[i];
+        LanguageWordsRec* rec = &g_languageWordsDB.m_records[i];
 
         if (!rec || !rec->m_word || !*rec->m_word) {
             continue;
@@ -2901,9 +2901,12 @@ void CGChat::InitializeGame() {
         }
     }
 
-    for (int32_t i = g_areaTableDB.m_numRecords; i;) {
-        i--;
-        AreaTableRec* area = (i < 0 || i >= g_areaTableDB.m_numRecords) ? nullptr : &g_areaTableDB.m_records[i];
+    for (int32_t i = g_areaTableDB.m_numRecords - 1; i >= 0; i--) {
+        AreaTableRec* area = &g_areaTableDB.m_records[i];
+
+        if (!area) {
+            continue;
+        }
 
         if (area->m_flags & 0x200) {
             s_cityArea = area;

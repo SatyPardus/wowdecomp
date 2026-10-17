@@ -1972,12 +1972,14 @@ void CGlueMgr::EnterWorld() {
         return;
     }
 
-    CharacterSelectionDisplay* display = CCharacterSelection::s_selectionIndex < 0 || CCharacterSelection::s_selectionIndex >= static_cast<int32_t>(CCharacterSelection::s_characterList.Count()) ? nullptr : &CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex];
-    CGlueMgr::m_characterInfo = &display->m_characterInfo;
+    CharacterSelectionDisplay* display = &CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex];
 
     if (!display) {
         return;
     }
+
+    CGlueMgr::m_characterInfo = &display->m_characterInfo;
+
 
     CGlueMgr::s_displayedCharacterIndex = CCharacterSelection::s_selectionIndex;
 
@@ -2038,12 +2040,15 @@ void CGlueMgr::EnterWorld() {
         }
 
         if (g_gameTipsDB.m_numRecords > 0) {
-            GameTipsRec* tipRec = tip >= 0 && tip < g_gameTipsDB.m_numRecords ? &g_gameTipsDB.m_records[tip] : nullptr;
-            LoadingScreenSetTip(tipRec->m_text);
+            GameTipsRec* tipRec = &g_gameTipsDB.m_records[tip];
 
-            char tipString[40];
-            SStrPrintf(tipString, sizeof(tipString), "%d", tip + 1);
-            s_curGameTip->Set(tipString, true, false, false, true);
+            if (tipRec) {
+                LoadingScreenSetTip(tipRec->m_text);
+
+                char tipString[40];
+                SStrPrintf(tipString, sizeof(tipString), "%d", tip + 1);
+                s_curGameTip->Set(tipString, true, false, false, true);
+            }
         }
     }
 

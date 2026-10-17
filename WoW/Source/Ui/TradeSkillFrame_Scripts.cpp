@@ -213,7 +213,11 @@ static int32_t Script_GetTradeSkillSubClasses(lua_State* L) {
     uint32_t count = CGTradeSkillInfo::m_numSubClasses;
 
     for (uint32_t i = 0; i < count; i++) {
-        TradeSkillSubClassInfo* subClass = i < CGTradeSkillInfo::m_numSubClasses ? CGTradeSkillInfo::m_subClassList.m_data[i] : nullptr;
+        TradeSkillSubClassInfo* subClass = CGTradeSkillInfo::m_subClassList.m_data[i];
+
+        if (!subClass) {
+            continue;
+        }
 
         if (subClass->m_itemClass == -1 && subClass->m_itemSubClass == -1) {
             SkillLineRec* skillLine = g_skillLineDB.GetRecord(CGTradeSkillInfo::m_skillLineID);

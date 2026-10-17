@@ -831,10 +831,13 @@ void CMap::FootprintInitialize() {
 
     int32_t index = g_footprintTexturesDB.m_numRecords;
 
-    while (index) {
-        index--;
+    for (int32_t index = g_footprintTexturesDB.m_numRecords - 1; index >= 0; index--) {
+        FootprintTexturesRec* record = &g_footprintTexturesDB.m_records[index];
 
-        FootprintTexturesRec* record = (index < 0 || index >= g_footprintTexturesDB.m_numRecords) ? nullptr : &g_footprintTexturesDB.m_records[index];
+        if (!record) {
+            continue;
+        }
+
         CMapFootprintTexture* footprint = &s_footprintTextures[record->m_id];
 
         if (!footprint->m_texture) {

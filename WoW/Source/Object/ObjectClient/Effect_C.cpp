@@ -69,7 +69,11 @@ static int32_t BuildSpecialUnitEffectTable() {
     memset(s_specialUnitEffectIDs, 0, sizeof(s_specialUnitEffectIDs));
 
     for (int32_t i = 0; i < g_spellVisualEffectNameDB.m_numRecords; i++) {
-        SpellVisualEffectNameRec* rec = (i < 0 || i >= g_spellVisualEffectNameDB.m_numRecords) ? nullptr : &g_spellVisualEffectNameDB.m_records[i];
+        SpellVisualEffectNameRec* rec = &g_spellVisualEffectNameDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         for (uint32_t effect = 0; effect < sizeof(s_specialUnitEffectNames) / sizeof(s_specialUnitEffectNames[0]); effect++) {
             if (!SStrCmp(s_specialUnitEffectNames[effect], rec->m_name, STORM_MAX_STR)) {

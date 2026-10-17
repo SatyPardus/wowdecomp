@@ -464,12 +464,11 @@ static int32_t GetWeaponSubClassCount(int32_t* count) {
 
     int32_t maxSubClass = 0;
     int32_t found = 0;
-    int32_t index = g_itemSubClassDB.m_numRecords;
 
-    while (index--) {
-        const ItemSubClassRec* rec = index >= 0 && index < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[index] : nullptr;
+    for(int32_t index = g_itemSubClassDB.m_numRecords - 1; index >= 0; index-- ) {
+        const ItemSubClassRec* rec = &g_itemSubClassDB.m_records[index];
 
-        if (rec->m_classID == 2) {
+        if (rec && rec->m_classID == 2) {
             found = 1;
 
             if (maxSubClass <= rec->m_subClassID) {
@@ -3799,7 +3798,7 @@ int32_t Packet_Group_17(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
         }
 
         for (int32_t i = 0; i < 25; i++) {
-            PlayerQuestLogEntry* entry = i >= 0 && i <= 25 ? &player->m_player->m_playerQuestLog[i] : nullptr;
+            PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[i];
 
             if (entry && entry->m_questId == questId) {
                 if (entry->m_state & 0x2) {
@@ -4790,7 +4789,11 @@ void CGPlayer_C::AddKnownSpell(int32_t spellId, int32_t a2, int32_t a3, int32_t 
 
         if (proficiency) {
             for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-                ItemSubClassRec* rec = (i < 0 || i >= g_itemSubClassDB.m_numRecords) ? nullptr : &g_itemSubClassDB.m_records[i];
+                ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
+
+                if (!rec) {
+                    continue;
+                }
 
                 if (rec->m_classID <= 0 || rec->m_classID != spell.m_equippedItemClass || 1 << rec->m_subClassID != spell.m_equippedItemSubclass) {
                     continue;

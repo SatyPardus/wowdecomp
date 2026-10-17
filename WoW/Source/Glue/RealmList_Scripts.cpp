@@ -147,9 +147,9 @@ static int32_t Script_GetRealmInfo(lua_State* L) {
     bool pvp = false;
 
     for (int32_t i = 0; i < g_cfg_ConfigsDB.m_numRecords; i++) {
-        Cfg_ConfigsRec* config = i < 0 || i >= g_cfg_ConfigsDB.m_numRecords ? nullptr : &g_cfg_ConfigsDB.m_records[i];
+        const Cfg_ConfigsRec* config = &g_cfg_ConfigsDB.m_records[i];
 
-        if (config->m_realmType == realm->m_type) {
+        if (config && config->m_realmType == realm->m_type) {
             roleplaying = config->m_roleplaying != 0;
             pvp = config->m_playerKillingAllowed != 0;
             break;

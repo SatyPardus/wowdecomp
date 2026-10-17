@@ -71,7 +71,7 @@ static int32_t Script_CanSignPetition(lua_State* L) {
     }
 
     for (uint32_t i = 0; i < CGPetitionInfo::m_numPetitionNames; i++) {
-        PetitionSignerInfo* signer = i < CGPetitionInfo::m_numPetitionNames ? &CGPetitionInfo::m_signers.m_data[i] : nullptr;
+        PetitionSignerInfo* signer = &CGPetitionInfo::m_signers.m_data[i];
 
         if (signer && signer->m_guid == ClntObjMgrGetActivePlayer()) {
             lua_pushnil(L);

@@ -207,9 +207,7 @@ void UpdateModelForUI(const WOWGUID& guid, uint32_t flags) {
         if (portrait) {
             portrait->m_cache.m_dirty = 1;
         }
-    }
-
-    if (flags & 2) {
+    
         Script_SendUniqueSignal(guid, SCRIPT_EVENT_UNIT_PORTRAIT_UPDATE);
     }
 

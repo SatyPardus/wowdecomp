@@ -2013,7 +2013,7 @@ void CGMinimapFrame::Render() {
         }
 
         for (uint32_t i = 0; i < CGBattlefieldInfo::m_numVehicles; i++) {
-            WOWGUID vehicleGuid = i < CGBattlefieldInfo::m_numVehicles ? CGBattlefieldInfo::m_vehicleGuids[i] : WOWGUID();
+            WOWGUID vehicleGuid = CGBattlefieldInfo::m_vehicleGuids[i];
             CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(vehicleGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
             if (!vehicle || vehicle->IsDeadOrGhost()) {
@@ -2363,7 +2363,7 @@ static void SetMemberData(WOWGUID guid, MEMBERINFO* member, CGPlayer_C* player, 
     if (unit) {
         if (unit->m_vehiclePassenger && unit->m_vehiclePassenger->m_state) {
             for (uint32_t i = 0; i < CGBattlefieldInfo::m_numVehicles; i++) {
-                WOWGUID vehicleGuid = i < CGBattlefieldInfo::m_numVehicles ? CGBattlefieldInfo::m_vehicleGuids[i] : WOWGUID();
+                WOWGUID vehicleGuid = CGBattlefieldInfo::m_vehicleGuids[i];
                 CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(vehicleGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
                 if (!vehicle) {

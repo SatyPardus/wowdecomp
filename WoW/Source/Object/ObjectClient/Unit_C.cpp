@@ -3943,9 +3943,9 @@ int32_t AnimationData::FindIdByBehaviorAndTier(uint32_t behavior, int32_t tier, 
     }
 
     for (int32_t i = 0; i < count; i++) {
-        AnimationDataRec* candidate = (i < 0 || i >= count) ? nullptr : &records[i];
+        AnimationDataRec* candidate = &records[i];
 
-        if (candidate->m_behaviorID == static_cast<int32_t>(behavior) && candidate->m_behaviorTier == tier) {
+        if (candidate && candidate->m_behaviorID == static_cast<int32_t>(behavior) && candidate->m_behaviorTier == tier) {
             *anim = candidate->m_id;
             return 1;
         }
@@ -5039,10 +5039,12 @@ void CGUnit_C::OnRightClick() {
 // VERIFY: b45861d0 auto
 // OFFSET: 0x007165D0
 static void CacheEmoteRecords() {
-    int32_t index = g_emotesDB.m_numRecords;
+    for(int32_t index = g_emotesDB.m_numRecords - 1; index >= 0; index-- ) {
+        EmotesRec* rec = &g_emotesDB.m_records[index];
 
-    while (index--) {
-        EmotesRec* rec = index >= 0 && index < g_emotesDB.m_numRecords ? &g_emotesDB.m_records[index] : nullptr;
+        if (!rec) {
+            continue;
+        }
 
         if (rec->m_emoteFlags & 0x8) {
             s_talkEmotes[0] = rec;
@@ -5277,8 +5279,12 @@ void CGUnit_C::Initialize() {
 
     int32_t index = g_environmentalDamageDB.m_numRecords;
 
-    while (index--) {
-        EnvironmentalDamageRec* rec = index >= 0 && index < g_environmentalDamageDB.m_numRecords ? &g_environmentalDamageDB.m_records[index] : nullptr;
+    for (int32_t index = g_emotesDB.m_numRecords - 1; index >= 0; index--) {
+        EnvironmentalDamageRec* rec = &g_environmentalDamageDB.m_records[index];
+
+        if (!rec) {
+            continue;
+        }
 
         if (static_cast<uint32_t>(rec->m_enumID) < sizeof(g_environmentalDamageVisualKits) / sizeof(g_environmentalDamageVisualKits[0])) {
             g_environmentalDamageVisualKits[rec->m_enumID] = rec->m_visualkitID;
@@ -6437,7 +6443,7 @@ CreatureSoundDataRec* CGUnit_C::GetMountSoundDataRec() const {
 // OFFSET: 0x00719900
 int32_t __stdcall CGUnit_C::GetRecordForTitle(int32_t maskId) {
     for (int32_t i = 0; i < g_charTitlesDB.m_numRecords; i++) {
-        CharTitlesRec* rec = (i < 0 || i >= g_charTitlesDB.m_numRecords) ? nullptr : &g_charTitlesDB.m_records[i];
+        CharTitlesRec* rec = &g_charTitlesDB.m_records[i];
 
         if (rec && rec->m_maskID == maskId) {
             return rec->m_id;
@@ -6956,7 +6962,7 @@ int32_t CGUnit_C::FindDefaultAnimForTier(int32_t tier, uint32_t* anim) const {
             while (true) {
                 AnimationDataRec* candidate = (i < 0 || i >= g_animationDataDB.m_numRecords) ? nullptr : rec;
 
-                if (!candidate->m_behaviorID && candidate->m_behaviorTier == tier) {
+                if (candidate && !candidate->m_behaviorID && candidate->m_behaviorTier == tier) {
                     id = candidate->m_id;
                     break;
                 }

@@ -185,7 +185,7 @@ static int32_t Script_GetTrainerSkillLines(lua_State* L) {
     uint32_t count = CGClassTrainer::m_numSkillLines;
 
     for (uint32_t i = 0; i < count; i++) {
-        int32_t skillLine = i < CGClassTrainer::m_numSkillLines ? CGClassTrainer::m_skillLines.m_data[i]->m_skillLine : 0;
+        int32_t skillLine = CGClassTrainer::m_skillLines.m_data[i]->m_skillLine;
         SkillLineRec* rec = g_skillLineDB.GetRecord(skillLine);
         lua_pushstring(L, rec ? rec->m_displayName : nullptr);
     }

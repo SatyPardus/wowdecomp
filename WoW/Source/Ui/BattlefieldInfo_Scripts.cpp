@@ -827,7 +827,7 @@ static int32_t Script_GetBattlefieldPosition(lua_State* L) {
     WOWGUID guid;
 
     for (index = 0; index < CGBattlefieldInfo::m_numPlayerPositions; index++) {
-        guid = index >= CGBattlefieldInfo::m_numPlayerPositions ? WOWGUID() : CGBattlefieldInfo::m_playerPositionGuids[index];
+        guid = CGBattlefieldInfo::m_playerPositionGuids[index];
 
         if (CGPartyInfo::IsMember(guid) || IsGuidInMyRaid(guid)) {
             continue;

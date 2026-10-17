@@ -358,10 +358,7 @@ void CGArenaTeamInfo::SetRosterShowOffline(int32_t showOffline) {
     for (uint32_t i = 0; i < 3; i++) {
         if (CGArenaTeamInfo::m_arenaTeams[i].m_numMembers) {
             qsort(CGArenaTeamInfo::m_arenaTeams[i].m_members.m_data, CGArenaTeamInfo::m_arenaTeams[i].m_numMembers, sizeof(ArenaTeamMember*), QSortRoster);
-
-            if (i < 3) {
-                FrameScript_SignalEvent(SCRIPT_EVENT_ARENA_TEAM_ROSTER_UPDATE, nullptr);
-            }
+            FrameScript_SignalEvent(SCRIPT_EVENT_ARENA_TEAM_ROSTER_UPDATE, nullptr);
         }
     }
 }
@@ -392,10 +389,7 @@ void CGArenaTeamInfo::SortRoster(int32_t column) {
     for (uint32_t i = 0; i < 3; i++) {
         if (CGArenaTeamInfo::m_arenaTeams[i].m_numMembers) {
             qsort(CGArenaTeamInfo::m_arenaTeams[i].m_members.m_data, CGArenaTeamInfo::m_arenaTeams[i].m_numMembers, sizeof(ArenaTeamMember*), QSortRoster);
-
-            if (i < 3) {
-                FrameScript_SignalEvent(SCRIPT_EVENT_ARENA_TEAM_ROSTER_UPDATE, nullptr);
-            }
+            FrameScript_SignalEvent(SCRIPT_EVENT_ARENA_TEAM_ROSTER_UPDATE, nullptr);
         }
     }
 }
@@ -462,7 +456,7 @@ void CGArenaTeamInfo::UpdateTeams(int32_t signal) {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        uint32_t* info = i < 3 ? &player->m_player->m_playerFieldArenaTeamInfo11[i * 7] : nullptr;
+        uint32_t* info = &player->m_player->m_playerFieldArenaTeamInfo11[i * 7];
 
         if (!info) {
             continue;

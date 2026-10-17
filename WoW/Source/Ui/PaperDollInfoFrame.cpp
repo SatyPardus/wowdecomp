@@ -176,7 +176,11 @@ int32_t ResolveInventorySlotArg(lua_State* L, int32_t index, int32_t& slot) {
         const char* name = lua_tolstring(L, index, nullptr);
 
         for (int32_t i = 0; i < g_paperDollItemFrameDB.m_numRecords; i++) {
-            PaperDollItemFrameRec* rec = i >= 0 && i < g_paperDollItemFrameDB.m_numRecords ? &g_paperDollItemFrameDB.m_records[i] : nullptr;
+            PaperDollItemFrameRec* rec = &g_paperDollItemFrameDB.m_records[i];
+
+            if (!rec) {
+                continue;
+            }
 
             if (!SStrCmpI(rec->m_itemButtonName, name, STORM_MAX_STR)) {
                 slot = rec->m_slotNumber;
@@ -247,7 +251,7 @@ int32_t Packet_MSG_INSPECT_ARENA_TEAMS(void* param, NETMESSAGE msgId, uint32_t t
     uint8_t slot;
     msg->Get(slot);
 
-    if (slot > 3) {
+    if (slot >= 3) {
         msg->m_read = msg->m_size;
         return 1;
     }

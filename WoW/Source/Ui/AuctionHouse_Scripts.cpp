@@ -120,7 +120,11 @@ static int32_t Script_GetAuctionItemSubClasses(lua_State* L) {
     int32_t count = 0;
 
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-        ItemSubClassRec* rec = i < 0 || i >= g_itemSubClassDB.m_numRecords ? nullptr : &g_itemSubClassDB.m_records[i];
+        ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (rec->m_classID == s_auctionClasses[index].m_classID && !(rec->m_displayFlags & 0x2)) {
             lua_checkstack(L, 1);
@@ -150,7 +154,11 @@ static int32_t Script_GetAuctionInvTypes(lua_State* L) {
     int32_t remaining = subClass;
 
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-        ItemSubClassRec* rec = i < 0 || i >= g_itemSubClassDB.m_numRecords ? nullptr : &g_itemSubClassDB.m_records[i];
+        ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (rec->m_classID != s_auctionClasses[classIndex].m_classID || (rec->m_displayFlags & 0x2)) {
             continue;
@@ -327,7 +335,11 @@ static int32_t Script_IsAuctionSortReversed(lua_State* L) {
     }
 
     for (uint32_t i = 0; i < 12; i++) {
-        AuctionSortCriteria* entry = i < 12 ? &criteria[i] : nullptr;
+        AuctionSortCriteria* entry = &criteria[i];
+
+        if (!entry) {
+            continue;
+        }
 
         if (entry->m_valid && entry->m_column == column) {
             if (entry->m_reverse) {
@@ -491,7 +503,11 @@ static int32_t Script_QueryAuctionItems(lua_State* L) {
         int32_t remaining = static_cast<int32_t>(lua_tonumber(L, 6)) - 1;
 
         for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-            ItemSubClassRec* rec = i < 0 || i >= g_itemSubClassDB.m_numRecords ? nullptr : &g_itemSubClassDB.m_records[i];
+            ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
+
+            if (!rec) {
+                continue;
+            }
 
             if (rec->m_classID == classID && !(rec->m_displayFlags & 0x2)) {
                 if (!remaining) {
@@ -547,7 +563,7 @@ static int32_t Script_QueryAuctionItems(lua_State* L) {
     msg.Put(static_cast<uint8_t>(0));
 
     for (uint32_t i = 0; i < 12; i++) {
-        AuctionSortCriteria* criteria = i < 12 ? &CGAuctionHouse::m_listSortCriteria[i] : nullptr;
+        AuctionSortCriteria* criteria = &CGAuctionHouse::m_listSortCriteria[i];
 
         if (criteria && criteria->m_valid) {
             msg.Put(static_cast<uint8_t>(criteria->m_column));

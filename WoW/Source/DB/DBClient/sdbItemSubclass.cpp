@@ -19,13 +19,17 @@ const ItemSubClassRec* SDBItemSubclassGetSubClassRec(uint32_t classID, uint32_t 
 // VERIFY: 600df192 manual
 // OFFSET: 0x006810C0
 void SDBItemSubclassInitialize() {
+    if (g_itemSubClassDB.m_numRecords <= 0) {
+        return;
+    }
+
     int32_t counts[sizeof(s_itemSubclasses) / sizeof(s_itemSubclasses[0])];
     memset(counts, 0, sizeof(counts));
 
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-        const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
+        const ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
 
-        if (rec->m_classID >= 0 && counts[rec->m_classID] <= rec->m_subClassID) {
+        if (rec && rec->m_classID >= 0 && counts[rec->m_classID] <= rec->m_subClassID) {
             counts[rec->m_classID] = rec->m_subClassID + 1;
         }
     }
@@ -35,9 +39,9 @@ void SDBItemSubclassInitialize() {
     }
 
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-        const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
+        const ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
 
-        if (rec->m_classID >= 0) {
+        if (rec && rec->m_classID >= 0) {
             s_itemSubclasses[rec->m_classID][rec->m_subClassID] = rec;
         }
     }
