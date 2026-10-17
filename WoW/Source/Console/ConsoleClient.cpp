@@ -139,7 +139,7 @@ float s_charSpacing;
 static const char* s_consoleMessage;
 
 // STATIC: 0x00CA19B0
-float s_consoleHeight;
+float s_consoleHeight = s_consoleLines * s_fontHeight;
 
 // STATIC: 0x00CA19B4
 static SCritSect s_critsect;

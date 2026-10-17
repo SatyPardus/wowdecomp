@@ -1165,11 +1165,35 @@ static void CALLBACK OsInputCallEventPollProc(HWND hwnd, UINT message, UINT_PTR 
 // VERIFY: daae85b1 auto
 // OFFSET: 0x00869DB0
 static void CenterMouse() {
-    RECT rect;
-    GetWindowRect(static_cast<HWND>(OsGuiGetWindow(0)), &rect);
+    // The offset-editor fix uses the saved cursor point as its relative anchor, keeping the pointer from jumping to screen center.
+    HWND hwnd = static_cast<HWND>(OsGuiGetWindow(0));
+    RECT clientRect;
+    if (!hwnd || !GetClientRect(hwnd, &clientRect)) {
+        return;
+    }
 
-    s_centerMousePos.x = rect.right / 2;
-    s_centerMousePos.y = rect.bottom / 2;
+    auto nudgeInsideSafeMargin = [](int32_t& position, int32_t min, int32_t max) {
+        constexpr int32_t safeMargin = 50;
+        if (max - min <= safeMargin * 2) {
+            position = min + (max - min) / 2;
+        } else if (position < min + safeMargin) {
+            ++position;
+        } else if (position > max - safeMargin) {
+            --position;
+        }
+    };
+
+    nudgeInsideSafeMargin(s_mousePos.x, clientRect.left, clientRect.right);
+    nudgeInsideSafeMargin(s_mousePos.y, clientRect.top, clientRect.bottom);
+
+    POINT anchor = { s_mousePos.x, s_mousePos.y };
+    if (!ClientToScreen(hwnd, &anchor)) {
+        return;
+    }
+
+    OsLogicalToPhysicalPoint(hwnd, &anchor);
+    s_centerMousePos.x = anchor.x;
+    s_centerMousePos.y = anchor.y;
     OsSetPhysicalCursorPos(s_centerMousePos.x, s_centerMousePos.y);
 }
 
@@ -1255,6 +1279,12 @@ void OsInputSetMouseMode(OS_MOUSE_MODE mode) {
     }
 
     if (mode == OS_MOUSE_MODE_RELATIVE) {
+        HWND hwnd = static_cast<HWND>(OsGuiGetWindow(0));
+        POINT point;
+        if (hwnd && GetCursorPos(&point) && ScreenToClient(hwnd, &point)) {
+            SaveMouse(hwnd, point);
+        }
+
         s_osMouseMode = mode;
         CenterMouse();
     } else if (s_osMouseMode == OS_MOUSE_MODE_RELATIVE) {
@@ -1337,6 +1367,15 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
         case WM_SIZE:
         case WM_DISPLAYCHANGE:
             s_windowSize = lparam;
+            if (s_appActive && s_osMouseMode == OS_MOUSE_MODE_RELATIVE) {
+                CenterMouse();
+            }
+            break;
+
+        case WM_MOVE:
+            if (s_appActive && s_osMouseMode == OS_MOUSE_MODE_RELATIVE) {
+                CenterMouse();
+            }
             break;
 
         case WM_ACTIVATE: {
@@ -1345,6 +1384,9 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
             s_osButtonState = 0;
             SystemParametersInfoA(SPI_SETMOUSESPEED, 0, reinterpret_cast<void*>(static_cast<intptr_t>(s_appActive ? s_mouseSpeed : s_savedMouseSpeed)), 0);
             OsQueuePut(OS_INPUT_FOCUS, s_appActive != 0, 0, 0, 0);
+            if (s_appActive && s_osMouseMode == OS_MOUSE_MODE_RELATIVE) {
+                CenterMouse();
+            }
             break;
         }
 
@@ -1514,7 +1556,9 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
             POINT point;
 
             if (s_osMouseMode != OS_MOUSE_MODE_NORMAL) {
-                OsGetPhysicalCursorPos(&point);
+                if (!OsGetPhysicalCursorPos(&point)) {
+                    break;
+                }
 
                 if (point.x != s_centerMousePos.x || point.y != s_centerMousePos.y) {
                     OsQueuePut(OS_INPUT_MOUSE_MOVE_RELATIVE, 0, point.x - s_centerMousePos.x, point.y - s_centerMousePos.y, 0);
