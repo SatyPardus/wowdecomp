@@ -3,14 +3,24 @@
 
 #include <cstdint>
 #include <new>
+#if defined(__APPLE__)
+#include <pthread.h>
+#else
 #include <windows.h>
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/Process/Process.h"
 
 namespace Blizzard {
 namespace Lock {
 
+#if defined(__APPLE__)
+struct EventState;
+using Event = EventState*;
+using Mutex = pthread_mutex_t;
+#else
 typedef HANDLE Event;
 typedef CRITICAL_SECTION Mutex;
+#endif
 
 class Atomic {
     public:
@@ -80,6 +90,19 @@ void Blizzard::Lock::ConstructOnce<T>::Construct(void* param) {
 // INLINED
 template <class T>
 T* Blizzard::Lock::ConstructOnce<T>::Get() {
+#if defined(__APPLE__)
+    // Publish construction with an acquire/release pair on weakly ordered CPUs.
+    if (!__atomic_load_n(&this->m_constructed, __ATOMIC_ACQUIRE)) {
+        if (this->m_count.Increment() == 1) {
+            Construct(this);
+            __atomic_store_n(&this->m_constructed, true, __ATOMIC_RELEASE);
+        } else {
+            while (!__atomic_load_n(&this->m_constructed, __ATOMIC_ACQUIRE)) {
+                Blizzard::Process::Sleep(1);
+            }
+        }
+    }
+#else
     if (!this->m_constructed) {
         if (this->m_count.Increment() == 1) {
             Construct(this);
@@ -91,6 +114,7 @@ T* Blizzard::Lock::ConstructOnce<T>::Get() {
         }
     }
 
+#endif
     return reinterpret_cast<T*>(this->m_storage);
 }
 

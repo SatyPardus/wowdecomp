@@ -299,9 +299,9 @@ typedef struct UpVal {
 typedef struct Profile {
   int calls;
   int depth;
-  __int64 start;
-  __int64 time;
-  __int64 totaltime;
+  int64_t start;
+  int64_t time;
+  int64_t totaltime;
 } Profile;
 
 #define ClosureHeader \

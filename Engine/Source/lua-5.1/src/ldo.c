@@ -362,7 +362,7 @@ int luaD_precall (lua_State *L, StkId func, int nresults) {
 
 // VERIFY: 98c41046 auto
 // OFFSET: 0x00856550
-int luaD_precall_profile (lua_State *L, StkId func, int nresults, __int64 start, __int64 *stop) {
+int luaD_precall_profile (lua_State *L, StkId func, int nresults, int64_t start, int64_t *stop) {
   LClosure *cl;
   ptrdiff_t funcr;
   if (!ttisfunction(func)) /* `func' is not a function? */
@@ -488,7 +488,7 @@ void luaD_call (lua_State *L, StkId func, int nResults) {
       luaD_throw(L, LUA_ERRERR);  /* error while handing stack error */
   }
   if (G(L)->profile) {
-    __int64 stop;
+    int64_t stop;
     if (luaD_precall_profile(L, func, nResults, OsGetAsyncTimeClocks(), &stop) == PCRLUA)
       luaV_execute_profile(L, 1);
   }
@@ -507,7 +507,7 @@ static void resume (lua_State *L, void *ud) {
   if (L->status == 0) {  /* start coroutine? */
     lua_assert(ci == L->base_ci && firstArg > L->base);
     if (G(L)->profile) {
-      __int64 stop;
+      int64_t stop;
       if (luaD_precall_profile(L, firstArg - 1, LUA_MULTRET, OsGetAsyncTimeClocks(), &stop) != PCRLUA)
         return;
     }

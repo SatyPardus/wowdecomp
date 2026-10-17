@@ -13,8 +13,8 @@ project(wowdecomp CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
-    message(FATAL_ERROR "wowdecomp targets Windows only.")
+if (NOT WIN32 AND NOT (APPLE AND CMAKE_SYSTEM_NAME MATCHES "^(Darwin|iOS)$"))
+    message(FATAL_ERROR "Supported platforms are Windows, macOS and iOS.")
 endif ()
 
 # x64 is the target. Win32 stays buildable: it is the configuration whose struct layouts can be
@@ -38,6 +38,13 @@ endif ()
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# The Apple port is built up from the shared core. Do not select Win64 sources
+# merely because the Apple target also has 64-bit pointers.
+if (APPLE)
+    include(cmake/Apple.cmake)
+    return()
+endif ()
 
 add_compile_definitions(
     WIN32

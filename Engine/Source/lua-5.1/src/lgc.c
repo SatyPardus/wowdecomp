@@ -487,7 +487,7 @@ static void updatesizes (lua_State *L, GCObject *o) {
 
 // VERIFY: 7bbb4677 auto
 // OFFSET: 0x0085B160
-static void addtimetotag (lua_State *L, const char *tag, __int64 time) {
+static void addtimetotag (lua_State *L, const char *tag, int64_t time) {
   global_State *g = G(L);
   GCTime *t;
   for (t = g->gctime; t; t = t->next) {

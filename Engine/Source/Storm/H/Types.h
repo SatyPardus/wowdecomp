@@ -2,8 +2,9 @@
 #define ENGINE_SOURCE_STORM_H_TYPES_H
 
 #include <cstdint>
+#include "Engine/Source/Platform/CallingConvention.h"
 
-#define STORMAPI __stdcall
+#define STORMAPI WOW_STDCALL
 
 struct _CMDPARAMS {
     /* 0000 */ uint32_t flags;

@@ -67,7 +67,7 @@ class CDataStoreCache : public CDataStore {
     void InternalDestroy(uint8_t*& data, uint32_t& base, uint32_t& alloc) override;
     int32_t InternalFetchWrite(uint32_t pos, uint32_t bytes, uint8_t*& data, uint32_t& base, uint32_t& alloc, const char* fileName, int32_t lineNumber) override;
     ~CDataStoreCache() override;
-    void DetachBuffer(void** data, uint32_t* size, uint32_t* alloc) override;
+    void DetachBuffer(void** data, uint32_t* dataSize, uint32_t* alloc) override;
 
     CDataStoreCache();
 };

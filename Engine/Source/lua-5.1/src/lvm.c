@@ -837,7 +837,7 @@ void luaV_execute_profile (lua_State *L, int nexeccalls) {
   TValue *k;
   const Instruction *pc;
   Profile *prof;
-  __int64 last = OsGetAsyncTimeClocks();
+  int64_t last = OsGetAsyncTimeClocks();
  reentry:  /* entry point */
   lua_assert(isLua(L->ci));
   pc = L->savedpc;
@@ -859,7 +859,7 @@ void luaV_execute_profile (lua_State *L, int nexeccalls) {
         (--L->hookcount == 0 || L->hookmask & LUA_MASKLINE)) {
       traceexec(L, pc);
       if (L->status == LUA_YIELD) {  /* did hook yield? */
-        __int64 now;
+        int64_t now;
         L->savedpc = pc - 1;
         lua_taintedclosure = 0;
         now = OsGetAsyncTimeClocks();
@@ -1062,7 +1062,7 @@ void luaV_execute_profile (lua_State *L, int nexeccalls) {
         int nresults = GETARG_C(i) - 1;
         const char *oldtaint = lua_taintedclosure ? lua_tainted : NULL;
         lua_taintedclosure = 0;
-        __int64 now;
+        int64_t now;
         if (b != 0) L->top = ra+b;  /* else previous instruction set top */
         L->savedpc = pc;
         now = OsGetAsyncTimeClocks();
@@ -1096,7 +1096,7 @@ void luaV_execute_profile (lua_State *L, int nexeccalls) {
           }
           default: {
             Profile *p = clvalue(L->ci->func)->l.profile;
-            __int64 stop = now;
+            int64_t stop = now;
             if (p->depth-- == 1)
               p->totaltime += now - p->start;
             now = OsGetAsyncTimeClocks();
@@ -1111,7 +1111,7 @@ void luaV_execute_profile (lua_State *L, int nexeccalls) {
         int b = GETARG_B(i);
         const char *oldtaint = lua_taintedclosure ? lua_tainted : NULL;
         lua_taintedclosure = 0;
-        __int64 now;
+        int64_t now;
         if (b != 0) L->top = ra+b;  /* else previous instruction set top */
         L->savedpc = pc;
         lua_assert(GETARG_C(i) - 1 == LUA_MULTRET);
@@ -1158,7 +1158,7 @@ void luaV_execute_profile (lua_State *L, int nexeccalls) {
         int b = GETARG_B(i);
         lua_taintedclosure = 0;
         if (b != 0) L->top = ra+b-1;
-        __int64 now;
+        int64_t now;
         if (L->openupval) luaF_close(L, base);
         L->savedpc = pc;
         now = OsGetAsyncTimeClocks();

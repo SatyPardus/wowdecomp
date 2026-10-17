@@ -3,16 +3,20 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/Storm/H/storm.h"
 
+// IO units contain pointers and int64_t members. Four-byte packing is only
+// valid for the original x86 build, not the native 64-bit object layout.
+static constexpr size_t s_unitAlignment = sizeof(void*) == 8 ? alignof(std::max_align_t) : 4;
+
 // VERIFY: 8efaa12c manual
 // OFFSET: 0x0042B9C0
 IOUnitContainer::IOUnitContainer(uint32_t size, ...) {
-    uint32_t total = (size + 3) & ~3u;
+    size_t total = (size + s_unitAlignment - 1) & ~(s_unitAlignment - 1);
 
     va_list args;
     va_start(args, size);
 
     for (uint32_t next = va_arg(args, uint32_t); next; next = va_arg(args, uint32_t)) {
-        total = (next + total + 3) & ~3u;
+        total = (next + total + s_unitAlignment - 1) & ~(s_unitAlignment - 1);
     }
 
     va_end(args);
@@ -30,7 +34,7 @@ void* IOUnitContainer::Alloc(IOUnitContainer* container, uint32_t size, bool* ow
     }
 
     uint8_t* memory = container->m_next;
-    container->m_next = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(memory) + size + 3) & ~static_cast<uintptr_t>(3));
+    container->m_next = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(memory) + size + s_unitAlignment - 1) & ~(s_unitAlignment - 1));
     *ownsMemory = container->m_owner;
     container->m_owner = false;
 

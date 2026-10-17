@@ -10,6 +10,7 @@
 #define lua_h
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <stddef.h>
 
 

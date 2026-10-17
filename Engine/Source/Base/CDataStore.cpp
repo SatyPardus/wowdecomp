@@ -275,7 +275,7 @@ int32_t CDataStore::FetchRead(uint32_t pos, uint32_t bytes) {
 // OFFSET: 0x0047B300
 CDataStore& CDataStore::PutString(const char* string) {
     if (string) {
-        this->PutArray(reinterpret_cast<const uint8_t*>(string), static_cast<uint32_t>(SStrLen(string)) + 1);
+        this->PutArray(reinterpret_cast<const uint8_t*>(string), static_cast<uint32_t>(strlen(string)) + 1);
     } else {
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
     }

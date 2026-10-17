@@ -74,7 +74,53 @@ The client is written to `bin/Win/`:
 `WowClient_crash.log` when the client crashes. `Wow` is the same client without it. You can also turn the
 logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
-### Options
+### Apple foundation builds
+
+The native port currently builds **foundation probes**, not a playable client. They
+link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
+pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
+memory, synchronization, timing and positional file IO. No Windows emulation is
+used. Full SFile mounting, patch/locale resolution, game startup, Metal, audio and
+network integration remain to be connected.
+
+Use CMake 3.21+ and Xcode. The presets target arm64, macOS 11+ and iOS 15+; the
+installed Xcode 27 SDK requires iOS 15 as its minimum deployment target.
+
+```sh
+cmake --preset macos-arm64
+cmake --build --preset macos-arm64 --parallel
+build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data
+
+# Compile the device app without a development identity (not installable yet).
+cmake --preset ios-arm64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+cmake --build --preset ios-arm64 --parallel
+
+# Build for an Apple Silicon iOS simulator.
+cmake --preset ios-simulator-arm64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+cmake --build --preset ios-simulator-arm64 --parallel
+```
+
+The macOS probe checks native core behavior and reads MPQ v0/v1 headers and hash
+tables using the original MPQ decryption. It does not extract assets or establish
+the game's archive priority. Data is always opened read-only; the large-offset IO
+check uses a temporary sparse file outside Data and removes it afterwards. A
+failed check, missing Data, or an unsupported archive returns a nonzero exit code.
+
+The iOS app is `build/ios-arm64/bin/RelWithDebInfo/WowAppleBootstrap.app`. For device
+deployment, reconfigure with
+`-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=YES` and
+`-DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM=YOUR_TEAM_ID`, open
+`build/ios-arm64/wowdecomp.xcodeproj`, select the `WowAppleBootstrap` scheme and your
+device, and run with Xcode. Device signing/deployment requires your own Apple
+development identity. Copy Data into the app's `Documents/Data` using Files or
+Finder. The probe reruns when its scene enters the foreground. For simulator
+development, `WOW_DATA_ROOT` in the scheme environment can point at an existing
+host Data directory; real devices need a path accessible inside their sandbox.
+Missing files and failed checks appear in the app and console. iOS does not allow
+spawning a shell, so Lua `os.execute` explicitly reports an unsupported-operation
+error there; it is not registered by the game's FrameScript initialization.
+
+### Windows options
 
 | CMake option | Default | Effect |
 |---|---|---|

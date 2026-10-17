@@ -124,7 +124,7 @@ void luaF_freeupval (lua_State *L, UpVal *uv) {
 void luaF_close (lua_State *L, StkId level) {
   UpVal *uv;
   global_State *g = G(L);
-  while ((uv = ngcotouv(L->openupval)) != NULL && uv->v >= level) {
+  while (L->openupval != NULL && (uv = ngcotouv(L->openupval))->v >= level) {
     GCObject *o = obj2gco(uv);
     lua_assert(!isblack(o) && uv->v != &uv->u.value);
     L->openupval = uv->next;  /* remove from `open' list */

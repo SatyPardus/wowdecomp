@@ -74,7 +74,7 @@ typedef struct GCUsage {
 
 typedef struct GCTime {
   const char *tag;
-  __int64 time;
+  int64_t time;
   struct GCTime *next;
 } GCTime;
 

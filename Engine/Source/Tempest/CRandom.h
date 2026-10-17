@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "Engine/Source/Platform/CallingConvention.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/C3Vector.h"
 
@@ -22,7 +23,7 @@ class CRandom {
     static C3Vector C3Vector_(CRndSeed& seed);
     static uint32_t dice_(uint32_t sides, CRndSeed& seed);
     static float sfloat_(CRndSeed& seed);
-    static float __stdcall ufloat_(float range, CRndSeed& seed);
+    static float WOW_STDCALL ufloat_(float range, CRndSeed& seed);
     static float ufloat_(CRndSeed& seed);
     static uint32_t uint32_(CRndSeed& seed);
 };

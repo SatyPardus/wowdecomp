@@ -1,0 +1,41 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "macos-arm64",
+      "displayName": "macOS arm64 foundation",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/macos-arm64",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0"
+      }
+    },
+    {
+      "name": "ios-arm64",
+      "displayName": "iOS arm64 bootstrap app",
+      "generator": "Xcode",
+      "binaryDir": "${sourceDir}/build/ios-arm64",
+      "cacheVariables": {
+        "CMAKE_SYSTEM_NAME": "iOS",
+        "CMAKE_OSX_SYSROOT": "iphoneos",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "15.0"
+      }
+    },
+    {
+      "name": "ios-simulator-arm64",
+      "inherits": "ios-arm64",
+      "displayName": "iOS arm64 simulator bootstrap app",
+      "binaryDir": "${sourceDir}/build/ios-simulator-arm64",
+      "cacheVariables": { "CMAKE_OSX_SYSROOT": "iphonesimulator" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "macos-arm64", "configurePreset": "macos-arm64" },
+    { "name": "ios-arm64", "configurePreset": "ios-arm64", "configuration": "RelWithDebInfo" },
+    { "name": "ios-simulator-arm64", "configurePreset": "ios-simulator-arm64", "configuration": "RelWithDebInfo" }
+  ]
+}
