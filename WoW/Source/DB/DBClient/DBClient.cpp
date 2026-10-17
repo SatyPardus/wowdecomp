@@ -1,4 +1,5 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/WowServices/ArchiveLayout.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -6,7 +7,11 @@
 #include "WoW/Source/DB/Rec/MapDifficultyRec.h"
 
 // STATIC: 0x00AD3028
-const char* g_localeNames[12] = { "deDE", "enGB", "enUS", "esES", "frFR", "koKR", "zhCN", "zhTW", "enCN", "enTW", "esMX", "ruRU" };
+const char* g_localeNames[12] = {
+    ClientLocaleNames[0], ClientLocaleNames[1], ClientLocaleNames[2], ClientLocaleNames[3],
+    ClientLocaleNames[4], ClientLocaleNames[5], ClientLocaleNames[6], ClientLocaleNames[7],
+    ClientLocaleNames[8], ClientLocaleNames[9], ClientLocaleNames[10], ClientLocaleNames[11]
+};
 
 // STATIC: 0x00C5DEA0
 int32_t g_clientDbPerformCompress;

@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#include <cstdio>
 #include "Tools/AppleBootstrap/Probe.h"
 
 @interface BootstrapSceneDelegate : UIResponder <UIWindowSceneDelegate>
@@ -31,14 +32,17 @@
     NSString* override = NSProcessInfo.processInfo.environment[@"WOW_DATA_ROOT"];
     if (override.length) { dataRoot = override; }
     NSString* scratch = NSTemporaryDirectory();
+    NSString* locale = NSProcessInfo.processInfo.environment[@"WOW_LOCALE"] ?: @"";
     self.output.text = [NSString stringWithFormat:@"Checking core and Data at %@…\n", dataRoot];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         std::string core, data;
         const bool coreOK = AppleBootstrap::CheckCore(scratch.fileSystemRepresentation, core);
-        const bool dataOK = coreOK && AppleBootstrap::InspectData(dataRoot.fileSystemRepresentation, data);
+        const bool dataOK = coreOK && AppleBootstrap::InspectData(dataRoot.fileSystemRepresentation, data, locale.UTF8String);
         NSString* status = [NSString stringWithFormat:@"%@\n%s%s\nCopy the original Data folder into this app's Documents using Files or Finder.\nThis is a foundation probe; game and rendering are not linked.",
             coreOK && dataOK ? @"Foundation checks passed" : @"Checks incomplete — see details", core.c_str(), data.c_str()];
         NSLog(@"%@", status);
+        fputs(status.UTF8String, stdout);
+        fflush(stdout);
         dispatch_async(dispatch_get_main_queue(), ^{
             self.output.text = status;
             self.running = NO;

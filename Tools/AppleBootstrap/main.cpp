@@ -4,8 +4,8 @@
 #include "Tools/AppleBootstrap/Probe.h"
 
 int main(int argc, char** argv) {
-    if (argc != 3 || strcmp(argv[1], "--data-root") != 0) {
-        fprintf(stderr, "Usage: AppleCoreProbe --data-root /path/to/client335a/Data\n");
+    if ((argc != 3 && argc != 5) || strcmp(argv[1], "--data-root") != 0 || (argc == 5 && strcmp(argv[3], "--locale") != 0)) {
+        fprintf(stderr, "Usage: AppleCoreProbe --data-root /path/to/client335a/Data [--locale zhCN]\n");
         return 2;
     }
     std::string report;
@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
         bool success = AppleBootstrap::CheckCore(std::filesystem::temp_directory_path().string(), report);
         fputs(report.c_str(), stdout);
         if (!success) { return 1; }
-        success = AppleBootstrap::InspectData(argv[2], report);
+        success = AppleBootstrap::InspectData(argv[2], report, argc == 5 ? argv[4] : "");
         fputs(report.c_str(), stdout);
         return success ? 0 : 1;
     } catch (const std::exception& error) {

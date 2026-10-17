@@ -3,16 +3,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/WowServices/ArchiveLayout.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Storm/H/stpl.h"
 
-struct PATCHARCHIVESPEC {
-    /* 0000 */ int32_t m_pass;
-    /* 0004 */ int32_t m_flag;
-    /* 0008 */ bool m_useInstallPath;
-    /* 000C */ const char* m_directory;
-    /* 0010 */ const char* m_pattern;
-};
+
 
 class PatchFiles {
     public:

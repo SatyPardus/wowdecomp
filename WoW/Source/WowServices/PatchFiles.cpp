@@ -27,20 +27,7 @@ int32_t PatchFiles::EnumPatchArchives(OS_FILE_DATA& data, void* param) {
 // VERIFY: 4fd60074 manual
 // OFFSET: 0x00405AB0
 PatchFiles::PatchFiles(const char* locale, bool flag) {
-    PATCHARCHIVESPEC specs[12] = {
-        { 0, 0, false, "Data\\", "patch-?.MPQ" },
-        { 0, 0, false, "Data\\%s\\", "patch-%s-?.MPQ" },
-        { 1, 0, false, "Data\\", "patch.MPQ" },
-        { 1, 0, false, "Data\\%s\\", "patch-%s.MPQ" },
-        { 1, 1, false, "Data\\", "patch-4.MPQ" },
-        { 1, 1, false, "Data\\%s\\", "patch-%s-4.MPQ" },
-        { 1, 1, false, "Data\\", "patch-3.MPQ" },
-        { 1, 1, false, "Data\\%s\\", "patch-%s-3.MPQ" },
-        { 1, 1, false, "..\\Data\\", "patch-2.MPQ" },
-        { 1, 1, false, "..\\Data\\%s\\", "patch-%s-2.MPQ" },
-        { 1, 1, false, "..\\Data\\", "patch.MPQ" },
-        { 1, 1, false, "..\\Data\\%s\\", "patch-%s.MPQ" },
-    };
+    const auto& specs = ClientPatchArchiveSpecs;
 
     char directory[256];
     char pattern[256];
@@ -51,8 +38,8 @@ PatchFiles::PatchFiles(const char* locale, bool flag) {
     int32_t wanted = flag;
 
     for (int32_t pass = 0; pass <= 1; pass++) {
-        for (uint32_t i = 0; i < sizeof(specs) / sizeof(specs[0]); i++) {
-            PATCHARCHIVESPEC& spec = specs[i];
+        for (uint32_t i = 0; i < specs.size(); i++) {
+            const PATCHARCHIVESPEC& spec = specs[i];
 
             if (spec.m_pass != pass || spec.m_flag != wanted) {
                 continue;

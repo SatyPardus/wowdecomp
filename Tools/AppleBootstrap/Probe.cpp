@@ -13,6 +13,7 @@
 #include <vector>
 #include <unistd.h>
 #include "Tools/AppleBootstrap/Probe.h"
+#include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
@@ -342,7 +343,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
     }
 }
 
-bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& report) {
+bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& report, const std::string& locale) {
     std::ostringstream out;
     try {
         std::vector<std::filesystem::path> archives;
@@ -362,8 +363,32 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
                 out << path.string() << ": " << error.what() << '\n';
             }
         }
-        out << "Inspected " << archives.size() << " archives read-only. Inspection order is not game mount order.\n"
-            << "SFile reads local archive resources; game mount/patch/locale selection, game loop, Metal, audio and networking are not yet integrated.\n";
+        out << "Inspected " << archives.size() << " archives read-only.\n";
+        ClientData client(dataRoot, locale);
+        out << "Client archive layout: " << client.Mounts().size() << " mounts, locale " << client.Locale() << '\n';
+        for (const auto& mount : client.Mounts()) {
+            out << "  priority " << mount.priority << ": " << mount.path;
+            if (!mount.prefix.empty()) { out << " [" << mount.prefix << "\\]"; }
+            out << '\n';
+        }
+        const char* resources[] = {
+            "DBFilesClient\\Map.dbc", "Interface\\GlueXML\\GlueStrings.lua", "Cameras\\FlyByDwarf.m2",
+            "World\\Maps\\AhnQiraj\\AhnQiraj_26_46.adt", "World\\wmo\\Azeroth\\Buildings\\AltarOfStorms\\AltarOfStorms.wmo",
+            "Character\\BloodElf\\Female\\BLOODELFFEMALEFACELOWER00_00.BLP",
+            "Character\\NorthrendSkeleton\\Male\\NorthrendSkeletonMale.M2"
+        };
+        for (const char* name : resources) {
+            const auto asset = client.Read(name, 64 * 1024 * 1024, true);
+            if (std::strcmp(name, resources[0]) == 0) {
+                Require(asset.bytes.size() >= 20 && !std::memcmp(asset.bytes.data(), "WDBC", 4), "Map.dbc header is invalid");
+                const auto* data = asset.bytes.data();
+                const uint64_t size = 20 + uint64_t(Read32(data + 4)) * Read32(data + 12) + Read32(data + 16);
+                Require(size == asset.bytes.size(), "Map.dbc record/string extent is invalid");
+            }
+            out << "  resolved " << name << ": " << asset.bytes.size() << " bytes from " << asset.archive
+                << (asset.digestVerified ? " (archive MD5 matched)" : " (no archive MD5)") << '\n';
+        }
+        out << "Full local archive layout and locale fallback are active. Client signature policy, game loop, Metal, audio and networking remain to be integrated.\n";
         report = out.str();
         return success;
     } catch (const std::exception& error) {

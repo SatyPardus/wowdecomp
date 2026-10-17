@@ -81,8 +81,9 @@ link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including i
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
 memory, synchronization, pthread threads/TLS, timing and the original Blizzard file
 API backed by native positional file IO. No Windows emulation is
-used. Original SFile archive/resource IO and decompression are linked. Game mount
-ordering, patch/locale selection, game startup, Metal, audio and
+used. Original SFile archive/resource IO and decompression are linked. The native
+loader shares the client's archive definitions and applies patch priorities,
+locale fallback and regional alternate views. Signature policy, game startup, Metal, audio and
 network integration remain to be connected. Apple currently selects a full local
 filesystem (`WOW_LOCAL_FILES_ONLY`); the remote streaming filesystem is not enabled.
 
@@ -93,6 +94,8 @@ installed Xcode 27 SDK requires iOS 15 as its minimum deployment target.
 cmake --preset macos-arm64
 cmake --build --preset macos-arm64 --parallel
 build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data
+# Optionally start locale fallback at a particular language.
+build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data --locale zhCN
 
 # Compile the device app without a development identity (not installable yet).
 cmake --preset ios-arm64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
@@ -106,8 +109,11 @@ cmake --build --preset ios-simulator-arm64 --parallel
 The macOS probe checks native core behavior and reads MPQ v0/v1 headers and hash
 tables using the original MPQ decryption. It opens archives through SFile, reads
 their listfiles and representative model, terrain, WMO, texture, DBC, script and
-audio resources, checking embedded MD5 digests when present. It does not establish
-the game's archive priority. Data is always opened read-only; the large-offset IO
+audio resources, checking embedded MD5 digests when present. It then mounts the
+full local archive layout and resolves known resources through the global SFile
+search, reporting each supplying archive. The configured root replaces the
+client's installation-directory search; archive filenames resolve without regard
+to case. Data is always opened read-only; the large-offset IO
 check uses a temporary sparse file outside Data and removes it afterwards. A
 failed check, missing Data, or an unsupported archive returns a nonzero exit code.
 Native log output defaults to a `wowdecomp` directory under the app's temporary
@@ -123,6 +129,8 @@ development identity. Copy Data into the app's `Documents/Data` using Files or
 Finder. The probe reruns when its scene enters the foreground. For simulator
 development, `WOW_DATA_ROOT` in the scheme environment can point at an existing
 host Data directory; real devices need a path accessible inside their sandbox.
+`WOW_LOCALE` selects the starting locale for the iOS app. With no selection the
+loader starts at enUS and follows the original cyclic locale fallback order.
 Missing files and failed checks appear in the app and console. iOS does not allow
 spawning a shell, so Lua `os.execute` explicitly reports an unsupported-operation
 error there; it is not registered by the game's FrameScript initialization.

@@ -45,6 +45,7 @@ target_compile_definitions(AppleFoundation PUBLIC WOW_LOCAL_FILES_ONLY=1)
 
 add_subdirectory(ThirdParty EXCLUDE_FROM_ALL)
 add_library(AppleArchives STATIC
+    WoW/Source/WowServices/ClientData.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQGlobals.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/SComp.cpp

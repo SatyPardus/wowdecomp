@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/WowServices/ArchiveLayout.h"
 #include "Engine/Source/Event/Types.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/H/stpl.h"
@@ -36,13 +37,6 @@ enum WOWCMDOPT {
     CMD_CONSOLE = 35,
     CMD_HW_DETECT = 36,
     CMD_GX_OVERRIDE = 39,
-};
-
-struct ARCHIVEINFO {
-    /* 0000 */ const char* m_name;
-    /* 0004 */ int32_t m_unk04;
-    /* 0008 */ int32_t m_unk08;
-    /* 000C */ bool m_opened;
 };
 
 extern CVar* g_accountListVar;

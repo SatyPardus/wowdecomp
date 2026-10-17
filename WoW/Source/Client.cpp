@@ -152,36 +152,7 @@ static const _ARGLIST s_wowArgList[] = {
 static uint32_t s_startArchivePriority = 0x40;
 
 // STATIC: 0x00AB6168
-static ARCHIVEINFO s_archives[28] = {
-    { "alternate.MPQ", 3, 3, false },
-    { "interface.MPQ", 1, 1, false },
-    { "misc.MPQ", 1, 1, false },
-    { "model.MPQ", 1, 1, false },
-    { "texture.MPQ", 1, 1, false },
-    { "terrain.MPQ", 1, 1, false },
-    { "wmo.MPQ", 1, 1, false },
-    { "sound.MPQ", 1, 1, false },
-    { "fonts.MPQ", 1, 1, false },
-    { "dbc.MPQ", 1, 1, false },
-    { "speech.MPQ", 1, 1, false },
-    { "expansionloc.MPQ", 2, 1, false },
-    { "lichkingloc.MPQ", 2, 1, false },
-    { "expansionspeech.MPQ", 2, 1, false },
-    { "lichkingspeech.MPQ", 2, 1, false },
-    { "expansion.MPQ", 2, 3, false },
-    { "lichking.MPQ", 2, 3, false },
-    { "common.MPQ", 1, 2, false },
-    { "common-2.MPQ", 2, 2, false },
-    { "****\\locale-****.MPQ", 1, 2, false },
-    { "****\\speech-****.MPQ", 1, 2, false },
-    { "****\\expansion-locale-****.MPQ", 2, 2, false },
-    { "****\\lichking-locale-****.MPQ", 2, 2, false },
-    { "****\\expansion-speech-****.MPQ", 2, 2, false },
-    { "****\\lichking-speech-****.MPQ", 2, 2, false },
-    { "development.MPQ", 2, 1, false },
-    { "streaming.MPQ", 4, 1, false },
-    { "streamingloc.MPQ", 4, 1, false },
-};
+static auto s_archives = ClientArchiveLayout;
 // STATIC: 0x009E0DA4
 static const uint8_t s_signatureExponent[4] = { 0x01, 0x00, 0x01, 0x00 };
 
@@ -1352,7 +1323,7 @@ void ClientInitializeGame(uint32_t mapId, C3Vector position) {
 static void OpenArchives() {
     int32_t availability = CheckDataFilesExist() + 1;
 
-    for (uint32_t i = 0; i < sizeof(s_archives) / sizeof(s_archives[0]); i++) {
+    for (uint32_t i = 0; i < s_archives.size(); i++) {
         s_archives[i].m_opened = false;
     }
 
@@ -1377,7 +1348,7 @@ static void OpenArchives() {
 
     uint32_t patchCount = slot;
 
-    for (uint32_t i = 0; i < sizeof(s_archives) / sizeof(s_archives[0]); i++) {
+    for (uint32_t i = 0; i < s_archives.size(); i++) {
         if (s_archives[i].m_unk04 == 3 && OpenArchiveWithRetry(s_archives[i].m_name, priority, slot, locale)) {
             slot++;
             s_archives[i].m_opened = true;
@@ -1388,7 +1359,7 @@ static void OpenArchives() {
     for (uint32_t patch = 0; patch < patchCount; patch++) {
         SArchive* patchArchive = s_archiveHandles[patch];
 
-        for (uint32_t i = 0; i < sizeof(s_archives) / sizeof(s_archives[0]); i++) {
+        for (uint32_t i = 0; i < s_archives.size(); i++) {
             if (s_archives[i].m_unk04 != 3) {
                 continue;
             }
@@ -1412,7 +1383,7 @@ static void OpenArchives() {
     int32_t basePriority = 63;
     s_firstBaseArchive = slot;
 
-    for (uint32_t i = 0; i < sizeof(s_archives) / sizeof(s_archives[0]); i++) {
+    for (uint32_t i = 0; i < s_archives.size(); i++) {
         s_archiveHandles[slot] = nullptr;
 
         if (s_archives[i].m_unk04 == 3 || s_archives[i].m_unk04 == 4) {
@@ -1461,7 +1432,7 @@ static void OpenArchives() {
     }
 
     if (SFile::IsStreamingMode()) {
-        for (uint32_t i = 0; i < sizeof(s_archives) / sizeof(s_archives[0]); i++) {
+        for (uint32_t i = 0; i < s_archives.size(); i++) {
             if (s_archives[i].m_unk04 == 4 && OpenArchiveWithRetry(s_archives[i].m_name, basePriority, slot, locale)) {
                 s_archives[i].m_opened = true;
                 slot++;
