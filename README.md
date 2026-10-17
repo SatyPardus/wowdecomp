@@ -74,16 +74,16 @@ The client is written to `bin/Win/`:
 `WowClient_crash.log` when the client crashes. `Wow` is the same client without it. You can also turn the
 logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
-### Apple foundation builds
+### Apple foundation and Metal texture builds
 
-The native port currently builds **foundation probes**, not a playable client. They
+The native port currently builds **foundation and texture probes**, not a playable client. They
 link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
 memory, synchronization, pthread threads/TLS, timing and the original Blizzard file
 API backed by native positional file IO. No Windows emulation is
 used. Original SFile archive/resource IO and decompression are linked. The native
 loader shares the client's archive definitions and applies patch priorities,
-locale fallback and regional alternate views. Signature policy, game startup, Metal, audio and
+locale fallback and regional alternate views. Signature policy, game startup, the full Gx/Metal backend, audio and
 network integration remain to be connected. Apple currently selects a full local
 filesystem (`WOW_LOCAL_FILES_ONLY`); the remote streaming filesystem is not enabled.
 
@@ -96,6 +96,10 @@ cmake --build --preset macos-arm64 --parallel
 build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data
 # Optionally start locale fallback at a particular language.
 build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data --locale zhCN
+
+# Draw and read back every authored mip; add --preview for a native window.
+build/macos-arm64/bin/AppleMetalProbe --data-root /path/to/client335a/Data \
+  --texture 'Interface\GLUES\COMMON\GLUES-WOW-BCLOGO.BLP' --preview
 
 # Compile the device app without a development identity (not installable yet).
 cmake --preset ios-arm64 -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
@@ -119,6 +123,23 @@ failed check, missing Data, or an unsupported archive returns a nonzero exit cod
 Native log output defaults to a `wowdecomp` directory under the app's temporary
 directory; `WOW_LOG_ROOT` can select a writable log root separately from Data.
 
+The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
+BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
+It uploads original BC blocks when the device supports them; otherwise it expands
+to BGRA8 without resizing, generating mips or recompressing to another lossy format.
+Private GPU textures use one shared staging buffer per upload and ordered commands.
+The first native Metal primitive supports texture modulation, straight alpha
+blending and nearest/bilinear/trilinear sampling. It is not yet connected to CGxDevice.
+
+The Metal probe verifies known alpha cases, filtering and blending, then draws and
+reads back each mip through both native and forced-expanded upload paths. Expanded
+samples must match exactly. The tested M2 Pro's native BC interpolation differs by
+up to 2/255 from the D3D9 reference integer equations; the probe reports those
+differences. This is not a Windows GPU visual-equivalence result. Legacy JPEG BLP
+is explicitly unsupported (also disabled in the existing CBLPFile loader).
+Shaders are currently compiled once per device context from embedded native MSL;
+offline metallib packaging and pipeline caching across game effects are pending.
+
 The iOS app is `build/ios-arm64/bin/RelWithDebInfo/WowAppleBootstrap.app`. For device
 deployment, reconfigure with
 `-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=YES` and
@@ -131,6 +152,11 @@ development, `WOW_DATA_ROOT` in the scheme environment can point at an existing
 host Data directory; real devices need a path accessible inside their sandbox.
 `WOW_LOCALE` selects the starting locale for the iOS app. With no selection the
 loader starts at enUS and follows the original cyclic locale fallback order.
+The iOS app shows the same Metal texture and runs the GPU checks only while its
+scene is active. `WOW_TEXTURE` selects a different archive resource. Inactive
+scenes stop submitting draws and drain submitted work; this preview draws on
+demand. Full reports remain in the view and bounded status messages go to unified
+logging, avoiding blocked simulator console pipes.
 Missing files and failed checks appear in the app and console. iOS does not allow
 spawning a shell, so Lua `os.execute` explicitly reports an unsupported-operation
 error there; it is not registered by the game's FrameScript initialization.

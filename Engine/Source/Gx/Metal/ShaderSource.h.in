@@ -1,0 +1,3 @@
+#pragma once
+// Embedded from the native .metal source by CMake; compiled once per context.
+static const char* TextureQuadSource = R"msl(@WOW_TEXTURE_QUAD_SOURCE@)msl";

@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include "Tools/AppleBootstrap/Probe.h"
 #include "WoW/Source/WowServices/ClientData.h"
+#include "Engine/Source/BLPFile/BlpImage.h"
+#include "Engine/Source/BLPFile/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
@@ -95,6 +97,34 @@ void CheckNativeThreads() {
 
 uint32_t Read32(const uint8_t* bytes) {
     return uint32_t(bytes[0]) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]) << 16) | (uint32_t(bytes[3]) << 24);
+}
+
+void CheckBlpLoading() {
+    BLPHeader header{};
+    header.m_magic = 0x32504C42;
+    header.m_formatVersion = 1;
+    header.m_colorEncoding = 1;
+    header.m_alphaSize = 4;
+    header.m_width = 2; header.m_height = 1;
+    header.m_mipOffsets[0] = sizeof(header); header.m_mipSizes[0] = 3;
+    header.m_extended.m_palette[1] = {10, 20, 30, 77};
+    header.m_extended.m_palette[2] = {40, 50, 60, 88};
+    std::vector<uint8_t> data(sizeof(header) + 3);
+    std::memcpy(data.data(), &header, sizeof(header));
+    data[sizeof(header)] = 1; data[sizeof(header) + 1] = 2; data[sizeof(header) + 2] = 0xF0;
+    const auto image = BLP::Image::Load(data.data(), data.size(), 8);
+    Require(image.mips.size() == 1 && image.mips[0].bytes == std::vector<uint8_t>({10, 20, 30, 0, 40, 50, 60, 255}),
+        "BLP palette/packed alpha mismatch");
+    auto rejects = [&](size_t size, size_t budget) {
+        try { BLP::Image::Load(data.data(), size, budget); } catch (const std::runtime_error&) { return true; }
+        return false;
+    };
+    Require(rejects(data.size() - 1, 8) && rejects(data.size(), 7), "BLP truncated mip/memory budget accepted");
+    data[11] = 1;
+    Require(rejects(data.size(), 16), "BLP missing authored mip accepted");
+    data[11] = 0;
+    data[20] = data[21] = data[22] = data[23] = 255;
+    Require(rejects(data.size(), 8), "BLP out-of-range offset accepted");
 }
 
 void InspectArchive(const std::filesystem::path& path, std::ostream& out) {
@@ -182,6 +212,12 @@ void InspectArchive(const std::filesystem::path& path, std::ostream& out) {
         for (uint8_t byte : digest) { text += hex[byte >> 4]; text += hex[byte & 15]; }
         out << "  " << name << ": " << assetSize << " bytes, md5 " << text
             << (hasDigest ? " (archive MD5 matched)" : " (no archive MD5)") << '\n';
+        if (extension == ".blp") {
+            const auto image = BLP::Image::Load(data.data(), data.size(), 256 * 1024 * 1024);
+            for (size_t level = 0; level < image.mips.size(); ++level) { image.DecodeBGRA(level); }
+            out << "    BLP: " << image.mips[0].width << 'x' << image.mips[0].height << ' ' << BLP::FormatName(image.format)
+                << ", " << image.mips.size() << " authored mips decoded\n";
+        }
         wanted.erase(extension);
     }
 }
@@ -282,6 +318,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         signal.join();
         Require(signaled, "event did not wake waiter");
         CheckNativeThreads();
+        CheckBlpLoading();
 
         IOUnitContainer container(3u, 17u, 0u);
         bool owner;
@@ -388,7 +425,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
             out << "  resolved " << name << ": " << asset.bytes.size() << " bytes from " << asset.archive
                 << (asset.digestVerified ? " (archive MD5 matched)" : " (no archive MD5)") << '\n';
         }
-        out << "Full local archive layout and locale fallback are active. Client signature policy, game loop, Metal, audio and networking remain to be integrated.\n";
+        out << "Full local archive layout and locale fallback are active. Client signature policy, game loop, full Gx/Metal integration, audio and networking remain to be integrated.\n";
         report = out.str();
         return success;
     } catch (const std::exception& error) {

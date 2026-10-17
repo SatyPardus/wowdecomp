@@ -1,0 +1,139 @@
+#include "Tools/AppleBootstrap/MetalProbe.h"
+#include "Engine/Source/Gx/Metal/TextureDevice.h"
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <sstream>
+#include <stdexcept>
+
+namespace {
+void Require(bool condition, const char* message) {
+    if (!condition) { throw std::runtime_error(message); }
+}
+
+BLP::Image Block(BLP::Format format, std::initializer_list<uint8_t> bytes) {
+    BLP::Image image;
+    image.format = format;
+    image.mips.push_back({4, 4, uint32_t(bytes.size()), bytes});
+    return image;
+}
+
+std::vector<uint8_t> Render(GxMetal::TextureDevice& gpu, id<MTLTexture> texture, uint32_t level,
+    bool blend = false, bool linear = false, uint32_t widthOverride = 0, uint32_t heightOverride = 0) {
+    const uint32_t width = widthOverride ? widthOverride : std::max(1u, uint32_t(texture.width) >> level);
+    const uint32_t height = heightOverride ? heightOverride : std::max(1u, uint32_t(texture.height) >> level);
+    MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+        width:width height:height mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate;
+    descriptor.usage = MTLTextureUsageRenderTarget;
+    id<MTLTexture> target = [gpu.device newTextureWithDescriptor:descriptor];
+    const size_t stride = (size_t(width) * 4 + 255) & ~size_t(255);
+    id<MTLBuffer> readback = [gpu.device newBufferWithLength:stride * height options:MTLResourceStorageModeShared];
+    Require(target && readback, "Metal readback allocation failed");
+    MTLRenderPassDescriptor* pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = target;
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(32.0 / 255, 64.0 / 255, 96.0 / 255, 1);
+    id<MTLCommandBuffer> command = [gpu.queue commandBuffer];
+    GxMetal::QuadParameters parameters;
+    parameters.explicitMip = 1;
+    parameters.mipLevel = level;
+    gpu.Draw(command, pass, texture, parameters, blend, linear);
+    id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
+    [blit copyFromTexture:target sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0, 0, 0)
+        sourceSize:MTLSizeMake(width, height, 1) toBuffer:readback destinationOffset:0 destinationBytesPerRow:stride destinationBytesPerImage:stride * height];
+    [blit endEncoding];
+    [command commit];
+    // A diagnostic readback deliberately waits; the runtime draw/upload path does not.
+    [command waitUntilCompleted];
+    if (command.status != MTLCommandBufferStatusCompleted) {
+        throw std::runtime_error(command.error.localizedDescription.UTF8String ?: "Metal command failed");
+    }
+    std::vector<uint8_t> pixels(size_t(width) * height * 4);
+    for (uint32_t y = 0; y < height; ++y) {
+        std::memcpy(pixels.data() + size_t(y) * width * 4, static_cast<const uint8_t*>(readback.contents) + y * stride, width * 4);
+    }
+    return pixels;
+}
+
+void CheckDecodeCases(GxMetal::TextureDevice& gpu) {
+    // Endpoint extremes, transparent BC1, explicit BC2 alpha and both BC3
+    // interpolation modes. Expected values are independent known block results.
+    auto bc1 = Block(BLP::Format::BC1, {0, 0, 255, 255, 0xE4, 0xE4, 0xE4, 0xE4});
+    const auto colors = bc1.DecodeBGRA(0).bytes;
+    const uint8_t expected[] = {0, 0, 0, 255, 255, 255, 255, 255, 127, 127, 127, 255, 0, 0, 0, 0};
+    Require(!std::memcmp(colors.data(), expected, sizeof(expected)), "BC1 transparent block decode mismatch");
+    auto bc2 = Block(BLP::Format::BC2, {0x10, 0xF8, 0x10, 0xF8, 0x10, 0xF8, 0x10, 0xF8, 255, 255, 0, 0, 0, 0, 0, 0});
+    const auto explicitAlpha = bc2.DecodeBGRA(0).bytes;
+    Require(explicitAlpha[3] == 0 && explicitAlpha[7] == 17 && explicitAlpha[11] == 136 && explicitAlpha[15] == 255 && explicitAlpha[0] == 255,
+        "BC2 explicit alpha/endpoint decode mismatch");
+    auto bc3 = Block(BLP::Format::BC3, {0, 255, 0x88, 0xC6, 0xFA, 0x88, 0xC6, 0xFA, 255, 255, 0, 0, 0, 0, 0, 0});
+    const auto sixAlpha = bc3.DecodeBGRA(0).bytes;
+    const uint8_t expectedAlpha[] = {0, 255, 51, 102, 153, 204, 0, 255};
+    for (unsigned i = 0; i < 8; ++i) { Require(sixAlpha[i * 4 + 3] == expectedAlpha[i], "BC3 six-alpha mode mismatch"); }
+    bc3.mips[0].bytes[0] = 255; bc3.mips[0].bytes[1] = 0;
+    const auto eightAlpha = bc3.DecodeBGRA(0).bytes;
+    const uint8_t expectedEight[] = {255, 0, 219, 182, 146, 109, 73, 36};
+    for (unsigned i = 0; i < 8; ++i) { Require(eightAlpha[i * 4 + 3] == expectedEight[i], "BC3 eight-alpha mode mismatch"); }
+    for (const auto* image : {&bc1, &bc2, &bc3}) {
+        const auto pixels = Render(gpu, gpu.Upload(*image, true), 0);
+        Require(pixels == image->DecodeBGRA(0).bytes, "Expanded texture differs after Metal draw");
+    }
+    BLP::Image blendImage;
+    blendImage.mips.push_back({1, 1, 4, {200, 100, 50, 128}});
+    const auto blended = Render(gpu, gpu.Upload(blendImage), 0, true);
+    const unsigned background[] = {96, 64, 32, 255};
+    for (unsigned c = 0; c < 4; ++c) {
+        const int expected = int(std::lround((blendImage.mips[0].bytes[c] * 128.0 + background[c] * 127.0) / 255));
+        Require(std::abs(int(blended[c]) - expected) <= 1, "Straight alpha blend factor mismatch");
+    }
+    BLP::Image filtered;
+    filtered.mips.push_back({2, 2, 8, {0, 0, 0, 255, 0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255}});
+    const auto average = Render(gpu, gpu.Upload(filtered), 0, false, true, 1, 1);
+    Require(average[0] == 64 && average[1] == 64 && average[2] == 64 && average[3] == 255, "Bilinear center sampling mismatch");
+}
+}
+
+bool AppleBootstrap::CheckMetal(const BLP::Image& image, std::string& report) {
+    std::ostringstream out;
+    @autoreleasepool {
+        try {
+            GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
+            out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
+            CheckDecodeCases(gpu);
+            out << "BC endpoint/alpha cases, BGRA channel order, straight alpha blending and bilinear sampling passed.\n";
+            for (bool expanded : {false, true}) {
+                id<MTLTexture> texture = gpu.Upload(image, expanded);
+                unsigned maxRGB = 0, maxAlpha = 0;
+                size_t differences = 0;
+                for (size_t level = 0; level < image.mips.size(); ++level) {
+                    const auto actual = Render(gpu, texture, uint32_t(level));
+                    const auto expected = image.DecodeBGRA(level).bytes;
+                    Require(actual.size() == expected.size(), "Metal mip readback extent mismatch");
+                    for (size_t i = 0; i < actual.size(); ++i) {
+                        const unsigned delta = std::abs(int(actual[i]) - expected[i]);
+                        if (i % 4 == 3) { maxAlpha = std::max(maxAlpha, delta); } else { maxRGB = std::max(maxRGB, delta); }
+                        differences += delta != 0;
+                    }
+                }
+                out << (expanded ? "Forced BGRA expansion" : "Device-native upload") << ": " << image.mips.size()
+                    << " authored mips drawn/read back; max RGB/alpha delta " << maxRGB << '/' << maxAlpha
+                    << ", differing components " << differences << '\n';
+                const bool hardwareBC = !expanded && gpu.SupportsBC() && image.format != BLP::Format::BGRA8;
+                // Observed M2 Pro BC3 interpolation uses quantized weights:
+                // endpoints 253/8, index 5 gives 111, vs 113 from (3a+4b)/7.
+                // Rounding a weight to 1/64 can move an 8-bit result by 2.
+                // This bounds this upload check, not Windows effect equivalence.
+                // Expansion has no hardware BC rounding and must be exact.
+                Require(maxRGB <= 2u * hardwareBC && maxAlpha <= 2u * hardwareBC, "Metal texture samples differ beyond observed BC rounding");
+            }
+            out << "Hardware BC interpolation differences are reported; original Windows GPU comparison remains pending.\n";
+            report = out.str();
+            return true;
+        } catch (const std::exception& error) {
+            report = out.str() + "Metal check failed: " + error.what() + "\n";
+            return false;
+        }
+    }
+}
