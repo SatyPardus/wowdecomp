@@ -1,6 +1,10 @@
 #include <cstddef>
 #include <cstdint>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include <typeinfo>
 #include "Engine/Source/SoundEngine/SoundCache.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -171,7 +175,7 @@ void SoundCache::Purge(uint32_t bytes) {
     for (uint32_t i = 0; i < count; i++) {
         CacheChunk* chunk = &refs[i].m_cacheData->m_chunks[refs[i].m_index];
         this->m_bytes -= chunk->m_size;
-        s_chunkRecycler.PutData(chunk->m_data, sizeof(Chunk::Data), typeid(Chunk::Data).raw_name(), SLOG_OBJECT);
+        s_chunkRecycler.PutData(chunk->m_data, sizeof(Chunk::Data), StormTypeName(typeid(Chunk::Data)), SLOG_OBJECT);
         chunk->m_data = nullptr;
         chunk->m_size = 0;
 

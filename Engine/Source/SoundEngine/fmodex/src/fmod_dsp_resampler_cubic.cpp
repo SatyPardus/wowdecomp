@@ -1,4 +1,5 @@
 #include "fmod_settings.h"
+#include <stddef.h>
 
 #include "fmod_dsp_resampler_cubic.h"
 
@@ -50,10 +51,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -61,10 +62,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -72,10 +73,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -83,10 +84,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -105,10 +106,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -132,10 +133,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
 
                     for (count = 0; count < channels; count++)
                     {
-                        p0 = (float)inptr[((position->mHi - 1) * channels) + count] * scale;
-                        p1 = (float)inptr[((position->mHi + 0) * channels) + count] * scale;
-                        p2 = (float)inptr[((position->mHi + 1) * channels) + count] * scale;
-                        p3 = (float)inptr[((position->mHi + 2) * channels) + count] * scale;
+                        p0 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count] * scale;
+                        p1 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count] * scale;
+                        p2 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count] * scale;
+                        p3 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count] * scale;
                         a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                         b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                         c = (p2 - p0) / 2.0f;
@@ -170,10 +171,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -181,10 +182,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -192,10 +193,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -203,10 +204,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -225,10 +226,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -252,10 +253,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
 
                     for (count = 0; count < channels; count++)
                     {
-                        p0 = (float)inptr[((position->mHi - 1) * channels) + count] * scale;
-                        p1 = (float)inptr[((position->mHi + 0) * channels) + count] * scale;
-                        p2 = (float)inptr[((position->mHi + 1) * channels) + count] * scale;
-                        p3 = (float)inptr[((position->mHi + 2) * channels) + count] * scale;
+                        p0 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count] * scale;
+                        p1 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count] * scale;
+                        p2 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count] * scale;
+                        p3 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count] * scale;
                         a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                         b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                         c = (p2 - p0) / 2.0f;
@@ -285,10 +286,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     float r;
                     float a,b,c;
                     float f = position->mLo * OO4GIG;
-                    FMOD_INT24 *s0 = &inptr[position->mHi - 1];
-                    FMOD_INT24 *s1 = &inptr[position->mHi + 0];
-                    FMOD_INT24 *s2 = &inptr[position->mHi + 1];
-                    FMOD_INT24 *s3 = &inptr[position->mHi + 2];
+                    FMOD_INT24 *s0 = &inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    FMOD_INT24 *s1 = &inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    FMOD_INT24 *s2 = &inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    FMOD_INT24 *s3 = &inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
                     float  p0 = (float)((int)(((unsigned int)s0->val[0] <<  8) | ((unsigned int)s0->val[1] << 16) | ((unsigned int)s0->val[2] << 24)) >> 8) * scale;
                     float  p1 = (float)((int)(((unsigned int)s1->val[0] <<  8) | ((unsigned int)s1->val[1] << 16) | ((unsigned int)s1->val[2] << 24)) >> 8) * scale;
                     float  p2 = (float)((int)(((unsigned int)s2->val[0] <<  8) | ((unsigned int)s2->val[1] << 16) | ((unsigned int)s2->val[2] << 24)) >> 8) * scale;
@@ -315,10 +316,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
 
                     for (count = 0; count < channels; count++)
                     {
-                        FMOD_INT24 *s0 = &inptr[((position->mHi - 1) * channels) + count];
-                        FMOD_INT24 *s1 = &inptr[((position->mHi + 0) * channels) + count];
-                        FMOD_INT24 *s2 = &inptr[((position->mHi + 1) * channels) + count];
-                        FMOD_INT24 *s3 = &inptr[((position->mHi + 2) * channels) + count];
+                        FMOD_INT24 *s0 = &inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count];
+                        FMOD_INT24 *s1 = &inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count];
+                        FMOD_INT24 *s2 = &inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count];
+                        FMOD_INT24 *s3 = &inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count];
                         float  p0 = (float)((int)(((unsigned int)s0->val[0] <<  8) | ((unsigned int)s0->val[1] << 16) | ((unsigned int)s0->val[2] << 24)) >> 8) * scale;
                         float  p1 = (float)((int)(((unsigned int)s1->val[0] <<  8) | ((unsigned int)s1->val[1] << 16) | ((unsigned int)s1->val[2] << 24)) >> 8) * scale;
                         float  p2 = (float)((int)(((unsigned int)s2->val[0] <<  8) | ((unsigned int)s2->val[1] << 16) | ((unsigned int)s2->val[2] << 24)) >> 8) * scale;
@@ -358,10 +359,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -369,10 +370,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -380,10 +381,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -391,10 +392,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -413,10 +414,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = position->mLo * OO4GIG;
-                    p0 = (float)inptr[position->mHi - 1] * scale;
-                    p1 = (float)inptr[position->mHi + 0] * scale;
-                    p2 = (float)inptr[position->mHi + 1] * scale;
-                    p3 = (float)inptr[position->mHi + 2] * scale;
+                    p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -440,10 +441,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
 
                     for (count = 0; count < channels; count++)
                     {
-                        p0 = (float)inptr[((position->mHi - 1) * channels) + count] * scale;
-                        p1 = (float)inptr[((position->mHi + 0) * channels) + count] * scale;
-                        p2 = (float)inptr[((position->mHi + 1) * channels) + count] * scale;
-                        p3 = (float)inptr[((position->mHi + 2) * channels) + count] * scale;
+                        p0 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count] * scale;
+                        p1 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count] * scale;
+                        p2 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count] * scale;
+                        p3 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count] * scale;
                         a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                         b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                         c = (p2 - p0) / 2.0f;
@@ -476,10 +477,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = (float)position->mLo * OO4GIG;
-                    p0 = inptr[position->mHi - 1];
-                    p1 = inptr[position->mHi + 0];
-                    p2 = inptr[position->mHi + 1];
-                    p3 = inptr[position->mHi + 2];
+                    p0 = inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    p1 = inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    p2 = inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    p3 = inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -487,10 +488,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = inptr[position->mHi - 1];
-                    p1 = inptr[position->mHi + 0];
-                    p2 = inptr[position->mHi + 1];
-                    p3 = inptr[position->mHi + 2];
+                    p0 = inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    p1 = inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    p2 = inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    p3 = inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -498,10 +499,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = inptr[position->mHi - 1];
-                    p1 = inptr[position->mHi + 0];
-                    p2 = inptr[position->mHi + 1];
-                    p3 = inptr[position->mHi + 2];
+                    p0 = inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    p1 = inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    p2 = inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    p3 = inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -509,10 +510,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                     position->mValue += speed->mValue;
 
                     f = (float)position->mLo * OO4GIG;
-                    p0 = inptr[position->mHi - 1];
-                    p1 = inptr[position->mHi + 0];
-                    p2 = inptr[position->mHi + 1];
-                    p3 = inptr[position->mHi + 2];
+                    p0 = inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    p1 = inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    p2 = inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    p3 = inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -531,10 +532,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
                 while (len)
                 {
                     f = position->mLo * OO4GIG;
-                    p0 = inptr[position->mHi - 1];
-                    p1 = inptr[position->mHi + 0];
-                    p2 = inptr[position->mHi + 1];
-                    p3 = inptr[position->mHi + 2];
+                    p0 = inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    p1 = inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    p2 = inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    p3 = inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
                     a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                     b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                     c = (p2 - p0) / 2.0f;
@@ -558,10 +559,10 @@ void FMOD_Resampler_Cubic(float *out, int outlength, void *src, FMOD_SOUND_FORMA
 
                     for (count = 0; count < channels; count++)
                     {
-                        p0 = inptr[((position->mHi - 1) * channels) + count];
-                        p1 = inptr[((position->mHi + 0) * channels) + count];
-                        p2 = inptr[((position->mHi + 1) * channels) + count];
-                        p3 = inptr[((position->mHi + 2) * channels) + count];
+                        p0 = inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count];
+                        p1 = inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count];
+                        p2 = inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count];
+                        p3 = inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count];
                         a = (3.0f * (p1-p2) - p0 + p3) / 2.0f;
                         b = 2.0f * p2 + p0 - (5.0f * p1 + p3) / 2.0f;
                         c = (p2 - p0) / 2.0f;

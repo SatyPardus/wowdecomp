@@ -746,7 +746,7 @@ FMOD_RESULT CodecTag::readID3v2()
                         break;
                 }
 
-                FMOD_memcpy(tagdata, tagdata + 1, tagdatalen - 1);
+                FMOD_memmove(tagdata, tagdata + 1, tagdatalen - 1);
                 tagdata[tagdatalen - 1] = 0;
                 taglen--;
             }

@@ -2,6 +2,9 @@
 #define _FMOD_THREAD_H
 
 #include "fmod_settings.h"
+#if defined(__APPLE__)
+#include <atomic>
+#endif
 
 #include "fmod_string.h"
 #include "fmod_os_misc.h"
@@ -22,7 +25,11 @@ namespace FMOD
 
         char                 mName[FMOD_STRING_MAXNAMELEN];
         void                *mHandle;
+#if defined(__APPLE__)
+        std::atomic<bool>    mRunning; // Publish startup/shutdown to the worker on arm64.
+#else
         bool                 mRunning;
+#endif
         void                *mUserData;
         void                *mStack;
         FMOD_OS_SEMAPHORE   *mSema;

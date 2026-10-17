@@ -454,12 +454,12 @@ FMOD_RESULT OutputWavWriter::writeWavHeader()
         WAVE_FORMATEXTENSIBLE Fmt =
         {
             {
-                extensible ? WAVE_FORMAT_EXTENSIBLE : mFormat == FMOD_SOUND_FORMAT_PCMFLOAT ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM, 
-                mChannels, 
-                mRate, 
-                mRate * mChannels * mBits / 8, 
-                mChannels * mBits / 8, 
-                mBits,
+                static_cast<unsigned short>(extensible ? WAVE_FORMAT_EXTENSIBLE : mFormat == FMOD_SOUND_FORMAT_PCMFLOAT ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM),
+                static_cast<unsigned short>(mChannels),
+                static_cast<unsigned int>(mRate),
+                static_cast<unsigned int>(mRate * mChannels * mBits / 8),
+                static_cast<unsigned short>(mChannels * mBits / 8),
+                static_cast<unsigned short>(mBits),
                 0
             },
             0
@@ -488,7 +488,7 @@ FMOD_RESULT OutputWavWriter::writeWavHeader()
         WAVE_CHUNK WavHeader = 
         { 
             {'R','I','F','F'}, 
-            sizeof(FmtHdr) + sizeof(Fmt) + sizeof(DataChunk) + mLengthBytes,
+            static_cast<unsigned int>(sizeof(FmtHdr) + sizeof(Fmt) + sizeof(DataChunk) + mLengthBytes),
         };
 
 #ifdef PLATFORM_ENDIAN_BIG

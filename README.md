@@ -76,7 +76,7 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
 ### Apple foundation and Metal Gx builds
 
-The native port currently builds **foundation and graphics probes**, not a playable client. They
+The native port currently builds **foundation, graphics and audio probes**, not a playable client. They
 link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
 memory, synchronization, pthread threads/TLS, timing and the original Blizzard file
@@ -275,6 +275,26 @@ an Elwynn 120-frame window run pass; both iOS targets build and the simulator
 passes the checks and presents 120 frames of Northrend. This is surface rendering,
 not full world loading. Terrain0/2/3, projected shadows, cube reflection and
 fixed-function terrain paths remain unsupported.
+
+The original FMOD software mixer, decoders, resamplers and DSP sources now build
+on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary
+uses pthread synchronization, monotonic timing, native files and POSIX sockets.
+Audio Unit output uses interleaved float samples and fixed mixer blocks, with
+native callback sizes bridged without changing the original mixer clock. It
+currently exposes the system default mono/stereo route; surround channel layouts,
+recording, full game sound policy and persistent host audio are not integrated.
+iOS uses an ambient audio session and handles interruptions; media-service reset
+is reported as an error requiring recreation. Physical audio-CD devices are not
+supported. The socket boundary has not yet been exercised by game networking.
+
+`AppleAudioProbe --data-root /path/to/Data` checks original button WAV PCM bytes,
+reproducible title MP3 decoding, looping, spline resampling and stereo pan. Add
+`--output` to play a short title-music sample and verify native callback suspension
+and resumption. The iOS app runs the resource checks during startup; set
+`WOW_AUDIO_CHECK=1` for the same output check. macOS ASan/UBSan and both iOS builds
+pass. Windows audio equivalence, surround output and device-route changes still
+need validation. The port fixes negative resampler look-behind offsets on LP64,
+MP3 Huffman bit shifts and overlapping ID3 tag copies without re-encoding assets.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.

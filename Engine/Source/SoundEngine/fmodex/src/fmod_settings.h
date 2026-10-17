@@ -48,43 +48,37 @@
         #define PLATFORM_32BIT
     #endif
 
-#elif defined(__iphone__)
+#elif defined(__APPLE__)
 
-    #define PLATFORM_IPHONE
-    #define PLATFORM_32BIT
-    #define PLATFORM_ENDIAN_LITTLE
-
-    #if defined(__arm__)
-        #include <arm/arch.h>
-        #define PLATFORM_IPHONE_DEVICE
-
-        #if defined(_ARM_ARCH_7)         // Check arm7 first as it is a superset of arm6
-            #define PLATFORM_IPHONE_ARM7 
-        #elif defined(_ARM_ARCH_6)
-            #define PLATFORM_IPHONE_ARM6
+    #include <TargetConditionals.h>
+    #if TARGET_OS_IPHONE
+        #define PLATFORM_IPHONE
+        #if TARGET_OS_SIMULATOR
+            #define PLATFORM_IPHONE_SIMULATOR
+        #else
+            #define PLATFORM_IPHONE_DEVICE
         #endif
     #else
-        #define PLATFORM_IPHONE_SIMULATOR
+        #define PLATFORM_MAC
+        #if defined(__i386__) || defined(__x86_64__)
+            #define PLATFORM_MAC_INTEL
+        #endif
     #endif
-
-#elif defined(__MACH__)
-
-    #define PLATFORM_MAC   
-    
+    #if defined(__arm64__) || defined(__aarch64__)
+        #define PLATFORM_APPLE_ARM64
+    #endif
     #if defined(__LP64__)
         #define PLATFORM_64BIT
     #else
         #define PLATFORM_32BIT
     #endif
-
-    #if defined(__LITTLE_ENDIAN__)
-        #define PLATFORM_MAC_INTEL
+    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
         #define PLATFORM_ENDIAN_LITTLE
     #else
-        #define PLATFORM_MAC_PPC
         #define PLATFORM_ENDIAN_BIG
+        #define PLATFORM_MAC_PPC
     #endif
-    
+
 #elif defined(__psp__)
 
     #define PLATFORM_PSP
@@ -631,7 +625,7 @@
 #elif defined(PLATFORM_IPHONE)
  
     #define FMOD_SUPPORT_PRAGMAPACK
-    #ifdef PLATFORM_IPHONE_DEVICE 
+    #if defined(PLATFORM_IPHONE_DEVICE) && !defined(PLATFORM_APPLE_ARM64)
         #define FMOD_SUPPORT_SIMD
     #endif
     
@@ -639,8 +633,10 @@
 	#undef FMOD_SUPPORT_VAG
     #undef FMOD_SUPPORT_CDDA
     #undef FMOD_SUPPORT_DLLS
-    #undef FMOD_SUPPORT_RESAMPLER_CUBIC
-    #undef FMOD_SUPPORT_RESAMPLER_SPLINE
+    #if !defined(PLATFORM_APPLE_ARM64)
+        #undef FMOD_SUPPORT_RESAMPLER_CUBIC
+        #undef FMOD_SUPPORT_RESAMPLER_SPLINE
+    #endif
 
     #ifdef STRIPPED
         /* Support FSB, ADPCM, WAV, User Codec and IT, remove everything else */
@@ -691,6 +687,8 @@
 #elif defined(PLATFORM_MAC)
 
     #define FMOD_SUPPORT_COREAUDIO
+    // This port has no physical audio-CD device backend. Archive/file codecs remain enabled.
+    #undef FMOD_SUPPORT_CDDA
     #define FMOD_SUPPORT_VSTPLUGIN   
     #define FMOD_SUPPORT_PRAGMAPACK
     #define FMOD_SUPPORT_NEURAL

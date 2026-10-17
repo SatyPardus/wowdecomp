@@ -1208,7 +1208,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
 
     /* mhipp tree has this split up a bit */
     int num=getbitoffset();
-    int mask = (int) getBits(num)<<(BITSHIFT+8-num);
+    unsigned int mask = num ? getBits(num) << (BITSHIFT + 8 - num) : 0;
     part2remain -= num;
 
     {
@@ -1313,7 +1313,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
           register short *val = h->table;
           REFRESH_MASK;
           while((y=*val++)<0) {
-            if (mask < 0)
+            if ((mask & 0x80000000u) != 0)
               val -= y;
             num--;
             mask <<= 1;
@@ -1327,7 +1327,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
           x += ((unsigned int) mask) >> (BITSHIFT+8-h->linbits);
           num -= h->linbits+1;
           mask <<= h->linbits;
-          if(mask < 0)
+          if((mask & 0x80000000u) != 0)
             *xrpnt = -gIsPow(x) * v;
           else
             *xrpnt = gIsPow(x) * v;
@@ -1335,7 +1335,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
         }
         else if(x) {
           max[lwin] = cb;
-          if(mask < 0)
+          if((mask & 0x80000000u) != 0)
             *xrpnt = -gIsPow(x) * v;
           else
             *xrpnt = gIsPow(x) * v;
@@ -1351,7 +1351,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
           y += ((unsigned int) mask) >> (BITSHIFT+8-h->linbits);
           num -= h->linbits+1;
           mask <<= h->linbits;
-          if(mask < 0)
+          if((mask & 0x80000000u) != 0)
             *xrpnt = -gIsPow(y) * v;
           else
             *xrpnt = gIsPow(y) * v;
@@ -1359,7 +1359,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
         }
         else if(y) {
           max[lwin] = cb;
-          if(mask < 0)
+          if((mask & 0x80000000u) != 0)
             *xrpnt = -gIsPow(y) * v;
           else
             *xrpnt = gIsPow(y) * v;
@@ -1390,7 +1390,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
 
       REFRESH_MASK;
       while((a=*val++)<0) {
-        if (mask < 0)
+        if ((mask & 0x80000000u) != 0)
           val -= a;
         num--;
         mask <<= 1;
@@ -1423,7 +1423,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
           if(part2remain+num <= 0) {
             break;
           }
-          if(mask < 0) 
+          if((mask & 0x80000000u) != 0)
             *xrpnt = -v;
           else
             *xrpnt = v;
@@ -1500,7 +1500,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
                     register short *val = h->table;
                     REFRESH_MASK;
                     while((y=*val++)<0) {
-                    if (mask < 0)
+                    if ((mask & 0x80000000u) != 0)
                     val -= y;
                     num--;
                     mask <<= 1;
@@ -1515,7 +1515,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
                 x += ((unsigned int) mask) >> (BITSHIFT+8-h->linbits);
                 num -= h->linbits+1;
                 mask <<= h->linbits;
-                if(mask < 0)
+                if((mask & 0x80000000u) != 0)
                 *xrpnt++ = -gIsPow(x) * v;
                 else
                 *xrpnt++ = gIsPow(x) * v;
@@ -1523,7 +1523,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
                 }
                 else if(x) {
                 max = cb;
-                if(mask < 0)
+                if((mask & 0x80000000u) != 0)
                 *xrpnt++ = -gIsPow(x) * v;
                 else
                 *xrpnt++ = gIsPow(x) * v;
@@ -1539,7 +1539,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
                 y += ((unsigned int) mask) >> (BITSHIFT+8-h->linbits);
                 num -= h->linbits+1;
                 mask <<= h->linbits;
-                if(mask < 0)
+                if((mask & 0x80000000u) != 0)
                 *xrpnt++ = -gIsPow(y) * v;
                 else
                 *xrpnt++ = gIsPow(y) * v;
@@ -1547,7 +1547,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
                 }
                 else if(y) {
                 max = cb;
-                if(mask < 0)
+                if((mask & 0x80000000u) != 0)
                 *xrpnt++ = -gIsPow(y) * v;
                 else
                 *xrpnt++ = gIsPow(y) * v;
@@ -1568,7 +1568,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
 
         REFRESH_MASK;
         while((a=*val++)<0) {
-        if (mask < 0)
+        if ((mask & 0x80000000u) != 0)
         val -= a;
         num--;
         mask <<= 1;
@@ -1595,7 +1595,7 @@ FMOD_RESULT CodecMPEG::III_dequantize_sample(float xr[SBLIMIT][SSLIMIT],int *scf
         if(part2remain+num <= 0) {
         break;
         }
-        if(mask < 0)
+        if((mask & 0x80000000u) != 0)
         *xrpnt++ = -v;
         else
         *xrpnt++ = v;

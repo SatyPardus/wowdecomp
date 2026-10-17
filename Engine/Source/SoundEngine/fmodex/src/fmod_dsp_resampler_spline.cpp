@@ -1,4 +1,5 @@
 #include "fmod_settings.h"
+#include <stddef.h>
 
 #include "fmod_dsp_resampler_spline.h"
 
@@ -44,12 +45,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                 {
                     float f = position->mLo * OO4GIG;
                     float r;
-                    float p0 = (float)inptr[position->mHi - 2] * scale;
-                    float p1 = (float)inptr[position->mHi - 1] * scale;
-                    float p2 = (float)inptr[position->mHi + 0] * scale;
-                    float p3 = (float)inptr[position->mHi + 1] * scale;
-                    float p4 = (float)inptr[position->mHi + 2] * scale;
-                    float p5 = (float)inptr[position->mHi + 3] * scale;
+                    float p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 2] * scale;
+                    float p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    float p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    float p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    float p4 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
+                    float p5 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 3] * scale;
 
                     r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                         + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4
@@ -73,12 +74,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                     for (count = 0; count < channels; count++)
                     {
                         float r;
-                        float p0 = (float)inptr[((position->mHi - 2) * channels) + count] * scale;
-                        float p1 = (float)inptr[((position->mHi - 1) * channels) + count] * scale;
-                        float p2 = (float)inptr[((position->mHi + 0) * channels) + count] * scale;
-                        float p3 = (float)inptr[((position->mHi + 1) * channels) + count] * scale;
-                        float p4 = (float)inptr[((position->mHi + 2) * channels) + count] * scale;
-                        float p5 = (float)inptr[((position->mHi + 3) * channels) + count] * scale;
+                        float p0 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 2) * channels) + count] * scale;
+                        float p1 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count] * scale;
+                        float p2 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count] * scale;
+                        float p3 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count] * scale;
+                        float p4 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count] * scale;
+                        float p5 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 3) * channels) + count] * scale;
 
                         r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                             + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4
@@ -110,12 +111,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                 {
                     float f = position->mLo * OO4GIG;
                     float r;
-                    float p0 = (float)inptr[position->mHi - 2] * scale;
-                    float p1 = (float)inptr[position->mHi - 1] * scale;
-                    float p2 = (float)inptr[position->mHi + 0] * scale;
-                    float p3 = (float)inptr[position->mHi + 1] * scale;
-                    float p4 = (float)inptr[position->mHi + 2] * scale;
-                    float p5 = (float)inptr[position->mHi + 3] * scale;
+                    float p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 2] * scale;
+                    float p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    float p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    float p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    float p4 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
+                    float p5 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 3] * scale;
 
                     r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                         + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4
@@ -139,12 +140,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                     for (count = 0; count < channels; count++)
                     {
                         float r;
-                        float p0 = (float)inptr[((position->mHi - 2) * channels) + count] * scale;
-                        float p1 = (float)inptr[((position->mHi - 1) * channels) + count] * scale;
-                        float p2 = (float)inptr[((position->mHi + 0) * channels) + count] * scale;
-                        float p3 = (float)inptr[((position->mHi + 1) * channels) + count] * scale;
-                        float p4 = (float)inptr[((position->mHi + 2) * channels) + count] * scale;
-                        float p5 = (float)inptr[((position->mHi + 3) * channels) + count] * scale;
+                        float p0 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 2) * channels) + count] * scale;
+                        float p1 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count] * scale;
+                        float p2 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count] * scale;
+                        float p3 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count] * scale;
+                        float p4 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count] * scale;
+                        float p5 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 3) * channels) + count] * scale;
 
                         r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                             + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4
@@ -176,12 +177,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                 {
                     float f = position->mLo * OO4GIG;
                     float r;
-                    FMOD_INT24 *s0 = &inptr[position->mHi - 2];
-                    FMOD_INT24 *s1 = &inptr[position->mHi - 1];
-                    FMOD_INT24 *s2 = &inptr[position->mHi + 0];
-                    FMOD_INT24 *s3 = &inptr[position->mHi + 1];
-                    FMOD_INT24 *s4 = &inptr[position->mHi + 2];
-                    FMOD_INT24 *s5 = &inptr[position->mHi + 3];
+                    FMOD_INT24 *s0 = &inptr[static_cast<ptrdiff_t>(position->mHi) - 2];
+                    FMOD_INT24 *s1 = &inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    FMOD_INT24 *s2 = &inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    FMOD_INT24 *s3 = &inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    FMOD_INT24 *s4 = &inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
+                    FMOD_INT24 *s5 = &inptr[static_cast<ptrdiff_t>(position->mHi) + 3];
                     float  p0 = (float)((int)(((unsigned int)s0->val[0] <<  8) | ((unsigned int)s0->val[1] << 16) | ((unsigned int)s0->val[2] << 24)) >> 8) * scale;
                     float  p1 = (float)((int)(((unsigned int)s1->val[0] <<  8) | ((unsigned int)s1->val[1] << 16) | ((unsigned int)s1->val[2] << 24)) >> 8) * scale;
                     float  p2 = (float)((int)(((unsigned int)s2->val[0] <<  8) | ((unsigned int)s2->val[1] << 16) | ((unsigned int)s2->val[2] << 24)) >> 8) * scale;
@@ -212,12 +213,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                     for (count = 0; count < channels; count++)
                     {
                         float r;
-                        FMOD_INT24 *s0 = &inptr[((position->mHi - 2) * channels) + count];
-                        FMOD_INT24 *s1 = &inptr[((position->mHi - 1) * channels) + count];
-                        FMOD_INT24 *s2 = &inptr[((position->mHi + 0) * channels) + count];
-                        FMOD_INT24 *s3 = &inptr[((position->mHi + 1) * channels) + count];
-                        FMOD_INT24 *s4 = &inptr[((position->mHi + 2) * channels) + count];
-                        FMOD_INT24 *s5 = &inptr[((position->mHi + 3) * channels) + count];
+                        FMOD_INT24 *s0 = &inptr[((static_cast<ptrdiff_t>(position->mHi) - 2) * channels) + count];
+                        FMOD_INT24 *s1 = &inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count];
+                        FMOD_INT24 *s2 = &inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count];
+                        FMOD_INT24 *s3 = &inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count];
+                        FMOD_INT24 *s4 = &inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count];
+                        FMOD_INT24 *s5 = &inptr[((static_cast<ptrdiff_t>(position->mHi) + 3) * channels) + count];
                         float  p0 = (float)((int)(((unsigned int)s0->val[0] <<  8) | ((unsigned int)s0->val[1] << 16) | ((unsigned int)s0->val[2] << 24)) >> 8) * scale;
                         float  p1 = (float)((int)(((unsigned int)s1->val[0] <<  8) | ((unsigned int)s1->val[1] << 16) | ((unsigned int)s1->val[2] << 24)) >> 8) * scale;
                         float  p2 = (float)((int)(((unsigned int)s2->val[0] <<  8) | ((unsigned int)s2->val[1] << 16) | ((unsigned int)s2->val[2] << 24)) >> 8) * scale;
@@ -255,12 +256,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                 {
                     float f = position->mLo * OO4GIG;
                     float r;
-                    float p0 = (float)inptr[position->mHi - 2] * scale;
-                    float p1 = (float)inptr[position->mHi - 1] * scale;
-                    float p2 = (float)inptr[position->mHi + 0] * scale;
-                    float p3 = (float)inptr[position->mHi + 1] * scale;
-                    float p4 = (float)inptr[position->mHi + 2] * scale;
-                    float p5 = (float)inptr[position->mHi + 3] * scale;
+                    float p0 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 2] * scale;
+                    float p1 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) - 1] * scale;
+                    float p2 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 0] * scale;
+                    float p3 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 1] * scale;
+                    float p4 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 2] * scale;
+                    float p5 = (float)inptr[static_cast<ptrdiff_t>(position->mHi) + 3] * scale;
 
                     r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                         + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4
@@ -284,12 +285,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                     for (count = 0; count < channels; count++)
                     {
                         float r;
-                        float p0 = (float)inptr[((position->mHi - 2) * channels) + count] * scale;
-                        float p1 = (float)inptr[((position->mHi - 1) * channels) + count] * scale;
-                        float p2 = (float)inptr[((position->mHi + 0) * channels) + count] * scale;
-                        float p3 = (float)inptr[((position->mHi + 1) * channels) + count] * scale;
-                        float p4 = (float)inptr[((position->mHi + 2) * channels) + count] * scale;
-                        float p5 = (float)inptr[((position->mHi + 3) * channels) + count] * scale;
+                        float p0 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 2) * channels) + count] * scale;
+                        float p1 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count] * scale;
+                        float p2 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count] * scale;
+                        float p3 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count] * scale;
+                        float p4 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count] * scale;
+                        float p5 = (float)inptr[((static_cast<ptrdiff_t>(position->mHi) + 3) * channels) + count] * scale;
 
                         r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                             + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4
@@ -319,12 +320,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                 {
                     float f = position->mLo * OO4GIG;
                     float r;
-                    float p0 = inptr[position->mHi - 2];
-                    float p1 = inptr[position->mHi - 1];
-                    float p2 = inptr[position->mHi + 0];
-                    float p3 = inptr[position->mHi + 1];
-                    float p4 = inptr[position->mHi + 2];
-                    float p5 = inptr[position->mHi + 3];
+                    float p0 = inptr[static_cast<ptrdiff_t>(position->mHi) - 2];
+                    float p1 = inptr[static_cast<ptrdiff_t>(position->mHi) - 1];
+                    float p2 = inptr[static_cast<ptrdiff_t>(position->mHi) + 0];
+                    float p3 = inptr[static_cast<ptrdiff_t>(position->mHi) + 1];
+                    float p4 = inptr[static_cast<ptrdiff_t>(position->mHi) + 2];
+                    float p5 = inptr[static_cast<ptrdiff_t>(position->mHi) + 3];
 
                     r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                         + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4
@@ -348,12 +349,12 @@ void FMOD_Resampler_Spline(float *out, int outlength, void *src, FMOD_SOUND_FORM
                     for (count = 0; count < channels; count++)
                     {
                         float r;
-                        float p0 = inptr[((position->mHi - 2) * channels) + count];
-                        float p1 = inptr[((position->mHi - 1) * channels) + count];
-                        float p2 = inptr[((position->mHi + 0) * channels) + count];
-                        float p3 = inptr[((position->mHi + 1) * channels) + count];
-                        float p4 = inptr[((position->mHi + 2) * channels) + count];
-                        float p5 = inptr[((position->mHi + 3) * channels) + count];
+                        float p0 = inptr[((static_cast<ptrdiff_t>(position->mHi) - 2) * channels) + count];
+                        float p1 = inptr[((static_cast<ptrdiff_t>(position->mHi) - 1) * channels) + count];
+                        float p2 = inptr[((static_cast<ptrdiff_t>(position->mHi) + 0) * channels) + count];
+                        float p3 = inptr[((static_cast<ptrdiff_t>(position->mHi) + 1) * channels) + count];
+                        float p4 = inptr[((static_cast<ptrdiff_t>(position->mHi) + 2) * channels) + count];
+                        float p5 = inptr[((static_cast<ptrdiff_t>(position->mHi) + 3) * channels) + count];
 
                         r = p2 + 0.04166666666f * f * ((p3-p1) * 16.0f+(p0-p4) * 2.0f
                             + f * ((p3 + p1) * 16.0f - p0 - p2 * 30.0f - p4

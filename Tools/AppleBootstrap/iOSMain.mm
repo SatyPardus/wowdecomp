@@ -2,6 +2,8 @@
 #import <os/log.h>
 #include <memory>
 #include "Tools/AppleBootstrap/Probe.h"
+#include "Tools/AppleBootstrap/AudioProbe.h"
+#include <sstream>
 #include "Tools/AppleBootstrap/MetalProbe.h"
 #include "Tools/AppleBootstrap/MetalView.h"
 #include "WoW/Source/WowServices/ClientData.h"
@@ -55,6 +57,12 @@
     std::string report;
     if (AppleBootstrap::CheckMetal(*_pendingImage, *_pendingUI, report)) {
         try {
+            if (NSProcessInfo.processInfo.environment[@"WOW_AUDIO_CHECK"].boolValue) {
+                std::ostringstream audio;
+                CheckAudioOutput(*_client, audio);
+                report += audio.str();
+                NSLog(@"%s", audio.str().c_str());
+            }
             self.renderer = [[WowTextureRenderer alloc] initWithView:self.metalView textureName:_pendingTextureName.UTF8String];
             [self.renderer resume];
         } catch (const std::exception& error) {

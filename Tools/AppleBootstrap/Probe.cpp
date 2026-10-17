@@ -14,6 +14,7 @@
 #include <vector>
 #include <unistd.h>
 #include "Tools/AppleBootstrap/Probe.h"
+#include "Tools/AppleBootstrap/AudioProbe.h"
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
@@ -698,6 +699,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         CheckM2Resources(client, out);
         CheckTerrainResources(client, out);
         CheckWorldData(client, out);
+        CheckAudioResources(client, out);
         for (unsigned version : {2, 3}) {
             const std::string profile = std::to_string(version) + "_0\\UI.bls";
             const auto vertex = client.Read("Shaders\\Vertex\\vs_" + profile, 1024 * 1024);

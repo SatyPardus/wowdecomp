@@ -153,6 +153,14 @@ target_link_libraries(Model2 PUBLIC AppleGameResources ShaderEffect)
 add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance.cpp)
 target_link_libraries(CreatureAppearance PUBLIC Model2)
 
+# Shared sound policy/cache and original software mixer. Full game sound policy
+# is not initialized by the current graphics host.
+add_library(SoundEngine STATIC Engine/Source/SoundEngine/SoundEngine.cpp Engine/Source/SoundEngine/SoundCache.cpp)
+target_link_libraries(SoundEngine PUBLIC AppleGameResources)
+add_subdirectory(WoW/Source/SoundInterface)
+target_link_libraries(SoundInterface PUBLIC SoundEngine)
+include(cmake/AppleAudio.cmake)
+
 add_library(WorldSupport STATIC WoW/Common/AaBsp.cpp)
 target_link_libraries(WorldSupport PUBLIC Tempest)
 add_subdirectory(WoW/Source/WorldClient)
@@ -191,7 +199,7 @@ target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

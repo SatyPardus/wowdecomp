@@ -92,8 +92,8 @@ static FMOD_INLINE int FMOD_Cart2Angle(int y, int x)
         return 0;
     }
 
-    x <<= SHIFT;
-    y <<= SHIFT;
+    x = static_cast<int>(static_cast<unsigned int>(x) << SHIFT);
+    y = static_cast<int>(static_cast<unsigned int>(y) << SHIFT);
 
     coeff_1 = M_PII/4;
     coeff_2 = 3*coeff_1;
