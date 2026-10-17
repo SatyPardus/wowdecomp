@@ -2,7 +2,9 @@
 #define ENGINE_SOURCE_GX_METAL_TEXTUREDEVICE_H
 #import <Metal/Metal.h>
 #include <simd/simd.h>
+#include <array>
 #include <unordered_map>
+#include "Engine/Source/Gx/Metal/Filter4Shader.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -37,6 +39,7 @@ struct GeometryDraw {
     id<MTLBuffer> vertices = nil, indices = nil;
     size_t vertexOffset = 0, indexOffset = 0;
     EGxVertexBufferFormat format = GxVBF_PCT;
+    FragmentEffect effect = FragmentEffect::Unlit;
     CGxBatch batch{};
     C44Matrix clipFromModel{1.0f};
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
@@ -66,6 +69,8 @@ public:
         const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport = nullptr);
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state);
+    void DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states);
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
         uint32_t mask, simd_float4 color);
     bool SupportsBC() const;
@@ -74,6 +79,7 @@ private:
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
     id<MTLFunction> m_geometryVertex[2][4];
+    id<MTLFunction> m_filterVertex, m_filterFragment[2][2];
     id<MTLFunction> m_clearVertex, m_clearFragment;
     id<MTLRenderPipelineState> m_clearPipelines[2][2]{};
     id<MTLDepthStencilState> m_clearDepth[2]{};
@@ -81,8 +87,10 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false);
+        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
+    void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 4>&,
+        const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 4>&);
 };
 }
 #endif

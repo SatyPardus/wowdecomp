@@ -197,6 +197,12 @@ mips; earlier draws and the currently bound attachment retain their GPU images.
 The probe also keeps original Gxu font objects alive across mip changes and checks
 that their glyph textures reproduce the same pixels after reupload.
 
+Native primitives for the original `FFXBox4` and `FFXGauss4` assets now preserve
+four independent coordinates, textures and samplers. Box4 averages RGB with
+vertex alpha; Gauss4 filters RGBA using the original tap weights. GPU checks cover
+both effects and two-pass intermediate sampling. Their game shader factory and
+original FFX pass integration are still pending.
+
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth
 readback and screenshots through game APIs. It verifies known alpha

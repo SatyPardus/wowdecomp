@@ -8,6 +8,7 @@
 
 void CheckGxGeometry(GxMetal::TextureDevice& gpu);
 void CheckGxDevice();
+void CheckGxFilter4(GxMetal::TextureDevice& gpu);
 void CheckUIShader(GxMetal::TextureDevice& gpu, const GxMetal::UIShader& ui);
 
 namespace {
@@ -200,6 +201,8 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             CheckGxGeometry(gpu);
             CheckUIShader(gpu, ui);
             CheckGxDevice();
+            CheckGxFilter4(gpu);
+            out << "Original FFXBox4/FFXGauss4 native primitives: four independent textures/coordinates/samplers, RGB versus RGBA/vertex-alpha semantics, alpha test and two-pass intermediate sampling passed. Game FFX pass integration remains pending.\n";
             out << "Native Gx factory, UI shader creation/binding, streaming-buffer wrap, immutable texture updates, partial-origin callbacks, pixel/depth readback, screenshots and exact ARGB4444 font textures passed.\n";
             out << "Gx color render targets: offscreen draw/sample ordering, default clear preservation, scratch depth reuse, target destruction and host resize passed.\n";
             out << "Gx surface copies: default versus explicit source, exact partial RGBA copies, nearest/linear scaling, offset destination, invalid bounds and same-frame mip sampling passed.\n";

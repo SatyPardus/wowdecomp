@@ -14,8 +14,21 @@ static_assert(sizeof(GeometryParameters) == 128 && offsetof(GeometryParameters, 
 
 void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state) {
-    Require(command && pass && texture && geometry.vertices, "Missing Metal geometry resource");
-    Require(geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last, "Invalid Gx vertex format");
+    Require(geometry.effect == FragmentEffect::Unlit, "Unlit draw received a different native effect");
+    DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state});
+}
+void GxMetal::TextureDevice::DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states) {
+    Require(geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4, "Invalid FFX filter effect");
+    DrawGeometry(command, pass, textures, geometry, {}, states);
+}
+void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
+    const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 4>& states) {
+    const bool filter = geometry.effect != FragmentEffect::Unlit;
+    const auto& state = states[0];
+    Require(command && pass && textures[0] && geometry.vertices, "Missing Metal geometry resource");
+    Require(filter ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
+        "Invalid Gx vertex format for native effect");
     Require(geometry.format != GxVBF_PBNT2, "Skinned Gx vertices require a skinning effect");
     const auto& batch = geometry.batch;
     Require(batch.m_primType >= GxPrim_Points && batch.m_primType < GxPrim_TriangleFan,
@@ -26,7 +39,7 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
     if (batch.m_primType == GxPrim_Lines) { count -= count % 2; }
     if (batch.m_primType == GxPrim_Triangles) { count -= count % 3; }
     Require(count >= (batch.m_primType >= GxPrim_Triangles ? 3 : batch.m_primType >= GxPrim_Lines ? 2 : 1), "Empty Gx geometry batch");
-    const size_t stride = GxVertexSize(geometry.format);
+    const size_t stride = filter ? 48 : GxVertexSize(geometry.format);
     Require(geometry.vertexOffset % 4 == 0 && geometry.vertexOffset <= geometry.vertices.length, "Invalid Gx vertex buffer offset");
     const size_t availableVertices = (geometry.vertices.length - geometry.vertexOffset) / stride;
     size_t indexOffset = geometry.indexOffset;
@@ -59,8 +72,12 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
             v.originX + v.width <= target.width && v.originY + v.height <= target.height &&
             v.znear >= 0 && v.zfar <= 1 && v.znear <= v.zfar, "Invalid Metal geometry viewport");
     }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth);
-    id<MTLSamplerState> sampler = Sampler(state);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect);
+    std::array<id<MTLSamplerState>, 4> samplers{};
+    for (unsigned i = 0; i < (filter ? 4u : 1u); ++i) {
+        Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
+        samplers[i] = Sampler(states[i]);
+    }
     const uint32_t depthKey = geometry.depthFunction | (unsigned(geometry.depthTest) << 2) | (unsigned(geometry.depthWrite) << 3);
     auto depth = m_depthStates.find(depthKey);
     if (depth == m_depthStates.end()) {
@@ -91,8 +108,10 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
     [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
     [encoder setFragmentBytes:&constants.texture length:sizeof(constants.texture) atIndex:0];
-    [encoder setFragmentTexture:texture atIndex:0];
-    [encoder setFragmentSamplerState:sampler atIndex:0];
+    for (unsigned i = 0; i < (filter ? 4u : 1u); ++i) {
+        [encoder setFragmentTexture:textures[i] atIndex:i];
+        [encoder setFragmentSamplerState:samplers[i] atIndex:i];
+    }
     if (geometry.indices) {
         [encoder drawIndexedPrimitives:primitives[batch.m_primType] indexCount:count indexType:MTLIndexTypeUInt16
             indexBuffer:geometry.indices indexBufferOffset:indexOffset];

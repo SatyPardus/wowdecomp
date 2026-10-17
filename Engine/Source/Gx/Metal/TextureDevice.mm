@@ -37,6 +37,8 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     id<MTLLibrary> library = [device newLibraryWithSource:@(TextureQuadSource) options:options error:&error];
     if (!library) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal shader compilation failed"); }
     m_vertex = [library newFunctionWithName:@"textureQuadVertex"];
+    m_filterVertex = [library newFunctionWithName:@"filter4Vertex"];
+    Require(m_filterVertex != nil, "Missing native FFX vertex function");
     m_clearVertex = [library newFunctionWithName:@"clearVertex"];
     m_clearFragment = [library newFunctionWithName:@"clearFragment"];
     Require(m_clearVertex && m_clearFragment, "Missing native attachment clear functions");
@@ -54,6 +56,11 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
         [constants setConstantValue:&alphaTest type:MTLDataTypeBool atIndex:0];
         m_fragment[alphaTest] = [library newFunctionWithName:@"textureQuadFragment" constantValues:constants error:&error];
         if (!m_fragment[alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal specialization failed"); }
+        for (uint32_t filter = 1; filter <= 2; ++filter) {
+            [constants setConstantValue:&filter type:MTLDataTypeUInt atIndex:2];
+            m_filterFragment[filter - 1][alphaTest] = [library newFunctionWithName:@"filter4Fragment" constantValues:constants error:&error];
+            if (!m_filterFragment[filter - 1][alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal filter specialization failed"); }
+        }
     }
     // Prepare common preview states at initialization. Other masks/states are
     // cached on demand; the full game will prewarm its material permutations.
@@ -64,12 +71,12 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5) |
-        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14);
+        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -107,6 +114,20 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     }
     if (depthAttachment) { descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float; }
     descriptor.fragmentFunction = m_fragment[state.alphaRef != 0];
+    if (effect != FragmentEffect::Unlit) {
+        Require((effect == FragmentEffect::Box4 || effect == FragmentEffect::Gauss4) && !screenAtDepth,
+            "Invalid native FFX filter pipeline");
+        descriptor.vertexFunction = m_filterVertex;
+        descriptor.fragmentFunction = m_filterFragment[uint32_t(effect) - 1][state.alphaRef != 0];
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        const MTLVertexFormat formats[] = {MTLVertexFormatFloat3, MTLVertexFormatUChar4Normalized_BGRA,
+            MTLVertexFormatFloat2, MTLVertexFormatFloat2, MTLVertexFormatFloat2, MTLVertexFormatFloat2};
+        const size_t offsets[] = {0, 12, 16, 24, 32, 40};
+        for (unsigned i = 0; i < 6; ++i) {
+            layout.attributes[i].bufferIndex = 1; layout.attributes[i].offset = offsets[i]; layout.attributes[i].format = formats[i];
+        }
+        layout.layouts[1].stride = 48; descriptor.vertexDescriptor = layout;
+    }
     auto attachment = descriptor.colorAttachments[0];
     attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;
     attachment.blendingEnabled = state.blend >= GxBlend_Alpha;
