@@ -419,7 +419,7 @@ bool System_SFile2::FileHashCompare::operator()(const std::string& key1, const s
     }
 
     if (str2) {
-        return _stricmp(str1, str2) < 0;
+        return SStrCmpI(str1, str2, STORM_MAX_STR) < 0;
     }
 
     return false;
@@ -462,7 +462,9 @@ int32_t STORMAPI SFile::SetFilePointer(SFileImpl* file, int32_t distance, int32_
             } else if (method == 1) {
                 file->m_position += distance;
             } else if (method == 2) {
-                file->m_position = file->m_size - distance;
+                // Match the file and MPQ paths: a negative offset seeks back
+                // from EOF. The reconstructed preload path reversed the sign.
+                file->m_position = file->m_size + distance;
             }
 
             result = file->m_position;
@@ -766,7 +768,7 @@ int32_t STORMAPI SFileReadFile(SFileImpl* file, void* buffer, uint32_t count, ui
                     char message[256];
                     SErrGetErrorStr(SErrGetLastError(), message, sizeof(message));
 
-                    if (stack->FindCategory(21)) {
+                    if (stack && stack->FindCategory(21)) {
                         const char* format = stormError ? "Failed to read data from the network. Please check your Internet connection and try again.\n\nDebug Details:\n\n%sStorm Error Msg:%s" : "Failed to read data from the network. Please check your Internet connection and try again.\n\nDebug Details:\n\n%s";
                         SErrDisplayAppFatal(format, Blizzard::Debug::ErrorStackAsText(stack), message);
                     }
@@ -887,6 +889,75 @@ void SFile::RebuildHash() {
     System_SFile2::s_fileHash.clear();
     System_SFile2::s_fileHashBuilt = false;
     Blizzard::Lock::MutexLeave(System_SFile2::s_fileHashLock.m_mutex);
+}
+
+// The local file index is also needed when remote streaming is disabled.
+// VERIFY: 19d4f174 manual
+// OFFSET: 0x00424280
+bool Blizzard::Streaming::ScanDirectoryForManifest(const Blizzard::File::ProcessDirParms& parms) {
+    System_SFile2::ScanDirCookie* cookie = static_cast<System_SFile2::ScanDirCookie*>(parms.m_cookie);
+
+    char path[512];
+    Blizzard::String::Format(path, sizeof(path), "%s%s%s", cookie->m_root, cookie->m_prefix, parms.m_filename);
+    char* relative = &path[cookie->m_rootLength];
+
+    if (parms.m_isDir) {
+        if (Blizzard::String::EqualI(parms.m_filename, ".svn")) {
+            return true;
+        }
+
+        Blizzard::String::ForceTrailingSeparator(path, sizeof(path), '\\');
+
+        if (System_SFile2::s_dataPath[0] && Blizzard::String::Equal(&path[cookie->m_rootLength], System_SFile2::s_dataPath)) {
+            return true;
+        }
+
+        const char* prefix = cookie->m_prefix;
+        cookie->m_prefix = &path[cookie->m_rootLength];
+        Blizzard::File::ProcessDirFast(path, cookie, Blizzard::Streaming::ScanDirectoryForManifest, false);
+        cookie->m_prefix = prefix;
+
+        return true;
+    }
+
+    char* extension = const_cast<char*>(Blizzard::String::FindExtensionWithLeadingDot(path));
+    char* fullPath = Blizzard::String::Duplicate(path);
+
+    if (*extension) {
+        int32_t type = 0;
+
+        if (Blizzard::String::EqualI(extension, ".bz")) {
+            type = 1;
+        } else if (Blizzard::String::EqualI(extension, ".MPQ")) {
+            type = 2;
+        }
+
+        if (type) {
+            *extension = 0;
+
+            if (System_SFile2::s_fileHash.find(std::string(relative)) == System_SFile2::s_fileHash.end()) {
+                System_SFile2::FileHashEntry entry;
+                entry.m_path = fullPath;
+                entry.m_type = type;
+                System_SFile2::s_fileHash.insert(System_SFile2::FileHash::value_type(std::string(relative), entry));
+
+                Blizzard::Memory::Free(fullPath);
+
+                return true;
+            }
+        }
+    }
+
+    if (System_SFile2::s_fileHash.find(std::string(relative)) == System_SFile2::s_fileHash.end()) {
+        System_SFile2::FileHashEntry entry;
+        entry.m_path = fullPath;
+        entry.m_type = 0;
+        System_SFile2::s_fileHash.insert(System_SFile2::FileHash::value_type(std::string(relative), entry));
+    }
+
+    Blizzard::Memory::Free(fullPath);
+
+    return true;
 }
 
 // VERIFY: b07104c0 manual
@@ -1122,7 +1193,7 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
 
 fail:
     if (*result) {
-        delete *result;
+        SFileCloseFile(*result);
     }
 
     *result = nullptr;

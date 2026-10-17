@@ -10,6 +10,7 @@ namespace Blizzard::Streaming {
 bool s_streamingReady = false;
 bool s_isStreamingTrial = false;
 bool IsStreamedFile(const char*) { return false; }
+bool IsStreamingMode() { return false; }
 void MakePartFileName(char*, uint32_t) {}
 int32_t CheckFileRange(const char*, int64_t, int32_t, const char*, int32_t) { return -1; }
 int32_t GetIsLocalAmount(const char*, int64_t, int32_t size, const char*) { return size; }
@@ -21,5 +22,7 @@ static bool UnsupportedDownload() {
 }
 bool MakeLocalAsync(File::StreamRecord*, int64_t, int32_t, int32_t, const char*) { return UnsupportedDownload(); }
 bool MakeLocalBlocking(File::StreamRecord*, int64_t, int32_t, int32_t, const char*) { return UnsupportedDownload(); }
+bool InitializeStreaming(const char*, const char*, const char*, const char*, bool) { return UnsupportedDownload(); }
 }
+bool CheckIfStreamingAndTrial() { return false; }
 #endif

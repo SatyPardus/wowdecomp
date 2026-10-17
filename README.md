@@ -81,7 +81,8 @@ link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including i
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
 memory, synchronization, pthread threads/TLS, timing and the original Blizzard file
 API backed by native positional file IO. No Windows emulation is
-used. Original SFile archive/resource IO and decompression are linked. The native
+used. Original SFile archive/resource IO, decompression and the game's SFile2
+open/read/seek/preload layer are linked. The native
 loader shares the client's archive definitions and applies patch priorities,
 locale fallback and regional alternate views. Signature policy, game startup, the full Gx/Metal backend, audio and
 network integration remain to be connected. Apple currently selects a full local
@@ -115,7 +116,11 @@ tables using the original MPQ decryption. It opens archives through SFile, reads
 their listfiles and representative model, terrain, WMO, texture, DBC, script and
 audio resources, checking embedded MD5 digests when present. It then mounts the
 full local archive layout and resolves known resources through the global SFile
-search, reporting each supplying archive. The configured root replaces the
+search, reporting each supplying archive. SFile2 reads are compared against the
+same resources, including preloaded reads, EOF, seeks and zero-padded whole-file
+loads; a temporary loose file checks case-insensitive lookup through the original
+file index. SFile2 compressed loose-file branches and asynchronous overlapped
+reads remain incomplete in the reconstructed implementation. The configured root replaces the
 client's installation-directory search; archive filenames resolve without regard
 to case. Data is always opened read-only; the large-offset IO
 check uses a temporary sparse file outside Data and removes it afterwards. A

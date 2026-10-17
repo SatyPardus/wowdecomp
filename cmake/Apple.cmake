@@ -46,6 +46,7 @@ target_compile_definitions(AppleFoundation PUBLIC WOW_LOCAL_FILES_ONLY=1)
 add_subdirectory(ThirdParty EXCLUDE_FROM_ALL)
 add_library(AppleArchives STATIC
     WoW/Source/WowServices/ClientData.cpp
+    Engine/Source/BlizzardCore/SFile2-Core.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQGlobals.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/SComp.cpp
@@ -70,6 +71,7 @@ add_library(AppleArchives STATIC
     Engine/Source/Storm/Source/SComp.cpp
     Engine/Source/Storm/Source/SStr.cpp
     Engine/Source/Storm/Source/SOption.cpp
+    Engine/Source/Storm/Source/MD5.cpp
 )
 target_link_libraries(AppleArchives PUBLIC AppleFoundation blast bzip2 lzma zlib)
 

@@ -17,6 +17,7 @@
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/BLPFile/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
+#include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.h"
@@ -236,6 +237,50 @@ struct ScratchFile {
     ~ScratchFile() { unlink(path.c_str()); rmdir(directory.c_str()); }
 };
 
+struct CloseSFile { void operator()(SFileImpl* file) const { SFileCloseFile(file); } };
+void CheckClientFile(const char* name, const std::vector<uint8_t>& expected) {
+    Require(expected.size() > 16, "SFile2 probe requires a nonempty resource");
+    Require(SFile::FileExists(name), "SFile2 file lookup failed");
+    for (uint32_t flags : {0u, 0x20000u}) {
+        SFileImpl* opened = nullptr;
+        Require(SFile::OpenEx(nullptr, name, flags, &opened), "SFile2 open/preload failed");
+        std::unique_ptr<SFileImpl, CloseSFile> file(opened);
+        Require(SFileGetFileSize(file.get(), nullptr) == expected.size(), "SFile2 size mismatch");
+        std::vector<uint8_t> bytes(expected.size());
+        uint32_t read = 0;
+        Require(SFileReadFile(file.get(), bytes.data(), uint32_t(bytes.size()), &read, nullptr, 0) &&
+            read == bytes.size() && bytes == expected, "SFile2 sequential/preloaded data mismatch");
+        Require(SFile::SetFilePointer(file.get(), 7, nullptr, 0) == 7, "SFile2 absolute seek failed");
+        Require(SFileReadFile(file.get(), bytes.data(), 9, &read, nullptr, 0) && read == 9 &&
+            !std::memcmp(bytes.data(), expected.data() + 7, 9), "SFile2 seek/read mismatch");
+        Require(SFile::SetFilePointer(file.get(), -5, nullptr, 2) == expected.size() - 5, "SFile2 end-relative seek failed");
+        Require(!SFileReadFile(file.get(), bytes.data(), 9, &read, nullptr, 0) && read == 5 &&
+            !std::memcmp(bytes.data(), expected.data() + expected.size() - 5, 5), "SFile2 short read/EOF mismatch");
+    }
+    void* data = nullptr;
+    uint32_t size = 0;
+    Require(SFile::LoadFile(name, &data, &size, 4, nullptr), "SFile2 whole-file load failed");
+    std::unique_ptr<void, decltype(&SFile::Unload)> loaded(data, SFile::Unload);
+    Require(size == expected.size() && !std::memcmp(data, expected.data(), size), "SFile2 whole-file content mismatch");
+    Require(!std::memcmp(static_cast<uint8_t*>(data) + size, "\0\0\0\0", 4), "SFile2 extra bytes were not zeroed");
+}
+
+void CheckClientLocalFile(const std::string& scratchDirectory) {
+    ScratchFile scratch(scratchDirectory);
+    Unit output(IOPosixFileUnit::CreateWritable(scratch.path.c_str()));
+    const std::vector<uint8_t> expected{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+    Require(output && output->Write(expected.data(), 0, uint32_t(expected.size())), "SFile2 scratch creation failed");
+    output.reset();
+    SFile::Initialize();
+    SFile::SetBasePath(scratch.directory.c_str());
+    SFile::EnableDirectAccess(1);
+    SFile::RebuildHash();
+    CheckClientFile("OFFSET-CHECK", expected); // case-insensitive index, actual spelling on disk
+    SFile::EnableDirectAccess(0);
+    SFile::SetBasePath("");
+    SFile::RebuildHash();
+}
+
 void CheckFileStack(const std::string& scratchDirectory) {
     namespace File = Blizzard::File;
     ScratchFile scratch(scratchDirectory);
@@ -372,7 +417,8 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(!range->Read(buffer.data(), 0, buffer.size(), nullptr), "exact read incorrectly accepted EOF");
         Require(!range->Read(buffer.data(), -1, 1, &bytes), "negative offset accepted");
         CheckFileStack(scratchDirectory);
-        report = "PASS: native locks/events, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps and read-only/64-bit file IO.\n";
+        CheckClientLocalFile(scratchDirectory);
+        report = "PASS: native locks/events, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
         report = std::string("Core check failed: ") + error.what() + "\n";
@@ -402,6 +448,8 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         }
         out << "Inspected " << archives.size() << " archives read-only.\n";
         ClientData client(dataRoot, locale);
+        SFile::Initialize();
+        SFile::EnableDirectAccess(0);
         out << "Client archive layout: " << client.Mounts().size() << " mounts, locale " << client.Locale() << '\n';
         for (const auto& mount : client.Mounts()) {
             out << "  priority " << mount.priority << ": " << mount.path;
@@ -416,6 +464,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         };
         for (const char* name : resources) {
             const auto asset = client.Read(name, 64 * 1024 * 1024, true);
+            CheckClientFile(name, asset.bytes);
             if (std::strcmp(name, resources[0]) == 0) {
                 Require(asset.bytes.size() >= 20 && !std::memcmp(asset.bytes.data(), "WDBC", 4), "Map.dbc header is invalid");
                 const auto* data = asset.bytes.data();
@@ -425,6 +474,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
             out << "  resolved " << name << ": " << asset.bytes.size() << " bytes from " << asset.archive
                 << (asset.digestVerified ? " (archive MD5 matched)" : " (no archive MD5)") << '\n';
         }
+        out << "SFile2 sequential, preloaded, seek/EOF and whole-file reads match all 7 mounted resources.\n";
         out << "Full local archive layout and locale fallback are active. Client signature policy, game loop, full Gx/Metal integration, audio and networking remain to be integrated.\n";
         report = out.str();
         return success;
