@@ -1700,7 +1700,7 @@ bool CGLCD::GeneratePOIs(XMLNode* node) {
         int32_t x = 0;
 
         for (int32_t i = 0; i < g_areaPOIDB.m_numRecords; i++) {
-            AreaPOIRec* rec = i >= 0 && i < g_areaPOIDB.m_numRecords ? &g_areaPOIDB.m_records[i] : nullptr;
+            AreaPOIRec* rec = &g_areaPOIDB.m_records[i];
 
             if (!rec || rec->m_continentID != continentID) {
                 continue;

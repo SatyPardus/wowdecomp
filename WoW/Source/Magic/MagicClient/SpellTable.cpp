@@ -65,9 +65,9 @@ bool SpellTableMatchRaceClass(int32_t race, int32_t classId, int32_t raceMask, i
 // OFFSET: 0x00810410
 SkillLineAbilityRec* SpellTableLookupPetAbility(int32_t skillLine, int32_t spellId) {
     for (int32_t i = 0; i < g_skillLineAbilityDB.m_numRecords; i++) {
-        SkillLineAbilityRec* ability = (i < 0 || i >= g_skillLineAbilityDB.m_numRecords) ? nullptr : &g_skillLineAbilityDB.m_records[i];
+        SkillLineAbilityRec* ability = &g_skillLineAbilityDB.m_records[i];
 
-        if (ability->m_skillLine == skillLine && ability->m_spell == spellId) {
+        if (ability && ability->m_skillLine == skillLine && ability->m_spell == spellId) {
             return ability;
         }
     }
@@ -160,7 +160,12 @@ static void SpellTableBuildSkillLineLinkInfo() {
     int32_t lastSkillLine = -1;
 
     for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
-        CharBaseInfoRec* base = (i < 0 || i >= g_charBaseInfoDB.m_numRecords) ? nullptr : &g_charBaseInfoDB.m_records[i];
+        CharBaseInfoRec* base = &g_charBaseInfoDB.m_records[i];
+
+        if (!base) {
+            continue;
+        }
+
         uint8_t race = static_cast<uint8_t>(base->m_raceID);
 
         if (!g_chrRacesDB.GetRecord(race)) {
@@ -168,7 +173,12 @@ static void SpellTableBuildSkillLineLinkInfo() {
         }
 
         for (int32_t j = 0; j < g_skillLineAbilityDB.m_numRecords; j++) {
-            SkillLineAbilityRec* ability = (j < 0 || j >= g_skillLineAbilityDB.m_numRecords) ? nullptr : &g_skillLineAbilityDB.m_records[j];
+            SkillLineAbilityRec* ability = &g_skillLineAbilityDB.m_records[j];
+            
+            if (!ability) {
+                continue;
+            }
+
             SpellTableAddSkillLineRec(race, static_cast<uint8_t>(base->m_classID), ability);
 
             if (!first) {
@@ -208,9 +218,13 @@ void SpellTableInitialize() {
     int32_t lastSkill = -1;
 
     for (int32_t i = 0; i < g_skillRaceClassInfoDB.m_numRecords; i++) {
-        SkillRaceClassInfoRec* rec = (i < 0 || i >= g_skillRaceClassInfoDB.m_numRecords) ? nullptr : &g_skillRaceClassInfoDB.m_records[i];
+        SkillRaceClassInfoRec* rec = &g_skillRaceClassInfoDB.m_records[i];
 
-        if (rec->m_skillID == lastSkill) {
+        if (!rec) {
+            continue;
+        }
+
+        if (raceClassInfo && rec->m_skillID == lastSkill) {
             raceClassInfo->m_count++;
             continue;
         }
@@ -226,9 +240,13 @@ void SpellTableInitialize() {
     int32_t lastCosts = -1;
 
     for (int32_t i = 0; i < g_skillCostsDataDB.m_numRecords; i++) {
-        SkillCostsDataRec* rec = (i < 0 || i >= g_skillCostsDataDB.m_numRecords) ? nullptr : &g_skillCostsDataDB.m_records[i];
+        SkillCostsDataRec* rec = &g_skillCostsDataDB.m_records[i];
 
-        if (rec->m_skillCostsID == lastCosts) {
+        if (!rec) {
+            continue;
+        }
+
+        if (skillCostsInfo && rec->m_skillCostsID == lastCosts) {
             skillCostsInfo->m_count++;
             continue;
         }
@@ -272,9 +290,9 @@ SkillLineAbilityRec* SpellTableLookupAbility(int32_t race, int32_t classId, int3
     }
 
     for (int32_t i = 0; i < g_skillLineAbilityDB.m_numRecords; i++) {
-        SkillLineAbilityRec* ability = (i < 0 || i >= g_skillLineAbilityDB.m_numRecords) ? nullptr : &g_skillLineAbilityDB.m_records[i];
+        SkillLineAbilityRec* ability = &g_skillLineAbilityDB.m_records[i];
 
-        if (ability->m_spell == spellId && SpellTableLookupInfo(race, classId, ability->m_skillLine) && SpellTableMatchRaceClass(race, classId, ability->m_raceMask, ability->m_classMask, ability->m_excludeRace, ability->m_excludeClass)) {
+        if (ability && ability->m_spell == spellId && SpellTableLookupInfo(race, classId, ability->m_skillLine) && SpellTableMatchRaceClass(race, classId, ability->m_raceMask, ability->m_classMask, ability->m_excludeRace, ability->m_excludeClass)) {
             return ability;
         }
     }

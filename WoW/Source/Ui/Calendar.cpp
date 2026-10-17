@@ -1176,7 +1176,12 @@ void CGCalendar::InitHolidays() {
     int8_t region = static_cast<int8_t>(s_region);
 
     for (int32_t i = 0; i < g_holidaysDB.m_numRecords; i++) {
-        HolidaysRec* holiday = i < 0 || i >= g_holidaysDB.m_numRecords ? nullptr : &g_holidaysDB.m_records[i];
+        HolidaysRec* holiday = &g_holidaysDB.m_records[i];
+
+        if (!holiday) {
+            continue;
+        }
+
         DYNAMICHOLIDAYHASH* dynamic = s_dynamicHolidays.Ptr(holiday->m_id, HASHKEY_NONE());
         int32_t regionMask = dynamic ? dynamic->m_region : holiday->m_region;
 

@@ -79,7 +79,11 @@ void CGCurrencyTypes::InitializeGame() {
     memset(CGCurrencyTypes::m_categories, 0, sizeof(CGCurrencyTypes::m_categories));
 
     for (int32_t i = 0; i < numCategories; i++) {
-        CurrencyCategoryRec* rec = i < 0 || i >= numCategories ? nullptr : &g_currencyCategoryDB.m_records[i];
+        CurrencyCategoryRec* rec = &g_currencyCategoryDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         CGCurrencyTypes::m_categories[i].m_id = rec->m_id;
         CGCurrencyTypes::m_categories[i].m_name = rec->m_name;

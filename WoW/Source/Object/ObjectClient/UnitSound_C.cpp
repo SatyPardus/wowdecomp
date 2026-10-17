@@ -48,9 +48,12 @@ static void UnitSoundLoadDeathThuds() {
         s_deathThudSounds[i].SetCount(maxSoundId + 1);
     }
 
-    for (int32_t i = g_deathThudLookupsDB.m_numRecords; i; ) {
-        i--;
-        DeathThudLookupsRec* rec = i >= 0 && i < g_deathThudLookupsDB.m_numRecords ? &g_deathThudLookupsDB.m_records[i] : nullptr;
+    for (int32_t i = g_deathThudLookupsDB.m_numRecords - 1; i >= 0; --i) {
+        DeathThudLookupsRec* rec = &g_deathThudLookupsDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (static_cast<uint32_t>(rec->m_sizeClass) < 5 && rec->m_terrainTypeSoundID <= maxSoundId) {
             s_deathThudSounds[rec->m_sizeClass].m_data[rec->m_terrainTypeSoundID].m_soundEntryId = rec->m_soundEntryID;
@@ -81,7 +84,11 @@ void UnitSoundInitialize() {
     s_lastStandSoundTime = FrameTime::s_curTimeMs;
 
     for (int32_t i = 0; i < g_soundEntriesDB.m_numRecords; i++) {
-        SoundEntriesRec* rec = i >= 0 && i < g_soundEntriesDB.m_numRecords ? &g_soundEntriesDB.m_records[i] : nullptr;
+        SoundEntriesRec* rec = &g_soundEntriesDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (!SStrCmp(rec->m_name, "SpiritWolf (DONOTRENAME)", STORM_MAX_STR)) {
             CGUnit_C::s_dismountSoundKitId = rec->m_id;

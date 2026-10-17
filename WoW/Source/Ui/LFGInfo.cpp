@@ -1403,7 +1403,11 @@ void CGLookingForGroup::UpdateRandomDungeons() {
     uint32_t count = 0;
 
     for (int32_t i = 0; i < numRecords; i++) {
-        LfgDungeonsRec* rec = i < 0 || i >= g_lfgDungeonsDB.m_numRecords ? nullptr : &g_lfgDungeonsDB.m_records[i];
+        LfgDungeonsRec* rec = &g_lfgDungeonsDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (rec->m_typeID == 6 || CGLookingForGroup::IsRandomDungeonUnlocked(rec)) {
             count++;
@@ -1414,7 +1418,12 @@ void CGLookingForGroup::UpdateRandomDungeons() {
     uint32_t index = 0;
 
     for (int32_t i = 0; i < numRecords; i++) {
-        LfgDungeonsRec* rec = i < 0 || i >= g_lfgDungeonsDB.m_numRecords ? nullptr : &g_lfgDungeonsDB.m_records[i];
+        LfgDungeonsRec* rec = &g_lfgDungeonsDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
+
         uint32_t slot = (rec->m_id & 0xFFFFFF) | (rec->m_typeID << 24);
 
         if (rec->m_typeID == 6) {

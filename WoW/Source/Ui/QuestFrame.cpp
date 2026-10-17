@@ -626,7 +626,7 @@ int32_t CGQuestInfo::GetNumQuestChoices() {
 // VERIFY: 5df087bb auto
 // OFFSET: 0x0058BBC0
 int32_t CGQuestInfo::GetQuestItemID(const char* type, uint32_t index) {
-    if (index > 6) {
+    if (index >= 6) {
         return 0;
     }
 

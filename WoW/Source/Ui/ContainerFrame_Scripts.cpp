@@ -483,10 +483,6 @@ static int32_t Script_PickupContainerItem(lua_State* L) {
                 int32_t bankSlot = 0;
                 CGGameUI::GetCursorVirtualItem(bankItemId, bankSlot);
 
-                if (!virtualId) {
-                    return 0;
-                }
-
                 uint8_t bagIndex = player->FindSlotIndex(bag->m_guid);
                 uint32_t count = 0;
                 WOWGUID none = WOWGUID();

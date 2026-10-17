@@ -142,7 +142,11 @@ bool CGUnit_C::IsAlteredFormTransitionPreventingMovement() const {
     if (charmer) {
         CVehiclePassenger_C* charmerPassenger = charmer->m_vehiclePassenger;
 
-        if (!charmerPassenger || ((!charmerPassenger->m_state || charmerPassenger->m_state == 3) && !(charmerPassenger->m_flags & 0x200))) {
+        if (!charmerPassenger) {
+            return false;
+        }
+
+        if (((!charmerPassenger->m_state || charmerPassenger->m_state == 3) && !(charmerPassenger->m_flags & 0x200))) {
             return charmer->IsInVehicle() && (charmerPassenger->m_flags & 0x8);
         }
 

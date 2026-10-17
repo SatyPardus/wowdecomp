@@ -71,7 +71,11 @@ void SI2::InitEmoteSounds() {
     int32_t count = 0;
 
     for (int32_t i = 0; i < g_emotesTextSoundDB.m_numRecords; i++) {
-        EmotesTextSoundRec* rec = (i < 0 || i >= g_emotesTextSoundDB.m_numRecords) ? nullptr : &g_emotesTextSoundDB.m_records[i];
+        EmotesTextSoundRec* rec = &g_emotesTextSoundDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (last == -1 || last != rec->m_emotesTextID) {
             last = rec->m_emotesTextID;
@@ -82,7 +86,12 @@ void SI2::InitEmoteSounds() {
     s_numTextEmotes = count;
 
     for (int32_t i = 0; i < g_emotesTextSoundDB.m_numRecords; i++) {
-        EmotesTextSoundRec* rec = (i < 0 || i >= g_emotesTextSoundDB.m_numRecords) ? nullptr : &g_emotesTextSoundDB.m_records[i];
+        EmotesTextSoundRec* rec = &g_emotesTextSoundDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
+
         uint32_t id = rec->m_emotesTextID;
 
         if (id >= s_textEmoteLookupById.Count()) {

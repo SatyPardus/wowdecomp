@@ -686,9 +686,9 @@ void ValidateNameInitialize(int32_t localeMask, int32_t charsetMask) {
         uint32_t numProfanityTokens = 0;
 
         for (int32_t i = 0; static_cast<uint32_t>(i) < profanityCount; i++) {
-            NamesProfanityRec* rec = (i < 0 || i >= g_namesProfanityDB.m_numRecords) ? nullptr : &g_namesProfanityDB.m_records[i];
+            NamesProfanityRec* rec = &g_namesProfanityDB.m_records[i];
 
-            if (rec->m_language == language || rec->m_language == -1) {
+            if (rec && (rec->m_language == language || rec->m_language == -1)) {
                 if (regcomp(&profanityTokens.m_data[numProfanityTokens], rec->m_name, REG_ICASE)) {
                     DebugLog("Warning: invalid profane names filter expression: \"%s\" (record ID %d)\n", rec->m_name, rec->m_id);
                 } else {
@@ -705,9 +705,9 @@ void ValidateNameInitialize(int32_t localeMask, int32_t charsetMask) {
         uint32_t numChatProfanityTokens = 0;
 
         for (int32_t i = 0; static_cast<uint32_t>(i) < chatProfanityCount; i++) {
-            ChatProfanityRec* rec = (i < 0 || i >= g_chatProfanityDB.m_numRecords) ? nullptr : &g_chatProfanityDB.m_records[i];
+            ChatProfanityRec* rec = &g_chatProfanityDB.m_records[i];
 
-            if (rec->m_language == language || rec->m_language == -1) {
+            if (rec && (rec->m_language == language || rec->m_language == -1)) {
                 if (regcomp(&chatProfanityTokens.m_data[numChatProfanityTokens], rec->m_text, REG_ICASE)) {
                     DebugLog("Warning: invalid chat profanity filter expression: \"%s\" (record ID %d)\n", rec->m_text, rec->m_id);
                 } else {
@@ -724,9 +724,9 @@ void ValidateNameInitialize(int32_t localeMask, int32_t charsetMask) {
         uint32_t numReservedNameTokens = 0;
 
         for (int32_t i = 0; static_cast<uint32_t>(i) < reservedCount; i++) {
-            NamesReservedRec* rec = (i < 0 || i >= g_namesReservedDB.m_numRecords) ? nullptr : &g_namesReservedDB.m_records[i];
+            NamesReservedRec* rec = &g_namesReservedDB.m_records[i];
 
-            if (rec->m_language == language || rec->m_language == -1) {
+            if (rec && (rec->m_language == language || rec->m_language == -1)) {
                 if (regcomp(&reservedNameTokens.m_data[numReservedNameTokens], rec->m_name, REG_ICASE)) {
                     DebugLog("Warning: invalid reserved names filter expression: \"%s\" (record ID %d)\n", rec->m_name, rec->m_id);
                 } else {
@@ -743,7 +743,7 @@ void ValidateNameInitialize(int32_t localeMask, int32_t charsetMask) {
     uint32_t numSpamTokens = 0;
 
     for (int32_t i = 0; static_cast<uint32_t>(i) < spamCount; i++) {
-        SpamMessagesRec* rec = (i < 0 || i >= g_spamMessagesDB.m_numRecords) ? nullptr : &g_spamMessagesDB.m_records[i];
+        const SpamMessagesRec* rec = &g_spamMessagesDB.m_records[i];
 
         if (regcomp(&g_chatSpamTokens.m_data[numSpamTokens], rec->m_text, REG_ICASE)) {
             DebugLog("Warning: invalid chat spam filter expression: \"%s\" (record ID %d)\n", rec->m_text, rec->m_id);

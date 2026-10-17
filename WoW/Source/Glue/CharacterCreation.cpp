@@ -84,7 +84,7 @@ void CCharacterCreation::Initialize() {
 
     for (int32_t faction = 0; faction < 2; faction++) {
         for (int32_t i = 0; i < g_chrRacesDB.m_numRecords; i++) {
-            ChrRacesRec* race = i >= 0 && i < g_chrRacesDB.m_numRecords ? &g_chrRacesDB.m_records[i] : nullptr;
+            ChrRacesRec* race = &g_chrRacesDB.m_records[i];
 
             if (race && (race->m_flags & 0x1)) {
                 continue;
@@ -97,7 +97,7 @@ void CCharacterCreation::Initialize() {
             }
 
             for (int32_t j = 0; j < g_factionGroupDB.m_numRecords; j++) {
-                FactionGroupRec* group = j >= 0 && j < g_factionGroupDB.m_numRecords ? &g_factionGroupDB.m_records[j] : nullptr;
+                FactionGroupRec* group = &g_factionGroupDB.m_records[j];
 
                 if (!group || !group->m_maskID || !((1 << group->m_maskID) & factionTemplate->m_factionGroup)) {
                     continue;
@@ -163,7 +163,7 @@ void CCharacterCreation::OnHide() {
 // OFFSET: 0x004DFFE0
 bool IsRaceClassValid(int32_t raceID, int32_t classID) {
     for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
-        CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
+        CharBaseInfoRec* rec = &g_charBaseInfoDB.m_records[i];
 
         if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID && static_cast<uint8_t>(rec->m_classID) == classID) {
             return true;
@@ -381,7 +381,7 @@ int32_t CCharacterCreation::GetExistingClassIndex() {
     }
 
     for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
-        ChrClassesRec* rec = i >= 0 && i < g_chrClassesDB.m_numRecords ? &g_chrClassesDB.m_records[i] : nullptr;
+        ChrClassesRec* rec = &g_chrClassesDB.m_records[i];
 
         if (rec->m_id == display->m_characterInfo.m_classID) {
             return i;
@@ -477,7 +477,7 @@ void CCharacterCreation::Dress() {
     CCharacterComponent::RemoveHandItem(CCharacterCreation::m_character->m_data.m_model, INVSLOT_RANGED, SHEATHE_NONE, false);
 
     for (int32_t i = 0; i < g_charStartOutfitDB.m_numRecords; i++) {
-        CharStartOutfitRec* outfit = i >= 0 && i < g_charStartOutfitDB.m_numRecords ? &g_charStartOutfitDB.m_records[i] : nullptr;
+        CharStartOutfitRec* outfit = &g_charStartOutfitDB.m_records[i];
 
         if (static_cast<uint8_t>(outfit->m_raceID) != CCharacterCreation::m_character->m_data.m_preferences.m_raceID || static_cast<uint8_t>(outfit->m_classID) != CCharacterCreation::m_selectedClassID || static_cast<uint8_t>(outfit->m_sexID) != CCharacterCreation::m_character->m_data.m_preferences.m_sexID) {
             continue;
@@ -709,8 +709,8 @@ void CCharacterCreation::RandomizeCharCustomization() {
 void CCharacterCreation::CalcClasses(int32_t raceID) {
     uint32_t count = 0;
 
-    for (int32_t i = 0; static_cast<uint32_t>(i) < static_cast<uint32_t>(g_charBaseInfoDB.m_numRecords); i++) {
-        CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
+    for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
+        CharBaseInfoRec* rec = &g_charBaseInfoDB.m_records[i];
 
         if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID) {
             count++;
@@ -722,7 +722,7 @@ void CCharacterCreation::CalcClasses(int32_t raceID) {
     uint32_t index = 0;
 
     for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
-        CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
+        CharBaseInfoRec* rec = &g_charBaseInfoDB.m_records[i];
 
         if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID) {
             CCharacterCreation::m_classes.m_data[index++] = g_chrClassesDB.GetRecord(static_cast<uint8_t>(rec->m_classID));

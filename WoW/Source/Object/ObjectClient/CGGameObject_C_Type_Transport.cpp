@@ -87,7 +87,11 @@ CGGameObject_C_Type_Transport::CGGameObject_C_Type_Transport(CGGameObject_C* own
         this->m_frameCount = 1;
 
         for (int32_t i = index + 1; i < g_transportAnimationDB.m_numRecords; i++) {
-            const TransportAnimationRec* rec = (i < 0 || i >= g_transportAnimationDB.m_numRecords) ? nullptr : &g_transportAnimationDB.m_records[i];
+            const TransportAnimationRec* rec = &g_transportAnimationDB.m_records[i];
+
+            if (!rec) {
+                continue;
+            }
 
             if (rec->m_transportID != owner->m_obj->m_entryID) {
                 break;
@@ -105,6 +109,10 @@ CGGameObject_C_Type_Transport::CGGameObject_C_Type_Transport(CGGameObject_C* own
 
         for (int32_t i = index + 1; i < g_transportRotationDB.m_numRecords; i++) {
             const TransportRotationRec* rec = (i < 0 || i >= g_transportRotationDB.m_numRecords) ? nullptr : &g_transportRotationDB.m_records[i];
+
+            if (!rec) {
+                continue;
+            }
 
             if (rec->m_gameObjectsID != owner->m_obj->m_entryID) {
                 break;
