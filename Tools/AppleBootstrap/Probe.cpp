@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstring>
@@ -15,6 +16,7 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.h"
+#include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/Storm/H/SCritSect.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CRandom.h"
@@ -29,6 +31,57 @@ using Unit = std::unique_ptr<IOUnit, ReleaseUnit>;
 
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }
+}
+
+std::atomic<int> tlsDestroyed{0};
+struct ThreadLocalProbe {
+    uint32_t value = 0;
+    ~ThreadLocalProbe() { ++tlsDestroyed; }
+};
+Blizzard::Thread::LocalObject<ThreadLocalProbe> threadLocalProbe{};
+uint32_t CheckThreadLocal(void* parameter) {
+    auto& local = static_cast<ThreadLocalProbe&>(threadLocalProbe);
+    if (local.value) { return 0; }
+    local.value = *static_cast<uint32_t*>(parameter);
+    Blizzard::Thread::Sleep(2);
+    return static_cast<ThreadLocalProbe&>(threadLocalProbe).value;
+}
+
+void CheckNativeThreads() {
+    const int before = tlsDestroyed.load();
+    std::array<Blizzard::Thread::ThreadRecord*, 8> threads{};
+    std::array<uint32_t, 8> values{1, 2, 3, 4, 5, 6, 7, 8};
+    for (size_t i = 0; i < threads.size(); ++i) {
+        Require(Blizzard::Thread::Create(CheckThreadLocal, &values[i], &threads[i], "WoW archive worker", 0, 65536), "native thread creation failed");
+    }
+    bool success = true;
+    for (size_t i = 0; i < threads.size(); ++i) {
+        success &= Blizzard::Thread::WaitForever(threads[i]);
+        success &= !Blizzard::Thread::IsRunning(threads[i]) && threads[i]->m_result == values[i];
+        Blizzard::Thread::Close(threads[i]);
+    }
+    Require(success && tlsDestroyed == before + 8, "native thread result/TLS cleanup mismatch");
+    // Cocoa/dispatch and other externally-created threads also use the engine TLS.
+    std::thread external([&] { CheckThreadLocal(&values[0]); });
+    external.join();
+    Require(tlsDestroyed == before + 9, "external thread TLS cleanup failed");
+    struct DetachedState {
+        Blizzard::Lock::EventObject start;
+        Blizzard::Lock::EventObject done;
+    } detached;
+    Blizzard::Thread::ThreadRecord* released;
+    Require(Blizzard::Thread::Create([](void* value) -> uint32_t {
+        auto& state = *static_cast<DetachedState*>(value);
+        Blizzard::Lock::EventWaitForever(state.start.m_event);
+        Blizzard::Lock::EventSet(state.done.m_event);
+        return 42;
+    }, &detached, &released, "detached lifetime", 0, 0), "detached thread creation failed");
+    Require(Blizzard::Thread::Close(released), "running thread close failed");
+    Blizzard::Lock::EventSet(detached.start.m_event);
+    Require(Blizzard::Lock::EventWait(1000, detached.done.m_event), "closed thread did not finish");
+    Blizzard::Thread::ThreadRecord* suspended = nullptr;
+    Require(!Blizzard::Thread::Create(CheckThreadLocal, &values[0], &suspended, "suspended", 1, 0) && !suspended,
+        "unsupported suspended thread did not fail explicitly");
 }
 
 uint32_t Read32(const uint8_t* bytes) {
@@ -115,6 +168,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         auto* signaled = Blizzard::Lock::EventWait(1000, event.m_event);
         signal.join();
         Require(signaled, "event did not wake waiter");
+        CheckNativeThreads();
 
         IOUnitContainer container(3u, 17u, 0u);
         bool owner;
@@ -167,7 +221,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(memcmp(marker, buffer.data(), sizeof(marker)) == 0, "positional read mismatch");
         Require(!range->Read(buffer.data(), 0, buffer.size(), nullptr), "exact read incorrectly accepted EOF");
         Require(!range->Read(buffer.data(), -1, 1, &bytes), "negative offset accepted");
-        report = "PASS: native locks/events, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling and read-only/64-bit file IO.\n";
+        report = "PASS: native locks/events, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
         report = std::string("Core check failed: ") + error.what() + "\n";

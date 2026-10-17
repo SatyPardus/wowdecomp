@@ -17,6 +17,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SMem.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Diagnostics.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Lock/Apple/Lock.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/Apple/Thread.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/Apple/ThreadLocalStorage.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnit.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.cpp

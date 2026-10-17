@@ -5,7 +5,10 @@
 #include <functional>
 #include <set>
 #include <vector>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
+#include "Engine/Source/Platform/CallingConvention.h"
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 #include "Engine/Source/BlizzardCore/Source/System/Memory/AllocSTL.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/ThreadLocalStorage.h"
@@ -14,6 +17,9 @@
 namespace System_Thread {
 
 class ThreadWorker;
+#if defined(__APPLE__)
+struct NativeThreadState;
+#endif
 
 }
 
@@ -23,7 +29,11 @@ namespace Thread {
 class ThreadPoolRecord;
 
 struct ThreadRecord {
+#if defined(__APPLE__)
+    System_Thread::NativeThreadState* m_handle;
+#else
     /* 0000 */ HANDLE m_handle;
+#endif
     /* 0004 */ uint32_t m_threadId;
     /* 0008 */ void* m_param;
     /* 000C */ uint32_t (*m_function)(void*);
@@ -91,6 +101,7 @@ class UsingThreadLocalStorage : public Blizzard::Using::Use {
     UsingThreadLocalStorage();
 };
 
+#if defined(_WIN32)
 struct ExternalTLSRecord {
     /* 0000 */ HANDLE m_thread;
     /* 0004 */ HANDLE m_event;
@@ -99,6 +110,7 @@ struct ExternalTLSRecord {
     /* 0010 */ void* m_value;
     /* 0014 */ Blizzard::Thread::TLSDestructor m_destructor;
 };
+#endif
 
 extern bool s_initialized;
 extern Blizzard::Lock::Mutex s_mutex;
@@ -108,7 +120,9 @@ extern Blizzard::Thread::TLSSlot s_stackTraceEntryPointTLS;
 extern Blizzard::Thread::ThreadRecord* s_mainThread;
 extern std::set<Blizzard::Thread::ThreadRecord*, std::less<Blizzard::Thread::ThreadRecord*>, Blizzard::Memory::AllocSTL_raw<Blizzard::Thread::ThreadRecord*>>* s_ThreadRegistry;
 extern int32_t s_DefaultStackSize;
+#if defined(_WIN32)
 extern ExternalTLSRecord s_externalTLS[32];
+#endif
 extern int32_t s_externalTLSCount;
 extern Blizzard::Thread::ThreadPoolRecord* s_defaultPool;
 
@@ -123,12 +137,14 @@ void InitThreadSystem();
 Blizzard::Thread::ThreadRecord* NewThread(uint32_t (*function)(void*), void* param, const char* name);
 void RegisterExternalTLSDestructor(void* value, Blizzard::Thread::TLSDestructor destructor);
 void RemoveFromRegistry(Blizzard::Thread::ThreadRecord* thread);
+#if defined(_WIN32)
 void RunExternalTLSDestructors(HANDLE thread);
+#endif
 bool SetPriorityLevel(Blizzard::Thread::ThreadRecord* thread, int32_t level);
 void SetStackTraceEntryPoint(void* entryPoint);
 void ShutdownThreadLocalStorage();
 void ShutdownThreadSystem();
-uint32_t __stdcall ThreadStarter(void* param);
+uint32_t WOW_STDCALL ThreadStarter(void* param);
 
 }
 

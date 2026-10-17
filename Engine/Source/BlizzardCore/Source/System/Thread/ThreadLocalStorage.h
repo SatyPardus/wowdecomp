@@ -9,7 +9,11 @@ namespace Thread {
 typedef void (*TLSDestructor)(void*);
 
 struct TLSSlot {
+#if defined(__APPLE__)
+    uintptr_t m_key;
+#else
     /* 0000 */ uint32_t m_key;
+#endif
     /* 0004 */ TLSDestructor m_destructor;
 };
 
