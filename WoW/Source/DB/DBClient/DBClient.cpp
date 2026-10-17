@@ -367,11 +367,6 @@ WowClientDB<LfgDungeonGroupRec> g_lfgDungeonGroupDB;
 // STATIC: 0x00AD4040
 WowClientDB<LfgDungeonsRec> g_lfgDungeonsDB;
 
-// STATIC: 0x00AD4064
-WowClientDB<LiquidTypeRec> g_liquidTypeDB;
-
-// STATIC: 0x00AD4088
-WowClientDB<LiquidMaterialRec> g_liquidMaterialDB;
 
 // STATIC: 0x00AD40AC
 WowClientDB<LoadingScreensRec> g_loadingScreensDB;

@@ -36,6 +36,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataStore.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/BitArray.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Handle.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RCString.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RefCount.cpp
@@ -129,6 +130,9 @@ add_library(AppleGameResources STATIC
     WoW/Source/DB/WowClientDB.cpp
     WoW/Source/DB/DBClient/AnimationData.cpp
     WoW/Source/DB/Rec/AnimationDataRec.cpp
+    WoW/Source/DB/DBClient/LiquidData.cpp
+    WoW/Source/DB/Rec/LiquidTypeRec.cpp
+    WoW/Source/DB/Rec/LiquidMaterialRec.cpp
     WoW/Source/DB/DBClient/CreatureAppearance.cpp
     WoW/Source/DB/Rec/CreatureDisplayInfoRec.cpp
     WoW/Source/DB/Rec/CreatureModelDataRec.cpp
@@ -149,10 +153,12 @@ target_link_libraries(Model2 PUBLIC AppleGameResources ShaderEffect)
 add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance.cpp)
 target_link_libraries(CreatureAppearance PUBLIC Model2)
 
+add_library(WorldSupport STATIC WoW/Common/AaBsp.cpp)
+target_link_libraries(WorldSupport PUBLIC Tempest)
 add_subdirectory(WoW/Source/WorldClient)
 add_library(WorldTerrain STATIC WoW/Common/TerrainGeometry.cpp WoW/Common/TerrainSurface.cpp WoW/Common/TerrainAlpha.cpp)
 target_link_libraries(WorldTerrain PUBLIC Tempest)
-target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain)
+target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain WorldSupport)
 
 add_library(AppleTextureData ALIAS BLPFile)
 
@@ -184,8 +190,8 @@ add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleB
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView "-framework MetalKit" "-framework CoreGraphics")
 
-add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain)
+add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

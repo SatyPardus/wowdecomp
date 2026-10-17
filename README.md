@@ -243,6 +243,12 @@ generation and hole-aware indices are shared with `CMapChunk`, retaining its
 arithmetic and triangle ordering. Core checks read complete Ahn'Qiraj, Elwynn and
 Northrend tiles, including vertex colors, holes and compressed alpha maps. This
 surface view does not replace the WMO, doodad, liquid or sound loaders.
+The shared BSP digest/cache and bit-array implementations now build natively;
+checks use 961 actual WMO nodes and 465 leaves, preserving face flags/order and
+geometry and clearing cached node pointers on release. LiquidType/LiquidMaterial
+DBCs also use their original loaders; all 26 liquid and three material records
+are checked against archive bytes on macOS and the iOS simulator. World instance
+linking still requires the sound-object lifecycle and world UI model hit testing.
 Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against

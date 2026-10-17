@@ -48,6 +48,7 @@
 
 void CheckM2Resources(const ClientData& client, std::ostream& report);
 void CheckTerrainResources(const ClientData& client, std::ostream& report);
+void CheckWorldData(const ClientData& client, std::ostream& report);
 
 namespace {
 struct ReleaseUnit { void operator()(IOUnit* unit) const { if (unit) { unit->Release(); } } };
@@ -696,6 +697,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         out << "SFile2 sequential, preloaded, seek/EOF and whole-file reads match all 7 mounted resources.\n";
         CheckM2Resources(client, out);
         CheckTerrainResources(client, out);
+        CheckWorldData(client, out);
         for (unsigned version : {2, 3}) {
             const std::string profile = std::to_string(version) + "_0\\UI.bls";
             const auto vertex = client.Read("Shaders\\Vertex\\vs_" + profile, 1024 * 1024);
