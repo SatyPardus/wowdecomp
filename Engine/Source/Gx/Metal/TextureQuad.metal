@@ -18,7 +18,7 @@ constant bool alphaTest [[function_constant(0)]];
 constant bool screenAtDepth [[function_constant(1)]];
 constant bool signedWave [[function_constant(3)]];
 constant uint filter4Kernel [[function_constant(2)]];
-struct QuadVertex { float4 position [[position]]; float2 uv; float4 color; };
+struct QuadVertex { float4 position [[position]]; float2 uv; float4 color; float pointSize [[point_size]]; };
 
 vertex float4 clearVertex(uint index [[vertex_id]]) {
     const float2 uv = float2(index >> 1, index & 1);
@@ -29,7 +29,7 @@ fragment float4 clearFragment(constant float4& color [[buffer(0)]]) { return col
 vertex QuadVertex textureQuadVertex(uint index [[vertex_id]], constant QuadParameters& p [[buffer(0)]]) {
     const float2 uv = float2(index >> 1, index & 1);
     // Native Metal clip coordinates, top-left texture origin, no D3D9 half-pixel offset.
-    return {float4((uv * float2(2, -2) + float2(-1, 1)) * p.scale, 0, 1), uv * p.uvScale + p.uvOffset, float4(1)};
+    return {float4((uv * float2(2, -2) + float2(-1, 1)) * p.scale, 0, 1), uv * p.uvScale + p.uvOffset, float4(1), 1};
 }
 
 struct VertexP { float3 position [[attribute(0)]]; };
@@ -40,7 +40,8 @@ struct GeometryParameters { float4x4 clipFromModel; QuadParameters texture; };
 inline QuadVertex unlitVertex(float3 position, float4 color, float2 uv, constant GeometryParameters& p) {
     float4 clip = p.clipFromModel * float4(position, 1);
     if (screenAtDepth) { clip.xy *= clip.w; }
-    return {clip, uv * p.texture.uvScale + p.texture.uvOffset, color};
+    // Metal requires an explicit point size; Gx currently admits size 1 only.
+    return {clip, uv * p.texture.uvScale + p.texture.uvOffset, color, 1};
 }
 vertex QuadVertex unlitP(VertexP v [[stage_in]], constant GeometryParameters& p [[buffer(0)]]) {
     return unlitVertex(v.position, float4(1), float2(0), p);

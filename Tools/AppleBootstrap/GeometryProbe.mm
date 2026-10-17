@@ -162,5 +162,16 @@ void CheckUIShader(GxMetal::TextureDevice& gpu, const GxMetal::UIShader& ui) {
                 Require(!std::memcmp(pixels.data() + (y * extent + x) * 4, expected, 4), "Native UI BLS permutation or register layout mismatch");
             }
         }
+        const Vertex point{0.2f, 0.1f, 0.5f, 0xFF102030, 0, 0};
+        draw.vertices = [gpu.device newBufferWithBytes:&point length:sizeof(point) options:MTLResourceStorageModeShared];
+        draw.vertexOffset = 0; draw.indices = nil;
+        draw.batch = {GxPrim_Points, 0, 1, 0, 0};
+        const auto pointPixels = Render(gpu, texture, {draw});
+        const unsigned pointX = permutation ? 10 : 9, pointY = permutation ? 9 : 8;
+        for (unsigned y = 0; y < extent; ++y) for (unsigned x = 0; x < extent; ++x) {
+            const auto* expected = x == pointX && y == pointY ? tint : background;
+            Require(!std::memcmp(pointPixels.data() + (y * extent + x) * 4, expected, 4),
+                "Native UI point size, transform or coverage mismatch");
+        }
     }
 }
