@@ -525,10 +525,12 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                     CRect coords = desc->m_bitmapData.m_textureCoords;
 
                     if (this->m_flags & 0x80) {
-                        coords.minY = coords.minY + pixelAdjustments.minY;
-                        coords.minX = coords.minX + pixelAdjustments.minX;
-                        coords.maxY = coords.maxY + pixelAdjustments.maxY;
-                        coords.maxX = coords.maxX + pixelAdjustments.maxX;
+                        if (!desc->m_bitmapData.m_isMsdf) {
+                            coords.minY = coords.minY + pixelAdjustments.minY;
+                            coords.minX = coords.minX + pixelAdjustments.minX;
+                            coords.maxY = coords.maxY + pixelAdjustments.maxY;
+                            coords.maxX = coords.maxX + pixelAdjustments.maxX;
+                        }
                     }
 
                     verts[2].m_tc.y = coords.maxY;
