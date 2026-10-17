@@ -243,6 +243,11 @@ generation and hole-aware indices are shared with `CMapChunk`, retaining its
 arithmetic and triangle ordering. Core checks read complete Ahn'Qiraj, Elwynn and
 Northrend tiles, including vertex colors, holes and compressed alpha maps. This
 surface view does not replace the WMO, doodad, liquid or sound loaders.
+Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
+packed, eight-bit maps retain RLE values, and the original edge replication and
+half-resolution source selection are preserved. Checks compare all texels against
+the three tiles' raw alpha/shadow data and verify that disabling shadows leaves
+material weights unchanged. Terrain GPU shading is still pending.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.

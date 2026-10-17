@@ -150,7 +150,7 @@ add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance
 target_link_libraries(CreatureAppearance PUBLIC Model2)
 
 add_subdirectory(WoW/Source/WorldClient)
-add_library(WorldTerrain STATIC WoW/Common/TerrainGeometry.cpp WoW/Common/TerrainSurface.cpp)
+add_library(WorldTerrain STATIC WoW/Common/TerrainGeometry.cpp WoW/Common/TerrainSurface.cpp WoW/Common/TerrainAlpha.cpp)
 target_link_libraries(WorldTerrain PUBLIC Tempest)
 target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain)
 

@@ -1,4 +1,5 @@
 #include "TerrainSurface.h"
+#include "WoW/Source/WorldClient/MapRenderChunk.h"
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
@@ -103,7 +104,7 @@ Terrain::Surface Terrain::ReadSurface(const void* input, size_t size, bool bigAl
     Bytes index, names, flags;
     std::array<bool, 256> seen{};
     std::array<size_t, 256> chunkOffsets{}, chunkSizes{};
-    Surface result; result.chunks.resize(256);
+    Surface result; result.bigAlpha = bigAlpha; result.chunks.resize(256);
     result.alphaMapShift = file.Block(12, 0x4D484452, 64).Value<uint8_t>(0x30);
     Require(result.alphaMapShift <= 6, "invalid alpha map dimension shift");
     const unsigned alphaSide = 64 >> result.alphaMapShift;
@@ -141,6 +142,39 @@ Terrain::Surface Terrain::ReadSurface(const void* input, size_t size, bool bigAl
         Require(offset == chunkOffsets[i] && index.Value<uint32_t>(i * 16 + 4) == chunkSizes[i], "MCIN extent or coordinate mismatch");
         for (const auto& layer : result.chunks[i].layers)
             Require(layer.textureID < result.textures.size(), "texture index out of range");
+    }
+    return result;
+}
+
+Terrain::BlendTexture Terrain::CreateBlendTexture(const Surface& surface, size_t index, bool halfResolution, bool shadows) {
+    Require(index < surface.chunks.size() && surface.alphaMapShift <= 3, "unsupported terrain blend dimensions");
+    const auto& chunk = surface.chunks[index];
+    const unsigned side = 64 >> surface.alphaMapShift;
+    Require(!surface.bigAlpha || (chunk.flags & 0x8000), "big alpha requires the original fixed-edge format");
+    CMapRenderChunk::SLayerAlpha layers[4]{};
+    Require(chunk.layers.size() <= 4, "too many blend layers");
+    CheckAlpha(chunk, surface.bigAlpha, side);
+    for (size_t i = 0; i < chunk.layers.size(); ++i) {
+        layers[i].m_flags = chunk.layers[i].flags;
+        if (layers[i].m_flags & 0x100)
+            layers[i].m_alphaData = const_cast<uint8_t*>(chunk.alpha.data()) + chunk.layers[i].alphaOffset;
+    }
+    uint8_t* shadow = nullptr;
+    if (shadows && (chunk.flags & 1)) {
+        Require(chunk.shadow.size() >= side * side / 8, "truncated terrain shadow bitmap");
+        shadow = const_cast<uint8_t*>(chunk.shadow.data());
+    }
+    BlendTexture result; result.side = side >> unsigned(halfResolution);
+    if (surface.bigAlpha) {
+        result.rgba.resize(result.side * result.side);
+        const auto unpack = halfResolution ? CMapRenderChunk::UnpackAlphaShadowBitsFixed8888Mip1 : CMapRenderChunk::UnpackAlphaShadowBitsFixed8888Mip0;
+        unpack(result.rgba.data(), 0, result.side, side, layers, 0, shadow);
+    } else {
+        result.packed.resize(result.side * result.side);
+        const auto unpack = chunk.flags & 0x8000 ?
+            (halfResolution ? CMapRenderChunk::UnpackAlphaShadowBitsFixed4444Mip1 : CMapRenderChunk::UnpackAlphaShadowBitsFixed4444Mip0) :
+            (halfResolution ? CMapRenderChunk::UnpackAlphaShadowBitsUnfixed4444Mip1 : CMapRenderChunk::UnpackAlphaShadowBitsUnfixed4444Mip0);
+        unpack(result.packed.data(), 0, result.side, side, layers, shadow);
     }
     return result;
 }

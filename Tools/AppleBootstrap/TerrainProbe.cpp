@@ -2,6 +2,7 @@
 #include "WoW/Source/WowServices/ClientData.h"
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 #include <ostream>
 #include <stdexcept>
 
@@ -11,6 +12,58 @@ uint32_t Word(const std::vector<uint8_t>& bytes, size_t offset) {
     uint32_t word; std::memcpy(&word, bytes.data() + offset, 4); return word;
 }
 void Write(std::vector<uint8_t>& bytes, size_t offset, uint32_t word) { std::memcpy(bytes.data() + offset, &word, 4); }
+CImVector BlendPixel(const Terrain::BlendTexture& image, unsigned x, unsigned y) {
+    if (!image.rgba.empty()) return image.rgba[y * image.side + x];
+    const auto value = image.packed[y * image.side + x];
+    CImVector result;
+    result.r = ((value >> 8) & 15) * 17; result.g = ((value >> 4) & 15) * 17;
+    result.b = (value & 15) * 17; result.a = (value >> 12) * 17;
+    return result;
+}
+void CheckBlend(const Terrain::Surface& surface, size_t index) {
+    const auto& chunk = surface.chunks[index];
+    const unsigned side = 64 >> surface.alphaMapShift;
+    const auto full = Terrain::CreateBlendTexture(surface, index, false, true);
+    const auto half = Terrain::CreateBlendTexture(surface, index, true, true);
+    const auto noShadow = Terrain::CreateBlendTexture(surface, index, false, false);
+    std::vector<uint8_t> alpha[3];
+    for (auto& mask : alpha) mask.resize(side * side);
+    for (size_t layer = 1; layer < chunk.layers.size(); ++layer) {
+        const auto& entry = chunk.layers[layer];
+        if (!(entry.flags & 0x100)) continue;
+        auto& mask = alpha[layer - 1];
+        size_t input = entry.alphaOffset, output = 0;
+        if (entry.flags & 0x200) {
+            while (output < mask.size()) {
+                const auto control = chunk.alpha[input++];
+                const size_t count = control & 127;
+                if (control & 128) std::fill_n(mask.data() + output, count, chunk.alpha[input++]);
+                else { std::copy_n(chunk.alpha.data() + input, count, mask.data() + output); input += count; }
+                output += count;
+            }
+        } else for (size_t i = 0; i < mask.size(); ++i) {
+            mask[i] = surface.bigAlpha ? chunk.alpha[input + i] : ((chunk.alpha[input + i / 2] >> ((i & 1) * 4)) & 15) * 17;
+        }
+    }
+    for (unsigned y = 0; y < side; ++y) for (unsigned x = 0; x < side; ++x) {
+        const unsigned sourceX = chunk.flags & 0x8000 ? x : std::min(x, side - 2);
+        const unsigned sourceY = chunk.flags & 0x8000 ? y : std::min(y, side - 2);
+        const unsigned i = sourceY * side + sourceX;
+        const auto actual = BlendPixel(full, x, y);
+        const uint8_t shadow = (chunk.flags & 1) && (chunk.shadow[i / 8] & (1 << (i & 7))) ? 0 : 255;
+        Require(actual.r == alpha[0][i] && actual.g == alpha[1][i] && actual.b == alpha[2][i] && actual.a == shadow,
+            "Original terrain blend differs from raw alpha/shadow data");
+        const auto unshadowed = BlendPixel(noShadow, x, y);
+        Require(unshadowed.r == actual.r && unshadowed.g == actual.g && unshadowed.b == actual.b && unshadowed.a == 255,
+            "Terrain shadow switch changed material weights");
+    }
+    for (unsigned y = 0; y < half.side; ++y) for (unsigned x = 0; x < half.side; ++x) {
+        const auto sourceX = (chunk.flags & 0x8000) && x == half.side - 1 ? side - 1 : x * 2;
+        const auto sourceY = (chunk.flags & 0x8000) && y == half.side - 1 ? side - 1 : y * 2;
+        const auto expected = BlendPixel(full, sourceX, sourceY), actual = BlendPixel(half, x, y);
+        Require(!std::memcmp(&actual, &expected, 4), "Terrain half-resolution selection or edge changed");
+    }
+}
 }
 
 void CheckTerrainResources(const ClientData& client, std::ostream& report) {
@@ -29,6 +82,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report) {
         Require(!std::memcmp(unaligned.data() + 1, asset.bytes.data(), asset.bytes.size()), "Terrain loader modified archive bytes");
         size_t triangles = 0, layers = 0, colored = 0, compressed = 0;
         for (const auto& chunk : surface.chunks) {
+            CheckBlend(surface, chunk.y * 16 + chunk.x);
             Terrain::GeometryView view{{int32_t(test.x * 16 + chunk.x), int32_t(test.y * 16 + chunk.y)}, chunk.origin.z,
                 chunk.heights.data(), chunk.normals.data(), chunk.hasColors ? chunk.colors.data() : nullptr, false};
             std::array<CGxVertexPN, 145> vertices;
@@ -52,7 +106,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report) {
             for (const auto& layer : chunk.layers) compressed += (layer.flags & 0x200) != 0;
         }
         report << "  terrain " << test.map << ": 256 aligned chunks, " << triangles << " triangles, " << layers
-            << " material layers, " << colored << " vertex-colored chunks, " << compressed << " compressed alpha maps\n";
+            << " material layers, " << colored << " vertex-colored chunks, " << compressed << " compressed alpha maps; original packed/RGBA blend and shadow paths passed\n";
         auto reject = [&](const std::vector<uint8_t>& bytes) {
             bool failed = false;
             try { Terrain::ReadSurface(bytes.data(), bytes.size(), bigAlpha); } catch (const std::runtime_error&) { failed = true; }
