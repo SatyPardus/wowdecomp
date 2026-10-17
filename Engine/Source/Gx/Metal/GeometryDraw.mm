@@ -25,7 +25,7 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
 }
 void GxMetal::TextureDevice::DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const GeometryDraw& geometry, const TextureDrawState& state) {
-    Require(geometry.effect == FragmentEffect::ModelOpaque, "Invalid native model effect");
+    Require(IsModelEffect(geometry.effect), "Invalid native model effect");
     DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, {}, {state, state, state, state});
 }
 void GxMetal::TextureDevice::DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
@@ -46,7 +46,7 @@ void GxMetal::TextureDevice::DrawGlowWave(id<MTLCommandBuffer> command, MTLRende
 void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
     const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 4>& states) {
     const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
-    const bool model = geometry.effect == FragmentEffect::ModelOpaque;
+    const bool model = IsModelEffect(geometry.effect);
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const unsigned inputs = filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;

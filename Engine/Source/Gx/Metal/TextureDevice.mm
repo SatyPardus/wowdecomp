@@ -167,7 +167,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && effect != FragmentEffect::ModelOpaque) {
+    if (decodePacked && !IsModelEffect(effect)) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -185,22 +185,24 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         descriptor.fragmentFunction = fragment;
     }
-    if (effect == FragmentEffect::ModelOpaque) {
+    if (IsModelEffect(effect)) {
         Require(modelPermutation < 30 && !screenAtDepth &&
             (modelPermutation < 10 || format == GxVBF_PBNT2) &&
             GxVertexHasAttrib(format, GxVA_Normal) && GxVertexHasAttrib(format, GxVA_TexCoord0),
             "Unsupported native model vertex layout or shadow permutation");
         auto& vertex = m_modelVertex[modelPermutation];
-        auto& fragment = m_modelFragment[shaderAlphaTest][state.alphaRef != 0][decodePacked];
+        const bool textureAlpha = effect == FragmentEffect::ModelMod;
+        auto& fragment = m_modelFragment[textureAlpha][shaderAlphaTest][state.alphaRef != 0][decodePacked];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
         [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
         [constants setConstantValue:&modelPermutation type:MTLDataTypeUInt atIndex:5];
         [constants setConstantValue:&shaderAlphaTest type:MTLDataTypeBool atIndex:6];
+        [constants setConstantValue:&textureAlpha type:MTLDataTypeBool atIndex:7];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:modelPermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex" constantValues:constants error:&error];
-        if (!fragment) fragment = [m_library newFunctionWithName:@"modelOpaqueFragment" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:@"modelDiffuseFragment" constantValues:constants error:&error];
         if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Model specialization failed");
         descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
         auto layout = [MTLVertexDescriptor vertexDescriptor];

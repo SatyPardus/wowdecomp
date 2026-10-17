@@ -1,4 +1,5 @@
 #include "Tools/AppleBootstrap/ModelPreview.h"
+#include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "Engine/Source/Model2/M2Cache.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Model.h"
@@ -12,9 +13,22 @@
 #include <cmath>
 #include <stdexcept>
 
-ModelPreview::ModelPreview(const char* name) : m_name(name) {
+ModelPreview::ModelPreview(const char* name, uint32_t creatureDisplay) : m_name(name ? name : "") {
     try {
         if (!g_animationDataDB.m_loaded) g_animationDataDB.Load(__FILE__, __LINE__);
+        CreatureDisplayInfoRec* display = nullptr;
+        CreatureModelDataRec* modelData = nullptr;
+        if (creatureDisplay) {
+            if (!g_creatureDisplayInfoDB.m_loaded) g_creatureDisplayInfoDB.Load(__FILE__, __LINE__);
+            if (!g_creatureModelDataDB.m_loaded) g_creatureModelDataDB.Load(__FILE__, __LINE__);
+            if (!g_particleColorDB.m_loaded) g_particleColorDB.Load(__FILE__, __LINE__);
+            display = g_creatureDisplayInfoDB.GetRecord(creatureDisplay);
+            if (!display || !(modelData = g_creatureModelDataDB.GetRecord(display->m_modelID)))
+                throw std::runtime_error("Creature display/model record is missing: " + std::to_string(creatureDisplay));
+            if (display->m_extendedDisplayInfoID)
+                throw std::runtime_error("Preview creature requires character texture composition, which is not integrated yet");
+            m_name = modelData->m_modelName;
+        }
         m_blobLoaded = ModelBlobLoad("World\\model.blob");
         if (!m_blobLoaded) throw std::runtime_error("Cannot load model bounds index");
         CShaderEffect::InitShaderSystem(1, 0);
@@ -23,6 +37,11 @@ ModelPreview::ModelPreview(const char* name) : m_name(name) {
         if (!m_scene) throw std::runtime_error("Cannot create preview model scene");
         m_model = m_scene->CreateModel(m_name.c_str(), 0);
         if (!m_model) throw std::runtime_error("Cannot load preview model: " + m_name);
+        if (display) {
+            CCharacterComponent::ApplyMonsterGeosets(m_model, display);
+            CCharacterComponent::ReplaceMonsterSkin(m_model, display, modelData);
+            m_model->SetBoneSequence(0xFFFFFFFF, 4, 0xFFFFFFFF, 0, 1.0f, 0, 1);
+        }
         m_model->m_lightingCallback = [](CM2Model*, CM2Lighting* lighting, void*) {
             lighting->AddAmbient(C3Vector(0.3f, 0.3f, 0.35f));
             lighting->AddDiffuse(C3Vector(0.7f, 0.65f, 0.6f), C3Vector(-0.3f, -0.4f, -0.8f));

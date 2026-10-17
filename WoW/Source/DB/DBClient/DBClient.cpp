@@ -124,14 +124,8 @@ WowClientDB<CinematicSequencesRec> g_cinematicSequencesDB;
 // STATIC: 0x00AD3494
 WowClientDB<CreatureDisplayInfoExtraRec> g_creatureDisplayInfoExtraDB;
 
-// STATIC: 0x00AD34B8
-WowClientDB<CreatureDisplayInfoRec> g_creatureDisplayInfoDB;
-
 // STATIC: 0x00AD34DC
 WowClientDB<CreatureFamilyRec> g_creatureFamilyDB;
-
-// STATIC: 0x00AD3500
-WowClientDB<CreatureModelDataRec> g_creatureModelDataDB;
 
 // STATIC: 0x00AD3524
 WowClientDB<CreatureMovementInfoRec> g_creatureMovementInfoDB;
@@ -435,9 +429,6 @@ WowClientDB<PageTextMaterialRec> g_pageTextMaterialDB;
 
 // STATIC: 0x00AD4334
 WowClientDB<PaperDollItemFrameRec> g_paperDollItemFrameDB;
-
-// STATIC: 0x00AD4358
-WowClientDB<ParticleColorRec> g_particleColorDB;
 
 // STATIC: 0x00AD437C
 WowClientDB<PetPersonalityRec> g_petPersonalityDB;

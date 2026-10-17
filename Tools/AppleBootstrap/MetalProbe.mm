@@ -208,8 +208,8 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             out << "Original FFX GlowWave: generated RG wave texture, time-dependent PCT3 coordinates, wrap sampling, pixel-constant scales and displaced scene/blur composition passed.\n";
             out << "Original FFX Init/Start/Finish and EffectGlow: CVar selection, default-framebuffer capture, both effect modes, disable/re-enable and target resizing passed.\n";
             out << "Original Services async file queue: MPQ DBC/script/model/terrain/WMO reads, game-thread completion, failed reads, cancellation and worker recreation passed.\n";
-            out << "Original M2 scene: AnimationData DBC, bounded model bounds index, async camera/skin loading, cinematic animation, native opaque model drawing, and scene/cache recreation passed.\n";
-            out << "Native Diffuse_T1 / Combiners_Opaque: 30 vertex variants, 0/1/4-bone skinning, 0..4 local lights, UV matrices, fog and both alpha-test paths passed; shadows remain unsupported.\n";
+            out << "Original M2 scene: AnimationData DBC, bounded model bounds index, async camera/skin loading, cinematic animation, DBC-selected wolf skins/geosets, animated opaque/cutout model drawing, and scene/cache recreation passed.\n";
+            out << "Native Diffuse_T1 / Combiners_Opaque / Combiners_Mod: 30 vertex variants, 0/1/4-bone skinning, 0..4 local lights, UV matrices, fog and both alpha-test paths passed; shadows remain unsupported.\n";
             out << "Original Services TextureCreate: cached handles, bounded BLP mips, oversized asynchronous palette uploads, cancellation and mip recreation passed.\n";
             out << "Gx packed UNORM: RGB565/ARGB1555/ARGB4444, original BGRA truncation, point/linear filtering, partial uploads and Services palette mips passed.\n";
             out << "Original Event scheduler: native nonblocking steps, dispatch order, timers, queued messages, input state and context recreation passed.\n";

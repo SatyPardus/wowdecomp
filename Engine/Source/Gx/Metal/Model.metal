@@ -1,6 +1,7 @@
-// Original Diffuse_T1 and Combiners_Opaque, expressed in model/material terms.
+// Original Diffuse_T1 and opaque/modulated materials, expressed in model terms.
 constant uint modelPermutation [[function_constant(5)]];
 constant bool modelShaderAlphaTest [[function_constant(6)]];
+constant bool modelTextureAlpha [[function_constant(7)]];
 struct ModelAffine { float4 x, y, z; };
 struct ModelVertexParameters {
     float4x4 projection;
@@ -72,13 +73,15 @@ vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant Mode
     }
     return modelTransform(v.position, v.normal, v.uv, transform, p);
 }
-fragment float4 modelOpaqueFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
+fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]]) {
-    // Combiners_Opaque ignores texture alpha. Shader alpha test and the Gx
-    // fixed alpha test can both be enabled and have independent references.
-    if (modelShaderAlphaTest && v.color.a < p.fogColorAlphaRef.a) discard_fragment();
-    if (alphaTest && v.color.a < p.stateAlphaRef) discard_fragment();
-    const float3 texel = decoded(image.sample(filtering, v.uv), p.decodeScale).rgb;
-    const float3 shaded = fma(texel, v.color.rgb, -p.fogColorAlphaRef.rgb);
-    return float4(fma(float3(v.fog), shaded, p.fogColorAlphaRef.rgb), v.color.a);
+    const float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale);
+    // Opaque ignores texture alpha; Mod multiplies it by material/vertex alpha.
+    // The original Mod shader tests a MAD result before writing MUL alpha.
+    const float alpha = modelTextureAlpha ? texel.a * v.color.a : v.color.a;
+    const float shaderAlpha = modelTextureAlpha ? fma(texel.a, v.color.a, -p.fogColorAlphaRef.a) : v.color.a - p.fogColorAlphaRef.a;
+    if (modelShaderAlphaTest && shaderAlpha < 0) discard_fragment();
+    if (alphaTest && alpha < p.stateAlphaRef) discard_fragment();
+    const float3 shaded = fma(texel.rgb, v.color.rgb, -p.fogColorAlphaRef.rgb);
+    return float4(fma(float3(v.fog), shaded, p.fogColorAlphaRef.rgb), alpha);
 }

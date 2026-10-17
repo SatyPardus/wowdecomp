@@ -2,6 +2,7 @@
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Model.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "Engine/Source/Services/Camera.h"
 #include "Engine/Source/Services/CameraInt.h"
 #include "Engine/Source/Services/ModelBlob.h"
@@ -11,6 +12,8 @@
 #include "Engine/Source/Gx/Gx.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <vector>
 #include <stdexcept>
 
 void CheckGameModels() {
@@ -41,7 +44,16 @@ void CheckGameModels() {
     }
     if (first.x == last.x && first.y == last.y && first.z == last.z)
         throw std::runtime_error("M2 camera animation did not advance");
-    auto* visible = scene->CreateModel("Spells\\ErrorCube.m2", 0);
+    if (!g_creatureDisplayInfoDB.m_loaded) g_creatureDisplayInfoDB.Load(__FILE__, __LINE__);
+    if (!g_creatureModelDataDB.m_loaded) g_creatureModelDataDB.Load(__FILE__, __LINE__);
+    if (!g_particleColorDB.m_loaded) g_particleColorDB.Load(__FILE__, __LINE__);
+    const auto* display = g_creatureDisplayInfoDB.GetRecord(165);
+    const auto* modelData = display ? g_creatureModelDataDB.GetRecord(display->m_modelID) : nullptr;
+    if (!modelData) throw std::runtime_error("Original wolf appearance records are missing");
+    auto* visible = scene->CreateModel(modelData->m_modelName, 0);
+    CCharacterComponent::ApplyMonsterGeosets(visible, display);
+    CCharacterComponent::ReplaceMonsterSkin(visible, display, modelData);
+    if (visible) visible->SetBoneSequence(0xFFFFFFFF, 4, 0xFFFFFFFF, 0, 1.0f, 0, 1);
     if (!visible || !visible->IsLoaded(1, 0) || !visible->IsDrawable(1, 0))
         throw std::runtime_error("M2 visible model or its textures failed to load");
     auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
@@ -62,7 +74,7 @@ void CheckGameModels() {
     const auto& bounds = visible->m_shared->m_data->m_bounds;
     const auto center = (bounds.m_extent.b + bounds.m_extent.t) * 0.5f;
     const float scale = 0.8f / bounds.m_radius;
-    C44Matrix world(1); world.Scale(scale); world.Translate(center * -1.0f);
+    C44Matrix world(1); world.RotateAroundX(-0.65f); world.Scale(scale); world.Translate(center * -1.0f);
     visible->SetWorldTransform(world);
     visible->m_lightingCallback = [](CM2Model*, CM2Lighting* lighting, void*) {
         lighting->AddAmbient(C3Vector(0.4f, 0.4f, 0.4f));
@@ -72,15 +84,37 @@ void CheckGameModels() {
     visible->m_fFlags |= 8; // Same draw request as World::RenderModels.
     visible->SetAnimating(1); scene->AdvanceTime(16); scene->Animate(C3Vector(0, 0, 0));
     if (!scene->m_elements.Count()) throw std::runtime_error("M2 scene produced no render elements");
+    unsigned materials = 0;
     for (unsigned i = 0; i < scene->m_elements.Count(); ++i) {
         const auto& e = scene->m_elements[i];
+        if (e.m_model != visible || e.m_vertexPermute < 20) throw std::runtime_error("Wolf did not select weighted native skinning");
+        materials |= 1u << visible->m_shared->m_data->m_materials[e.m_batch->m_materialIndex].m_blendMode;
         std::fprintf(stderr, "M2 native draw: vertex %u pixel %u, %u indices\n", e.m_vertexPermute, e.m_pixelPermute, e.m_skinSection->m_indexCount);
     }
+    if (materials != 3) throw std::runtime_error("Wolf opaque and alpha-cutout materials were not both selected");
     scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
     CiRect rect(0, 0, 128, 128); TSGrowableArray<CImVector> pixels;
     device.DeviceReadPixels(rect, pixels);
     unsigned covered = 0;
     for (uint32_t i = 0; i < pixels.Count(); ++i) if (pixels[i].a) ++covered;
     if (covered < 256) throw std::runtime_error("M2 scene did not produce visible GPU pixels");
-    std::fprintf(stderr, "M2 native scene: %u covered pixels\n", covered);
+    std::vector<C44Matrix> firstPose(visible->m_boneMatrices, visible->m_boneMatrices + visible->m_shared->m_data->m_bones.m_count);
+    device.ScenePresent();
+    device.BeginFrame(pass);
+    visible->m_fFlags |= 8;
+    visible->SetAnimating(1); scene->AdvanceTime(137); scene->Animate(C3Vector(0, 0, 0));
+    bool changed = false;
+    for (size_t i = 0; i < firstPose.size(); ++i) {
+        float matrix[16]; std::memcpy(matrix, &visible->m_boneMatrices[i], sizeof(matrix));
+        for (float value : matrix) if (!std::isfinite(value)) throw std::runtime_error("Wolf pose is non-finite");
+        changed |= std::memcmp(&firstPose[i], &visible->m_boneMatrices[i], sizeof(C44Matrix)) != 0;
+    }
+    if (!changed) throw std::runtime_error("Original wolf walk sequence did not advance its bone matrices");
+    scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
+    TSGrowableArray<CImVector> animated; device.DeviceReadPixels(rect, animated);
+    unsigned changedPixels = 0;
+    for (uint32_t i = 0; i < pixels.Count(); ++i)
+        changedPixels += std::memcmp(&pixels[i], &animated[i], sizeof(CImVector)) != 0;
+    if (changedPixels < 16) throw std::runtime_error("Animated wolf pose did not reach Metal drawing");
+    std::fprintf(stderr, "M2 native wolf scene: %u covered pixels, %u changed by original walk animation\n", covered, changedPixels);
 }

@@ -205,8 +205,17 @@ public:
         _events->Check();
         auto* texture = _image->Get();
         if (!_model) {
-            NSString* name = NSProcessInfo.processInfo.environment[@"WOW_MODEL"] ?: @"Spells\\ErrorCube.m2";
-            _model = std::make_unique<ModelPreview>(name.UTF8String);
+            NSString* name = NSProcessInfo.processInfo.environment[@"WOW_MODEL"];
+            NSString* display = NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"];
+            uint32_t displayID = name ? 0 : 165; // Original timber wolf display.
+            if (display) {
+                NSScanner* scanner = [NSScanner scannerWithString:display];
+                unsigned long long value = 0;
+                if (name || ![scanner scanUnsignedLongLong:&value] || !scanner.isAtEnd || !value || value > INT32_MAX)
+                    throw std::runtime_error("WOW_CREATURE_DISPLAY must be a positive DBC ID and cannot be combined with WOW_MODEL");
+                displayID = uint32_t(value);
+            }
+            _model = std::make_unique<ModelPreview>(name.UTF8String, displayID);
         }
         _device->BeginFrame(pass, drawable);
         GxXformSetViewport(0, 1, 0, 1, 0, 1);

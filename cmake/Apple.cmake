@@ -129,6 +129,10 @@ add_library(AppleGameResources STATIC
     WoW/Source/DB/WowClientDB.cpp
     WoW/Source/DB/DBClient/AnimationData.cpp
     WoW/Source/DB/Rec/AnimationDataRec.cpp
+    WoW/Source/DB/DBClient/CreatureAppearance.cpp
+    WoW/Source/DB/Rec/CreatureDisplayInfoRec.cpp
+    WoW/Source/DB/Rec/CreatureModelDataRec.cpp
+    WoW/Source/DB/Rec/ParticleColorRec.cpp
     Engine/Source/FFX/FFX.cpp
     Engine/Source/FFX/FFX_CVar.cpp
     Engine/Source/FFX/EffectGlow.cpp
@@ -142,6 +146,8 @@ add_subdirectory(Engine/Source/ShaderEffect)
 target_link_libraries(ShaderEffect PUBLIC Gx AppleArchives)
 add_subdirectory(Engine/Source/Model2)
 target_link_libraries(Model2 PUBLIC AppleGameResources ShaderEffect)
+add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance.cpp)
+target_link_libraries(CreatureAppearance PUBLIC Model2)
 
 add_library(AppleTextureData ALIAS BLPFile)
 
@@ -165,10 +171,10 @@ else ()
 endif ()
 add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm Tools/AppleBootstrap/EventProbe.cpp Tools/AppleBootstrap/AsyncFileProbe.cpp Tools/AppleBootstrap/ModelSceneProbe.mm Tools/AppleBootstrap/ModelShaderProbe.mm)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources Model2)
+target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/ModelPreview.cpp)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 "-framework MetalKit" "-framework CoreGraphics")
+target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2)

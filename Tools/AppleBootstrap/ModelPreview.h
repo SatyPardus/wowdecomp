@@ -8,7 +8,7 @@ class CM2Model;
 // All game/Gx work runs on that context's thread; archive reads use its worker.
 class ModelPreview {
 public:
-    explicit ModelPreview(const char* name);
+    ModelPreview(const char* name, uint32_t creatureDisplay = 0);
     ~ModelPreview();
     ModelPreview(const ModelPreview&) = delete;
     ModelPreview& operator=(const ModelPreview&) = delete;

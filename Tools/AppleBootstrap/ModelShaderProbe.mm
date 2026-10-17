@@ -11,9 +11,10 @@
 namespace {
 using Vec = std::array<float, 4>;
 void Require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
-void Pattern(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void*, uint32_t& stride, const void*& data) {
+void Pattern(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void* context, uint32_t& stride, const void*& data) {
     static const uint32_t texels[] = {0x00104488, 0x0060A0E0, 0x00C08040, 0x00FFFFFF};
-    if (command == GxTex_Latch) { stride = 8; data = texels; }
+    static const uint32_t modTexels[] = {0xFF104488, 0x8060A0E0, 0x40C08040, 0x00FFFFFF};
+    if (command == GxTex_Latch) { stride = 8; data = context ? modTexels : texels; }
 }
 float Dot(const Vec& a, const Vec& b, unsigned count = 4) {
     float result = 0; for (unsigned i = 0; i < count; ++i) result += a[i] * b[i]; return result;
@@ -22,21 +23,23 @@ float Sat(float value) { return std::clamp(value, 0.0f, 1.0f); }
 }
 
 void CheckModelShaders(CGxDeviceMetal& device) {
-    CGxShader* vertex[90]{}; CGxShader* pixel[16]{};
+    CGxShader* vertex[90]{}; CGxShader* pixel[16]{}; CGxShader* modPixel[16]{};
     device.ShaderCreate(vertex, GxSh_Vertex, "Shaders\\Vertex", "Diffuse_T1", 90);
     device.ShaderCreate(pixel, GxSh_Pixel, "Shaders\\Pixel", "Combiners_Opaque", 16);
+    device.ShaderCreate(modPixel, GxSh_Pixel, "Shaders\\Pixel", "Combiners_Mod", 16);
     device.RsPush();
     struct Cleanup {
-        CGxDeviceMetal& device; CGxShader** vertex; CGxShader** pixel; CGxTex* texture = nullptr;
+        CGxDeviceMetal& device; CGxShader** vertex; CGxShader** pixel; CGxShader** modPixel; CGxTex* texture[2]{};
         ~Cleanup() {
             if (device.FrameCommand()) device.ScenePresent();
-            device.RsPop(); device.TexDestroy(texture);
+            device.RsPop(); for (auto& image : texture) device.TexDestroy(image);
             for (unsigned i = 0; i < 90; ++i) device.ShaderDestroy(vertex[i]);
-            for (unsigned i = 0; i < 16; ++i) device.ShaderDestroy(pixel[i]);
+            for (unsigned i = 0; i < 16; ++i) { device.ShaderDestroy(pixel[i]); device.ShaderDestroy(modPixel[i]); }
         }
-    } cleanup{device, vertex, pixel};
-    device.TexCreate(GxTex_2d, 2, 2, 0, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(GxTex_Nearest), nullptr, Pattern, "Model material reference", cleanup.texture);
-    device.RsSet(GxRs_Texture0, cleanup.texture);
+    } cleanup{device, vertex, pixel, modPixel};
+    device.TexCreate(GxTex_2d, 2, 2, 0, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(GxTex_Nearest), nullptr, Pattern, "Model material reference", cleanup.texture[0]);
+    device.TexCreate(GxTex_2d, 2, 2, 0, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(GxTex_Nearest), &cleanup, Pattern, "Modulated model material reference", cleanup.texture[1]);
+    device.RsSet(GxRs_Texture0, cleanup.texture[0]);
     GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_Culling, 0);
     GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_ScissorTest, 0); GxRsSet(GxRs_ClipPlaneMask, 0);
     GxRsSet(GxRs_PolygonOffset, 0); GxRsSet(GxRs_PointSprite, 0); GxRsSet(GxRs_ColorWrite, 15);
@@ -106,38 +109,45 @@ void CheckModelShaders(CGxDeviceMetal& device) {
             color[channel] = fog * (texel[channel] * color[channel] - fogColor[channel]) + fogColor[channel];
         const float w = Dot(c[5], view);
         const unsigned x = std::floor((Dot(c[2], view) / w + 1) * 16), y = std::floor((1 - Dot(c[3], view) / w) * 16);
-        for (unsigned pixelPermutation : {0u, 4u, 8u, 12u}) {
+        for (unsigned mod = 0; mod < 2; ++mod) for (unsigned pixelPermutation : {0u, 4u, 8u, 12u}) {
+            device.RsSet(GxRs_Texture0, cleanup.texture[mod]);
+            Vec pixelFog = fogColor; if (mod) pixelFog[3] = 0.3f;
+            Vec expected = color; if (mod) expected[3] *= 128.0f / 255;
             device.BeginFrame(pass);
             GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 256);
-            GxShaderConstantsSet(GxSh_Pixel, 2, fogColor.data(), 1);
-            device.RsSet(GxRs_VertexShader, vertex[permutation]); device.RsSet(GxRs_PixelShader, pixel[pixelPermutation]);
+            GxShaderConstantsSet(GxSh_Pixel, 2, pixelFog.data(), 1);
+            device.RsSet(GxRs_VertexShader, vertex[permutation]); device.RsSet(GxRs_PixelShader, (mod ? modPixel : pixel)[pixelPermutation]);
             GxDraw(&batch, 0);
             CiRect rect(0, 0, 32, 32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect, pixels);
             const auto& sample = pixels[y * 32 + x]; const uint8_t channels[] = {sample.r, sample.g, sample.b, sample.a};
             for (unsigned channel = 0; channel < 4; ++channel)
-                if (std::abs(int(channels[channel]) - int(std::lround(color[channel] * 255))) > 2)
-                    throw std::runtime_error("Model shader mismatch: VS " + std::to_string(permutation) + " PS " + std::to_string(pixelPermutation) +
+                if (std::abs(int(channels[channel]) - int(std::lround(expected[channel] * 255))) > 2)
+                    throw std::runtime_error((mod ? "Mod" : "Opaque") + std::string(" model shader mismatch: VS ") + std::to_string(permutation) + " PS " + std::to_string(pixelPermutation) +
                         " channel " + std::to_string(channel) + " at " + std::to_string(x) + "," + std::to_string(y) +
-                        " actual " + std::to_string(channels[channel]) + " expected " + std::to_string(color[channel] * 255));
+                        " actual " + std::to_string(channels[channel]) + " expected " + std::to_string(expected[channel] * 255));
             unsigned covered = 0; for (uint32_t i = 0; i < pixels.Count(); ++i) covered += pixels[i].a != 0;
             Require(covered == 1, "Model point position or raster coverage changed");
             device.ScenePresent();
         }
     }
     struct AlphaCase { unsigned pixel, stateRef; float shaderRef; bool visible; };
-    const float alpha = 128.0f / 255;
-    for (const auto& test : {AlphaCase{0, 128, 0.9f, true}, AlphaCase{0, 129, 0, false},
-        AlphaCase{8, 0, alpha, true}, AlphaCase{8, 0, std::nextafter(alpha, 1.0f), false},
-        AlphaCase{8, 128, alpha, true}, AlphaCase{8, 129, alpha, false}}) {
-        device.BeginFrame(pass);
-        c[28][3] = alpha; Vec fog = fogColor; fog[3] = test.shaderRef;
-        GxShaderConstantsSet(GxSh_Vertex, 28, c[28].data(), 1); GxShaderConstantsSet(GxSh_Pixel, 2, fog.data(), 1);
-        device.RsSet(GxRs_VertexShader, vertex[0]); device.RsSet(GxRs_PixelShader, pixel[test.pixel]);
-        GxRsSet(GxRs_AlphaRef, int32_t(test.stateRef)); GxDraw(&batch, 0);
-        CiRect rect(0, 0, 32, 32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect, pixels);
-        unsigned covered = 0; for (uint32_t i = 0; i < pixels.Count(); ++i) covered += pixels[i].a != 0;
-        Require(covered == unsigned(test.visible), "Model shader/state alpha threshold or equality mismatch");
-        device.ScenePresent();
+    for (unsigned mod = 0; mod < 2; ++mod) {
+        device.RsSet(GxRs_Texture0, cleanup.texture[mod]);
+        const unsigned reference = mod ? 64 : 128;
+        const float alpha = reference / 255.0f;
+        for (const auto& test : {AlphaCase{0, reference, 0.9f, true}, AlphaCase{0, reference + 1, 0, false},
+            AlphaCase{8, 0, alpha, true}, AlphaCase{8, 0, std::nextafter(alpha, 1.0f), false},
+            AlphaCase{8, reference, alpha, true}, AlphaCase{8, reference + 1, alpha, false}}) {
+            device.BeginFrame(pass);
+            c[28][3] = mod ? 0.5f : alpha; Vec fog = fogColor; fog[3] = test.shaderRef;
+            GxShaderConstantsSet(GxSh_Vertex, 28, c[28].data(), 1); GxShaderConstantsSet(GxSh_Pixel, 2, fog.data(), 1);
+            device.RsSet(GxRs_VertexShader, vertex[0]); device.RsSet(GxRs_PixelShader, (mod ? modPixel : pixel)[test.pixel]);
+            GxRsSet(GxRs_AlphaRef, int32_t(test.stateRef)); GxDraw(&batch, 0);
+            CiRect rect(0, 0, 32, 32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect, pixels);
+            unsigned covered = 0; for (uint32_t i = 0; i < pixels.Count(); ++i) covered += pixels[i].a != 0;
+            Require(covered == unsigned(test.visible), "Model shader/state alpha threshold or equality mismatch");
+            device.ScenePresent();
+        }
     }
     device.BeginFrame(pass);
     device.RsSet(GxRs_VertexShader, vertex[30]); device.RsSet(GxRs_PixelShader, pixel[1]);

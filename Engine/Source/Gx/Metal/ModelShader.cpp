@@ -7,7 +7,8 @@
 bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation) {
     return target == GxSh_Vertex ? permutation < 30 : permutation < 16 && (permutation & 3) == 0;
 }
-void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target) {
+void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect) {
+    if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
     const auto shaders = GxReadShaderBinary(bytes, 1024 * 1024);
     if (shaders.size() != (target == GxSh_Vertex ? 90u : 16u)) {
         throw std::runtime_error("Unsupported model shader permutation count");
@@ -48,7 +49,10 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         "548b9cd8094d5a518266ca5d13fce67b",
         "9226c755d99d09b6f86eeefbcf62d3b5",
     };
-    static const char* pixel[] = {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"};
+    static const char* pixel[][2] = {
+        {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"},
+        {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"}
+    };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i)) continue;
         const auto& shader = shaders[i];
@@ -58,7 +62,7 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         const char hex[] = "0123456789abcdef";
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
-        if (fingerprint != (target == GxSh_Vertex ? vertex[i] : pixel[i >> 3])) {
+        if (fingerprint != (target == GxSh_Vertex ? vertex[i] : pixel[effect == FragmentEffect::ModelMod][i >> 3])) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");
         }
     }

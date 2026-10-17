@@ -136,6 +136,7 @@ class CCharacterComponent {
     static void RemoveHandItem(CM2Model* model, INVENTORY_SLOTS invSlot, SHEATHE_TYPE sheatheType, bool shield);
     static void RemoveLinkpt(CM2Model* model, GEOCOMPONENTLINKS link);
     static void RemoveVisuals(CM2Model* model);
+    static void ReplaceParticleColor(int32_t particleColorID, CM2Model* model);
     static void ReplaceMonsterSkin(CM2Model* model, const CreatureDisplayInfoRec* displayRec, const CreatureModelDataRec* modelRec);
     static void ThreadDestroy();
     static int32_t ThreadInitialize();

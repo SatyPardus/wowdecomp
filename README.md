@@ -170,24 +170,29 @@ instance path also loads the real FlyByDwarf cinematic model and skin through
 Services workers, plays its camera animation, and recreates the scene/cache.
 It uses the original AnimationData DBC and bounded `World/model.blob` index.
 The native instance arena aligns pointer-bearing arrays for 64-bit hosts.
-The original `CM2SceneRender` now draws `Spells\ErrorCube.m2` through Services
-textures, original packed vertices/indices and a native `Diffuse_T1` /
-`Combiners_Opaque` material. Its 30 unshadowed vertex variants preserve rigid,
-one-bone and four-weight skinning, directional and up to four local lights,
-material colors, UV matrices and vertex fog. Four pixel variants preserve
-opaque alpha and independent shader/state alpha tests. Runtime function constants
-specialize the original choices; Gx register uploads become typed native data,
-and only the referenced palette range is uploaded. The original SM3 bytecode
-fingerprints guard supported variants; selecting a shadow variant fails explicitly.
-GPU checks cover those variants and a complete model scene, including cache
-recreation. Other model materials, shadows and full world rendering remain open;
-these checks are not a Windows visual-equivalence claim.
+The original `CM2SceneRender` now draws a real wolf with its original packed
+vertices, indices, walk sequence and DBC-selected skins. Shared monster appearance
+code applies the original texture slots, sampler flags, geosets and particle color
+replacements. The native `Diffuse_T1` / `Combiners_Opaque` / `Combiners_Mod`
+materials preserve 30 unshadowed vertex variants: rigid, one-bone and four-weight
+skinning, directional and up to four local lights, material colors, UV matrices
+and vertex fog. Four pixel variants per material preserve opaque versus textured
+alpha and independent shader/state alpha tests, including equality boundaries.
+Runtime function constants specialize the original choices; Gx register uploads
+become typed native data, and only the referenced palette range is uploaded.
+Original SM3 bytecode fingerprints guard supported variants; selecting a shadow
+variant fails explicitly. GPU checks cover those variants, both real wolf material
+batches and changing bone/pixel output as its original animation advances, including
+scene/cache recreation. Other model materials, shadows and full world rendering
+remain open; these checks are not a Windows visual-equivalence claim.
 
-The macOS preview and iOS Metal view also run that original M2 scene beside the
-texture and font preview. Model/skin/texture loading is asynchronous; the game
-Event update drives animation time. The default model is `Spells\ErrorCube.m2`;
-set `WOW_MODEL` to another archive path to exercise its actual materials (an
-unsupported shader reports its name and stops rendering). The view owns depth,
+The macOS preview and iOS Metal view run that original M2 scene beside the texture
+and font preview. Model/skin/texture loading is asynchronous; the game Event update
+drives animation time. The default is CreatureDisplayInfo 165 (timber wolf), playing
+its original walk animation. Set `WOW_CREATURE_DISPLAY` to another positive DBC ID,
+or `WOW_MODEL` to an explicit archive path without creature appearance replacement.
+These options are mutually exclusive. Character composition is not integrated;
+an unsupported shader reports its name and stops rendering. The view owns depth,
 scene/cache lifetime and foreground recreation. This remains a native rendering
 bootstrap, not a playable client or a replacement for the game's UI.
 
