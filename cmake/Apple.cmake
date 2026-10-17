@@ -39,6 +39,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Handle.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsFile.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/TimeManager.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Processor.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Processor.cpp

@@ -14,6 +14,7 @@
 #include <vector>
 #include <unistd.h>
 #include "Tools/AppleBootstrap/Probe.h"
+#include "Engine/Source/Os/OsFile.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/BLPFile/Types.h"
@@ -390,6 +391,49 @@ void CheckStormLog(const std::string& scratchDirectory) {
     Require(std::filesystem::file_size(scratch.path) == size, "Storm no-file flag modified disk log");
 }
 
+void CheckOsFiles(const std::string& scratchDirectory) {
+    ScratchFile scratch(scratchDirectory);
+    const std::string directory = scratch.directory + "/settings", filePath = directory + "/Config.wtf";
+    struct Cleanup { std::string directory; ~Cleanup() { std::error_code error; std::filesystem::remove_all(directory, error); } } cleanup{directory};
+    Require(OsCreateDirectory(directory.c_str(), 1) && OsDirectoryExists(directory.c_str()) &&
+        (OsGetFileAttributes(directory.c_str()) & OS_FILE_ATTRIBUTE_DIRECTORY), "OsFile directory attributes do not match game callers");
+    const char text[] = "SET ffxGlow \"1\"\r\n";
+    auto file = OsCreateFile(filePath.c_str(), OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+    Require(file != OS_INVALID_FILE, "OsFile config create failed");
+    uint32_t bytes = 0;
+    Require(OsWriteFile(file, text, sizeof(text) - 1, &bytes) && bytes == sizeof(text) - 1 &&
+        OsGetFileSize(file) == sizeof(text) - 1 && OsCloseFile(file), "OsFile config write/size failed");
+    Require(OsCreateFile(filePath.c_str(), OS_GENERIC_WRITE, 0, 1, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY) == OS_INVALID_FILE,
+        "OsFile exclusive create overwrote config");
+    file = OsCreateFile(filePath.c_str(), OS_GENERIC_WRITE, 0, 4, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+    Require(file != OS_INVALID_FILE && OsWriteFile(file, text, sizeof(text) - 1, &bytes) && OsCloseFile(file), "OsFile legacy append failed");
+    std::string windowsPath = filePath; std::replace(windowsPath.begin(), windowsPath.end(), '/', '\\');
+    file = OsCreateFile(windowsPath.c_str(), OS_GENERIC_READ, 1, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+    char contents[128]{};
+    Require(file != OS_INVALID_FILE && OsReadFile(file, contents, sizeof(contents), &bytes) && bytes == 2 * (sizeof(text) - 1) &&
+        !std::memcmp(contents, text, sizeof(text) - 1) && !std::memcmp(contents + sizeof(text) - 1, text, sizeof(text) - 1),
+        "OsFile config path, contents or EOF count failed");
+    Require(OsReadFile(file, contents, sizeof(contents), &bytes) && bytes == 0 && !OsWriteFile(file, text, 1, &bytes) && bytes == 0,
+        "OsFile EOF or read-only handle semantics failed");
+    Require(OsCloseFile(file) && !OsCloseFile(OS_INVALID_FILE), "OsFile invalid handle was accepted");
+    Require(OsSetFileAttributes(filePath.c_str(), 3) && (OsGetFileAttributes(filePath.c_str()) & 3) == 3, "OsFile hidden/read-only attributes failed");
+    std::vector<std::string> names;
+    auto collect = [](OS_FILE_DATA& data, void* arg) -> int32_t { static_cast<std::vector<std::string>*>(arg)->push_back(data.fileName); return 0; };
+    Require(OsFileList((directory + '/').c_str(), "*.wtf", collect, &names, 0) && names.empty(), "OsFile enumeration included hidden config");
+    Require(OsFileList((directory + '/').c_str(), "*.WTF", collect, &names, 1) && names == std::vector<std::string>{"Config.wtf"},
+        "OsFile enumeration pattern, basename or hidden flag failed");
+    Require(OsSetFileAttributes(filePath.c_str(), OS_FILE_ATTRIBUTE_NORMAL), "OsFile attribute reset failed");
+    const std::string copy = directory + "/Copy.wtf", moved = directory + "/Moved.wtf";
+    Require(OsCopyFile(filePath.c_str(), copy.c_str(), 1) && !OsCopyFile(filePath.c_str(), copy.c_str(), 1) &&
+        OsMoveFile(copy.c_str(), moved.c_str()) && !OsFileExists(copy.c_str()) && OsFileExists(moved.c_str()), "OsFile copy/move behavior failed");
+    file = OsCreateFile(filePath.c_str(), OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+    Require(file != OS_INVALID_FILE && OsGetFileSize(file) == 0, "OsFile config replacement did not truncate");
+    constexpr int64_t offset = (int64_t(1) << 32) + 29;
+    Require(Blizzard::File::SetPos(reinterpret_cast<Blizzard::File::StreamRecord*>(file), offset, 0) &&
+        OsWriteFile(file, text, 1, &bytes) && OsGetFileSize(file) == uint64_t(offset + 1) && OsCloseFile(file), "OsFile truncated a 64-bit file size");
+    Require(OsDeleteFile(filePath.c_str()) && OsRemoveDirectoryRecurse(directory.c_str(), 0), "OsFile settings cleanup failed");
+}
+
 void CheckFileStack(const std::string& scratchDirectory) {
     namespace File = Blizzard::File;
     ScratchFile scratch(scratchDirectory);
@@ -527,9 +571,10 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(!range->Read(buffer.data(), 0, buffer.size(), nullptr), "exact read incorrectly accepted EOF");
         Require(!range->Read(buffer.data(), -1, 1, &bytes), "negative offset accepted");
         CheckFileStack(scratchDirectory);
+        CheckOsFiles(scratchDirectory);
         CheckClientLocalFile(scratchDirectory);
         CheckStormLog(scratchDirectory);
-        report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
+        report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, game OsFile config IO/attributes/enumeration, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
         report = std::string("Core check failed: ") + error.what() + "\n";

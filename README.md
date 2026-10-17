@@ -127,6 +127,11 @@ check uses a temporary sparse file outside Data and removes it afterwards. A
 failed check, missing Data, or an unsupported archive returns a nonzero exit code.
 Native log output defaults to a `wowdecomp` directory under the app's temporary
 directory; `WOW_LOG_ROOT` can select a writable log root separately from Data.
+The game `OsFile` API now uses the same native file stack, including config-file
+read/write/replacement, 64-bit sizes, directory and hidden/read-only attributes,
+glob enumeration, copy/move and cleanup. Its directory attributes use the bits
+expected by CVar/AddOns callers; unsupported attribute flags fail explicitly.
+Windows cross-process sharing restrictions remain unsupported on Apple.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
