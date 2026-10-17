@@ -2,7 +2,11 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include <typeinfo>
 #include <freetype/ftmodule.h>
 #include "Engine/Source/Gxu/GxuFont.h"
@@ -902,7 +906,7 @@ void GxuFontDestroyFont(CGxFont*& face) {
     if (face) {
         CGxFont* ptr = face;
         ptr->~CGxFont();
-        SMemFree(ptr, typeid(CGxFont).raw_name(), SLOG_OBJECT, 0);
+        SMemFree(ptr, StormTypeName(typeid(CGxFont)), SLOG_OBJECT, 0);
     }
 
     face = nullptr;
@@ -1143,7 +1147,7 @@ CGxStringBatch* GxuFontCreateBatch(bool billboarded, bool worldSpace) {
     if (batch) {
         s_freeBatches.UnlinkNode(batch);
     } else {
-        batch = new (SMemAlloc(sizeof(CGxStringBatch), typeid(CGxStringBatch).raw_name(), SLOG_OBJECT, SMEM_FLAG_ZEROMEMORY)) CGxStringBatch;
+        batch = new (SMemAlloc(sizeof(CGxStringBatch), StormTypeName(typeid(CGxStringBatch)), SLOG_OBJECT, SMEM_FLAG_ZEROMEMORY)) CGxStringBatch;
     }
 
     if (billboarded) {

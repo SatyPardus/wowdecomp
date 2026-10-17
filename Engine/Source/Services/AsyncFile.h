@@ -5,7 +5,6 @@
 #include <cstdint>
 #include "Engine/Source/Services/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
-#include "Engine/Source/Storm/Source/SThread.h"
 
 class CAsyncQueue : public TSLinkedNode<CAsyncQueue> {
     public:
@@ -14,13 +13,6 @@ class CAsyncQueue : public TSLinkedNode<CAsyncQueue> {
     /* 0020 */ int32_t m_frameLimited;
 
     ~CAsyncQueue();
-};
-
-class CAsyncThread : public TSLinkedNode<CAsyncThread> {
-    public:
-    /* 0008 */ SThread m_thread;
-    /* 000C */ CAsyncQueue* m_queue;
-    /* 0010 */ CAsyncObject* m_currentObject;
 };
 
 class AsyncFile {

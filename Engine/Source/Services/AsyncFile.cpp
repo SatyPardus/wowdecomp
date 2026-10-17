@@ -1,12 +1,20 @@
 #include <cstddef>
 #include <cstdint>
 #include "Engine/Source/Services/AsyncFile.h"
+#include "Engine/Source/Storm/Source/SThread.h"
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
+
+class CAsyncThread : public TSLinkedNode<CAsyncThread> {
+    public:
+    /* 0008 */ SThread m_thread;
+    /* 000C */ CAsyncQueue* m_queue;
+    /* 0010 */ CAsyncObject* m_currentObject;
+};
 
 // STATIC: 0x00AC3438
 static const char* s_asyncQueueNames[3] = { "Disk Queue", "Net Geometry Queue", "Net Texture Queue" };

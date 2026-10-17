@@ -371,7 +371,7 @@ void (*GxuLightInvalidate)() = GxuLightInvalidateImpl;
 
 // VERIFY: 78842f2d manual
 // OFFSET: 0x006BB8F0
-CGxuLightQueue::CGxuLightQueue(const uint32_t (&params)[2]) : CMemBlock(sizeof(CGxuLight*) * params[0], 0, typeid(CGxuLight*).raw_name(), SLOG_OBJECT) {
+CGxuLightQueue::CGxuLightQueue(const uint32_t (&params)[2]) : CMemBlock(sizeof(CGxuLight*) * params[0], 0, StormTypeName(typeid(CGxuLight*)), SLOG_OBJECT) {
     uint32_t count = params[0];
     uint32_t chunk = params[1];
 

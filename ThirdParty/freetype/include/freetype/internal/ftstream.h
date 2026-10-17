@@ -146,9 +146,11 @@
 #define NEXT_Byte( buffer )            \
           ( (unsigned char)*buffer++ )
 
+/* Sign-extension uses multiplication: left-shifting a negative signed
+   byte is undefined. Unsigned long extraction stays 32-bit on LP64. */
 #define NEXT_Short( buffer )                              \
           ( buffer += 2,                                  \
-            ( (short)( (signed   char)buffer[-2] << 8 ) | \
+            ( (short)( (signed   char)buffer[-2] * 256 ) | \
                        (unsigned char)buffer[-1]        ) )
 
 #define NEXT_UShort( buffer )                      \
@@ -156,27 +158,27 @@
 
 #define NEXT_Offset( buffer )                             \
           ( buffer += 3,                                  \
-            ( ( (long)(signed   char)buffer[-3] << 16 ) | \
+            ( ( (long)(signed   char)buffer[-3] * 65536L ) | \
               ( (long)(unsigned char)buffer[-2] <<  8 ) | \
                 (long)(unsigned char)buffer[-1]         ) )
 
 #define NEXT_UOffset( buffer )                     \
-          ( (unsigned long)NEXT_Offset( buffer ) )
+          ( ( (unsigned long)NEXT_Offset( buffer ) & 0xFFFFFFUL ) )
 
 #define NEXT_Long( buffer )                               \
           ( buffer += 4,                                  \
-            ( ( (long)(signed   char)buffer[-4] << 24 ) | \
+            ( ( (long)(signed   char)buffer[-4] * 16777216L ) | \
               ( (long)(unsigned char)buffer[-3] << 16 ) | \
               ( (long)(unsigned char)buffer[-2] <<  8 ) | \
                 (long)(unsigned char)buffer[-1]         ) )
 
 #define NEXT_ULong( buffer )                     \
-          ( (unsigned long)NEXT_Long( buffer ) )
+          ( (unsigned long)(FT_UInt32)NEXT_Long( buffer ) )
 
 
 #define NEXT_ShortLE( buffer )                            \
           ( buffer += 2,                                  \
-            ( (short)( (signed   char)buffer[-1] << 8 ) | \
+            ( (short)( (signed   char)buffer[-1] * 256 ) | \
                        (unsigned char)buffer[-2]        ) )
 
 #define NEXT_UShortLE( buffer )                      \
@@ -184,23 +186,23 @@
 
 #define NEXT_OffsetLE( buffer )                           \
           ( buffer += 3,                                  \
-            ( ( (long)(signed   char)buffer[-1] << 16 ) | \
+            ( ( (long)(signed   char)buffer[-1] * 65536L ) | \
               ( (long)(unsigned char)buffer[-2] <<  8 ) | \
                 (long)(unsigned char)buffer[-3]         ) )
 
 #define NEXT_UOffsetLE( buffer )                     \
-          ( (unsigned long)NEXT_OffsetLE( buffer ) )
+          ( ( (unsigned long)NEXT_OffsetLE( buffer ) & 0xFFFFFFUL ) )
 
 
 #define NEXT_LongLE( buffer )                             \
           ( buffer += 4,                                  \
-            ( ( (long)(signed   char)buffer[-1] << 24 ) | \
+            ( ( (long)(signed   char)buffer[-1] * 16777216L ) | \
               ( (long)(unsigned char)buffer[-2] << 16 ) | \
               ( (long)(unsigned char)buffer[-3] <<  8 ) | \
                 (long)(unsigned char)buffer[-4]         ) )
 
 #define NEXT_ULongLE( buffer )                     \
-          ( (unsigned long)NEXT_LongLE( buffer ) )
+          ( (unsigned long)(FT_UInt32)NEXT_LongLE( buffer ) )
 
 
   /*************************************************************************/
@@ -216,13 +218,13 @@
 #define GET_Offset()    FT_GET_MACRO( FT_Get_Offset, FT_Long )
 #define GET_UOffset()   FT_GET_MACRO( FT_Get_Offset, FT_ULong )
 #define GET_Long()      FT_GET_MACRO( FT_Get_Long, FT_Long )
-#define GET_ULong()     FT_GET_MACRO( FT_Get_Long, FT_ULong )
-#define GET_Tag4()      FT_GET_MACRO( FT_Get_Long, FT_ULong )
+#define GET_ULong()     FT_GET_MACRO( FT_Get_Long, FT_UInt32 )
+#define GET_Tag4()      FT_GET_MACRO( FT_Get_Long, FT_UInt32 )
 
 #define GET_ShortLE()   FT_GET_MACRO( FT_Get_ShortLE, FT_Short )
 #define GET_UShortLE()  FT_GET_MACRO( FT_Get_ShortLE, FT_UShort )
-#define GET_LongLE()    FT_GET_MACRO( FT_Get_LongLE, FT_Short )
-#define GET_ULongLE()   FT_GET_MACRO( FT_Get_LongLE, FT_Short )
+#define GET_LongLE()    FT_GET_MACRO( FT_Get_LongLE, FT_Long )
+#define GET_ULongLE()   FT_GET_MACRO( FT_Get_LongLE, FT_UInt32 )
 
 #define FT_READ_MACRO( func, type, var )        \
           ( var = (type)func( stream, &error ), \
@@ -235,12 +237,12 @@
 #define READ_Offset( var )    FT_READ_MACRO( FT_Read_Offset, FT_Long, var )
 #define READ_UOffset( var )   FT_READ_MACRO( FT_Read_Offset, FT_ULong, var )
 #define READ_Long( var )      FT_READ_MACRO( FT_Read_Long, FT_Long, var )
-#define READ_ULong( var )     FT_READ_MACRO( FT_Read_Long, FT_ULong, var )
+#define READ_ULong( var )     FT_READ_MACRO( FT_Read_Long, FT_UInt32, var )
 
 #define READ_ShortLE( var )   FT_READ_MACRO( FT_Read_ShortLE, FT_Short, var )
 #define READ_UShortLE( var )  FT_READ_MACRO( FT_Read_ShortLE, FT_UShort, var )
 #define READ_LongLE( var )    FT_READ_MACRO( FT_Read_LongLE, FT_Long, var )
-#define READ_ULongLE( var )   FT_READ_MACRO( FT_Read_LongLE, FT_ULong, var )
+#define READ_ULongLE( var )   FT_READ_MACRO( FT_Read_LongLE, FT_UInt32, var )
 
 
   FT_BASE( void )      FT_New_Memory_Stream( FT_Library  library,

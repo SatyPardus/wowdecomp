@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <vector>
 
+void CheckGxFont(CGxDeviceMetal& device);
+
 namespace {
 void Require(bool ok, const char* message) { if (!ok) { throw std::runtime_error(message); } }
 struct Pixels {
@@ -180,5 +182,6 @@ void CheckGxDevice() {
     Require(rejected, "Unknown game shader silently accepted");
     GxTexDestroy(texture); device.BufDestroy(indices); device.PoolDestroy(indicesPool);
     device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
+    CheckGxFont(device);
     device.DeviceDestroy();
 }

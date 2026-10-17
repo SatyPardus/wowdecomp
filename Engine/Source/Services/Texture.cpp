@@ -1906,6 +1906,8 @@ void TextureGxCacheClear() {
         for (int32_t y = 0; y < 6; y++) {
             for (CGxTexCache* entry = s_gxTexCache[x][y].Head(); !s_gxTexCache[x][y].IsEnd(entry); entry = entry->m_link.RawNext()) {
                 s_gxTexCacheSize -= entry->m_size;
+                GxTexDestroy(entry->m_gxTex);
+                entry->m_gxTex = nullptr;
             }
 
             s_gxTexCache[x][y].Clear();

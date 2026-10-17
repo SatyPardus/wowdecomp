@@ -12,6 +12,7 @@ endif ()
 message(STATUS "Apple foundation: shared core, archives and native Metal textures; full game is not yet linked")
 
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>)
+add_link_options(-Wl,-dead_strip)
 
 add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SMem.cpp
@@ -35,6 +36,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataStore.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Handle.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/TimeManager.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Processor.cpp
@@ -84,13 +87,27 @@ target_link_libraries(Tempest PUBLIC AppleFoundation)
 add_subdirectory(Engine/Source/lua-5.1)
 target_link_libraries(lua PUBLIC AppleFoundation)
 
-# Compile the original shared device/resource/state code as the native backend
-# is connected. Platform factories and full client linkage are still pending.
+# Shared game graphics and the original procedural texture/font path.
+# Full client startup and the resource/event services are not yet initialized.
 add_subdirectory(Engine/Source/Gx)
 target_link_libraries(Gx PUBLIC Tempest AppleArchives)
+add_subdirectory(Engine/Source/Gxu)
+target_link_libraries(Gxu PUBLIC Gx)
+add_subdirectory(Engine/Source/jpeg)
+set_target_properties(jpeg PROPERTIES CXX_STANDARD 14)
+add_subdirectory(Engine/Source/Images)
+add_subdirectory(Engine/Source/BLPFile)
+add_library(AppleGameResources STATIC
+    Engine/Source/Base/Status.cpp
+    Engine/Source/Services/Texture.cpp
+    Engine/Source/Services/TextureBlob.cpp
+    Engine/Source/Services/SysMessage.cpp
+    Engine/Source/Services/AsyncFile.cpp
+    Engine/Source/Base/Prop.cpp
+)
+target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile)
 
-add_library(AppleTextureData STATIC Engine/Source/BLPFile/BlpImage.cpp)
-target_include_directories(AppleTextureData PUBLIC ${CMAKE_SOURCE_DIR})
+add_library(AppleTextureData ALIAS BLPFile)
 
 enable_language(OBJCXX)
 set(CMAKE_OBJCXX_STANDARD 17)
@@ -108,9 +125,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
 else ()
     target_link_libraries(AppleMetal PUBLIC "-framework AppKit")
 endif ()
-add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm)
+add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal)
+target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal "-framework MetalKit" "-framework CoreGraphics")
