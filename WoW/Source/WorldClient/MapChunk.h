@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/TerrainGeometry.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "WoW/Source/WorldClient/CChunkLiquid.h"
 #include "Engine/Source/Base/BitArray.h"
@@ -36,19 +37,6 @@ class SE2SoundKitObject;
 struct SMChunk;
 struct SMLayer;
 struct SMLiquidChunk;
-
-class CGxVertexPN {
-    public:
-    /* 0000 */ C3Vector m_position;
-    /* 000C */ C3Vector m_normal;
-};
-
-class CGxVertexPNC {
-    public:
-    /* 0000 */ C3Vector m_position;
-    /* 000C */ C3Vector m_normal;
-    /* 0018 */ CImVector m_color;
-};
 
 class CMapChunkMapObjDefLink {
     public:

@@ -150,7 +150,9 @@ add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance
 target_link_libraries(CreatureAppearance PUBLIC Model2)
 
 add_subdirectory(WoW/Source/WorldClient)
-target_link_libraries(WorldClient PUBLIC Model2)
+add_library(WorldTerrain STATIC WoW/Common/TerrainGeometry.cpp WoW/Common/TerrainSurface.cpp)
+target_link_libraries(WorldTerrain PUBLIC Tempest)
+target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain)
 
 add_library(AppleTextureData ALIAS BLPFile)
 
@@ -179,8 +181,8 @@ add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleB
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance "-framework MetalKit" "-framework CoreGraphics")
 
-add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2)
+add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

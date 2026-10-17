@@ -236,6 +236,13 @@ Its platform fixes retain Windows headers on Windows, use the shared allocator
 type-name helper and portable stack allocation/finite checks, and keep anisotropic
 filtering's flag at its original 32-bit width. This is a compilation milestone;
 world startup and terrain rendering are not yet connected to the native host.
+The shared terrain surface reader now copies unaligned ADT numeric data into
+aligned arrays, validates chunk/index extents, texture references and compressed
+alpha rows, and leaves archive bytes unchanged. Original world-space PN/PNC vertex
+generation and hole-aware indices are shared with `CMapChunk`, retaining its
+arithmetic and triangle ordering. Core checks read complete Ahn'Qiraj, Elwynn and
+Northrend tiles, including vertex colors, holes and compressed alpha maps. This
+surface view does not replace the WMO, doodad, liquid or sound loaders.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
