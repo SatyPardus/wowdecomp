@@ -1,0 +1,36 @@
+---
+title: wowdecomp ModCore
+description: Lua modding framework for the wowdecomp 3.3.5 client.
+template: splash
+hero:
+  tagline: Extend the decompiled 3.3.5 client from Lua without recompiling C++.
+  actions:
+    - text: Get started
+      link: /getting-started/overview/
+      icon: right-arrow
+    - text: Hook reference
+      link: /reference/hooks/
+      variant: minimal
+---
+
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Work in progress">
+ModCore was introduced as a WIP framework. Several advertised pieces are stubs or only declared in typings.
+See [Known issues](/known-issues/) before relying on a feature.
+</Aside>
+
+<CardGrid stagger>
+  <Card title="63 documented hooks" icon="puzzle">
+    Lifecycle, world, input, chat, spells, tooltips, quests, loot, and more. Listen, override a value, or consume the event.
+  </Card>
+  <Card title="Custom packets" icon="rocket">
+    Declare typed packet schemas, send them to the server and handle server replies with a fragment-aware wire protocol.
+  </Card>
+  <Card title="Virtual DBC" icon="open-book">
+    Inject rows, override fields, and intercept row lookups from Lua.
+  </Card>
+  <Card title="Hot reload and bytecode cache" icon="random">
+    Edit a `.lua` file while in the world and it is re-executed on the next world update. Compiled bytecode is cached by content hash.
+  </Card>
+</CardGrid>

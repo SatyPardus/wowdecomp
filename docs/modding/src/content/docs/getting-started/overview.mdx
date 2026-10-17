@@ -1,0 +1,48 @@
+---
+title: Overview
+description: What ModCore is, how it runs, and what it is built from.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ModCore is a static library (`WoW/Source/ModCore`) linked into `WowClient`, plus a set of Lua scripts in `mods/system`. The C++ side fires **hooks** from inside the decompiled client. The Lua side routes each hook to the listeners that mods registered.
+
+```text
+client code ──► ModCore::Manager().OnXxx(...)
+                      │  pushes args, pcall
+                      ▼
+          ModCore.DispatchHook("OnXxx", ...)      (mods/system/bootstrap.lua)
+                      │
+                      ▼
+          Hooks.Fire → listeners by priority      (mods/system/hooks.lua)
+                      │
+        first non-nil result is returned to C++
+```
+
+## Runtime
+
+<Aside type="note" title="Lua 5.1, not LuaJIT">
+The framework was announced as a LuaJIT framework, but the code in these commits runs on the stock **Lua 5.1** interpreter bundled in `Engine/Source/lua-5.1`, using the same state as the UI (`FrameScript_GetContext()`). There is no LuaJIT in the tree. Write mods for Lua 5.1: no `goto`, no bitwise operators (`&`, `|`, `~`), no integer subtype, and `unpack` instead of `table.unpack`.
+</Aside>
+
+Mods therefore share a Lua state, and its globals, with FrameXML and GlueXML.
+
+## Components
+
+| Component | Location | Role |
+| --- | --- | --- |
+| `ModManager` | `ModCore.cpp` | Initialization, mod discovery, hook dispatch, Lua bindings |
+| `BytecodeCache` | `BytecodeCache.cpp` | Replaces `loadfile`; caches compiled chunks in `mods/cache` |
+| `FileWatcher` | `FileWatcher.cpp` | Windows directory watcher feeding hot reload |
+| `CustomPacketManager` | `CustomPacket.cpp` | Fragmented custom packets and the Lua packet reader/writer |
+| `AutoExport` | `AutoExport.cpp` | Generates typings, JSON schema, and an AI guide into `mods/api` |
+| `bootstrap.lua` | `mods/system` | Defines the `ModCore` table, loads the other system modules, mounts mods |
+| `hooks.lua`, `net.lua`, `dbc.lua`, `visuals.lua`, `api_export.lua` | `mods/system` | Lua modules described in the API reference |
+
+## When mods load
+
+`ModManager::Initialize()` runs during client start-up. `RegisterLuaBindings()` runs when the Glue and game script functions are registered. It registers the native helpers, executes `bootstrap.lua`, mounts every mod, optionally exports the API files, and starts the file watcher.
+
+<Aside type="caution">
+`RegisterLuaBindings` is called from both the Glue and the in-game script registration paths. Expect `bootstrap.lua` and mod entry points to be able to run more than once per client session, and write `init.lua` so repeated execution is harmless. See [Hot reload](/guides/hot-reload/).
+</Aside>

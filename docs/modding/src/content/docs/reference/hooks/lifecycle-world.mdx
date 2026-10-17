@@ -1,0 +1,56 @@
+---
+title: Lifecycle, world, environment, camera
+description: Hooks for client lifecycle, the 3D world, weather, and the camera.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Lifecycle
+
+| Hook | Signature | Status | Fired when |
+| --- | --- | --- | --- |
+| `OnEngineInit` | `fun()` | Not wired | Intended for low-level engine initialization |
+| `OnEngineShutdown` | `fun()` | Not wired | Intended for engine shutdown. `ModManager::Shutdown()` runs at client destroy but does not dispatch this hook |
+| `OnGameInitialize` | `fun()` | Fires | `ClientInitializeGame`, after the game clock is initialized and before the command manager is set up |
+| `OnGameDestroy` | `fun()` | Fires | `ClientDestroyGame`, before `CGGameUI::ShutdownGame` |
+| `OnFrameTick` | `fun(dt: number)` | Not wired | Intended for every main-loop iteration |
+
+<Aside type="tip">
+For per-frame work use [`OnWorldUpdate`](#world) (in-world only) or `OnGlueIdle` (Glue screens).
+</Aside>
+
+## World
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnEnterWorld` | `fun()` | void | Player finished entering the world |
+| `OnLeaveWorld` | `fun()` | void | Player leaves the world (logout, disconnect) |
+| `OnMapChange` | `fun(mapName: string, zoneId: integer)` | void | `CWorld` loads or changes the map |
+| `OnWorldUpdate` | `fun(dt: number)` | void | Once per world frame update |
+| `OnWorldRender` | `fun(worldFrame: lightuserdata)` | void | During the 3D world render pass |
+| `OnWorldHitTest` | `fun(guid: number, point: table?, hitObject: boolean)` | void | The mouse hit test produces a result |
+| `OnTerrainTrack` | `fun(point: table): boolean?` | consume | The cursor tracks terrain (for example while targeting a ground spell) |
+| `OnTerrainClick` | `fun(button: integer, x: number, y: number, z: number): boolean?` | consume | A terrain click is handled by `CGGameUI::OnTerrainClick` |
+| `OnZoneChange` | `fun(areaId: integer, subzoneId: integer, zoneName: string)` | void | Zone or subzone text changes |
+
+### Notes
+
+<Aside type="caution" title="OnWorldUpdate: dt is always 0">
+The engine currently calls `ModManager::OnWorldUpdate()` with its default argument, so `dt` is `0.0`. Measure time yourself, for example with `GetTime()`. The tick is also what applies [hot reload](/guides/hot-reload/).
+</Aside>
+
+- `OnWorldHitTest` also updates the values returned by `ModCore.GetLastHitGuid()` and `ModCore.GetLastHitPoint()`. `point` is `nil` when there is no hit point. `hitObject` is true when the hit kind is an object rather than terrain.
+- `OnTerrainTrack`: returning `true` stops the default tracking handler (the ground-target shadow and cursor reset). When [`SetCastAtCursor(true)`](/reference/modcore/#cast-at-cursor) is armed, the engine disarms it and issues a terrain click **before** this hook runs.
+- `OnTerrainClick`: returning `true` stops default handling, including ground-targeted spell casts.
+
+## Environment
+
+| Hook | Signature | Fired when |
+| --- | --- | --- |
+| `OnWeatherChange` | `fun(type: integer, intensity: number)` | Weather type or intensity changes (`MapWeather.cpp`) |
+
+## Camera
+
+| Hook | Signature | Fired when |
+| --- | --- | --- |
+| `OnCameraUpdate` | `fun(x: number, y: number, z: number, fov: number)` | Every frame the world camera is updated; `fov` is the camera's field of view |

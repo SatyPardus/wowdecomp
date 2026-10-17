@@ -1,0 +1,65 @@
+---
+title: Gameplay UI
+description: Hooks for loot, merchants, quests, actions, sound, trade, combat feedback, and nameplates.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Most consume hooks here are called from the Lua script function a UI button invokes. Returning `true` makes that script function return without doing its work.
+
+## Loot
+
+| Hook | Signature | Fired when |
+| --- | --- | --- |
+| `OnLootOpen` | `fun(guid: number, coins: integer, lootType: integer)` | `CGLootInfo::SetObject`: loot window opens for an object |
+| `OnLootSlot` | `fun(slot: integer)` | `CGLootInfo::LootSlot`: an item slot is taken |
+| `OnLootClose` | `fun()` | The loot window closes |
+
+## Merchants and items
+
+| Hook | Signature | Returns | Called from |
+| --- | --- | --- | --- |
+| `OnMerchantBuy` | `fun(index: integer, count: integer): boolean?` | consume | `BuyMerchantItem` |
+| `OnItemUse` | `fun(bagIndex: integer, slotIndex: integer): boolean?` | consume | `UseContainerItem` |
+
+## Quests and gossip
+
+| Hook | Signature | Returns | Called from |
+| --- | --- | --- | --- |
+| `OnQuestAccept` | `fun(questGiverGuid: number): boolean?` | consume | `AcceptQuest` |
+| `OnQuestComplete` | `fun(questGiverGuid: number): boolean?` | consume | `CompleteQuest` |
+| `OnQuestReward` | `fun(rewardIndex: integer): boolean?` | consume | `GetQuestReward` (index is the chosen reward) |
+| `OnGossipSelect` | `fun(optionIndex: integer): boolean?` | consume | `SelectGossipOption` |
+
+## Actions, macros, cooldowns
+
+| Hook | Signature | Returns | Called from |
+| --- | --- | --- | --- |
+| `OnActionUse` | `fun(slot: integer): boolean?` | consume | `UseAction` |
+| `OnMacroExecute` | `fun(name: string, body: string): boolean?` | consume | `RunMacroText` (`name` is `""`) and `RunMacro` (macro name and body) |
+| `OnCooldownSet` | `fun(name: string, start: number, duration: number)` | void | Cooldown frame's `SetCooldown`; `name` is the frame name |
+
+## Sound
+
+| Hook | Signature | Returns | Called from |
+| --- | --- | --- | --- |
+| `OnPlaySound` | `fun(soundKitId: integer): boolean?` | consume | `SI2::PlayUISound` |
+| `OnPlayMusic` | `fun(musicFile: string): boolean?` | consume | The `PlayMusic` script function |
+
+## Trade
+
+| Hook | Signature | Fired when |
+| --- | --- | --- |
+| `OnTradeInitiate` | `fun(targetGuid: number, useCursorItem: boolean)` | `CGTradeInfo::InitiateTrade` |
+| `OnTradeAccept` | `fun()` | The `AcceptTrade` script function runs |
+
+## Combat feedback and nameplates
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnCombatFeedback` | `fun(guid: number, amount: integer, schoolMask: integer, flags: integer): boolean?` | consume | `CGGameUI::ShowCombatFeedback`, which drives floating combat text |
+| `OnNamePlateCreate` | `fun(unitGuid: number, namePlatePtr: lightuserdata)` | void | A nameplate frame is created for a unit |
+
+<Aside type="note">
+Returning `true` from `OnCombatFeedback` suppresses the engine's `WOUND` combat signal for that event. `schoolMask` is the spell school bit mask.
+</Aside>

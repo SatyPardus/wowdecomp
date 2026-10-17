@@ -1,0 +1,61 @@
+---
+title: Your first mod
+description: Create, run, and iterate on a minimal mod.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+<Steps>
+
+1. Create the mod folder.
+
+   ```text
+   mods/user_mods/hello/
+     mod.json
+     init.lua
+   ```
+
+2. Add a manifest. Today only its existence matters, but fill it in for forward compatibility.
+
+   ```json title="mod.json"
+   { "id": "hello", "name": "Hello", "version": "0.1.0", "entryPoint": "init.lua" }
+   ```
+
+3. Register hooks in `init.lua`.
+
+   ```lua title="init.lua"
+   local ctx = ...
+
+   ModCore.On("OnEnterWorld", function()
+       ModCore.LogInfo("Hello from %s", "hello")
+   end)
+
+   ModCore.On("OnZoneChange", function(areaId, subzoneId, zoneName)
+       ModCore.LogInfo("Entered %s (%d/%d)", zoneName, areaId, subzoneId)
+   end)
+   ```
+
+4. Start the client and watch the console. Log output goes to the process's standard output as `[LUA INFO] ...`.
+
+</Steps>
+
+<Aside type="tip">
+`ModCore.Log*` uses `string.format` semantics (format string first). The global `LOG_INFO(...)` helpers instead concatenate their arguments and serialize tables. See [Packet I/O and logging](/reference/packet-io/#logging).
+</Aside>
+
+## Guarding against reloads
+
+`init.lua` can be re-executed by hot reload. Register handlers so that a second run replaces the first:
+
+```lua title="init.lua"
+local S = rawget(_G, "__hello") or {}
+_G.__hello = S
+
+if S.onUpdate then ModCore.UnregisterHook("OnWorldUpdate", S.onUpdate) end
+S.onUpdate = function(dt)
+    -- per-frame logic
+end
+ModCore.On("OnWorldUpdate", S.onUpdate)
+```
+
+Next: [Hooks and return values](/guides/hooks/).

@@ -1,0 +1,42 @@
+---
+title: Visuals
+description: The decal and weapon trail helpers in mods/system/visuals.lua.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Prototype">
+`visuals.lua` is not loaded by `bootstrap.lua`, nothing renders decals yet, and decals never expire because `OnWorldUpdate` passes `dt = 0`. Treat this as a scaffold. See [Known issues](/known-issues/).
+</Aside>
+
+Load it explicitly:
+
+```lua
+local Visuals = require("system.visuals")
+```
+
+Loading registers listeners on `OnWorldUpdate` (expiry) and `OnWorldRender` (an empty placeholder).
+
+## `Visuals.CreateDecal(params) → decal`
+
+| Field | Default | Description |
+| --- | --- | --- |
+| `position` | required | `{ x, y, z }`. Returns `nil` and logs an error if missing |
+| `shape` | `"CIRCLE"` | Free-form string stored on the decal |
+| `radius` | `5.0` | |
+| `innerRadius` | `0.0` | |
+| `coneAngle` | `90.0` | Degrees |
+| `color` | `{ r=1, g=0.2, b=0.2, a=0.6 }` | |
+| `duration` | `3.0` | Seconds. `0` or less means no expiry |
+
+The returned decal has `id`, the fields above, `elapsed`, `alive`, and these methods:
+
+| Method | Description |
+| --- | --- |
+| `decal:SetPosition(pos)` | Update any of `x`, `y`, `z` |
+| `decal:SetRadius(r)` | |
+| `decal:Destroy()` | Marks the decal for removal on the next update |
+
+## `Visuals.AttachWeaponTrail(unit, hand, params)`
+
+Stub. Logs a debug line and does nothing else.

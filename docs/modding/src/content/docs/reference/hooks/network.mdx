@@ -1,0 +1,30 @@
+---
+title: Network
+description: Hooks for incoming and outgoing client messages.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnPacketReceived` | `fun(opcode: integer, time: integer, dataStore: lightuserdata): boolean?` | consume | `NetClient::ProcessMessage` reads a message id |
+| `OnPacketSend` | `fun(opcode: integer, size: integer, dataStore: lightuserdata): boolean?` | consume | `NetClient::Send` is about to queue or send a message |
+| `OnDisconnect` | `fun()` | void | The network connection is torn down |
+
+## OnPacketReceived
+
+- Fired for every inbound message **except** the custom-packet carriers `0x102` and `0x7A00`, which are consumed by the [custom packet manager](/guides/custom-packets/) first.
+- `opcode` is the 16-bit message id. `time` is the receive timestamp. `dataStore` points to the `CDataStore`, already advanced past the message id.
+- Return `true` to skip the client's registered handler for that message.
+
+## OnPacketSend
+
+<Aside type="caution">
+`opcode` is always `0` at the moment. The hook is called from `NetClient::Send`, after the message has been serialized, and the opcode is not extracted. `size` is the number of unread bytes. Any message the client sends, including ModCore's own custom packets, passes through.
+</Aside>
+
+Return `true` to drop the message.
+
+## Reading from `dataStore`
+
+The pointer is opaque in Lua. To parse real payloads from Lua, use [custom packets](/guides/custom-packets/), which provide a typed reader.

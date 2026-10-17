@@ -1,0 +1,21 @@
+---
+title: Bytecode cache
+description: How ModCore caches compiled Lua.
+---
+
+`BytecodeCache::LoadScript` backs the global `loadfile`, the bootstrap load, and hot reload.
+
+1. Hash the file contents with 64-bit FNV-1a.
+2. If caching is enabled and `mods/cache/<hash>.luac` exists, load it with `luaL_loadbuffer`. If it fails to load, discard the error and fall through.
+3. Otherwise read the source and compile with `luaL_loadbuffer`. A syntax error is printed to `stderr` and the load fails.
+4. If caching is enabled, `lua_dump` the compiled function and write it to the cache file.
+
+The chunk is left on the Lua stack; the caller runs it.
+
+## Properties
+
+- The key is the **content** hash, so editing a file produces a new cache entry and never invalidates an unchanged one.
+- Stale entries are never deleted. Clear `mods/cache/` to reclaim space.
+- The cache is Lua 5.1 bytecode with debug information. Do not share it across builds that use a different Lua version or build options. Delete it after rebuilding the client.
+- Two files with identical content share an entry. The chunk name recorded in the bytecode comes from whichever file was compiled first, so error messages from the other file may show that name.
+- `cacheEnabled: false` disables reads, writes, and creation of the directory.

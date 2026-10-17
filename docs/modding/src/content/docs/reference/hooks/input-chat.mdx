@@ -1,0 +1,44 @@
+---
+title: Input and chat
+description: Hooks for keyboard, mouse, and chat.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Input
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnKeyDown` | `fun(key: integer, modifiers: integer, keyString: string): boolean?` | consume | A key goes down in the world frame |
+| `OnKeyUp` | `fun(key: integer, modifiers: integer, keyString: string): boolean?` | consume | A key is released |
+| `OnMouseDown` | `fun(button: integer, x: integer, y: integer): boolean?` | consume | A mouse button goes down |
+| `OnMouseUp` | `fun(button: integer, x: integer, y: integer): boolean?` | consume | A mouse button is released |
+| `OnMouseWheel` | `fun(delta: integer): boolean?` | consume | The wheel scrolls |
+
+All five are called from `CGWorldFrame`, so they only fire for input the world frame receives. Input already handled by a UI frame never reaches them.
+
+### Keys
+
+- `key` is the engine key code.
+- `modifiers` is a bit mask: 1 LShift, 2 RShift, 4 LCtrl, 8 RCtrl, 16 LAlt, 32 RAlt.
+- `keyString` is the binding string with modifier prefixes, such as `LSHIFT-H`, `SHIFT-H` (both shifts held), `CTRL-K`, `F5`.
+- Pure modifier key presses and auto-repeat events do **not** fire `OnKeyDown`.
+- Returning `true` from `OnKeyDown` skips the normal key-binding execution.
+
+### Mouse
+
+`button` is the client's button index: `1` left, `2` middle, `3` right, `4` and up for extra buttons. `x` and `y` are screen coordinates in pixels. `delta` is the wheel amount reported by the OS layer.
+
+## Chat
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnChatMessage` | `fun(type: integer, sender: string, message: string, channel: string): boolean?` | consume | `CGChat::AddChatMessage` is about to add a message |
+| `OnSendChatMessage` | `fun(message: string, type: integer, language: integer, target: string): boolean?` | consume | The `SendChatMessage` script function is called |
+
+- `OnChatMessage`: `true` hides the message. `type` is the chat message type id. `sender` and `channel` are empty strings when absent.
+- `OnSendChatMessage`: `true` cancels the send. Only messages sent through the `SendChatMessage` script function are seen, which includes the default chat edit box.
+
+<Aside type="note">
+`message` cannot be rewritten by returning a string; any non-boolean return only stops later listeners. To change a message, consume it and re-send or re-display it yourself.
+</Aside>

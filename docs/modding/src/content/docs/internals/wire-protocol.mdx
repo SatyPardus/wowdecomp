@@ -1,0 +1,59 @@
+---
+title: Wire protocol
+description: Byte layout of ModCore custom packets, for server implementers.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Custom packets are tunneled through two reserved opcodes. A **fragment header** and a payload follow.
+
+| Constant | Value | Direction |
+| --- | --- | --- |
+| `SERVER_TO_CLIENT_OPCODE` | `0x102` | server to client |
+| `ALT_SERVER_OPCODE` | `0x7A00` | server to client (accepted as an alternative) |
+| `CLIENT_TO_SERVER_OPCODE` | `0x51F` | client to server |
+| `MAX_FRAGMENT_SIZE` | `30000` | payload bytes per fragment |
+
+## Layout
+
+All fields are little-endian and packed.
+
+```text
+[ carrier opcode ]   server → client: uint16 (0x102 or 0x7A00)
+                     client → server: uint32 (0x51F)
+[ fragmentId     ]   uint16   0-based index of this fragment
+[ totalFrags     ]   uint16   number of fragments in the message
+[ innerOpcode    ]   uint16   the opcode mods use in Net / OnCustomPacket
+[ data           ]   up to 30000 bytes
+```
+
+The carrier opcode is the normal message id in the standard 3.3.5 packet header, so the server only needs to treat `0x51F` as a CMSG and `0x102` as an SMSG.
+
+## Field encodings in `data`
+
+| Type | Encoding |
+| --- | --- |
+| `uint8`/`int8`/`uint16`/`int16`/`uint32`/`int32`/`uint64`/`int64` | little-endian integers |
+| `float` / `double` | IEEE 754, 4 / 8 bytes |
+| `string` | `uint32` byte length, then that many bytes. No terminator |
+| `guid` (schema) | `uint32 low`, `uint32 high` |
+| `vector3` (schema) | 3 x `float` (x, y, z) |
+| `quat` (schema) | 4 x `float` (w, x, y, z) |
+
+## Fragmentation
+
+- **Sending:** the client splits the buffer into `ceil(size / 30000)` fragments with the same `innerOpcode` and `totalFrags`. An empty payload is sent as a single fragment with only the header.
+- **Receiving:** a message with `totalFrags <= 1` is dispatched immediately. Otherwise fragment `0` resets the reassembly buffer and records `innerOpcode`/`totalFrags`. Later fragments with a matching opcode and count are appended. The last fragment (`fragmentId == totalFrags - 1`) triggers dispatch.
+
+<Aside type="caution">
+Reassembly is a single buffer. Interleaving fragmented messages, or sending fragments out of order, corrupts the result. Payloads shorter than the 6-byte header are ignored.
+</Aside>
+
+## Dispatch
+
+For a complete message the client runs, in order:
+
+1. The Lua function `__FireCustomPacket(innerOpcode)`, which invokes every handler registered through `OnCustomPacket` / `Net.OnCustomPacket` / `Net.DefinePacket`.
+2. Any C++ handlers registered with `CustomPacketManager::RegisterHandler(opcode, fn)`.
+
+Each handler starts reading at the first byte of `data`.

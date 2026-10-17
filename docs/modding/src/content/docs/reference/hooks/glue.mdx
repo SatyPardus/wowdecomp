@@ -1,0 +1,19 @@
+---
+title: Glue screens
+description: Hooks for the login, character select, and character creation screens.
+---
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnGlueResume` | `fun()` | void | Glue scripting is registered. Mods are mounted just before, so their listeners are in place |
+| `OnGlueIdle` | `fun()` | void | Every frame while a Glue screen is active |
+| `OnGlueScreenChange` | `fun(screenName: string)` | void | The Glue manager switches screens (for example login, charselect, charcreate) |
+| `IsLoginBlocked` | `fun(): boolean?` | consume | `DefaultServerLogin` is called |
+| `OnCharacterSelect` | `fun(charIndex: integer)` | void | A character is chosen on the selection screen |
+| `OnCharacterCreate` | `fun(name: string, race: integer, classId: integer, gender: integer)` | void | The create-character request is submitted |
+
+## Notes
+
+- `IsLoginBlocked`: return `true` and `DefaultServerLogin(account, password)` returns without doing anything. It does not show a message; show your own.
+- `OnCharacterSelect` receives the index passed to the select script (see `CharacterSelection_Scripts.cpp`).
+- `race`, `classId`, and `gender` are the numeric ids chosen in the creation UI.

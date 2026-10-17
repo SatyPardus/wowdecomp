@@ -1,0 +1,76 @@
+---
+title: Custom packets
+description: Define typed packets, send them to your server, and handle replies.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Custom packets let a mod talk to a modified server without adding real opcodes to the client. All custom traffic is tunneled through two carrier opcodes; the **inner opcode** (a `uint16` you choose) selects the handler. See the [wire protocol](/internals/wire-protocol/) for the byte layout your server has to implement.
+
+## Declarative packets
+
+```lua
+local Net = ModCore.Net   -- or require("system.net")
+
+Net.DefinePacket("SMSG_CUSTOM_ALERT", {
+    opcode    = 0x7005,
+    direction = "SERVER_TO_CLIENT",
+    schema    = { { name = "message", type = "string" } },
+    handler   = function(packet)
+        ModCore.LogInfo("Alert from server: %s", packet.message)
+    end,
+})
+
+Net.DefinePacket("CMSG_PLACE_OBJECT", {
+    opcode    = 0x7001,
+    direction = "CLIENT_TO_SERVER",
+    schema    = {
+        { name = "entry",    type = "uint32" },
+        { name = "position", type = "vector3" },
+    },
+})
+
+Net.Send("CMSG_PLACE_OBJECT", { entry = 1234, position = { x = 1, y = 2, z = 3 } })
+```
+
+`direction` is `"SERVER_TO_CLIENT"`, `"CLIENT_TO_SERVER"`, or `"BIDIRECTIONAL"`. A handler is wired only for server-to-client and bidirectional packets. See [Net](/reference/net/) for the field types.
+
+<Aside type="caution">
+- Field types are read and written **in schema order**. An unknown type is skipped silently, which misaligns every later field.
+- `guid` can be **read** (as `{ low, high }`) but `Net.Send` has no encoder for it and skips the field.
+- `Net.Send` returns `true` even when the client is not connected. The packet is dropped without an error.
+- Missing payload fields are written as `0`, `0.0`, or `""`. Reading past the end of a packet returns `0`.
+</Aside>
+
+## Raw packets
+
+Skip schemas and read or write bytes yourself:
+
+```lua
+OnCustomPacket(0x7101, function(reader)
+    local x = reader:ReadFloat()
+    local y = reader:ReadFloat()
+    local label = reader:ReadString()
+end)
+
+local w = CreateCustomPacket(0x7002, 64)
+w:WriteUInt32(42):WriteString("hello"):Send()
+```
+
+`Net.OnCustomPacket(opcode, handler)` is a thin wrapper around the global `OnCustomPacket`. See [Packet I/O](/reference/packet-io/) for every reader and writer method.
+
+<Aside type="note">
+Each handler for an opcode gets a fresh reader positioned at the start of the payload. Registering several handlers for the same opcode is fine.
+</Aside>
+
+## Large payloads
+
+A writer splits its buffer into fragments of at most 30000 bytes. Incoming fragmented packets are reassembled before handlers run, so handlers always see the whole payload. Only one fragmented message can be reassembled at a time, and fragments are appended in arrival order, so they must arrive in order.
+
+## 64-bit values
+
+`WriteUInt64`/`WriteInt64` accept a number or a decimal **string**. `ReadUInt64`/`ReadInt64` return a decimal **string**, because Lua numbers cannot hold every 64-bit value. Prefer strings for GUIDs and large counters.
+
+## Observing the normal packet stream
+
+`OnPacketReceived` and `OnPacketSend` see all regular client messages. Carrier packets (`0x102`, `0x7A00`) are handled by the custom packet manager first and never reach `OnPacketReceived`. See [network hooks](/reference/hooks/network/).

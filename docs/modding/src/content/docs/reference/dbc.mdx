@@ -1,0 +1,27 @@
+---
+title: DBC
+description: The in-memory DBC layer in mods/system/dbc.lua.
+---
+
+Available as `ModCore.DBC`, `require("system.dbc")`, and the global `DBC`. See [Virtual DBC](/guides/virtual-dbc/) for lookup order and scope.
+
+| Function | Description |
+| --- | --- |
+| `DBC.RegisterTable(name, schema [, initialRows])` | Declare a table. `schema` is an ordered list of column names. `initialRows` is a map `id → row` |
+| `DBC.DefineRow(name, id, row)` | Add or replace a row in a registered table. Sets `row.id = id` |
+| `DBC.RegisterVirtualRow(name, id, row)` | Add a row that takes precedence over table rows. Works without `RegisterTable` |
+| `DBC.OverrideRow(name, id, fields)` | Overlay fields on a row. The stored row is not modified; `GetRow` returns a copy |
+| `DBC.OnRowLookup(name, fn)` | Add a lookup hook `fun(id): table?`. First non-nil result wins |
+| `DBC.GetRow(name, id) → table?` | Resolve a row |
+| `DBC.GetRowUnpacked(name, id) → ...` | Return the row's values in schema order. Without a schema, unpacks an array-style row, otherwise returns the row table |
+| `DBC.GetRows(name) → table` | The `id → row` map of registered rows (excludes virtual rows) |
+| `DBC.GetNumRows(name) → integer` | Number of registered rows (excludes virtual rows) |
+
+## Globals
+
+| Global | Equals |
+| --- | --- |
+| `DBC` | The module |
+| `_CDBC_GET`, `GetCDBCRow` | `DBC.GetRowUnpacked` |
+
+`GetRowUnpacked` uses Lua 5.1's `unpack`. Virtual and overridden rows are only visible through `GetRow` and `GetRowUnpacked`, not through `GetRows`/`GetNumRows`.

@@ -1,0 +1,71 @@
+---
+title: Architecture
+description: How a hook travels from client code to a Lua listener, and how to add a new one.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+## Dispatch path
+
+Every hook method on `ModCore::ModManager` funnels into `DispatchHookEx`:
+
+1. Get the Lua state from `FrameScript_GetContext()`.
+2. Look up the global `ModCore` table and its `DispatchHook` function. If either is missing the call is a no-op.
+3. Push the hook name, then the arguments produced by a `pushArgs` callback.
+4. `lua_pcall` with one result. Errors are written to `stderr` and the stack is restored.
+5. Hand the result to an optional `readResult` callback, which converts it into a C++ value (`bool` for consume hooks, `int32_t` for `OnSpellQuery`, `std::string` for `OnTooltipEvaluate`).
+6. Restore the stack with `lua_settop`.
+
+On the Lua side `DispatchHook` calls `Hooks.Fire`, which runs the listeners.
+
+All of this runs on the main thread inside the engine call. The file watcher thread only appends paths to a mutex-protected queue, which the main thread drains.
+
+<Aside type="caution">
+Hooks run synchronously inside engine code paths such as `NetClient::ProcessMessage`, `CGWorldFrame::OnLayerKeyDown`, and `Spell_C_GetPowerCost`. A slow or erroring listener affects the frame. Errors are contained by `pcall`, but long work is not.
+</Aside>
+
+## Startup sequence
+
+1. `InitializeClient` calls `ModCore::Manager().Initialize()`: resolves the mods directory, reads `config.json`, initializes the bytecode cache and the export directory.
+2. When Glue (and later the game UI) registers its script functions, `RegisterLuaBindings(nullptr)` runs:
+   1. Register the native globals.
+   2. `CustomPacketManager::RegisterLuaBindings` registers `_CLIENT_NETWORK`/`_LUA_LOG` and executes the embedded packet and logging Lua.
+   3. Set `ModCore.BasePath`.
+   4. Execute `mods/system/bootstrap.lua`.
+   5. Discover and mount mods.
+   6. Export the API (if `aiExportOnBoot`).
+   7. Start the file watcher (if `devMode` and `hotReload`).
+3. `WowClientDestroy` calls `Shutdown()`, which stops the watcher.
+
+## Adding a hook
+
+<Steps>
+
+1. Declare a dispatcher method in `ModCore.h`, grouped with related hooks.
+
+2. Implement it in `ModCore.cpp` with `DispatchHook` or `DispatchHookEx`. Pass a `readResult` lambda if the hook can consume or override.
+
+3. Call it from the engine code, with `#include "WoW/Source/ModCore/ModCore.h"`.
+
+   ```cpp
+   if (ModCore::Manager().OnMyHook(arg)) {
+       return;   // consumed
+   }
+   ```
+
+4. Register metadata so it appears in the typings: add a `RegisterHook({...})` entry in `AutoExport::PopulateDefaultMetadata` and a matching `ApiExport.RegisterHook(...)` line in `mods/system/api_export.lua`.
+
+5. Document it in the [hook catalog](/reference/hooks/).
+
+</Steps>
+
+## Source map
+
+| Path | Contents |
+| --- | --- |
+| `WoW/Source/ModCore/ModCore.{h,cpp}` | Manager, dispatchers, native Lua functions, mod discovery |
+| `WoW/Source/ModCore/CustomPacket.{h,cpp}` | Packet reader/writer, fragmentation, embedded Lua |
+| `WoW/Source/ModCore/BytecodeCache.{h,cpp}` | Cached `loadfile` |
+| `WoW/Source/ModCore/FileWatcher.{h,cpp}` | `ReadDirectoryChangesW` thread |
+| `WoW/Source/ModCore/AutoExport.{h,cpp}` | Reflection registry and generators |
+| `mods/system/*.lua` | Bootstrap and Lua modules |

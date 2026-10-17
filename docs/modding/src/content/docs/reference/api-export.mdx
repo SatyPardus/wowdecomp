@@ -1,0 +1,47 @@
+---
+title: API export
+description: The registry behind the generated typings, schema, and AI guide.
+---
+
+`mods/system/api_export.lua` holds a Lua-side registry, available as `ModCore.ApiExport`. The C++ `AutoExport` class owns a second registry that is pre-populated with the 63 built-in hooks, the core classes, and sample opcodes. On export the two are merged and written to `mods/api/`.
+
+## Registry functions
+
+```lua
+ApiExport.RegisterHook(name, doc, signature, category)
+ApiExport.RegisterClass(name, doc, fields, methods)
+ApiExport.RegisterFunction(name, doc, params, returnType)
+ApiExport.RegisterOpcode(name, opcode, direction, schema)
+ApiExport.GetSchemaTable()     -- { version, classes, functions, hooks, opcodes }
+ApiExport.GenerateEmmyLua()    -- returns a LuaLS .d.lua string
+```
+
+`Net.DefinePacket` calls `RegisterOpcode` for you.
+
+## What the C++ exporter imports
+
+`ExportAll(L)` reads only `ModCore.ApiExport.Hooks` and `ModCore.ApiExport.Opcodes` from Lua. Hooks are merged by name into the native list (existing entries keep their parameters and category; new ones get category `Custom`). Opcodes are merged by name or numeric value. Classes and functions registered from Lua are **not** imported.
+
+## Output
+
+| File | Generator |
+| --- | --- |
+| `wowdecomp.d.lua` | `AutoExport::GenerateEmmyLua` |
+| `wowdecomp_api.json` | `AutoExport::GenerateJsonSchema` |
+| `AI_MODDING_GUIDE.md` | `AutoExport::GenerateAiGuide` |
+
+The generator prints `Auto-export completed ... (N hooks, N classes, N opcodes)` to the console.
+
+## Sample opcodes
+
+The native registry ships these sample entries. They are documentation placeholders, not implemented features.
+
+| Name | Opcode | Direction |
+| --- | --- | --- |
+| `CMSG_CUSTOM_PACKET_TEST` | `0x51F` | client to server |
+| `SMSG_CUSTOM_PACKET_TEST` | `0x102` | server to client |
+| `CMSG_HOUSING_PLACE_OBJECT` | `0x7001` | client to server |
+| `SMSG_HOUSING_OBJECT_UPDATE` | `0x7002` | server to client |
+| `SMSG_SPAWN_DANGER_ZONE` | `0x7101` | server to client |
+
+Note that `0x51F` and `0x102` are the **carrier** opcodes of the [wire protocol](/internals/wire-protocol/), not inner opcodes.

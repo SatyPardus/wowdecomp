@@ -1,0 +1,58 @@
+---
+title: Spells and tooltips
+description: Hooks for spell queries, casting, channeling, and tooltip content.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Spells
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnSpellQuery` | `fun(queryType: string, spellId: integer): any?` | override | The client asks for a spell attribute (see below) |
+| `OnSpellCast` | `fun(spellId: integer, casterGuid: number, targetGuid: number)` | void | `Spell_C_CastSpell` starts a cast |
+| `OnChannelStart` | `fun(msg: lightuserdata)` | void | A channeled spell begins |
+| `OnChannelUpdate` | `fun(msg: lightuserdata)` | void | A channel duration update arrives |
+| `OnChannelStop` | `fun()` | void | A channel ends or is interrupted |
+| `OnSpellDestroy` | `fun()` | void | `Spell_C_Destroy` runs (spell system shutdown) |
+
+### OnSpellQuery
+
+Only two query types are wired:
+
+| `queryType` | Called from | Effect of the return value |
+| --- | --- | --- |
+| `"PowerCost"` | `Spell_C_GetPowerCost` | A number is used as the cost. A boolean becomes `0`/`1`. `nil` keeps the stock calculation |
+| `"IsPassive"` | The spell book's passive check | A truthy value (`true` or non-zero) reports the spell as passive. `false`/`0` reports it as **not** passive. `nil` keeps the DBC flag |
+
+<Aside type="caution">
+The typings list a `caster` parameter. The engine passes only `(queryType, spellId)`. `"PowerCost"` is queried for any unit, not just the player. The `"Range"` and `"CastTime"` queries mentioned in the generated hook description are not implemented.
+</Aside>
+
+## Tooltips
+
+| Hook | Signature | Returns | Fired when |
+| --- | --- | --- | --- |
+| `OnTooltipEvaluate` | `fun(spellId: integer, caster: table, defaultText: string): string?` | override | A spell description is rendered |
+| `OnTooltipSetSpell` | `fun(tooltip: lightuserdata, spellId: integer)` | void | `CGTooltip::SetSpell` finishes populating the tooltip |
+| `OnTooltipSetItem` | `fun(tooltip: lightuserdata, itemId: integer)` | void | `CGTooltip::SetItem` finishes |
+| `OnTooltipSetUnit` | `fun(tooltip: lightuserdata, unitGuid: number)` | void | `CGTooltip::SetUnit` runs |
+
+### OnTooltipEvaluate
+
+Fired from two places: the spell tooltip builder and the spell-description text parser. Return a string to replace the description; `nil` keeps the stock text.
+
+The `caster` argument is a table built for each call:
+
+| Member | Description |
+| --- | --- |
+| `unit` | The string `"player"` |
+| `_ptr` | Light userdata for the C++ caster pointer |
+| `caster:GetAttackPower()` | The larger of the player's melee and ranged attack power, including positive and negative modifiers |
+| `caster:GetSpellPower([school])` | Bonus spell damage for the player. `school` is `"HOLY"`, `"FIRE"`, `"NATURE"`, `"FROST"`, `"SHADOW"`, `"ARCANE"` (case-insensitive) or a school number 1-6; anything else means school 0. Never less than `0` |
+
+<Aside type="caution">
+Both methods read the **active player**, regardless of which unit the tooltip describes. Call them with `:` (the school is read from argument 2).
+</Aside>
+
+The tooltip hooks receive an opaque `tooltip` pointer. Lua cannot add lines through it yet.

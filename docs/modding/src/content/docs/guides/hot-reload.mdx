@@ -1,0 +1,29 @@
+---
+title: Hot reload
+description: How file watching and script reloading behave.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## How it works
+
+When both `devMode` and `hotReload` are `true` in [config.json](/reference/configuration/), a background thread watches the whole `mods/` tree (recursively) for last-write and file-name changes to `.lua` files. Changed paths are queued.
+
+On every `OnWorldUpdate` tick the main thread drains the queue and calls `ReloadScript(path)` for each file:
+
+1. Load the file through the [bytecode cache](/internals/bytecode-cache/).
+2. Run the chunk once under `pcall` with **no arguments**.
+3. Log `Successfully reloaded: <file>` or the error.
+
+## Consequences
+
+<Aside type="caution">
+Reload means "execute the file again". Nothing is unloaded first.
+</Aside>
+
+- **Duplicate listeners.** Re-running `init.lua` calls `ModCore.On` again. Unregister the old function first (see [Your first mod](/getting-started/first-mod/#guarding-against-reloads)).
+- **`...` is empty.** The mod context table is only passed at mount time. Keep what you need in globals or capture it at first load.
+- **`require`d modules are not refreshed.** `package.loaded` is untouched and the return value of the reloaded chunk is discarded. Put reloadable logic in a file that is executed directly, or clear `package.loaded[name]` yourself.
+- **Only in the world.** Reloading is polled from `OnWorldUpdate`, so edits made on Glue screens are applied after you enter the world.
+- **Editors may report several writes per save.** The file can be reloaded more than once.
+- **System files reload too.** Saving `bootstrap.lua` re-executes it and resets `ModCore.LoadedMods`.

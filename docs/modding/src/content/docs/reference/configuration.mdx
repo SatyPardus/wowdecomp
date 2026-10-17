@@ -1,0 +1,36 @@
+---
+title: Configuration
+description: config.json and mod.json reference.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## `mods/config.json`
+
+```json
+{
+  "devMode": true,
+  "cacheEnabled": true,
+  "aiExportOnBoot": true,
+  "hotReload": true,
+  "logLevel": "DEBUG",
+  "searchPaths": ["mods/system", "mods/user_mods"]
+}
+```
+
+| Key | Default | Effect |
+| --- | --- | --- |
+| `devMode` | `true` | The file watcher only starts when this **and** `hotReload` are true |
+| `cacheEnabled` | `true` | Use and write the [bytecode cache](/internals/bytecode-cache/) |
+| `hotReload` | `true` | Start the file watcher and apply changes during `OnWorldUpdate` |
+| `aiExportOnBoot` | `true` | Write `mods/api/*` after mods mount |
+| `logLevel` | not read | Ignored. All log levels are printed |
+| `searchPaths` | not read | Ignored. The Lua `package.path` is fixed in `bootstrap.lua` |
+
+<Aside type="caution">
+The parser is a minimal text search, not a JSON parser. Each flag must be a bare `true` or `false` after its quoted key. A missing file or key uses the default. The config is read once at start-up.
+</Aside>
+
+## `mod.json`
+
+Required next to a mod's `init.lua` for discovery, but its content is not read yet. See [Directory layout](/getting-started/directory-layout/#manifest) for the fields the Lua side is prepared to use (`id`, `name`, `version`, `author`, `entryPoint`).

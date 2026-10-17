@@ -1,0 +1,34 @@
+---
+title: Building
+description: CMake integration for ModCore, and how to build these docs.
+---
+
+## ModCore library
+
+`WoW/Source/ModCore/CMakeLists.txt` builds a static library from every `*.cpp` in the folder (`GLOB_RECURSE ... CONFIGURE_DEPENDS`):
+
+```cmake
+add_library(ModCore STATIC ${PRIVATE_SOURCES})
+target_link_libraries(ModCore PUBLIC lua Storm Base WowSvcs)
+```
+
+The root `CMakeLists.txt` adds it with `add_subdirectory(WoW/Source/ModCore)` before `WoW/Source`, and `Tools/WowClient` links it. Engine code includes `WoW/Source/ModCore/ModCore.h`.
+
+ModCore is Windows-only: it uses `windows.h`, `GetModuleFileNameW`, and `ReadDirectoryChangesW`.
+
+## Runtime files
+
+The client looks for `mods/` next to the executable (see [Directory layout](/getting-started/directory-layout/#mods-root)). Copy or link the repository's `mods/` folder to the build output directory.
+
+## These docs
+
+Requires Node.js 22.12 or newer.
+
+```sh
+cd docs/modding
+npm install
+npm run dev
+npm run build
+```
+
+Pages are Markdown/MDX in `src/content/docs/`. The sidebar is defined in `astro.config.mjs`.

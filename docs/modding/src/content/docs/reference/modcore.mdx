@@ -1,0 +1,101 @@
+---
+title: ModCore
+description: The global ModCore table.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`ModCore` is created by `mods/system/bootstrap.lua`. It is a global table.
+
+## Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `Version` | `string` | Framework version (`"1.1.0"`) |
+| `BasePath` | `string` | Absolute mods directory with a trailing `/`, set by C++ before bootstrap runs |
+| `LoadedMods` | `table<string, table>` | Mounted mod contexts by id |
+| `Hooks` | `table` | The [Hooks module](/reference/hooks-module/) |
+| `Net` | `table` | The [Net module](/reference/net/) |
+| `DBC` | `table` | The [DBC module](/reference/dbc/) |
+| `ApiExport` | `table` | The [API export registry](/reference/api-export/) |
+
+## Logging
+
+```lua
+ModCore.LogDebug(fmt, ...)
+ModCore.LogInfo(fmt, ...)
+ModCore.LogWarn(fmt, ...)
+ModCore.LogError(fmt, ...)
+```
+
+Formats with `string.format`. If formatting fails, `tostring(fmt)` is logged. Output is written to the process's standard output as `[LUA <LEVEL>] message`. All levels are always printed; the `logLevel` config key is not read.
+
+## Hooks
+
+| Function | Description |
+| --- | --- |
+| `ModCore.On(hookName, callback [, priority [, doc]])` | Register a listener. Returns `true` on success |
+| `ModCore.RegisterHook(...)` | Alias of `On` |
+| `ModCore.UnregisterHook(hookName, callback)` | Remove every registration of `callback` |
+| `ModCore.FireHook(hookName, ...)` | Fire a hook; returns the first non-nil listener result |
+| `ModCore.HasListeners(hookName)` | `true` if at least one listener is registered |
+| `ModCore.DispatchHook(hookName, ...)` | Entry point called by C++. Same as `FireHook` |
+| `ModCore.GetHookList()` | Sorted names of hooks that have listeners |
+
+<Aside type="caution">
+Any undefined `ModCore.OnXxx` member resolves through a metatable to a function that **fires** hook `OnXxx`. It does not register a listener.
+</Aside>
+
+## Mods
+
+### `ModCore.MountMod(modDir, manifest) → boolean`
+
+Normally called by C++. Requires `manifest.id`, refuses duplicates, runs `<modDir>/<entryPoint or "init.lua">` under `pcall` with a context table, stores the context in `LoadedMods`, and fires `OnModMounted(id, context)`. See [Directory layout](/getting-started/directory-layout/).
+
+## API export
+
+| Function | Description |
+| --- | --- |
+| `ModCore.GetApiSchema()` | Table `{ version, classes, functions, hooks, opcodes }` built from the Lua-side registry |
+| `ModCore.ExportApi()` | Regenerates `mods/api/*` through C++. Returns `true`, or `false` if the native function is missing |
+
+## World interaction
+
+### Cast at cursor
+
+| Function | Description |
+| --- | --- |
+| `ModCore.SetCastAtCursor(enable)` | Arm or disarm. While armed, the next terrain-tracking event disarms it and synthesizes a left terrain click at the cursor |
+| `ModCore.IsCastAtCursor()` | Current state |
+
+### Terrain clicks
+
+| Function | Description |
+| --- | --- |
+| `ModCore.ClickTerrain(x, y, z)` | Synthesize a left terrain click at world coordinates |
+| `ModCore.ClickSelfTerrain()` | Synthesize a left terrain click at the active player's position |
+
+<Aside type="caution">
+`ClickTerrain` always forwards three arguments, so calling it with missing coordinates clicks `(0, 0, 0)` instead of the player. Use `ClickSelfTerrain()` for that.
+</Aside>
+
+### Last hit test
+
+| Function | Returns |
+| --- | --- |
+| `ModCore.GetLastHitGuid()` | `string, number`: the GUID as a hex string (`"0x..."`) and as a Lua number. `"0", 0` if natives are missing |
+| `ModCore.GetLastHitPoint()` | `x, y, z` of the last hit test (`0, 0, 0` when none) |
+
+Both are updated by every `OnWorldHitTest`.
+
+## Native globals
+
+These are registered by C++ and are used by the framework. Mods should not call the `_`-prefixed ones.
+
+| Global | Purpose |
+| --- | --- |
+| `loadfile(path)` | Replaces the stock function. Loads through the [bytecode cache](/internals/bytecode-cache/) and returns the chunk, or `nil, message` |
+| `_MODCORE_LOG(level, msg)` | Backend of `ModCore.Log*` |
+| `ModCore_ExportApi()` | Backend of `ModCore.ExportApi` |
+| `_ModCore_SetCastAtCursor`, `_ModCore_IsCastAtCursor`, `_ModCore_ClickTerrain`, `_ModCore_GetLastHitGuid`, `_ModCore_GetLastHitPoint` | Backends of the world interaction functions |
+| `_CLIENT_NETWORK`, `_LUA_LOG` | Backends of [packet I/O and logging](/reference/packet-io/) |
