@@ -1,4 +1,5 @@
 #include "Tools/AppleBootstrap/MetalView.h"
+#include "Tools/AppleBootstrap/ModelPreview.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/GxuFont.h"
@@ -16,24 +17,31 @@
 namespace {
 class GameEvents {
     static GameEvents* s_current;
-    void (*m_paint)(void*);
+    void (*m_paint)(void*, float);
+    float m_elapsedSeconds = 0;
     void* m_owner;
     std::string m_error;
     static int32_t Paint(const void*, void* arg) {
         auto& self = *static_cast<GameEvents*>(arg);
-        self.m_paint(self.m_owner);
+        const float elapsed = self.m_elapsedSeconds; self.m_elapsedSeconds = 0;
+        self.m_paint(self.m_owner, elapsed);
+        return 1;
+    }
+    static int32_t Update(const void* data, void* arg) {
+        static_cast<GameEvents*>(arg)->m_elapsedSeconds += static_cast<const EVENT_DATA_UPDATE*>(data)->m_elapsedSec;
         return 1;
     }
     static int32_t Destroy(const void*, void*) { TextureDestroy(); AsyncFileReadDestroy(); return 1; }
     static int32_t Initialize(const void*, void*) {
         try { AsyncFileReadInitialize(0, 20); TextureInitialize(); }
         catch (const std::exception& error) { s_current->m_error = error.what(); }
+        EventRegisterEx(EVENT_ID_UPDATE, Update, s_current, 0);
         EventRegisterEx(EVENT_ID_PAINT, Paint, s_current, 0);
         return 1;
     }
 public:
     void Check() { if (!m_error.empty()) { throw std::runtime_error(m_error); } }
-    GameEvents(void (*paint)(void*), void* owner) : m_paint(paint), m_owner(owner) {
+    GameEvents(void (*paint)(void*, float), void* owner) : m_paint(paint), m_owner(owner) {
         if (s_current) { throw std::logic_error("A native game event host already exists"); }
         s_current = this;
         PropInitialize();
@@ -107,7 +115,8 @@ public:
 }
 
 @interface WowTextureRenderer ()
-- (void)renderGameFrame;
+- (void)renderGameFrame:(float)elapsedSeconds;
+- (void)stopAfterError:(const char*)message;
 @end
 
 @implementation WowTextureRenderer {
@@ -116,6 +125,7 @@ public:
     std::unique_ptr<GameEvents> _events;
     std::unique_ptr<GameText> _text;
     std::unique_ptr<GameTexture> _image;
+    std::unique_ptr<ModelPreview> _model;
     CGxBuf* _vertices;
     CGxBuf* _indices;
     CGxShader* _vertexShaders[2];
@@ -146,11 +156,12 @@ public:
         _view = view;
         view.device = _device->GPU().device;
         view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+        view.depthStencilPixelFormat = MTLPixelFormatDepth32Float; view.clearDepth = 1;
         view.framebufferOnly = NO; // Gx screenshot / framebuffer copy source.
         view.clearColor = MTLClearColorMake(0.12, 0.14, 0.18, 1);
         view.paused = YES; view.enableSetNeedsDisplay = NO; view.delegate = self;
-        _events = std::make_unique<GameEvents>([](void* owner) {
-            [(__bridge WowTextureRenderer*)owner renderGameFrame];
+        _events = std::make_unique<GameEvents>([](void* owner, float elapsed) {
+            [(__bridge WowTextureRenderer*)owner renderGameFrame:elapsed];
         }, (__bridge void*)self);
         OsInputSetDrawableSize(uint32_t(size.x), uint32_t(size.y));
     }
@@ -176,9 +187,15 @@ public:
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (!_active) { return; }
-    if (!EventProcessPending()) { [self suspend]; }
+    try { if (!EventProcessPending()) { [self suspend]; } }
+    catch (const std::exception& error) { [self stopAfterError:error.what()]; }
 }
-- (void)renderGameFrame {
+- (void)stopAfterError:(const char*)message {
+    if (_device->FrameCommand()) _device->ScenePresent();
+    _active = NO; _view.paused = YES;
+    NSLog(@"Metal Gx preview stopped: %s", message);
+}
+- (void)renderGameFrame:(float)elapsedSeconds {
     MTKView* view = _view;
     if (!_active || !view.drawableSize.width || !view.drawableSize.height) { return; }
     MTLRenderPassDescriptor* pass = view.currentRenderPassDescriptor;
@@ -187,30 +204,33 @@ public:
     try {
         _events->Check();
         auto* texture = _image->Get();
+        if (!_model) {
+            NSString* name = NSProcessInfo.processInfo.environment[@"WOW_MODEL"] ?: @"Spells\\ErrorCube.m2";
+            _model = std::make_unique<ModelPreview>(name.UTF8String);
+        }
         _device->BeginFrame(pass, drawable);
+        GxXformSetViewport(0, 1, 0, 1, 0, 1);
         if (texture) {
             GxRsSet(GxRs_VertexShader, _vertexShaders[0]); GxRsSet(GxRs_PixelShader, _pixelShader);
             GxRsSet(GxRs_Texture0, texture);
             GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Culling, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0);
             GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Alpha)); GxRsSet(GxRs_AlphaRef, 1);
             const double imageAspect = double(texture->m_width) / texture->m_height;
-            const double viewAspect = view.drawableSize.width / (view.drawableSize.height * 0.72);
+            const double viewAspect = (view.drawableSize.width * 0.44) / (view.drawableSize.height * 0.72);
             C44Matrix matrix(1);
-            matrix.Scale(C3Vector(imageAspect > viewAspect ? 1 : imageAspect / viewAspect, 0.72 * (imageAspect > viewAspect ? viewAspect / imageAspect : 1), 1));
-            matrix.Translate(C3Vector(0, 0.24f, 0));
+            matrix.Scale(C3Vector(0.44 * (imageAspect > viewAspect ? 1 : imageAspect / viewAspect), 0.72 * (imageAspect > viewAspect ? viewAspect / imageAspect : 1), 1));
+            matrix.Translate(C3Vector(-0.5f, 0.24f, 0));
             const auto registers = matrix.Transpose(); GxShaderConstantsSet(GxSh_Vertex, 0, &registers.a0, 4);
             GxPrimVertexPtr(_vertices, GxVBF_PCT); _device->PrimIndexPtr(_indices);
             CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1);
         }
+        const bool modelReady = _model->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         if (!_text) { _text = std::make_unique<GameText>(); }
         _text->Draw(uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         GxScenePresent();
-        if (texture && ++_presentedFrames == 120) { NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate texture loaded"); }
+        if (texture && modelReady && ++_presentedFrames == 120) { NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate and original M2 scene rendered"); }
     } catch (const std::exception& error) {
-        if (_device->FrameCommand()) { _device->ScenePresent(); }
-        _active = NO;
-        view.paused = YES;
-        NSLog(@"Metal Gx preview stopped: %s", error.what());
+        [self stopAfterError:error.what()];
     }
 }
 @end

@@ -62,7 +62,7 @@ void CheckGameModels() {
     const auto& bounds = visible->m_shared->m_data->m_bounds;
     const auto center = (bounds.m_extent.b + bounds.m_extent.t) * 0.5f;
     const float scale = 0.8f / bounds.m_radius;
-    C44Matrix world(1); world.Scale(scale); world.Translate(center * -scale);
+    C44Matrix world(1); world.Scale(scale); world.Translate(center * -1.0f);
     visible->SetWorldTransform(world);
     visible->m_lightingCallback = [](CM2Model*, CM2Lighting* lighting, void*) {
         lighting->AddAmbient(C3Vector(0.4f, 0.4f, 0.4f));

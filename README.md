@@ -183,6 +183,14 @@ GPU checks cover those variants and a complete model scene, including cache
 recreation. Other model materials, shadows and full world rendering remain open;
 these checks are not a Windows visual-equivalence claim.
 
+The macOS preview and iOS Metal view also run that original M2 scene beside the
+texture and font preview. Model/skin/texture loading is asynchronous; the game
+Event update drives animation time. The default model is `Spells\ErrorCube.m2`;
+set `WOW_MODEL` to another archive path to exercise its actual materials (an
+unsupported shader reports its name and stops rendering). The view owns depth,
+scene/cache lifetime and foreground recreation. This remains a native rendering
+bootstrap, not a playable client or a replacement for the game's UI.
+
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and
 BC1/BC2/BC3, checks mip extents and memory budgets, and preserves authored mips.
 It uploads original BC blocks when the device supports them; otherwise it expands
