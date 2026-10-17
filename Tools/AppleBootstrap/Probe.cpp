@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <set>
 #include <sstream>
@@ -281,6 +282,34 @@ void CheckClientLocalFile(const std::string& scratchDirectory) {
     SFile::RebuildHash();
 }
 
+void CheckStormLog(const std::string& scratchDirectory) {
+    ScratchFile scratch(scratchDirectory);
+    HSLOG handle = nullptr;
+    Require(SLogCreate(scratch.path.c_str(), 0, &handle), "Storm deferred log creation failed");
+    Require(!std::filesystem::exists(scratch.path), "Storm deferred log opened too early");
+    SLogWrite(handle, "%s", "progress 100% ready");
+    auto write = [&] { for (int i = 0; i < 50; ++i) { SLogWrite(handle, "record %d", i); } };
+    std::thread a(write), b(write);
+    a.join(); b.join();
+    SLogFlush(handle);
+    Require(std::filesystem::file_size(scratch.path) > 0, "Storm flush did not reach file");
+    SLogClose(handle);
+    SLogWrite(handle, "stale handle");
+    Require(SLogCreate(scratch.path.c_str(), SLOG_FLAG_OPENFILE | SLOG_FLAG_APPEND, &handle), "Storm append failed");
+    SLogWrite(handle, "appended");
+    SLogClose(handle);
+    std::ifstream stream(scratch.path);
+    std::string contents((std::istreambuf_iterator<char>(stream)), {});
+    Require(contents.find("progress 100% ready\r\n") != std::string::npos &&
+        contents.find("appended\r\n") != std::string::npos &&
+        std::count(contents.begin(), contents.end(), '\n') == 102, "Storm concurrent/append output mismatch");
+    const auto size = std::filesystem::file_size(scratch.path);
+    Require(SLogCreate(scratch.path.c_str(), SLOG_FLAG_NOFILE | SLOG_FLAG_OPENFILE, &handle), "Storm no-file log failed");
+    SLogWrite(handle, "must not write");
+    SLogClose(handle);
+    Require(std::filesystem::file_size(scratch.path) == size, "Storm no-file flag modified disk log");
+}
+
 void CheckFileStack(const std::string& scratchDirectory) {
     namespace File = Blizzard::File;
     ScratchFile scratch(scratchDirectory);
@@ -418,6 +447,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(!range->Read(buffer.data(), -1, 1, &bytes), "negative offset accepted");
         CheckFileStack(scratchDirectory);
         CheckClientLocalFile(scratchDirectory);
+        CheckStormLog(scratchDirectory);
         report = "PASS: native locks/events, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {

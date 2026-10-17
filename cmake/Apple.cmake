@@ -72,6 +72,7 @@ add_library(AppleArchives STATIC
     Engine/Source/Storm/Source/SStr.cpp
     Engine/Source/Storm/Source/SOption.cpp
     Engine/Source/Storm/Source/MD5.cpp
+    Engine/Source/Storm/Source/Apple/SLog.cpp
 )
 target_link_libraries(AppleArchives PUBLIC AppleFoundation blast bzip2 lzma zlib)
 

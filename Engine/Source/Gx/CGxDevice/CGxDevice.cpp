@@ -1426,7 +1426,9 @@ void CGxDevice::XformSetView(const C44Matrix& matrix) {
 // OFFSET: 0x00683670
 void CGxDevice::LogOpen() {
     if (!CGxDevice::m_log) {
+#if !defined(__APPLE__)
         OsCreateDirectory("Logs", 0);
+#endif
         SLogCreate("Logs\\gx.log", 0, &CGxDevice::m_log);
         CGxDevice::m_logBytes = 0;
     }
@@ -1497,9 +1499,10 @@ void CGxDevice::Log(const char* format, va_list args) {
 #else
     vsnprintf(buffer, sizeof(buffer), format, args);
 #endif
+    buffer[sizeof(buffer) - 1] = 0;
 
     if (CGxDevice::m_logBytes < 0x200000) {
-        SLogWrite(CGxDevice::m_log, buffer);
+        SLogWrite(CGxDevice::m_log, "%s", buffer);
         CGxDevice::m_logBytes += static_cast<uint32_t>(strlen(buffer));
     }
 }
