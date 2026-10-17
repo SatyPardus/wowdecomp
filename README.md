@@ -205,6 +205,16 @@ cover both texture samplers, reflected normal directions, skinning, lighting and
 alpha boundaries; the real water elemental uses its original DBC-selected skins,
 three environment batches and remaining single-texture material passes.
 
+`Diffuse_T1_T2` adds 30 unshadowed variants with two authored UV sets and independent
+texture matrices. `Combiners_Mod_Mod`, `Combiners_Opaque_Mod2x`, and
+`Combiners_Opaque_Mod2xNA_Alpha` preserve multiplied layers, double modulation,
+and the original combined opaque/reflection/alpha material. Their RGB and alpha
+rules are separate, including the original double-modulated alpha and shader-test
+operation order. Numeric GPU checks cover both UV matrices, samplers and alpha
+boundaries. The original motorcycle (display 25870) draws two combined material
+batches; its dual-UV death effect is exercised at 1137 ms, following the authored
+color-alpha track instead of forcing visibility.
+
 The macOS preview and iOS Metal view run that original M2 scene beside the texture
 and font preview. Model/skin/texture loading is asynchronous; the game Event update
 drives animation time. The default is CreatureDisplayInfo 165 (timber wolf), playing
@@ -218,6 +228,7 @@ and sphere emitters. The view owns depth,
 scene/cache lifetime and foreground recreation. This remains a native rendering
 bootstrap, not a playable client or a replacement for the game's UI.
 `WOW_CREATURE_DISPLAY=110` selects the original water elemental and its environment
+materials; `WOW_CREATURE_DISPLAY=25870` selects the motorcycle and its layered
 materials.
 
 The native texture path reads BLP2 palettes (0/1/4/8-bit alpha), BGRA8 and

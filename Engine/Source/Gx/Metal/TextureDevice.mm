@@ -194,16 +194,19 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     if (IsModelEffect(effect)) {
         const bool material = UsesModelMaterial(vertexEffect);
         const bool environment = vertexEffect == ModelVertexEffect::DiffuseEnvironment;
-        const bool environmentAdd = ModelTextureCount(effect) == 2;
+        const bool dualUV = vertexEffect == ModelVertexEffect::DiffuseDualUV;
+        const bool secondTexture = ModelTextureCount(effect) == 2;
+        const uint32_t layerOperation = unsigned(ModelLayer(effect));
         const bool normal = material || (vertexEffect == ModelVertexEffect::ColorDiffuse && (modelPermutation & 1));
         const bool color = !material && !(vertexEffect == ModelVertexEffect::Color && (modelPermutation & 1));
-        Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth && (!environmentAdd || environment) &&
+        Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth && (!secondTexture || environment || dualUV) &&
             (modelPermutation < 10 || format == GxVBF_PBNT2) &&
             (!normal || GxVertexHasAttrib(format, GxVA_Normal)) &&
-            (!color || GxVertexHasAttrib(format, GxVA_Color0)) && GxVertexHasAttrib(format, GxVA_TexCoord0),
+            (!color || GxVertexHasAttrib(format, GxVA_Color0)) && GxVertexHasAttrib(format, GxVA_TexCoord0) &&
+            (!dualUV || GxVertexHasAttrib(format, GxVA_TexCoord1)),
             "Unsupported native model vertex layout or permutation");
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation];
-        const bool textureAlpha = effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA;
+        const bool textureAlpha = effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA || effect == FragmentEffect::ModelModMod;
         auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
@@ -215,7 +218,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         const uint32_t colorMode = material ? 0 : unsigned(vertexEffect);
         [constants setConstantValue:&colorMode type:MTLDataTypeUInt atIndex:8];
         [constants setConstantValue:&environment type:MTLDataTypeBool atIndex:9];
-        [constants setConstantValue:&environmentAdd type:MTLDataTypeBool atIndex:10];
+        [constants setConstantValue:&layerOperation type:MTLDataTypeUInt atIndex:10];
+        [constants setConstantValue:&dualUV type:MTLDataTypeBool atIndex:11];
         NSError* error = nil;
         NSString* vertexName = material ? (modelPermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex") :
             normal ? @"modelColorLitVertex" : color ? @"modelColorVertex" : @"modelWhiteVertex";
@@ -233,6 +237,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         if (normal) attribute(1, GxVA_Normal, MTLVertexFormatFloat3);
         if (color) attribute(5, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
         attribute(2, GxVA_TexCoord0, MTLVertexFormatFloat2);
+        if (dualUV) attribute(6, GxVA_TexCoord1, MTLVertexFormatFloat2);
         if (modelPermutation >= 10) {
             attribute(3, GxVA_BlendWeight, MTLVertexFormatUChar4Normalized);
             attribute(4, GxVA_BlendIndices, MTLVertexFormatUChar4);

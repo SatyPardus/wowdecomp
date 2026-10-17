@@ -88,6 +88,9 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::ModelMod: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Mod";
         case GxMetal::FragmentEffect::ModelOpaqueAddNA: return "Combiners_Opaque_AddNA";
         case GxMetal::FragmentEffect::ModelModAddNA: return "Combiners_Mod_AddNA";
+        case GxMetal::FragmentEffect::ModelModMod: return "Combiners_Mod_Mod";
+        case GxMetal::FragmentEffect::ModelOpaqueMod2xNAAlpha: return "Combiners_Opaque_Mod2xNA_Alpha";
+        case GxMetal::FragmentEffect::ModelOpaqueMod2x: return "Combiners_Opaque_Mod2x";
         default: return "UI";
     }
 }
@@ -719,18 +722,24 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
 
 void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const char* path, const char* name, uint32_t count) {
     Require(shaders && path && name && (target == GxSh_Vertex || target == GxSh_Pixel), "Invalid Metal Gx shader request");
-    const auto vertexEffect = target == GxSh_Vertex && SStrCmpI(name, "Color_T1", STORM_MAX_STR) == 0 ? GxMetal::ModelVertexEffect::Color :
-        target == GxSh_Vertex && SStrCmpI(name, "CDiffuse_T1", STORM_MAX_STR) == 0 ? GxMetal::ModelVertexEffect::ColorDiffuse :
-        target == GxSh_Vertex && SStrCmpI(name, "Diffuse_T1_Env", STORM_MAX_STR) == 0 ? GxMetal::ModelVertexEffect::DiffuseEnvironment : GxMetal::ModelVertexEffect::Diffuse;
-    const bool mod = target == GxSh_Pixel && SStrCmpI(name, "Combiners_Mod", STORM_MAX_STR) == 0;
-    const bool opaqueAdd = target == GxSh_Pixel && SStrCmpI(name, "Combiners_Opaque_AddNA", STORM_MAX_STR) == 0;
-    const bool modAdd = target == GxSh_Pixel && SStrCmpI(name, "Combiners_Mod_AddNA", STORM_MAX_STR) == 0;
-    const bool model = mod || opaqueAdd || modAdd || SStrCmpI(name, target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Opaque", STORM_MAX_STR) == 0;
-    const auto effect = opaqueAdd ? GxMetal::FragmentEffect::ModelOpaqueAddNA : modAdd ? GxMetal::FragmentEffect::ModelModAddNA :
-        mod ? GxMetal::FragmentEffect::ModelMod : model ? GxMetal::FragmentEffect::ModelOpaque : SStrCmpI(name, "FFXBox4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Box4 :
-        SStrCmpI(name, "FFXGauss4", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Gauss4 :
-        SStrCmpI(name, "FFXGlow", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::Glow :
-        SStrCmpI(name, "FFXGlowWave", STORM_MAX_STR) == 0 ? GxMetal::FragmentEffect::GlowWave : GxMetal::FragmentEffect::Unlit;
+    using Vertex = GxMetal::ModelVertexEffect;
+    using Effect = GxMetal::FragmentEffect;
+    auto vertexEffect = Vertex::Diffuse;
+    auto effect = Effect::Unlit;
+    if (target == GxSh_Vertex) {
+        for (auto candidate : {Vertex::Diffuse, Vertex::Color, Vertex::ColorDiffuse, Vertex::DiffuseEnvironment, Vertex::DiffuseDualUV}) {
+            if (SStrCmpI(name, GxMetal::ModelVertexFamily(candidate), STORM_MAX_STR) == 0) {
+                vertexEffect = candidate; effect = Effect::ModelOpaque; break;
+            }
+        }
+    } else {
+        for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave,
+            Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
+            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x}) {
+            if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
+        }
+    }
+    const bool model = GxMetal::IsModelEffect(effect);
     const char* family = ShaderFamily(effect, target, vertexEffect);
     if (SStrCmpI(name, family, STORM_MAX_STR) != 0) {
         throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
@@ -867,7 +876,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         // Gx stores dot-product rows. Metal uses column-vector matrices.
         simd_float4x4 rows;
         std::memcpy(&rows, constants + 8, sizeof(rows)); native.vertex.projection = simd_transpose(rows);
-        for (unsigned i = 0; i < 2; ++i) native.vertex.uv[i] = vector(6 + i);
+        for (unsigned i = 0; i < 4; ++i) native.vertex.uv[i] = vector(6 + i);
         native.vertex.sunDiffuse = vector(10); native.vertex.sunAmbient = vector(11); native.vertex.sunDirection = vector(12);
         for (unsigned i = 0; i < 4; ++i) { native.vertex.lightColor[i] = vector(17 + i); native.vertex.lightPosition[i] = vector(21 + i); }
         native.vertex.attenuationConstant = vector(25); native.vertex.attenuationLinear = vector(26); native.vertex.attenuationQuadratic = vector(27);

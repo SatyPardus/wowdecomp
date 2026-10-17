@@ -5,9 +5,16 @@
 #include "Engine/Source/Gx/Metal/PostProcessShader.h"
 
 namespace GxMetal {
-enum class ModelVertexEffect : uint32_t { Diffuse, Color, ColorDiffuse, DiffuseEnvironment };
+enum class ModelVertexEffect : uint32_t { Diffuse, Color, ColorDiffuse, DiffuseEnvironment, DiffuseDualUV };
 constexpr bool UsesModelMaterial(ModelVertexEffect effect) {
-    return effect == ModelVertexEffect::Diffuse || effect == ModelVertexEffect::DiffuseEnvironment;
+    return effect == ModelVertexEffect::Diffuse || effect == ModelVertexEffect::DiffuseEnvironment || effect == ModelVertexEffect::DiffuseDualUV;
+}
+enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate };
+constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
+    return effect == FragmentEffect::ModelOpaqueMod2x ? ModelLayerOperation::DoubleModulate :
+        effect == FragmentEffect::ModelModMod ? ModelLayerOperation::Multiply :
+        effect == FragmentEffect::ModelOpaqueMod2xNAAlpha ? ModelLayerOperation::BlendDoubleModulate :
+        ModelTextureCount(effect) == 2 ? ModelLayerOperation::Add : ModelLayerOperation::None;
 }
 const char* ModelVertexFamily(ModelVertexEffect effect);
 // Original SM3 model materials, environment reflection and colored particles.

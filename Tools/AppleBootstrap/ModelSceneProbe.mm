@@ -123,40 +123,48 @@ void CheckGameModels() {
     if (changedPixels < 16) throw std::runtime_error("Animated wolf pose did not reach Metal drawing");
     std::fprintf(stderr, "M2 native wolf scene: %u covered pixels, %u changed by original walk animation\n", covered, changedPixels);
     device.ScenePresent();
-    {
-        auto* reflectionScene = M2CreateScene();
-        if (!reflectionScene) throw std::runtime_error("Environment model scene creation failed");
-        Release releaseReflection{reflectionScene};
-        auto* appearance = g_creatureDisplayInfoDB.GetRecord(110);
+    struct LayeredPose { uint32_t displayID, sequenceID, elapsed; };
+    // The motorcycle's dual-UV effect is authored only in its death sequence:
+    // color alpha stays zero through 500 ms, then rises to one at 1000 ms.
+    for (const auto pose : {LayeredPose{110, 4, 137}, LayeredPose{25870, 4, 137}, LayeredPose{25870, 1, 1137}}) {
+        const auto displayID = pose.displayID;
+        auto* layeredScene = M2CreateScene();
+        if (!layeredScene) throw std::runtime_error("Layered model scene creation failed");
+        Release releaseLayered{layeredScene};
+        auto* appearance = g_creatureDisplayInfoDB.GetRecord(displayID);
         auto* appearanceModel = appearance ? g_creatureModelDataDB.GetRecord(appearance->m_modelID) : nullptr;
-        if (!appearanceModel) throw std::runtime_error("Water elemental appearance is missing");
-        auto* elemental = reflectionScene->CreateModel(appearanceModel->m_modelName, 0);
-        if (!elemental) throw std::runtime_error("Water elemental model creation failed");
-        CCharacterComponent::ApplyMonsterGeosets(elemental, appearance);
-        CCharacterComponent::ReplaceMonsterSkin(elemental, appearance, appearanceModel);
-        elemental->SetBoneSequence(0xFFFFFFFF, 4, 0xFFFFFFFF, 0, 1.0f, 0, 1);
-        if (!elemental->IsLoaded(1, 0) || !elemental->IsDrawable(1, 0)) throw std::runtime_error("Water elemental resources did not load");
-        const auto& bounds = elemental->m_shared->m_data->m_bounds;
+        if (!appearanceModel) throw std::runtime_error("Layered model appearance is missing");
+        auto* layeredModel = layeredScene->CreateModel(appearanceModel->m_modelName, 0);
+        if (!layeredModel) throw std::runtime_error("Layered model creation failed");
+        CCharacterComponent::ApplyMonsterGeosets(layeredModel, appearance);
+        CCharacterComponent::ReplaceMonsterSkin(layeredModel, appearance, appearanceModel);
+        layeredModel->SetBoneSequence(0xFFFFFFFF, pose.sequenceID, 0xFFFFFFFF, 0, 1.0f, 0, 1);
+        if (!layeredModel->IsLoaded(1, 0) || !layeredModel->IsDrawable(1, 0)) throw std::runtime_error("Layered model resources did not load");
+        const auto& bounds = layeredModel->m_shared->m_data->m_bounds;
         C44Matrix world(1); world.RotateAroundX(-0.65f); world.Scale(0.8f / bounds.m_radius);
         world.Translate((bounds.m_extent.b + bounds.m_extent.t) * -0.5f);
-        elemental->SetWorldTransform(world); elemental->m_lightingCallback = visible->m_lightingCallback;
-        elemental->m_fFlags |= 0x10008; elemental->SetAnimating(1);
-        reflectionScene->AdvanceTime(137); reflectionScene->Animate(C3Vector(0, 0, 0));
-        unsigned reflectedBatches = 0, reflectedMaterials = 0;
-        for (unsigned i = 0; i < reflectionScene->m_elements.Count(); ++i) {
-            const auto& element = reflectionScene->m_elements[i];
+        layeredModel->SetWorldTransform(world); layeredModel->m_lightingCallback = visible->m_lightingCallback;
+        layeredModel->m_fFlags |= 0x10008; layeredModel->SetAnimating(1);
+        layeredScene->AdvanceTime(pose.elapsed); layeredScene->Animate(C3Vector(0, 0, 0));
+        unsigned reflectedBatches = 0, reflectedMaterials = 0, dualUVBatches = 0, combinedBatches = 0;
+        for (unsigned i = 0; i < layeredScene->m_elements.Count(); ++i) {
+            const auto& element = layeredScene->m_elements[i];
             if (element.m_type > 2 || !element.m_batch || element.m_batch->m_textureCount != 2) continue;
             ++reflectedBatches;
-            reflectedMaterials |= 1u << elemental->m_shared->m_data->m_materials[element.m_batch->m_materialIndex].m_blendMode;
+            dualUVBatches += !(element.m_batch->m_shader & 0x8000) && !(element.m_batch->m_shader & 8);
+            combinedBatches += (element.m_batch->m_shader & 0x8000) != 0;
+            reflectedMaterials |= 1u << layeredModel->m_shared->m_data->m_materials[element.m_batch->m_materialIndex].m_blendMode;
         }
         device.BeginFrame(pass);
-        reflectionScene->Draw(M2PASS_0); reflectionScene->Draw(M2PASS_1); reflectionScene->Draw(M2PASS_2);
+        layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
         TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect, image);
         unsigned pixels = 0;
         for (unsigned i = 0; i < image.Count(); ++i) pixels += image[i].r || image[i].g || image[i].b;
-        if (reflectedBatches != 3 || reflectedMaterials != 3 || pixels < 256)
-            throw std::runtime_error("Original water elemental environment materials did not reach Metal drawing");
-        std::fprintf(stderr, "M2 water elemental: %u environment batches, opaque/cutout AddNA materials, %u visible pixels\n", reflectedBatches, pixels);
+        std::fprintf(stderr, "M2 display %u sequence %u: %u dual-texture batches (%u authored UV pairs, %u combined layers), %u visible pixels\n",
+            displayID, pose.sequenceID, reflectedBatches, dualUVBatches, combinedBatches, pixels);
+        if (pixels < (pose.sequenceID == 1 ? 16u : 256u) || (displayID == 110 ? reflectedBatches != 3 || reflectedMaterials != 3
+            : dualUVBatches != (pose.sequenceID == 1 ? 1u : 0u) || combinedBatches != 2))
+            throw std::runtime_error("Original layered model materials did not reach Metal drawing");
         device.ScenePresent();
     }
     for (const bool ribbons : {false, true}) {

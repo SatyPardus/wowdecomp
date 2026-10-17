@@ -40,7 +40,7 @@ struct TextureDrawState {
 struct ModelAffine { simd_float4 x, y, z; };
 struct ModelVertexParameters {
     simd_float4x4 projection;
-    simd_float4 uv[2];
+    simd_float4 uv[4];
     simd_float4 sunDiffuse, sunAmbient, sunDirection;
     simd_float4 diffuse, emissive, fog;
     simd_float4 lightColor[4], lightPosition[4];
@@ -52,7 +52,7 @@ struct ModelFragmentParameters {
     float stateAlphaRef;
     float padding[3]{};
 };
-static_assert(sizeof(ModelAffine) == 48 && sizeof(ModelVertexParameters) == 368 && sizeof(ModelFragmentParameters) == 64,
+static_assert(sizeof(ModelAffine) == 48 && sizeof(ModelVertexParameters) == 400 && sizeof(ModelFragmentParameters) == 64,
     "Native model constant layout");
 struct ModelDrawParameters {
     ModelVertexParameters vertex{};
@@ -121,8 +121,8 @@ public:
 
 private:
     id<MTLLibrary> m_library;
-    id<MTLFunction> m_modelVertex[4][30]{};
-    id<MTLFunction> m_modelFragment[4][2][2][2]{};
+    id<MTLFunction> m_modelVertex[5][30]{};
+    id<MTLFunction> m_modelFragment[7][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
