@@ -141,7 +141,10 @@ A partial `CGxDeviceMetal` now connects the shared game device interface, Apple
 factory, UI shader creation/binding, Gx buffer pools, texture callbacks, render
 states and frame submission. Mac/iOS previews use this device. Font-cache ARGB4444
 texels expand exactly to BGRA8, including all alpha levels and partial updates;
-the original font rasterizer is not replaced. Private buffer
+the original Gxu/FreeType font layout and rasterizer now draw the preview text.
+The font probe reads ARIALN from the installation, covers multiline/color,
+AA/monochrome, outline/shadow and drawable-size changes, and checks identical
+pixels after restoring the size or recreating the font cache. Private buffer
 uploads are encoded before their consuming draws in the same command stream;
 streaming wrap does not overwrite earlier draws. Texture updates replace immutable
 GPU images, including partial rectangles and callbacks whose data starts at the

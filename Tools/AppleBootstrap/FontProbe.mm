@@ -6,6 +6,7 @@
 #include <freetype/internal/ftstream.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
 
 namespace {
@@ -93,6 +94,26 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
         std::fclose(file);
     }
     if (ink < 200 || ink > 20000 || colored < 50) { throw std::runtime_error("Original Gxu font did not produce bounded visible colored glyphs"); }
+    if (flags == 0) {
+        // Keep the font and string alive while the host changes drawable size.
+        // Restoring the original size must reproduce the original glyphs.
+        for (unsigned width : {768u, 512u}) {
+            descriptor.width = width; descriptor.height = width / 2;
+            pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+            device.BeginFrame(pass);
+            GxuFontWindowSizeChanged();
+            GxuFontRenderBatch(sample.batch);
+            CiRect resizedRect(0, 0, width / 2, width);
+            TSGrowableArray<CImVector> resized;
+            GxReadPixels(resizedRect, resized); GxScenePresent();
+            size_t resizedInk = 0;
+            for (uint32_t i = 0; i < resized.Count(); ++i) { resizedInk += resized[i].r != 0; }
+            if (resizedInk < 200 || (width == 512 && (resized.Count() != pixels.Count() ||
+                std::memcmp(resized.Ptr(), pixels.Ptr(), pixels.Count() * sizeof(CImVector))))) {
+                throw std::runtime_error("Gxu font drawable resize/restore changed glyph output");
+            }
+        }
+    }
     return hash;
 }
 }

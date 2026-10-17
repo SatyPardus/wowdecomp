@@ -1,11 +1,47 @@
 #include "Tools/AppleBootstrap/MetalView.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Gxu/GxuFont.h"
+#include "Engine/Source/Base/Coordinate.h"
+#include "Engine/Source/Services/Texture.h"
 #include <cstring>
 #include <memory>
 #include <stdexcept>
 
 namespace {
+class GameText {
+    CGxFont* m_font = nullptr;
+    CGxString* m_string = nullptr;
+    CGxStringBatch* m_batch = nullptr;
+public:
+    GameText() { GxuFontInitialize(); }
+    ~GameText() {
+        if (m_batch) { GxuFontDestroyBatch(m_batch); }
+        if (m_string) { GxuFontDestroyString(m_string); }
+        if (m_font) { GxuFontDestroyFont(m_font); }
+        GxuFontShutdown();
+        TextureGxCacheFlush();
+    }
+    void Draw(uint32_t width, uint32_t height) {
+        CoordinateSetAspectRatio(float(width) / height);
+        GxuFontWindowSizeChanged();
+        if (!m_font && !GxuFontCreateFont("Fonts\\ARIALN.TTF", 0.065f, m_font, 0)) {
+            throw std::runtime_error("Cannot open the game font for the native preview");
+        }
+        if (!m_batch) { m_batch = GxuFontCreateBatch(false, false); }
+        if (!m_string) {
+            if (!GxuFontCreateString(m_font, "World of Warcraft\n|cffffcc00Wrath of the Lich King|r", 0.065f,
+                C3Vector(0.05f, 0.01f, 0), 0.9f, 0.16f, 0, m_string, GxVJ_Top, GxHJ_Center, 0,
+                CImVector(255, 255, 255, 255), 0, 1)) {
+                throw std::runtime_error("Cannot lay out the native preview's game text");
+            }
+            GxuFontAddToBatch(m_batch, m_string);
+        }
+        GxuFontAddShadow(m_string, CImVector(0, 0, 0, 255), C2Vector(1.5f / width, -1.5f / height));
+        GxuFontRenderBatch(m_batch);
+    }
+};
+
 void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t, uint32_t level,
     void* arg, uint32_t& stride, const void*& data) {
     if (command != GxTex_Latch) { return; }
@@ -19,6 +55,9 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
 
 @implementation WowTextureRenderer {
     std::unique_ptr<CGxDeviceMetal> _device;
+    // Declared after the device so the original font system and its texture
+    // cache are destroyed while their Gx device is still alive.
+    std::unique_ptr<GameText> _text;
     std::unique_ptr<BLP::Image> _image;
     CGxTex* _texture;
     CGxBuf* _vertices;
@@ -76,12 +115,16 @@ void TextureData(EGxTexCommand command, uint32_t width, uint32_t height, uint32_
         GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Culling, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0);
         GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Alpha)); GxRsSet(GxRs_AlphaRef, 1);
         const double imageAspect = double(_image->mips[0].width) / _image->mips[0].height;
-        const double viewAspect = view.drawableSize.width / view.drawableSize.height;
+        const double viewAspect = view.drawableSize.width / (view.drawableSize.height * 0.72);
         C44Matrix matrix(1);
-        matrix.Scale(C3Vector(imageAspect > viewAspect ? 1 : imageAspect / viewAspect, imageAspect > viewAspect ? viewAspect / imageAspect : 1, 1));
+        matrix.Scale(C3Vector(imageAspect > viewAspect ? 1 : imageAspect / viewAspect, 0.72 * (imageAspect > viewAspect ? viewAspect / imageAspect : 1), 1));
+        matrix.Translate(C3Vector(0, 0.24f, 0));
         const auto registers = matrix.Transpose(); GxShaderConstantsSet(GxSh_Vertex, 0, &registers.a0, 4);
         GxPrimVertexPtr(_vertices, GxVBF_PCT); _device->PrimIndexPtr(_indices);
-        CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1); GxScenePresent();
+        CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1);
+        if (!_text) { _text = std::make_unique<GameText>(); }
+        _text->Draw(uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
+        GxScenePresent();
     } catch (const std::exception& error) {
         if (_device->FrameCommand()) { _device->ScenePresent(); }
         _active = NO;

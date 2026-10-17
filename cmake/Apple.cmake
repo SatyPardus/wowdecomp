@@ -130,7 +130,7 @@ target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalView PUBLIC AppleMetal "-framework MetalKit" "-framework CoreGraphics")
+target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData)
