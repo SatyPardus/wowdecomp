@@ -277,6 +277,12 @@ void CheckClientLocalFile(const std::string& scratchDirectory) {
     SFile::EnableDirectAccess(1);
     SFile::RebuildHash();
     CheckClientFile("OFFSET-CHECK", expected); // case-insensitive index, actual spelling on disk
+    std::filesystem::rename(scratch.path, scratch.path + ".bz");
+    scratch.path += ".bz";
+    SFile::RebuildHash();
+    SFileImpl* unsupported = nullptr;
+    Require(!SFileOpenFile("offset-check", &unsupported) && !unsupported && SErrGetLastError() == 120,
+        "Unimplemented SFile2 compressed loose-file branch returned a live handle");
     SFile::EnableDirectAccess(0);
     SFile::SetBasePath("");
     SFile::RebuildHash();

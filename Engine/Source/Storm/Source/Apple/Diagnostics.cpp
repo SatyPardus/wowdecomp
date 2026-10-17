@@ -20,6 +20,7 @@ int32_t STORMAPI SErrGetErrorStr(uint32_t error, char* buffer, uint32_t size) {
         case 38: message = "End of file"; break;
         case 87: message = "Invalid parameter"; break;
         case 108: message = "Invalid or corrupt archive"; break;
+        case 120: message = "Function not implemented"; break;
     }
     if (message) { std::snprintf(buffer, size, "%s", message); }
     else { std::snprintf(buffer, size, "Storm error 0x%08x", error); }

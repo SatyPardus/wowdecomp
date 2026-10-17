@@ -1157,7 +1157,11 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
         case 1:
         case 2:
         case 4: {
-            break;
+            // These compressed loose-file/archive variants are not implemented
+            // in the reconstructed loader. Never return an uninitialized file
+            // alongside failure: shader callers may inspect the handle itself.
+            SErrSetLastError(120);
+            goto fail;
         }
 
         case 3: {
@@ -1171,7 +1175,8 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
         }
 
         default: {
-            return 0;
+            SErrSetLastError(87);
+            goto fail;
         }
     }
 
