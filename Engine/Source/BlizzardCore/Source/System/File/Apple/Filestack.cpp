@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <unistd.h>
+#include <vector>
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -290,6 +291,17 @@ bool SetAttributes(Filesystem*, FileParms* p) {
 bool ProcessDirFast(Filesystem*, FileParms* p) {
     std::error_code error;
     const std::string root = Path(p->m_path);
+    struct stat rootStatus;
+    if (stat(root.c_str(), &rootStatus)) { return Failure(); }
+    // Callbacks recurse through this API. Track physical ancestors rather than
+    // forbidding all symlinks: legitimate linked asset directories still work,
+    // while a link back to an ancestor cannot recurse indefinitely.
+    using DirectoryId = std::pair<dev_t, ino_t>;
+    static thread_local std::vector<DirectoryId> ancestors;
+    const DirectoryId identity{rootStatus.st_dev, rootStatus.st_ino};
+    if (std::find(ancestors.begin(), ancestors.end(), identity) != ancestors.end()) { return true; }
+    ancestors.push_back(identity);
+    struct PopAncestor { std::vector<DirectoryId>& stack; ~PopAncestor() { stack.pop_back(); } } pop{ancestors};
     std::filesystem::directory_iterator iterator(root, error), end;
     if (!Result(error)) { return false; }
     for (; iterator != end; iterator.increment(error)) {

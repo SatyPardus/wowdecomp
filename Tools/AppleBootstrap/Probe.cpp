@@ -344,8 +344,13 @@ void CheckClientLocalFile(const std::string& scratchDirectory) {
     SFile::Initialize();
     SFile::SetBasePath(scratch.directory.c_str());
     SFile::EnableDirectAccess(1);
+    // Override indexing must terminate even when a linked asset directory
+    // points back to an ancestor (common in simulator/development layouts).
+    const auto loop = std::filesystem::path(scratch.directory) / "cycle";
+    std::filesystem::create_directory_symlink(scratch.directory, loop);
     SFile::RebuildHash();
     CheckClientFile("OFFSET-CHECK", expected); // case-insensitive index, actual spelling on disk
+    std::filesystem::remove(loop);
     std::filesystem::rename(scratch.path, scratch.path + ".bz");
     scratch.path += ".bz";
     SFile::RebuildHash();

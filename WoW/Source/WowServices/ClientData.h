@@ -37,6 +37,10 @@ private:
     std::string m_root;
     std::string m_locale;
     std::vector<Mount> m_mounts;
+    std::string m_previousBasePath;
+    std::string m_previousDataPath;
+    std::string m_previousAlternatePath;
+    bool m_filePathsSelected = false;
     std::string Resolve(const std::string& relative) const;
     bool Open(const std::string& relative, int32_t priority, bool required);
 };

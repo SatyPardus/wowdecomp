@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include "WoW/Source/WowServices/ArchiveLayout.h"
 #include "WoW/Source/WowServices/ClientData.h"
+#include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Include/Blizzard/Util/MD5.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.h"
@@ -31,6 +32,12 @@ void ClientData::CloseArchive::operator()(System_SFile::ARCHIVEREC* archive) con
 }
 ClientData::~ClientData() {
     while (!m_mounts.empty()) { m_mounts.pop_back(); }
+    if (m_filePathsSelected) {
+        SFile::SetBasePath(m_previousBasePath.c_str());
+        SFile::SetDataPath(m_previousDataPath.c_str());
+        SFile::SetDataPathAlternate(m_previousAlternatePath.c_str());
+        SFile::RebuildHash();
+    }
 }
 
 std::string ClientData::Resolve(const std::string& relative) const {
@@ -148,6 +155,24 @@ ClientData::ClientData(const std::string& dataRoot, const std::string& requested
         if (availability & definition.m_unk08) { Open(definition.m_name, basePriority, definition.m_unk04 != 2); }
         --basePriority;
     }
+
+    // Game callers (notably fonts) explicitly request loose-file overrides.
+    // Scope that search to this installation instead of the process working
+    // directory, which can be / in a native application or iOS simulator.
+    const auto root = std::filesystem::path(m_root);
+    const auto base = root.parent_path().string();
+    const auto data = root.filename().string();
+    if (base.size() + 2 > sizeof(SFile::m_basePath) || data.size() + 2 > sizeof(System_SFile2::s_dataPath)) {
+        throw std::runtime_error("Configured resource root exceeds the game file API path limit");
+    }
+    m_previousBasePath = SFile::m_basePath;
+    m_previousDataPath = System_SFile2::s_dataPath;
+    m_previousAlternatePath = System_SFile2::s_dataPath2;
+    SFile::SetBasePath(base.c_str());
+    SFile::SetDataPath(data.c_str());
+    SFile::SetDataPathAlternate("");
+    SFile::RebuildHash();
+    m_filePathsSelected = true;
 }
 
 ClientData::Asset ClientData::Read(const std::string& name, uint32_t maximumBytes, bool verifyDigest) const {
