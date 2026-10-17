@@ -24,6 +24,13 @@ void TextureCallback(EGxTexCommand command, uint32_t width, uint32_t height, uin
         stride = pixels.partial ? 4 : 8; data = pixels.values;
     }
 }
+struct FontPixels { uint16_t values[16]; bool partial = false; };
+void FontTextureCallback(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t,
+    void* arg, uint32_t& stride, const void*& data) {
+    if (command != GxTex_Latch) { return; }
+    auto& font = *static_cast<FontPixels*>(arg);
+    stride = font.partial ? 2 : 32; data = font.values + (font.partial ? 5 : 0);
+}
 struct Vertex { float x, y, z; uint32_t color; float u, v; };
 void Vertices(Vertex* output, uint32_t color, float z) {
     const Vertex vertices[] = {{-1, 1, z, color, 0, 0}, {-1, -1, z, color, 0, 1},
@@ -148,6 +155,25 @@ void CheckGxDevice() {
         coordinates, sizeof(C2Vector), nullptr, 0);
     GxDrawLockedElements(GxPrim_TriangleStrip, 4, strip); GxPrimUnlockVertexPtrs(); result = read();
     Require(result[0] == 0xFF00FF00 && result[255] == 0xFF0000FF, "Shared Gx immediate geometry path failed");
+    FontPixels fontPixels{};
+    device.PrimIndexPtr(indices);
+    for (unsigned i = 0; i < 16; ++i) { fontPixels.values[i] = uint16_t((i << 12) | ((15 - i) << 8) | (((i + 5) & 15) << 4) | ((i + 9) & 15)); }
+    CGxTex* fontTexture = nullptr;
+    CGxTexFlags fontFlags(GxTex_Nearest);
+    device.TexCreate(GxTex_2d, 16, 1, 0, GxTex_Argb4444, GxTex_Argb4444, fontFlags, &fontPixels, FontTextureCallback, "font UNORM4", fontTexture);
+    for (bool partial : {false, true}) {
+        if (partial) {
+            fontPixels.partial = true; fontPixels.values[5] = 0xF123; fontFlags.m_bit15 = 1;
+            GxTexSetFlags(fontTexture, fontFlags); CiRect changed(0, 5, 1, 6); GxTexUpdate(fontTexture, changed, 0);
+        }
+        device.BeginFrame(pass); GxRsSet(GxRs_Texture0, fontTexture); draw(1, 0, 0xFFFFFFFF); result = read();
+        for (unsigned y = 0; y < 16; ++y) { for (unsigned x = 0; x < 16; ++x) {
+            uint32_t expected = 0;
+            for (unsigned c = 0; c < 4; ++c) { expected |= (((fontPixels.values[x] >> (c * 4)) & 15) * 17) << (c * 8); }
+            Require(result[y * 16 + x] == expected, "Gx font ARGB4444 channel/alpha/partial update mismatch");
+        } }
+    }
+    GxTexDestroy(fontTexture);
     Require(pixels.locks == pixels.unlocks && device.TexIsReadyNow(texture), "Gx texture callback lifecycle mismatch");
     bool rejected = false;
     try { device.ShaderCreate(&shared, GxSh_Pixel, "Shaders\\Pixel", "NotImplemented", 1); } catch (const std::runtime_error&) { rejected = true; }

@@ -43,6 +43,7 @@ std::shared_ptr<GxMetal::UIShader> LoadUI() {
 BLP::Format ImageFormat(EGxTexFormat format) {
     switch (format) {
         case GxTex_Argb8888: return BLP::Format::BGRA8;
+        case GxTex_Argb4444: return BLP::Format::BGRA8;
         case GxTex_Dxt1: return BLP::Format::BC1;
         case GxTex_Dxt3: return BLP::Format::BC2;
         case GxTex_Dxt5: return BLP::Format::BC3;
@@ -154,7 +155,7 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_maxTexAnisotropy = 16;
     m_caps.m_texFilterTrilinear = m_caps.m_texFilterAnisotropic = 1;
     m_caps.m_colorWrite = m_caps.m_blendFactor = m_caps.m_shaderAlphaRef = 1;
-    for (auto format : {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
+    for (auto format : {GxTex_Argb8888, GxTex_Argb4444, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
     m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
     m_caps.m_texNonPow2 = 1;
@@ -358,6 +359,10 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     image.format = ImageFormat(texture->m_dataFormat);
     const uint32_t block = image.format == BLP::Format::BGRA8 ? 1 : 4;
     const uint32_t bytes = block == 1 ? 4 : image.format == BLP::Format::BC1 ? 8 : 16;
+    // The font cache authors ARGB4444 texels. Expand their exact UNORM4 values
+    // to BGRA8; do not truncate alpha or modify the glyph rasterization.
+    const bool argb4444 = texture->m_dataFormat == GxTex_Argb4444;
+    const uint32_t sourceBytes = argb4444 ? 2 : bytes;
     uint32_t stride = 0; const void* pixels = nullptr;
     texture->m_userFunc(GxTex_Lock, texture->m_width, texture->m_height, 0, 0, texture->m_userArg, stride, pixels);
     struct Unlock {
@@ -379,15 +384,24 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
         left /= block; top /= block; right = (right + block - 1) / block; bottom = (bottom + block - 1) / block;
         pixels = nullptr; stride = 0;
         texture->m_userFunc(GxTex_Latch, width, height, 0, mip, texture->m_userArg, stride, pixels);
-        Require(pixels && right > left && bottom > top && stride >= (texture->m_flags.m_bit15 ? right - left : right) * bytes,
+        Require(pixels && right > left && bottom > top && stride >= (texture->m_flags.m_bit15 ? right - left : right) * sourceBytes,
             "Missing or invalid Gx texture mip callback data");
         Require(!recreate || !texture->m_flags.m_bit15 || (texture->m_updateRect.minX == 0 && texture->m_updateRect.minY == 0 &&
             texture->m_updateRect.maxX == int32_t(texture->m_width) && texture->m_updateRect.maxY == int32_t(texture->m_height)),
             "Cannot recreate a Gx texture from partial-origin callback data");
         auto* source = static_cast<const uint8_t*>(pixels);
-        if (!texture->m_flags.m_bit15) { source += size_t(top) * stride + left * bytes; }
+        if (!texture->m_flags.m_bit15) { source += size_t(top) * stride + left * sourceBytes; }
         for (uint32_t row = top; row < bottom; ++row) {
-            std::memcpy(dest.bytes.data() + size_t(row) * rowBytes + left * bytes, source + size_t(row - top) * stride, (right - left) * bytes);
+            auto* dst = dest.bytes.data() + size_t(row) * rowBytes + left * bytes;
+            const auto* src = source + size_t(row - top) * stride;
+            if (argb4444) {
+                for (uint32_t x = 0; x < right - left; ++x) {
+                    uint16_t value; std::memcpy(&value, src + x * 2, sizeof(value));
+                    for (unsigned channel = 0; channel < 4; ++channel) { dst[x * 4 + channel] = ((value >> (channel * 4)) & 15) * 17; }
+                }
+            } else {
+                std::memcpy(dst, src, (right - left) * bytes);
+            }
         }
         width = std::max(1u, width >> 1); height = std::max(1u, height >> 1);
     }
