@@ -19,10 +19,12 @@ struct QuadParameters {
     simd_float2 uvOffset = {0, 0};
     float alphaRef = 0;
     float padding[3]{};
+    simd_float4 decodeScale[4] = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}};
 };
-static_assert(sizeof(QuadParameters) == 64, "Metal quad constant layout");
+static_assert(sizeof(QuadParameters) == 128, "Metal quad constant layout");
 
 struct TextureDrawState {
+    simd_float4 decodeScale = {1, 1, 1, 1};
     EGxBlend blend = GxBlend_Opaque;
     EGxTexFilter filter = GxTex_LinearMipLinear;
     EGxTexWrapMode wrapU = GxTex_Clamp, wrapV = GxTex_Clamp;
@@ -80,8 +82,12 @@ public:
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
         uint32_t mask, simd_float4 color);
     bool SupportsBC() const;
+    bool SupportsPacked16() const;
+    simd_float4 DecodeScale(BLP::Format format) const;
 
 private:
+    id<MTLLibrary> m_library;
+    id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
     id<MTLFunction> m_geometryVertex[2][4];
@@ -95,7 +101,7 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false);
+        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 4>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 4>&);

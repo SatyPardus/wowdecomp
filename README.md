@@ -169,9 +169,18 @@ mask, blend constants, six filter modes and independent U/V wrap/clamp. Pipeline
 and sampler objects are cached; alpha testing uses an MSL function specialization.
 A partial `CGxDeviceMetal` now connects the shared game device interface, Apple
 factory, UI shader creation/binding, Gx buffer pools, texture callbacks, render
-states and frame submission. Mac/iOS previews use this device. Font-cache ARGB4444
-texels expand exactly to BGRA8, including all alpha levels and partial updates;
-the original Gxu/FreeType font layout and rasterizer now draw the preview text.
+states and frame submission. Mac/iOS previews use this device. RGB565, ARGB1555
+and ARGB4444 use native packed UNORM textures on Apple devices, including BGRA8
+source conversion with the original D3D9 channel truncation. Font-cache ARGB4444
+preserves all four-bit values, with only a bit rotation for Metal's channel order.
+The simulator rejects packed formats even on an Apple GPU; there, UNORM4 expands
+exactly to BGRA8; UNORM5/6 stores its integer codes in filterable BGRA8 and uses
+per-texture shader normalization. This avoids rounding to an approximate 8-bit
+color before filtering. A function constant removes normalization from native
+packed/ordinary draws. Upload memory budgets include the fallback representation. Packed format,
+conversion, linear sampling, partial-update and Services mip-reload checks run
+through GPU readback. The original Gxu/FreeType font layout and rasterizer draw
+the preview text.
 The font probe reads ARIALN from the installation, covers multiline/color,
 AA/monochrome, outline/shadow and drawable-size changes, and checks identical
 pixels after restoring the size or recreating the font cache. Private buffer

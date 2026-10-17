@@ -13,6 +13,7 @@ void CheckGameEvents();
 void CheckGameAsyncFiles();
 void CheckGxFont(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
+void CheckPackedTextureFormats(CGxDeviceMetal& device);
 
 namespace {
 void Require(bool ok, const char* message) { if (!ok) { throw std::runtime_error(message); } }
@@ -185,6 +186,7 @@ void CheckGxDevice() {
     bool rejected = false;
     try { device.ShaderCreate(&shared, GxSh_Pixel, "Shaders\\Pixel", "NotImplemented", 1); } catch (const std::runtime_error&) { rejected = true; }
     Require(rejected, "Unknown game shader silently accepted");
+    CheckPackedTextureFormats(device);
     CheckGxRenderTargets(device);
     GxTexDestroy(texture); device.BufDestroy(indices); device.PoolDestroy(indicesPool);
     device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);

@@ -20,14 +20,17 @@ std::vector<uint8_t> Asset(const char* path) {
 }
 struct Vertex { float x, y, z; uint32_t color; float uv[4][2]; };
 static_assert(sizeof(Vertex) == 48, "Original FFX PCT4 layout");
-id<MTLBuffer> Quad(GxMetal::TextureDevice& gpu, const std::array<simd_float2, 4>& offsets, uint32_t color) {
+id<MTLBuffer> Quad(GxMetal::TextureDevice& gpu, const std::array<simd_float2, 4>& offsets, uint32_t color, unsigned uvCount = 4) {
     Vertex vertices[4]{};
     for (unsigned i = 0; i < 4; ++i) {
         float u = i >> 1, v = i & 1;
         vertices[i].x = u * 2 - 1; vertices[i].y = 1 - v * 2; vertices[i].color = color;
         for (unsigned tap = 0; tap < 4; ++tap) { vertices[i].uv[tap][0] = u + offsets[tap].x; vertices[i].uv[tap][1] = v + offsets[tap].y; }
     }
-    return [gpu.device newBufferWithBytes:vertices length:sizeof(vertices) options:MTLResourceStorageModeShared];
+    const size_t stride = 16 + uvCount * 8;
+    std::vector<uint8_t> packed(stride * 4);
+    for (unsigned i = 0; i < 4; ++i) { std::memcpy(packed.data() + i * stride, &vertices[i], stride); }
+    return [gpu.device newBufferWithBytes:packed.data() length:packed.size() options:MTLResourceStorageModeShared];
 }
 MTLRenderPassDescriptor* Target(GxMetal::TextureDevice& gpu, unsigned width, unsigned height) {
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
@@ -134,4 +137,38 @@ void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
     BLP::Mip filtered{8, 8, 32, std::move(row)};
     auto expected = Reference({filtered, filtered, filtered, filtered}, states, vertical, 8, geometry.effect, 0);
     Compare(Read(gpu, command, second.colorAttachments[0].texture), expected, 2);
+
+    // Mixed packed inputs also exercise the simulator's per-texture decoding
+    // in every FFX fragment family, including independent binding indices.
+    const BLP::Format formats[] = {BLP::Format::RGB565, BLP::Format::ARGB1555, BLP::Format::ARGB4444, BLP::Format::RGB565};
+    const uint16_t colors[] = {0xF800, 0x03E0, 0xF00F, 0xFFFF}; // red, green, blue, white
+    for (unsigned tap = 0; tap < 4; ++tap) {
+        BLP::Image packed; packed.format = formats[tap];
+        packed.mips.push_back({1, 1, 2, std::vector<uint8_t>(2)});
+        std::memcpy(packed.mips[0].bytes.data(), &colors[tap], 2);
+        inputs[tap] = packed.DecodeBGRA(0); textures[tap] = gpu.Upload(packed);
+        states[tap] = {}; states[tap].decodeScale = gpu.DecodeScale(packed.format);
+    }
+    geometry.vertices = Quad(gpu, {}, 0x80000040);
+    for (auto effect : {GxMetal::FragmentEffect::Box4, GxMetal::FragmentEffect::Gauss4}) {
+        geometry.effect = effect;
+        auto pass = Target(gpu, 4, 4); auto command = [gpu.queue commandBuffer];
+        gpu.DrawFilter4(command, pass, textures, geometry, states);
+        Compare(Read(gpu, command, pass.colorAttachments[0].texture), Reference(inputs, states, {}, 4, effect, 128), 1);
+    }
+    for (bool wave : {false, true}) {
+        geometry.effect = wave ? GxMetal::FragmentEffect::GlowWave : GxMetal::FragmentEffect::Glow;
+        geometry.format = wave ? GxVertexBufferFormats_Last : GxVBF_PCT2;
+        geometry.vertices = Quad(gpu, {}, 0x80000040, wave ? 3 : 2);
+        auto pass = Target(gpu, 4, 4); auto command = [gpu.queue commandBuffer];
+        if (wave) { gpu.DrawGlowWave(command, pass, {textures[0], textures[1], textures[2]}, geometry, {states[0], states[1], states[2]}); }
+        else { gpu.DrawGlow(command, pass, {textures[0], textures[1]}, geometry, {states[0], states[1]}); }
+        std::vector<uint8_t> expected(4 * 4 * 4);
+        for (unsigned i = 0; i < 16; ++i) {
+            expected[i * 4 + (wave ? 1 : 2)] = 191;
+            expected[i * 4 + (wave ? 0 : 1)] = 192;
+            expected[i * 4 + 3] = 255;
+        }
+        Compare(Read(gpu, command, pass.colorAttachments[0].texture), expected, 1);
+    }
 }

@@ -68,12 +68,27 @@ void LoadPostProcess(GxMetal::FragmentEffect effect) {
 BLP::Format ImageFormat(EGxTexFormat format) {
     switch (format) {
         case GxTex_Argb8888: return BLP::Format::BGRA8;
-        case GxTex_Argb4444: return BLP::Format::BGRA8;
+        case GxTex_Argb4444: return BLP::Format::ARGB4444;
+        case GxTex_Argb1555: return BLP::Format::ARGB1555;
+        case GxTex_Rgb565: return BLP::Format::RGB565;
         case GxTex_Dxt1: return BLP::Format::BC1;
         case GxTex_Dxt3: return BLP::Format::BC2;
         case GxTex_Dxt5: return BLP::Format::BC3;
         default: Unsupported("texture format conversion");
     }
+}
+bool Packed16(EGxTexFormat format) {
+    return format == GxTex_Argb4444 || format == GxTex_Argb1555 || format == GxTex_Rgb565;
+}
+bool SupportedConversion(EGxTexFormat target, EGxTexFormat source) {
+    return target == source || (source == GxTex_Argb8888 && Packed16(target));
+}
+// Same truncation as CGxDeviceD3d::ITexUpload -> Blit_Argb8888_*.
+// Quantize only when the game requested a 16-bit target format.
+uint16_t Pack16(const uint8_t* bgra, EGxTexFormat target) {
+    if (target == GxTex_Argb4444) { return (bgra[3] >> 4) << 12 | (bgra[2] >> 4) << 8 | (bgra[1] >> 4) << 4 | bgra[0] >> 4; }
+    if (target == GxTex_Argb1555) { return (bgra[3] >> 7) << 15 | (bgra[2] >> 3) << 10 | (bgra[1] >> 3) << 5 | bgra[0] >> 3; }
+    return (bgra[2] >> 3) << 11 | (bgra[1] >> 2) << 5 | bgra[0] >> 3;
 }
 CiRect SurfaceRect(id<MTLTexture> texture, uint32_t level) {
     return {0, 0, int32_t(std::max(NSUInteger(1), texture.height >> level)), int32_t(std::max(NSUInteger(1), texture.width >> level))};
@@ -246,7 +261,9 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_maxTexAnisotropy = 16;
     m_caps.m_texFilterTrilinear = m_caps.m_texFilterAnisotropic = 1;
     m_caps.m_colorWrite = m_caps.m_blendFactor = m_caps.m_shaderAlphaRef = 1;
-    for (auto format : {GxTex_Argb8888, GxTex_Argb4444, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
+    for (auto format : {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
+    m_caps.m_texFmt[GxTex_Argb4444] = 1;
+    for (auto format : {GxTex_Argb1555, GxTex_Rgb565}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_rttFormat[GxTex_Argb8888] = 1;
     m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
     m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
@@ -481,7 +498,8 @@ int32_t CGxDeviceMetal::TexCreate(EGxTexTarget target, uint32_t width, uint32_t 
     if (flags.m_renderTarget) {
         Require(format == GxTex_Argb8888, "Gx render target format is not implemented");
     } else {
-        Require(format == dataFormat && callback, "Unsupported Gx texture conversion or missing callback");
+        Require(SupportedConversion(format, dataFormat) && callback, "Unsupported Gx texture conversion or missing callback");
+        Require(!Packed16(format) || m_caps.m_texFmt[format], "Device cannot preserve packed Gx texture filtering precision");
         ImageFormat(format);
     }
     return CGxDevice::TexCreate(target, width, height, depth, format, dataFormat, flags, arg, callback, name, texture);
@@ -548,16 +566,14 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     }
     const bool recreate = texture->m_needsCreation || !storage.gpu || storage.renderTarget || storage.base != base || storage.image.mips.size() != end - base;
     if (!recreate && !texture->m_needsUpdate) { texture->m_needsFlagUpdate = 0; return; }
-    Require(texture->m_userFunc && !texture->m_flags.m_generateMipMaps && !texture->m_flags.m_renderTarget && texture->m_format == texture->m_dataFormat,
+    Require(texture->m_userFunc && !texture->m_flags.m_generateMipMaps && !texture->m_flags.m_renderTarget && SupportedConversion(texture->m_format, texture->m_dataFormat),
         "Unsupported updated Gx texture flags or conversion");
     BLP::Image image = recreate ? BLP::Image{} : storage.image;
-    image.format = ImageFormat(texture->m_dataFormat);
-    const uint32_t block = image.format == BLP::Format::BGRA8 ? 1 : 4;
-    const uint32_t bytes = block == 1 ? 4 : image.format == BLP::Format::BC1 ? 8 : 16;
-    // The font cache authors ARGB4444 texels. Expand their exact UNORM4 values
-    // to BGRA8; do not truncate alpha or modify the glyph rasterization.
-    const bool argb4444 = texture->m_dataFormat == GxTex_Argb4444;
-    const uint32_t sourceBytes = argb4444 ? 2 : bytes;
+    image.format = ImageFormat(texture->m_format);
+    const uint32_t block = BLP::IsBlockCompressed(image.format) ? 4 : 1;
+    const uint32_t bytes = block == 4 ? (image.format == BLP::Format::BC1 ? 8 : 16) : Packed16(texture->m_format) ? 2 : 4;
+    const uint32_t sourceBytes = Packed16(texture->m_dataFormat) ? 2 : texture->m_dataFormat == GxTex_Argb8888 ? 4 : bytes;
+    const bool convert = texture->m_format != texture->m_dataFormat;
     uint32_t stride = 0; const void* pixels = nullptr;
     texture->m_userFunc(GxTex_Lock, texture->m_width, texture->m_height, 0, 0, texture->m_userArg, stride, pixels);
     struct Unlock {
@@ -589,10 +605,10 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
         for (uint32_t row = top; row < bottom; ++row) {
             auto* dst = dest.bytes.data() + size_t(row) * rowBytes + left * bytes;
             const auto* src = source + size_t(row - top) * stride;
-            if (argb4444) {
+            if (convert) {
                 for (uint32_t x = 0; x < right - left; ++x) {
-                    uint16_t value; std::memcpy(&value, src + x * 2, sizeof(value));
-                    for (unsigned channel = 0; channel < 4; ++channel) { dst[x * 4 + channel] = ((value >> (channel * 4)) & 15) * 17; }
+                    const uint16_t packed = Pack16(src + x * 4, texture->m_format);
+                    std::memcpy(dst + x * 2, &packed, sizeof(packed));
                 }
             } else {
                 std::memcpy(dst, src, (right - left) * bytes);
@@ -757,6 +773,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         ITexMarkAsUpdated(texture);
         textures[i] = m->textures.at(texture).gpu;
         states[i] = state;
+        states[i].decodeScale = m->gpu.DecodeScale(m->textures.at(texture).image.format);
         states[i].filter = EGxTexFilter(texture->m_flags.m_filter);
         states[i].wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); states[i].wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;

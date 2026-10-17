@@ -1,6 +1,7 @@
 #include "Engine/Source/Gx/Metal/TextureDevice.h"
 #include "MetalShaderSource.h"
 #include "Engine/Source/Gx/Gx.h"
+#include <TargetConditionals.h>
 #include <algorithm>
 #include <cstring>
 #include <cmath>
@@ -13,6 +14,9 @@ void Require(bool condition, const char* message) {
 size_t Align(size_t value) { return (value + 255) & ~size_t(255); }
 MTLPixelFormat PixelFormat(BLP::Format format) {
     if (format == BLP::Format::BGRA8) { return MTLPixelFormatBGRA8Unorm; }
+    if (format == BLP::Format::RGB565) { return MTLPixelFormatB5G6R5Unorm; }
+    if (format == BLP::Format::ARGB1555) { return MTLPixelFormatBGR5A1Unorm; }
+    if (format == BLP::Format::ARGB4444) { return MTLPixelFormatABGR4Unorm; }
     if (@available(macOS 11.0, iOS 16.4, *)) {
         switch (format) {
             case BLP::Format::BC1: return MTLPixelFormatBC1_RGBA;
@@ -36,6 +40,7 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     NSError* error = nil;
     id<MTLLibrary> library = [device newLibraryWithSource:@(TextureQuadSource) options:options error:&error];
     if (!library) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal shader compilation failed"); }
+    m_library = library;
     m_vertex = [library newFunctionWithName:@"textureQuadVertex"];
     m_filterVertex = [library newFunctionWithName:@"filter4Vertex"];
     Require(m_filterVertex != nil, "Missing native FFX vertex function");
@@ -58,6 +63,8 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     for (bool alphaTest : {false, true}) {
         MTLFunctionConstantValues* constants = [MTLFunctionConstantValues new];
         [constants setConstantValue:&alphaTest type:MTLDataTypeBool atIndex:0];
+        const bool decodePacked = false;
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
         m_fragment[alphaTest] = [library newFunctionWithName:@"textureQuadFragment" constantValues:constants error:&error];
         if (!m_fragment[alphaTest]) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal specialization failed"); }
         m_glowFragment[alphaTest] = [library newFunctionWithName:@"glowFragment" constantValues:constants error:&error];
@@ -82,12 +89,12 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     const uint32_t key = uint32_t(state.blend) | (uint32_t(state.alphaRef != 0) << 4) | (state.colorWrite << 5) |
-        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15) | (uint32_t(signedWave) << 18);
+        (uint32_t(format) << 9) | (uint32_t(depthAttachment) << 13) | (uint32_t(screenAtDepth) << 14) | (uint32_t(effect) << 15) | (uint32_t(signedWave) << 18) | (uint32_t(decodePacked) << 19);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -160,6 +167,24 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
+    if (decodePacked) {
+        auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
+        if (!fragment) {
+            const bool alpha = state.alphaRef != 0;
+            const unsigned kernel = unsigned(effect);
+            auto constants = [MTLFunctionConstantValues new];
+            [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+            [constants setConstantValue:&kernel type:MTLDataTypeUInt atIndex:2];
+            [constants setConstantValue:&signedWave type:MTLDataTypeBool atIndex:3];
+            [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+            NSString* name = effect == FragmentEffect::Unlit ? @"textureQuadFragment" :
+                effect == FragmentEffect::Glow ? @"glowFragment" : effect == FragmentEffect::GlowWave ? @"glowWaveFragment" : @"filter4Fragment";
+            NSError* error = nil;
+            fragment = [m_library newFunctionWithName:name constantValues:constants error:&error];
+            if (!fragment) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Packed texture specialization failed"); }
+        }
+        descriptor.fragmentFunction = fragment;
+    }
     auto attachment = descriptor.colorAttachments[0];
     attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;
     attachment.blendingEnabled = state.blend >= GxBlend_Alpha;
@@ -206,26 +231,55 @@ bool GxMetal::TextureDevice::SupportsBC() const {
     return false;
 }
 
+bool GxMetal::TextureDevice::SupportsPacked16() const {
+#if TARGET_OS_SIMULATOR
+    // The iOS simulator framework rejects these formats before consulting the
+    // host device's Apple GPU family, even on Apple silicon.
+    return false;
+#else
+    return [device supportsFamily:MTLGPUFamilyApple2];
+#endif
+}
+
+simd_float4 GxMetal::TextureDevice::DecodeScale(BLP::Format format) const {
+    if (!SupportsPacked16()) {
+        if (format == BLP::Format::RGB565) { return {255.0f / 31, 255.0f / 63, 255.0f / 31, 1}; }
+        if (format == BLP::Format::ARGB1555) { return {255.0f / 31, 255.0f / 31, 255.0f / 31, 255}; }
+    }
+    return {1, 1, 1, 1};
+}
+
 id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forceExpansion) {
     Require(!image.mips.empty(), "Cannot upload an empty texture");
-    const bool expanded = image.format != BLP::Format::BGRA8 && (forceExpansion || !SupportsBC());
+    const bool compressed = BLP::IsBlockCompressed(image.format);
+    const bool packed16 = !compressed && image.format != BLP::Format::BGRA8;
+    const bool packedFallback = packed16 && !SupportsPacked16();
+    const bool codedFallback = packedFallback && image.format != BLP::Format::ARGB4444;
+    Require(!packed16 || !forceExpansion, "Packed 16-bit GPU textures must retain native UNORM precision");
+    // Store UNORM5/6 integer codes exactly in filterable UNORM8, then apply
+    // 255/(2^bits-1) in the shader. Scaling commutes with texture filtering;
+    // there is no additional quantization to an approximate 8-bit color.
+    // UNORM4 values instead have an exact full-range BGRA8 representation.
+    const bool expanded = (compressed && (forceExpansion || !SupportsBC())) || (packedFallback && !codedFallback);
+    const auto format = PixelFormat(expanded || codedFallback ? BLP::Format::BGRA8 : image.format);
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
-        PixelFormat(expanded ? BLP::Format::BGRA8 : image.format) width:image.mips[0].width height:image.mips[0].height mipmapped:NO];
+        format width:image.mips[0].width height:image.mips[0].height mipmapped:NO];
     descriptor.mipmapLevelCount = image.mips.size();
     descriptor.storageMode = MTLStorageModePrivate;
     descriptor.usage = MTLTextureUsageShaderRead;
-    id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
-    Require(texture != nil, "Metal texture allocation failed");
-    texture.label = @"WoW authored BLP mip chain";
     struct Layout { size_t offset, stride, rows; };
     std::vector<Layout> layouts;
     size_t total = 0;
     for (const auto& mip : image.mips) {
-        const size_t stride = Align(expanded ? mip.width * 4 : mip.rowBytes);
-        const size_t rows = expanded ? mip.height : mip.bytes.size() / mip.rowBytes;
+        const size_t stride = Align(expanded || codedFallback ? mip.width * 4 : mip.rowBytes);
+        const size_t rows = expanded || codedFallback ? mip.height : mip.bytes.size() / mip.rowBytes;
+        Require(stride * rows <= 256 * 1024 * 1024 - total, "Native texture staging exceeds memory budget");
         layouts.push_back({total, stride, rows});
         total += stride * rows;
     }
+    id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
+    Require(texture != nil, "Metal texture allocation failed");
+    texture.label = @"WoW authored texture mip chain";
     id<MTLBuffer> staging = [device newBufferWithLength:total options:MTLResourceStorageModeShared];
     Require(staging != nil, "Metal texture staging allocation failed");
     for (size_t level = 0; level < image.mips.size(); ++level) {
@@ -234,8 +288,27 @@ id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forc
         const BLP::Mip& mip = expanded ? decoded : image.mips[level];
         const auto& layout = layouts[level];
         for (size_t row = 0; row < layout.rows; ++row) {
-            std::memcpy(static_cast<uint8_t*>(staging.contents) + layout.offset + row * layout.stride,
-                mip.bytes.data() + row * mip.rowBytes, mip.rowBytes);
+            auto* dest = static_cast<uint8_t*>(staging.contents) + layout.offset + row * layout.stride;
+            const auto* source = mip.bytes.data() + row * mip.rowBytes;
+            if (codedFallback) {
+                for (uint32_t x = 0; x < mip.width; ++x) {
+                    uint16_t word; std::memcpy(&word, source + x * 2, 2);
+                    const bool rgb565 = image.format == BLP::Format::RGB565;
+                    const unsigned greenBits = rgb565 ? 6 : 5;
+                    dest[x * 4] = word & 31;
+                    dest[x * 4 + 1] = (word >> 5) & ((1u << greenBits) - 1);
+                    dest[x * 4 + 2] = (word >> (5 + greenBits)) & 31;
+                    dest[x * 4 + 3] = rgb565 ? 255 : word >> 15;
+                }
+            } else if (!expanded && image.format == BLP::Format::ARGB4444) {
+                // D3D A:R:G:B -> Metal R:G:B:A in the 16-bit word. This is
+                // only a rotation of channel bits, with no precision loss.
+                for (uint32_t x = 0; x < mip.width; ++x) {
+                    uint16_t word; std::memcpy(&word, source + x * 2, 2);
+                    word = uint16_t((word << 4) | (word >> 12));
+                    std::memcpy(dest + x * 2, &word, 2);
+                }
+            } else { std::memcpy(dest, source, mip.rowBytes); }
         }
     }
     id<MTLCommandBuffer> command = [queue commandBuffer];
@@ -260,12 +333,13 @@ id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forc
 void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport) {
     // Resolve/validate before opening an encoder so failures cannot leave a pass open.
-    id<MTLRenderPipelineState> pipeline = Pipeline(state);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, GxVertexBufferFormats_Last, false, false, FragmentEffect::Unlit, false, simd_any(state.decodeScale != simd_make_float4(1)));
     id<MTLSamplerState> sampler = Sampler(state);
     Require(std::isfinite(state.blendFactor) && state.blendFactor >= 0 && state.blendFactor <= 1, "Invalid Gx blend factor");
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     QuadParameters constants = parameters;
     constants.alphaRef = state.alphaRef / 255.0f;
+    constants.decodeScale[0] = state.decodeScale;
     id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
     Require(encoder != nil, "Cannot create Metal render encoder");
     [encoder setRenderPipelineState:pipeline];

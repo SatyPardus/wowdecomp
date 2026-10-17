@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Gx/Blit.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include <algorithm>
 #include <cmath>
@@ -390,7 +391,7 @@ void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference) {
         const auto actual = Read(device, width, height);
         const auto expected = reference.DecodeBGRA(base);
         Require(expected.width == width && expected.height == height, "Services texture resident mip changed");
-        const int tolerance = reference.format == BLP::Format::BGRA8 || !device.GPU().SupportsBC() ? 0 : 2;
+        const int tolerance = BLP::IsBlockCompressed(reference.format) && device.GPU().SupportsBC() ? 2 : 0;
         const auto* bytes = reinterpret_cast<const uint8_t*>(actual.data());
         for (size_t i = 0; i < expected.bytes.size(); ++i) {
             Require(std::abs(int(bytes[i]) - expected.bytes[i]) <= tolerance, "Services texture/reload differs from authored mip");
@@ -399,4 +400,81 @@ void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference) {
     }
     GxRsSet(GxRs_Texture0, static_cast<CGxTex*>(nullptr));
     device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
+}
+
+void CheckPackedTextureFormats(CGxDeviceMetal& device) {
+    struct Source {
+        std::array<uint32_t, 256> bgra;
+        std::array<uint16_t, 256> packed;
+        bool converted = false, partial = false;
+    } source;
+    auto callback = [](EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void* arg, uint32_t& stride, const void*& pixels) {
+        if (command != GxTex_Latch) { return; }
+        const auto& src = *static_cast<Source*>(arg);
+        const unsigned offset = src.partial ? 127 : 0;
+        stride = (src.partial ? 1 : 256) * (src.converted ? 4 : 2);
+        pixels = src.converted ? static_cast<const void*>(src.bgra.data() + offset) : static_cast<const void*>(src.packed.data() + offset);
+    };
+    for (EGxTexFormat format : {GxTex_Rgb565, GxTex_Argb1555, GxTex_Argb4444}) {
+        const BlitFormat blit = format == GxTex_Rgb565 ? BlitFormat_Rgb565 : format == GxTex_Argb1555 ? BlitFormat_Argb1555 : BlitFormat_Argb4444;
+        for (bool converted : {false, true}) {
+            source.converted = converted; source.partial = false;
+            for (unsigned x = 0; x < 256; ++x) { source.bgra[x] = x << 24 | ((x * 7) & 255) << 16 | ((255 - x) << 8) | ((x * 13) & 255); }
+            Require(Blit(C2iVector{256, 1}, BlitAlpha_0, source.bgra.data(), 1024, BlitFormat_Argb8888,
+                source.packed.data(), 512, blit), "Original 32-to-16 bit blit failed");
+            CGxTex* texture = nullptr;
+            CGxTexFlags flags(GxTex_Nearest);
+            device.TexCreate(GxTex_2d, 256, 1, 0, format, converted ? GxTex_Argb8888 : format, flags, &source, callback, "packed UNORM reference", texture);
+            for (bool partial : {false, true}) {
+                if (partial) {
+                    source.partial = true; source.bgra[127] = 0x80F97C03;
+                    Require(Blit(C2iVector{256, 1}, BlitAlpha_0, source.bgra.data(), 1024, BlitFormat_Argb8888,
+                        source.packed.data(), 512, blit), "Original partial reference blit failed");
+                    flags.m_bit15 = 1; GxTexSetFlags(texture, flags);
+                    GxTexUpdate(texture, 127, 0, 128, 1, 1);
+                }
+                for (bool linear : {false, true}) {
+                    const unsigned width = linear ? 512 : 256;
+                    flags.m_filter = linear ? GxTex_Linear : GxTex_Nearest; GxTexSetFlags(texture, flags);
+                    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:width height:1 mipmapped:NO];
+                    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+                    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+                    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+                    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+                    device.BeginFrame(pass); Draw(device, texture, 0xFFFFFFFF, 0);
+                    const auto actual = Read(device, width, 1); GxScenePresent();
+                    auto channel = [&](int x, unsigned c) -> double {
+                        x = std::clamp(x, 0, 255);
+                        const uint32_t value = (source.bgra[x] >> (8 * c)) & 255;
+                        unsigned bits = format == GxTex_Argb4444 ? 4 : c == 3 ? (format == GxTex_Argb1555 ? 1 : 0) : c == 1 && format == GxTex_Rgb565 ? 6 : 5;
+                        return bits ? double(value >> (8 - bits)) / ((1u << bits) - 1) : 1.0;
+                    };
+                    for (unsigned x = 0; x < width; ++x) {
+                        const double position = (x + 0.5) * 256 / width - 0.5;
+                        const int left = int(std::floor(position)); const double weight = position - left;
+                        for (unsigned c = 0; c < 4; ++c) {
+                            const double expected = linear ? channel(left, c) * (1 - weight) + channel(left + 1, c) * weight : channel(int(x), c);
+                            const int value = (actual[x] >> (8 * c)) & 255;
+                            Require(std::abs(value - int(std::lround(expected * 255))) <= (linear ? 1 : 0),
+                                "Native packed UNORM upload/quantization/filter/partial update mismatch");
+                        }
+                    }
+                }
+            }
+            if (format == GxTex_Argb1555) {
+                flags.m_filter = GxTex_Nearest; GxTexSetFlags(texture, flags); GxRsSet(GxRs_AlphaRef, 255);
+                auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:256 height:1 mipmapped:NO];
+                descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+                auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+                pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+                pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+                pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
+                device.BeginFrame(pass); Draw(device, texture, 0xFFFFFFFF, 0);
+                const auto actual = Read(device, 256, 1); GxScenePresent();
+                for (unsigned x = 0; x < 256; ++x) { Require((actual[x] >> 24) == (source.bgra[x] & 0x80000000 ? 255 : 0), "Packed alpha failed exact GREATEREQUAL at one"); }
+                GxRsSet(GxRs_AlphaRef, 0);
+            }
+            GxTexDestroy(texture);
+        }
+    }
 }

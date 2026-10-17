@@ -12,9 +12,10 @@ struct alignas(16) GeometryParameters {
 struct alignas(16) WaveParameters {
     simd_float2 sceneScale, blurScale;
     float alphaRef, padding[3]{};
+    simd_float4 decodeScale[3];
 };
-static_assert(sizeof(WaveParameters) == 32, "Metal wave constant layout");
-static_assert(sizeof(GeometryParameters) == 128 && offsetof(GeometryParameters, texture) == 64, "Metal geometry constant layout");
+static_assert(sizeof(WaveParameters) == 80, "Metal wave constant layout");
+static_assert(sizeof(GeometryParameters) == 192 && offsetof(GeometryParameters, texture) == 64, "Metal geometry constant layout");
 }
 
 void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
@@ -89,7 +90,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
             v.originX + v.width <= target.width && v.originY + v.height <= target.height &&
             v.znear >= 0 && v.zfar <= 1 && v.znear <= v.zfar, "Invalid Metal geometry viewport");
     }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave);
+    bool decodePacked = false;
+    for (unsigned i = 0; i < inputs; ++i) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked);
     std::array<id<MTLSamplerState>, 4> samplers{};
     for (unsigned i = 0; i < inputs; ++i) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
@@ -110,6 +113,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     }
     GeometryParameters constants{geometry.clipFromModel, parameters};
     constants.texture.alphaRef = state.alphaRef / 255.0f;
+    for (unsigned i = 0; i < inputs; ++i) { constants.texture.decodeScale[i] = states[i].decodeScale; }
     // Tempest uses row vectors. Its contiguous rows are Metal's columns, so
     // column-vector multiplication reads the same transform without repacking.
     id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
@@ -125,7 +129,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
     if (wave) {
-        const WaveParameters waveConstants{geometry.waveSceneScale, geometry.waveBlurScale, constants.texture.alphaRef};
+        WaveParameters waveConstants{geometry.waveSceneScale, geometry.waveBlurScale, constants.texture.alphaRef};
+        for (unsigned i = 0; i < 3; ++i) { waveConstants.decodeScale[i] = states[i].decodeScale; }
         [encoder setFragmentBytes:&waveConstants length:sizeof(waveConstants) atIndex:0];
     } else { [encoder setFragmentBytes:&constants.texture length:sizeof(constants.texture) atIndex:0]; }
     for (unsigned i = 0; i < inputs; ++i) {

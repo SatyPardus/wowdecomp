@@ -6,7 +6,12 @@
 #include <vector>
 
 namespace BLP {
-enum class Format { BGRA8, BC1, BC2, BC3 };
+// Packed formats use the original Gx/D3D little-endian bit layout. They are
+// upload payloads produced by the texture service, not new BLP encodings.
+enum class Format { BGRA8, BC1, BC2, BC3, RGB565, ARGB1555, ARGB4444 };
+inline bool IsBlockCompressed(Format format) {
+    return format == Format::BC1 || format == Format::BC2 || format == Format::BC3;
+}
 struct Mip {
     uint32_t width, height, rowBytes;
     std::vector<uint8_t> bytes;

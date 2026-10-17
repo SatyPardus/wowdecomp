@@ -7,6 +7,7 @@
 #include "Engine/Source/Storm/Source/SThread.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/BLPFile/Types.h"
+#include "Engine/Source/Gx/Blit.h"
 #include <filesystem>
 #include <fstream>
 #include <cstring>
@@ -108,6 +109,39 @@ void CheckGameAsyncFiles() {
             while (large->m_asyncObject && std::chrono::steady_clock::now() < deadline) { EventProcessPending(); std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
             Require(!large->m_asyncObject && large->m_gxTex && large->m_status.IsEmpty(), "Oversized asynchronous palette texture failed");
             CheckServicesTexturePixels(large->m_gxTex, BLP::Image::Load(bytes.data(), bytes.size(), 256 * 1024 * 1024));
+            // Exercise the actual Services format selection, not just direct Gx
+            // uploads. Keep every authored mip and reload after base changes.
+            for (auto preferred : {PIXEL_RGB565, PIXEL_ARGB1555, PIXEL_ARGB4444}) {
+                header.m_width = header.m_height = 16; header.m_hasMips = 1;
+                header.m_preferredFormat = preferred;
+                for (unsigned i = 0; i < 256; ++i) { header.m_extended.m_palette[i] = {uint8_t(i * 13), uint8_t(255 - i), uint8_t(i * 7), 0}; }
+                size_t total = sizeof(header);
+                for (unsigned level = 0; level < 5; ++level) {
+                    header.m_mipOffsets[level] = uint32_t(total); header.m_mipSizes[level] = (16u >> level) * (16u >> level) * 2;
+                    total += header.m_mipSizes[level];
+                }
+                bytes.assign(total, 0); std::memcpy(bytes.data(), &header, sizeof(header));
+                for (unsigned level = 0; level < 5; ++level) {
+                    const unsigned count = header.m_mipSizes[level] / 2;
+                    for (unsigned i = 0; i < count; ++i) { bytes[header.m_mipOffsets[level] + i] = uint8_t(i + level * 7); bytes[header.m_mipOffsets[level] + count + i] = uint8_t(i * 3 + level * 13); }
+                }
+                const auto path = std::string(directory) + "/palette-" + std::to_string(preferred) + ".blp";
+                { std::ofstream file(path, std::ios::binary); file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size()); Require(bool(file), "Cannot write palette texture probe"); }
+                auto* palette = TextureCreate(path.c_str(), CGxTexFlags(GxTex_NearestMipNearest), &status, 1);
+                Require(palette != nullptr, "Cannot open Services palette texture");
+                Close closePalette{palette};
+                Require(TextureGetGxTex(palette, 1, &status) && status.IsEmpty(), "Services packed palette texture failed");
+                auto reference = BLP::Image::Load(bytes.data(), bytes.size(), 256 * 1024 * 1024);
+                reference.format = preferred == PIXEL_RGB565 ? BLP::Format::RGB565 : preferred == PIXEL_ARGB1555 ? BLP::Format::ARGB1555 : BLP::Format::ARGB4444;
+                const BlitFormat blit = preferred == PIXEL_RGB565 ? BlitFormat_Rgb565 : preferred == PIXEL_ARGB1555 ? BlitFormat_Argb1555 : BlitFormat_Argb4444;
+                for (auto& mip : reference.mips) {
+                    std::vector<uint8_t> packed(size_t(mip.width) * mip.height * 2);
+                    Require(Blit(C2iVector{int32_t(mip.width), int32_t(mip.height)}, BlitAlpha_0, mip.bytes.data(), mip.rowBytes, BlitFormat_Argb8888, packed.data(), mip.width * 2, blit), "Cannot build original palette conversion reference");
+                    mip.rowBytes = mip.width * 2; mip.bytes = std::move(packed);
+                }
+                CheckServicesTexturePixels(palette->m_gxTex, reference);
+            }
+
         }
         {
             std::vector<std::unique_ptr<Read>> reads;

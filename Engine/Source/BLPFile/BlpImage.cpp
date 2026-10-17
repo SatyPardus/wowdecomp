@@ -23,6 +23,9 @@ const char* BLP::FormatName(Format format) {
         case Format::BC1: return "BC1";
         case Format::BC2: return "BC2";
         case Format::BC3: return "BC3";
+        case Format::RGB565: return "RGB565";
+        case Format::ARGB1555: return "ARGB1555";
+        case Format::ARGB4444: return "ARGB4444";
     }
     return "unknown";
 }
@@ -88,6 +91,27 @@ BLP::Mip BLP::Image::DecodeBGRA(size_t level) const {
     const Mip& source = mips.at(level);
     if (format == Format::BGRA8) { return source; }
     Mip result{source.width, source.height, source.width * 4, std::vector<uint8_t>(size_t(source.width) * source.height * 4)};
+    if (!IsBlockCompressed(format)) {
+        // Diagnostic readback only: packed UNORM5/6 stays packed on the GPU,
+        // since an 8-bit expansion would change values before filtering.
+        for (uint32_t y = 0; y < source.height; ++y) {
+            for (uint32_t x = 0; x < source.width; ++x) {
+                const uint16_t packed = U16(source.bytes.data() + size_t(y) * source.rowBytes + x * 2);
+                auto* pixel = result.bytes.data() + size_t(y) * result.rowBytes + x * 4;
+                if (format == Format::ARGB4444) {
+                    for (unsigned c = 0; c < 4; ++c) { pixel[c] = ((packed >> (c * 4)) & 15) * 17; }
+                } else {
+                    const unsigned greenBits = format == Format::RGB565 ? 6 : 5;
+                    const unsigned greenMask = (1u << greenBits) - 1;
+                    pixel[0] = ((packed & 31) * 255 + 15) / 31;
+                    pixel[1] = (((packed >> 5) & greenMask) * 255 + greenMask / 2) / greenMask;
+                    pixel[2] = (((packed >> (5 + greenBits)) & 31) * 255 + 15) / 31;
+                    pixel[3] = format == Format::RGB565 || (packed & 0x8000) ? 255 : 0;
+                }
+            }
+        }
+        return result;
+    }
     const uint32_t blockBytes = format == Format::BC1 ? 8 : 16;
     for (uint32_t by = 0; by < source.height; by += 4) {
         for (uint32_t bx = 0; bx < source.width; bx += 4) {

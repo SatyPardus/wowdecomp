@@ -10,7 +10,10 @@ struct QuadParameters {
     float2 uvOffset;
     float alphaRef;
     float padding[3];
+    float4 decodeScale[4];
 };
+constant bool decodePacked [[function_constant(4)]];
+inline float4 decoded(float4 sample, float4 scale) { return decodePacked ? sample * scale : sample; }
 constant bool alphaTest [[function_constant(0)]];
 constant bool screenAtDepth [[function_constant(1)]];
 constant bool signedWave [[function_constant(3)]];
@@ -55,7 +58,7 @@ vertex QuadVertex unlitPCT(VertexPCT v [[stage_in]], constant GeometryParameters
 fragment float4 textureQuadFragment(QuadVertex v [[stage_in]], texture2d<float> colorTexture [[texture(0)]],
                                    sampler filtering [[sampler(0)]], constant QuadParameters& p [[buffer(0)]]) {
     float4 texel = p.explicitMip ? colorTexture.sample(filtering, v.uv, level(p.mipLevel)) : colorTexture.sample(filtering, v.uv);
-    float4 color = texel * v.color * p.tint;
+    float4 color = decoded(texel, p.decodeScale[0]) * v.color * p.tint;
     // D3D9 uses GREATEREQUAL. Keep alpha testing independent of blend factors.
     if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }
     return color;
@@ -74,8 +77,8 @@ fragment float4 filter4Fragment(Filter4Raster v [[stage_in]], constant QuadParam
     texture2d<float> image0 [[texture(0)]], texture2d<float> image1 [[texture(1)]],
     texture2d<float> image2 [[texture(2)]], texture2d<float> image3 [[texture(3)]],
     sampler sampling0 [[sampler(0)]], sampler sampling1 [[sampler(1)]], sampler sampling2 [[sampler(2)]], sampler sampling3 [[sampler(3)]]) {
-    float4 tap0 = image0.sample(sampling0, v.uv0), tap1 = image1.sample(sampling1, v.uv1);
-    float4 tap2 = image2.sample(sampling2, v.uv2), tap3 = image3.sample(sampling3, v.uv3);
+    float4 tap0 = decoded(image0.sample(sampling0, v.uv0), p.decodeScale[0]), tap1 = decoded(image1.sample(sampling1, v.uv1), p.decodeScale[1]);
+    float4 tap2 = decoded(image2.sample(sampling2, v.uv2), p.decodeScale[2]), tap3 = decoded(image3.sample(sampling3, v.uv3), p.decodeScale[3]);
     float4 color;
     if (filter4Kernel == 1) {
         // Original Box4: average RGB; alpha comes from the interpolated vertex.
@@ -106,8 +109,8 @@ vertex GlowRaster glowVertex(GlowVertex v [[stage_in]], constant GeometryParamet
 fragment float4 glowFragment(GlowRaster v [[stage_in]], constant QuadParameters& p [[buffer(0)]],
     texture2d<float> scene [[texture(0)]], texture2d<float> blurred [[texture(1)]],
     sampler sceneSampling [[sampler(0)]], sampler blurSampling [[sampler(1)]]) {
-    const float3 sceneColor = scene.sample(sceneSampling, v.sceneUV).rgb;
-    const float3 blurColor = blurred.sample(blurSampling, v.blurUV).rgb;
+    const float3 sceneColor = decoded(scene.sample(sceneSampling, v.sceneUV), p.decodeScale[0]).rgb;
+    const float3 blurColor = decoded(blurred.sample(blurSampling, v.blurUV), p.decodeScale[1]).rgb;
     // Original FFXGlow: blue controls scene/blur interpolation; alpha controls
     // the squared blur contribution. Texture alpha does not affect the result.
     const float3 base = mix(sceneColor, blurColor, v.color.b);
@@ -121,19 +124,19 @@ struct GlowWaveVertex {
     float2 waveUV [[attribute(2)]]; float2 sceneUV [[attribute(3)]]; float2 blurUV [[attribute(4)]];
 };
 struct GlowWaveRaster { float4 position [[position]]; float4 color; float2 waveUV, sceneUV, blurUV; };
-struct WaveParameters { float2 sceneScale, blurScale; float alphaRef; float padding[3]; };
+struct WaveParameters { float2 sceneScale, blurScale; float alphaRef; float padding[3]; float4 decodeScale[3]; };
 vertex GlowWaveRaster glowWaveVertex(GlowWaveVertex v [[stage_in]], constant GeometryParameters& p [[buffer(0)]]) {
     return {p.clipFromModel * float4(v.position, 1), v.color, v.waveUV, v.sceneUV, v.blurUV};
 }
 fragment float4 glowWaveFragment(GlowWaveRaster v [[stage_in]], constant WaveParameters& p [[buffer(0)]],
     texture2d<float> waveTexture [[texture(0)]], texture2d<float> scene [[texture(1)]], texture2d<float> blurred [[texture(2)]],
     sampler waveSampling [[sampler(0)]], sampler sceneSampling [[sampler(1)]], sampler blurSampling [[sampler(2)]]) {
-    float2 wave = waveTexture.sample(waveSampling, v.waveUV).rg;
+    float2 wave = decoded(waveTexture.sample(waveSampling, v.waveUV), p.decodeScale[0]).rg;
     if (!signedWave) { wave = (wave - 0.5f) * 2; }
     const float2 sceneUV = fma(wave, p.sceneScale, v.sceneUV);
     const float2 blurUV = fma(wave, p.blurScale, v.blurUV);
-    const float3 sceneColor = scene.sample(sceneSampling, sceneUV).rgb;
-    const float3 blurColor = blurred.sample(blurSampling, blurUV).rgb;
+    const float3 sceneColor = decoded(scene.sample(sceneSampling, sceneUV), p.decodeScale[1]).rgb;
+    const float3 blurColor = decoded(blurred.sample(blurSampling, blurUV), p.decodeScale[2]).rgb;
     const float3 base = mix(sceneColor, blurColor, v.color.b);
     const float4 color = float4(fma(blurColor * blurColor, v.color.a, base), 1);
     if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }
