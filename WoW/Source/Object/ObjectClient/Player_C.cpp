@@ -37,6 +37,7 @@
 #include "WoW/Source/Game/GameClient/ComSatClient.h"
 #include "WoW/Source/LoadingScreen.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Object/CGPetition.h"
 #include "WoW/Source/Object/ItemStats.h"
@@ -641,7 +642,7 @@ static void InitWeaponSkills() {
             continue;
         }
 
-        if (!s_defenseSpellId && rec.m_effect[0] == 26) {
+        if (!s_defenseSpellId && rec.m_effect[0] == SPELL_EFFECT_DEFENSE) {
             s_defenseSpellId = rec.m_id;
         }
 
@@ -2266,7 +2267,7 @@ int32_t CGPlayer_C::SpellUsesWeaponSkill(const SpellRec* spell) {
         return spell->m_id;
     }
 
-    if ((spell->m_attributesExB & 0x8000000) || spell->m_effect[0] == 25 || spell->m_equippedItemClass != 2 || !spell->m_equippedItemSubclass) {
+    if ((spell->m_attributesExB & 0x8000000) || spell->m_effect[0] == SPELL_EFFECT_WEAPON || spell->m_equippedItemClass != 2 || !spell->m_equippedItemSubclass) {
         return spell->m_id;
     }
 
@@ -4686,7 +4687,7 @@ int32_t CGPlayer_C::GetLanguageSkill(uint32_t language, uint32_t& skill) {
             }
 
             for (uint32_t j = 0; j < 3; j++) {
-                if (spell.m_effectAura[j] == 244 && spell.m_effectMiscValue[j] == static_cast<int32_t>(language)) {
+                if (spell.m_effectAura[j] == SPELL_AURA_COMPREHEND_LANGUAGE && spell.m_effectMiscValue[j] == static_cast<int32_t>(language)) {
                     skill = 300;
                     return 1;
                 }
@@ -4772,9 +4773,9 @@ void CGPlayer_C::AddKnownSpell(int32_t spellId, int32_t a2, int32_t a3, int32_t 
         }
 
         CGTradeSkillInfo::RefreshList(1);
-    } else if (spell.m_effect[0] == 101) {
+    } else if (spell.m_effect[0] == SPELL_EFFECT_FEED_PET) {
         SpellSetFeedPetSpell(spell.m_id);
-    } else if (spell.m_effect[0] == 155) {
+    } else if (spell.m_effect[0] == SPELL_EFFECT_TITAN_GRIP) {
         if (!this->HasEquipBypassSkill(spellId)) {
             this->m_equipBypassSkills.Add(1, &spellId);
         }
@@ -4782,7 +4783,7 @@ void CGPlayer_C::AddKnownSpell(int32_t spellId, int32_t a2, int32_t a3, int32_t 
         bool proficiency = false;
 
         for (uint32_t i = 0; i < 3; i++) {
-            if (spell.m_effect[i] == 60) {
+            if (spell.m_effect[i] == SPELL_EFFECT_PROFICIENCY) {
                 proficiency = true;
                 break;
             }
@@ -4819,7 +4820,7 @@ void CGPlayer_C::AddKnownSpell(int32_t spellId, int32_t a2, int32_t a3, int32_t 
         CGClassTrainer::RefreshList();
     }
 
-    if (spell.m_effect[0] == 40) {
+    if (spell.m_effect[0] == SPELL_EFFECT_DUAL_WIELD) {
         s_dualWieldSpell = spellId;
     }
 }
@@ -7066,7 +7067,7 @@ float CGPlayer_C::GetQuestXPMultiplier() {
         }
 
         for (uint32_t j = 0; j < 3; j++) {
-            if (spell.m_effectAura[j] == 291) {
+            if (spell.m_effectAura[j] == SPELL_AURA_MOD_XP_QUEST_PCT) {
                 multiplier = (spell.m_effectBasePoints[j] + 1) * 0.0099999998f + multiplier;
             }
         }
@@ -7980,7 +7981,7 @@ void CGPlayer_C::DelKnownSpell(int32_t spellId, int32_t silent) {
             }
         }
     } else {
-        if (spell.m_effect[0] == 155) {
+        if (spell.m_effect[0] == SPELL_EFFECT_TITAN_GRIP) {
             this->RemoveEquipBypassSkill(spellId);
         }
 
@@ -10815,7 +10816,7 @@ static int32_t SoulStoneCompare(const CGItem_C* item, void* param) {
         g_spellDB.GetRecord(spellId, &spell);
 
         for (uint32_t j = 0; j < 3; j++) {
-            if (spell.m_effect[j] == 94) {
+            if (spell.m_effect[j] == SPELL_EFFECT_SELF_RESURRECT) {
                 return 1;
             }
         }

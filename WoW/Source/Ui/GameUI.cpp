@@ -49,6 +49,7 @@
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Glue/CWOWClientStatus.h"
 #include "WoW/Source/LoadingScreen.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Object/ItemStats.h"
@@ -3189,7 +3190,7 @@ void CGGameUI::SetCursorSpell(int32_t spellId) {
 
     const char* texture = nullptr;
 
-    if (spell.m_effect[0] == 78) {
+    if (spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         texture = CGActionBar::GetAttackTexture();
     } else if ((spell.m_attributes & 0x2) && (spell.m_attributesExB & 0x20)) {
         texture = CGActionBar::GetRangedTexture();
@@ -4251,7 +4252,7 @@ void CGGameUI::TargetTradeItem() {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell.m_effect[i] != 53) {
+        if (spell.m_effect[i] != SPELL_EFFECT_ENCHANT_ITEM) {
             continue;
         }
 
@@ -4731,7 +4732,7 @@ void CGGameUI::CastItemSpell(WOWGUID guid, int32_t confirmed) {
     for (uint32_t i = 0; i < 3; i++) {
         int32_t effect = spell.m_effect[i];
 
-        if (effect == 53 || effect == 54 || effect == 156) {
+        if (effect == SPELL_EFFECT_ENCHANT_ITEM || effect == SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY || effect == SPELL_EFFECT_ENCHANT_ITEM_PRISMATIC) {
             if (item->GetItemStaticFlags(0) & 0x2000) {
                 return;
             }
@@ -4766,7 +4767,7 @@ void CGGameUI::CastItemSpell(WOWGUID guid, int32_t confirmed) {
 
             CGItem_C::ItemPurchaseData* purchase = item->m_itemPurchaseData;
 
-            if (purchase && spell.m_effect[i] != 54 && !confirmed && static_cast<int32_t>(purchase->m_refundTimeLeft - ClntObjMgrGetActivePlayerObj()->GetPlayedTime() + 7200) > 0) {
+            if (purchase && spell.m_effect[i] != SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY && !confirmed && static_cast<int32_t>(purchase->m_refundTimeLeft - ClntObjMgrGetActivePlayerObj()->GetPlayedTime() + 7200) > 0) {
                 CGGameUI::m_lastItemSpellTarget = item->m_obj->m_guid;
                 FrameScript_SignalEvent(SCRIPT_EVENT_END_REFUND, "%d", 1);
                 return;
@@ -4775,7 +4776,7 @@ void CGGameUI::CastItemSpell(WOWGUID guid, int32_t confirmed) {
             if (item->IsBound() && !item->IsBoundForTrade() && !confirmed) {
                 SpellItemEnchantmentRec* boundEnchant;
 
-                if (spell.m_effect[i] != 54 || ((boundEnchant = g_spellItemEnchantmentDB.GetRecord(spell.m_effectMiscValue[i])) && (boundEnchant->m_flags & 1))) {
+                if (spell.m_effect[i] != SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY || ((boundEnchant = g_spellItemEnchantmentDB.GetRecord(spell.m_effectMiscValue[i])) && (boundEnchant->m_flags & 1))) {
                     CGGameUI::m_lastItemSpellTarget = item->m_obj->m_guid;
                     FrameScript_SignalEvent(SCRIPT_EVENT_END_BOUND_TRADEABLE, "%s", "itemenchant");
                     return;
@@ -4791,7 +4792,7 @@ void CGGameUI::CastItemSpell(WOWGUID guid, int32_t confirmed) {
                 }
             }
 
-            uint32_t slot = spell.m_effect[i] != 53;
+            uint32_t slot = spell.m_effect[i] != SPELL_EFFECT_ENCHANT_ITEM;
 
             if (!(item->GetItemStaticFlags(0) & 0x2000)) {
                 int32_t existingId = item->m_item->m_itemFieldEnchantment[slot].m_id;
@@ -4812,16 +4813,16 @@ void CGGameUI::CastItemSpell(WOWGUID guid, int32_t confirmed) {
 
         effect = spell.m_effect[i];
 
-        if (effect != 127 && effect != 158) {
+        if (effect != SPELL_EFFECT_PROSPECTING && effect != SPELL_EFFECT_MILLING) {
             continue;
         }
 
-        if (effect == 127 && !(item->GetItemStaticFlags(0) & 0x40000)) {
+        if (effect == SPELL_EFFECT_PROSPECTING && !(item->GetItemStaticFlags(0) & 0x40000)) {
             Spell_C_SpellFailed(cast, &spell, 17, -1, -1, 0);
             return;
         }
 
-        if (spell.m_effect[i] == 158 && !(item->GetItemStaticFlags(0) & 0x20000000)) {
+        if (spell.m_effect[i] == SPELL_EFFECT_MILLING && !(item->GetItemStaticFlags(0) & 0x20000000)) {
             Spell_C_SpellFailed(cast, &spell, 16, -1, -1, 0);
             return;
         }

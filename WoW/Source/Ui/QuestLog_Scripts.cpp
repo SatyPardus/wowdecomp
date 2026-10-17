@@ -23,6 +23,7 @@
 #include "WoW/Source/UIUtil/Tooltip.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "WoW/Source/DB/Rec/CharTitlesRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Ui/PartyFrame.h"
 #include "WoW/Source/Ui/RaidInfo.h"
@@ -883,7 +884,7 @@ static int32_t Script_GetQuestLogRewardSpell(lua_State* L) {
 
         if (g_spellDB.GetRecord(quest->m_effectOnPlayer, &effect)) {
             for (uint32_t i = 0; i < 3; i++) {
-                if (effect.m_effect[i] == 36 || effect.m_effect[i] == 57) {
+                if (effect.m_effect[i] == SPELL_EFFECT_LEARN_SPELL || effect.m_effect[i] == SPELL_EFFECT_LEARN_PET_SPELL) {
                     learns = 1;
                     break;
                 }

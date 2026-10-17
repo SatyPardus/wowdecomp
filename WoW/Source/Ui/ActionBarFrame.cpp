@@ -12,6 +12,7 @@
 #include "WoW/Source/DB/Rec/OverrideSpellDataRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
@@ -239,7 +240,7 @@ int32_t CGActionBar::IsAttackAction(uint32_t slot) {
     SpellRec spell;
     int32_t petSpell;
 
-    if (g_spellDB.GetRecord(CGActionBar::GetSpell(slot, petSpell), &spell) && spell.m_effect[0] == 78) {
+    if (g_spellDB.GetRecord(CGActionBar::GetSpell(slot, petSpell), &spell) && spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         return 1;
     }
 
@@ -2115,7 +2116,7 @@ void CGActionBar::UpdateCritter(int32_t critter) {
         }
 
         for (uint32_t i = 0; i < 3; i++) {
-            if (spell.m_effect[i] == 28 && g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[0]) && spell.m_effectMiscValue[i] == critter) {
+            if (spell.m_effect[i] == SPELL_EFFECT_SUMMON && g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[0]) && spell.m_effectMiscValue[i] == critter) {
                 int32_t noMana;
                 CGActionBar::m_slotUsable[slot] = CGActionBar::UpdateUsableAction(slot, noMana);
                 CGActionBar::m_slotNoMana[slot] = noMana;

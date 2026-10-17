@@ -50,6 +50,7 @@
 #include "WoW/Source/DB/Rec/TotemCategoryRec.h"
 #include "WoW/Source/Game/GameClient/NameCache.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/SpellTable.h"
 #include "WoW/Source/Object/CreatureStats.h"
 #include "WoW/Source/Object/Item.h"
@@ -297,7 +298,7 @@ void CGItemStatsSummary::AddSpellEffects(const SpellRec* spell) {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell->m_effect[i] != 6) {
+        if (spell->m_effect[i] != SPELL_EFFECT_APPLY_AURA) {
             continue;
         }
 
@@ -305,11 +306,11 @@ void CGItemStatsSummary::AddSpellEffects(const SpellRec* spell) {
         int32_t misc = spell->m_effectMiscValue[i];
 
         switch (spell->m_effectAura[i]) {
-            case 13:
+            case SPELL_AURA_MOD_DAMAGE_DONE:
                 this->m_stats[53] += value;
                 break;
 
-            case 22:
+            case SPELL_AURA_MOD_RESISTANCE:
                 for (uint32_t r = 0; r < 7; r++) {
                     if (misc & (1 << r)) {
                         this->m_stats[r] += value;
@@ -318,39 +319,39 @@ void CGItemStatsSummary::AddSpellEffects(const SpellRec* spell) {
 
                 break;
 
-            case 85:
+            case SPELL_AURA_MOD_POWER_REGEN:
                 this->m_stats[misc + 61] += value;
                 break;
 
-            case 99:
+            case SPELL_AURA_MOD_ATTACK_POWER:
                 this->m_stats[8] += value;
                 break;
 
-            case 123:
+            case SPELL_AURA_MOD_TARGET_RESISTANCE:
                 this->m_stats[58] += -1 - spell->m_effectBasePoints[i];
                 break;
 
-            case 124:
+            case SPELL_AURA_MOD_RANGED_ATTACK_POWER:
                 this->m_stats[9] += value;
                 break;
 
-            case 135:
+            case SPELL_AURA_MOD_HEALING_DONE:
                 this->m_stats[52] += value;
                 break;
 
-            case 150:
+            case SPELL_AURA_MOD_SHIELD_BLOCKVALUE_PCT:
                 this->m_stats[26] += value;
                 break;
 
-            case 158:
+            case SPELL_AURA_MOD_SHIELD_BLOCKVALUE:
                 this->m_stats[60] += value;
                 break;
 
-            case 161:
+            case SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT:
                 this->m_stats[68] += value;
                 break;
 
-            case 189:
+            case SPELL_AURA_MOD_RATING:
                 for (int32_t r = 0; r < 25; r++) {
                     if ((misc & (1 << r)) && s_combatRatingStats[r] != -1) {
                         this->m_stats[s_combatRatingStats[r] + 11] += value;
@@ -1481,7 +1482,7 @@ void CGTooltip::GetSummonedByString(CGUnit_C* unit, char* buffer, uint32_t size)
 
     if (g_spellDB.GetRecord(unit->m_unit->m_unitCreatedBySpell, &spell)) {
         for (uint32_t i = 0; i < sizeof(spell.m_effect) / sizeof(spell.m_effect[0]); i++) {
-            if (spell.m_effect[i] != 28) {
+            if (spell.m_effect[i] != SPELL_EFFECT_SUMMON) {
                 continue;
             }
 
@@ -1733,7 +1734,7 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
 
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
-    if (!healthGuid && unit && unit->HasAuraEffect(279)) {
+    if (!healthGuid && unit && unit->HasAuraEffect(SPELL_AURA_INITIALIZE_IMAGES)) {
         SpellRec spell;
 
         for (uint32_t i = 0; i < unit->GetAuraCount(); i++) {
@@ -1744,7 +1745,7 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
             }
 
             for (uint32_t j = 0; j < sizeof(spell.m_effectAura) / sizeof(spell.m_effectAura[0]); j++) {
-                if (spell.m_effectAura[j] == 279 && ((1 << j) & aura->m_flags)) {
+                if (spell.m_effectAura[j] == SPELL_AURA_INITIALIZE_IMAGES && ((1 << j) & aura->m_flags)) {
                     return this->SetUnit(aura->m_creator, showHealth, guid, 0);
                 }
             }
@@ -2749,11 +2750,11 @@ static int32_t AddSpellCastTimeLine(CGTooltip* tooltip, const SpellRec* spell, i
     char recastTime[128];
     char format[128];
 
-    if (spell->m_effect[0] == 47 || (spell->m_attributes & 0x40)) {
+    if (spell->m_effect[0] == SPELL_EFFECT_TRADE_SKILL || (spell->m_attributes & 0x40)) {
         return 1;
     }
 
-    if (spell->m_effect[0] == 78) {
+    if (spell->m_effect[0] == SPELL_EFFECT_ATTACK) {
         return 0;
     }
 
@@ -2967,7 +2968,7 @@ static void AddSpellFormLine(CGTooltip* tooltip, const SpellRec* spell, CGUnit_C
         }
     }
 
-    int32_t usable = !caster || SpellRec::UsableInShapeshift(spell, caster->GetShapeshiftForm() - 1) || (needsForm && !caster->IsShapeShifted()) || caster->AffectedByAura(275, spell);
+    int32_t usable = !caster || SpellRec::UsableInShapeshift(spell, caster->GetShapeshiftForm() - 1) || (needsForm && !caster->IsShapeShifted()) || caster->AffectedByAura(SPELL_AURA_MOD_IGNORE_SHAPESHIFT, spell);
 
     if (first || (usable && brief)) {
         return;
@@ -3061,7 +3062,7 @@ static int32_t AddSpellEffectChanceLine(CGTooltip* tooltip, const SpellRec* spel
     char text[128];
     int32_t effect = spell->m_effect[0];
 
-    if (effect != 78 && !(isTradeSkill && (effect == 20 || effect == 23 || effect == 22))) {
+    if (effect != SPELL_EFFECT_ATTACK && !(isTradeSkill && (effect == SPELL_EFFECT_DODGE || effect == SPELL_EFFECT_BLOCK || effect == SPELL_EFFECT_PARRY))) {
         return 0;
     }
 
@@ -3069,22 +3070,22 @@ static int32_t AddSpellEffectChanceLine(CGTooltip* tooltip, const SpellRec* spel
     const char* token;
 
     switch (effect) {
-        case 20:
+        case SPELL_EFFECT_DODGE:
             chance = player->m_player->m_playerDodgePercentage;
             token = "CHANCE_TO_DODGE";
             break;
 
-        case 22:
+        case SPELL_EFFECT_PARRY:
             chance = player->m_player->m_playerParryPercentage;
             token = "CHANCE_TO_PARRY";
             break;
 
-        case 23:
+        case SPELL_EFFECT_BLOCK:
             chance = player->m_player->m_playerBlockPercentage;
             token = "CHANCE_TO_BLOCK";
             break;
 
-        case 78:
+        case SPELL_EFFECT_ATTACK:
             chance = player->m_player->m_playerCritPercentage;
             token = "CHANCE_TO_CRIT";
             break;
@@ -3199,12 +3200,12 @@ int32_t CGTooltip::SetSpell(int32_t spellId, int32_t brief, uint32_t cooldown, i
         for (uint32_t i = 0; i < 3; i++) {
             int32_t effect = spell.m_effect[i];
 
-            if (effect == 53) {
+            if (effect == SPELL_EFFECT_ENCHANT_ITEM) {
                 tradeSkill = 1;
                 break;
             }
 
-            if (effect == 24 || effect == 157 || effect == 59) {
+            if (effect == SPELL_EFFECT_CREATE_ITEM || effect == SPELL_EFFECT_CREATE_ITEM_2 || effect == SPELL_EFFECT_CREATE_RANDOM_ITEM) {
                 tradeSkill = 1;
                 createsItem = 1;
             }
@@ -4436,7 +4437,7 @@ static void AddItemTypeLines(CGTooltip* tooltip, const ItemStats_C* stats, CGPla
 
             if (g_spellDB.GetRecord(stats->m_spellId[i], &spell)) {
                 for (uint32_t j = 0; j < 3; j++) {
-                    if (spell.m_effect[j] != 74) {
+                    if (spell.m_effect[j] != SPELL_EFFECT_APPLY_GLYPH) {
                         continue;
                     }
 
@@ -5472,7 +5473,7 @@ static void AddItemRequirementLines(CGTooltip* tooltip, const ItemStats_C* stats
 
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(stats->m_spellId[0], &spell) && spell.m_effect[0] == 36) {
+    if (g_spellDB.GetRecord(stats->m_spellId[0], &spell) && spell.m_effect[0] == SPELL_EFFECT_LEARN_SPELL) {
         int32_t taughtSpell = spell.m_effectTriggerSpell[0];
 
         if (!taughtSpell) {
@@ -5871,11 +5872,11 @@ static int32_t AddItemSpellTriggerLines(CGTooltip* tooltip, const ItemStats_C* s
         if (stats->m_spellTrigger[i] == 6) {
             hasCreated = 1;
             created = spell;
-        } else if (spell.m_effect[0] == 36) {
+        } else if (spell.m_effect[0] == SPELL_EFFECT_LEARN_SPELL) {
             hasCreated = g_spellDB.GetRecord(spell.m_effectTriggerSpell[0], &created);
         }
 
-        if (hasCreated && (created.m_effect[0] == 24 || created.m_effect[0] == 157 || created.m_effect[0] == 59) && created.m_effectItemType[0]) {
+        if (hasCreated && (created.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || created.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || created.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && created.m_effectItemType[0]) {
             createsItem = 1;
         }
 
@@ -6241,7 +6242,7 @@ static void AddItemDisenchantLine(CGTooltip* tooltip, const ItemStats_C* stats, 
     SkillLineRec* skill = g_skillLineDB.GetRecord(ability ? ability->m_skillLine : -1);
     SpellRec spell;
 
-    if (!skill || !ability || !g_spellDB.GetRecord(Spell_C_GetTargetingSpell(), &spell) || spell.m_effect[0] != 99) {
+    if (!skill || !ability || !g_spellDB.GetRecord(Spell_C_GetTargetingSpell(), &spell) || spell.m_effect[0] != SPELL_EFFECT_DISENCHANT) {
         return;
     }
 
@@ -7439,7 +7440,7 @@ void CGTooltip::AddSkinnableText(CGUnit_C* unit, char* buffer, uint32_t size) {
         g_spellDB.GetRecord(skinningSpell, &spell);
 
         for (uint32_t i = 0; i < 3; i++) {
-            if (spell.m_effect[i] != 95) {
+            if (spell.m_effect[i] != SPELL_EFFECT_SKINNING) {
                 continue;
             }
 

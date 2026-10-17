@@ -27,6 +27,7 @@
 #include "WoW/Source/DB/Rec/DurabilityQualityRec.h"
 #include "WoW/Source/DB/Rec/LockRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
@@ -1315,7 +1316,7 @@ int32_t CGItem_C::IsLocked(const LockRec* lock, int32_t itemLevel, int32_t* spel
                 g_spellDB.GetRecord(s_openLockSpells.m_data[j], &spell);
 
                 for (uint32_t effect = 0; effect < 3; effect++) {
-                    if (spell.m_effect[effect] != 33 || spell.m_effectMiscValue[effect] != lock->m_index[i]) {
+                    if (spell.m_effect[effect] != SPELL_EFFECT_OPEN_LOCK || spell.m_effectMiscValue[effect] != lock->m_index[i]) {
                         continue;
                     }
 
@@ -1355,7 +1356,7 @@ int32_t CGItem_C::IsLocked(const LockRec* lock, int32_t itemLevel, int32_t* spel
             g_spellDB.GetRecord(lock->m_index[i], &spell);
 
             for (uint32_t effect = 0; effect < 3; effect++) {
-                if (spell.m_effect[effect] == 33) {
+                if (spell.m_effect[effect] == SPELL_EFFECT_OPEN_LOCK) {
                     if (spellId) {
                         *spellId = spell.m_id;
                     }

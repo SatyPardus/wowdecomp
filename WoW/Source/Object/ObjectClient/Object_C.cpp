@@ -33,9 +33,9 @@
 #include "WoW/Source/Ui/PetInfo.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
 #include "WoW/Source/Ui/MinimapFrame.h"
-#include "WoW/Source/Ui/MinimapFrame.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include <cmath>
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
@@ -1611,15 +1611,15 @@ void CGObject_C::PlaySpellVisualKit(const PlaySpellVisuaKitData& data) {
             callback = &CGObject_C::AuraEffectHandler;
 
             if (spell) {
-                if (spell->m_effectAura[0] == 78) {
+                if (spell->m_effectAura[0] == SPELL_AURA_MOUNTED) {
                     flags |= 0x800000;
                 }
 
-                if (spell->m_effectAura[1] == 78) {
+                if (spell->m_effectAura[1] == SPELL_AURA_MOUNTED) {
                     flags |= 0x800000;
                 }
 
-                if (spell->m_effectAura[2] == 78) {
+                if (spell->m_effectAura[2] == SPELL_AURA_MOUNTED) {
                     flags |= 0x800000;
                 }
             }
@@ -1668,7 +1668,7 @@ void CGObject_C::PlaySpellVisualKit(const PlaySpellVisuaKitData& data) {
 
         if (data.m_spellRec && !data.m_position) {
             for (uint32_t i = 0; i < 3; i++) {
-                if (data.m_spellRec->m_effectAura[i] == 26) {
+                if (data.m_spellRec->m_effectAura[i] == SPELL_AURA_MOD_ROOT) {
                     flags |= 0x4000;
                     break;
                 }
@@ -1801,7 +1801,7 @@ attachments:
 
             if (data.m_spellRec && !data.m_position) {
                 for (uint32_t j = 0; j < 3; j++) {
-                    if (data.m_spellRec->m_effectAura[j] == 26) {
+                    if (data.m_spellRec->m_effectAura[j] == SPELL_AURA_MOD_ROOT) {
                         flags |= 0x4000;
                         break;
                     }

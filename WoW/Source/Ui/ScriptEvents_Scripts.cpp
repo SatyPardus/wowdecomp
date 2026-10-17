@@ -19,6 +19,7 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/PartyFrame.h"
 #include "WoW/Source/Game/GameClient/PetNameCache.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/ObjectClient/Corpse_C.h"
@@ -2434,7 +2435,7 @@ static int32_t Script_UnitCastingInfo(lua_State* L) {
 
         if (lock) {
             for (uint32_t i = 0; i < 3; i++) {
-                if (spell.m_effect[i] != 33) {
+                if (spell.m_effect[i] != SPELL_EFFECT_OPEN_LOCK) {
                     continue;
                 }
 

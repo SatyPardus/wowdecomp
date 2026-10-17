@@ -10,6 +10,7 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/Player.h"
 #include "WoW/Source/Object/Unit.h"
@@ -420,7 +421,7 @@ void CGClassTrainer::RefreshList() {
                 continue;
             }
 
-            if (effect == 44) {
+            if (effect == SPELL_EFFECT_SKILL_STEP) {
                 int32_t minPoints;
                 int32_t maxPoints;
                 Spell_C_GetMinMaxPoints(&spell, e, &minPoints, &maxPoints, 0, 0, 0, 0);
@@ -445,7 +446,7 @@ void CGClassTrainer::RefreshList() {
 
             int32_t spellId;
 
-            if (effect == 36 && spell.m_implicitTargetA[e] != 5) {
+            if (effect == SPELL_EFFECT_LEARN_SPELL && spell.m_implicitTargetA[e] != 5) {
                 spellId = spell.m_effectTriggerSpell[e];
                 teaches = true;
             } else {
@@ -504,7 +505,7 @@ void CGClassTrainer::RefreshList() {
 
             if (g_spellDB.GetRecord(CGClassTrainer::m_services.m_data[s]->m_stepSpellID, &stepSpell)) {
                 for (uint32_t e = 0; e < 3; e++) {
-                    if (stepSpell.m_effect[e] == 44 && stepSpell.m_effectMiscValue[e] == CGClassTrainer::m_services.m_data[s]->m_skillReq) {
+                    if (stepSpell.m_effect[e] == SPELL_EFFECT_SKILL_STEP && stepSpell.m_effectMiscValue[e] == CGClassTrainer::m_services.m_data[s]->m_skillReq) {
                         int32_t minPoints;
                         int32_t maxPoints;
                         Spell_C_GetMinMaxPoints(&stepSpell, e, &minPoints, &maxPoints, 0, 0, 0, 0);
@@ -723,7 +724,7 @@ static int32_t GetSkillLineFromService(int32_t spellId) {
     int32_t effect = -1;
 
     for (int32_t i = 0; i < 3; i++) {
-        if (spell.m_effect[i] == 36 && spell.m_implicitTargetA[i] != 5) {
+        if (spell.m_effect[i] == SPELL_EFFECT_LEARN_SPELL && spell.m_implicitTargetA[i] != 5) {
             effect = i;
             break;
         }
@@ -779,7 +780,7 @@ void CGClassTrainer::AddServices(uint32_t count, const int32_t* spellIds, const 
                     skillLine = 3;
                 } else {
                     for (int32_t j = 0; j < 3; j++) {
-                        if (spell.m_effect[j] == 44) {
+                        if (spell.m_effect[j] == SPELL_EFFECT_SKILL_STEP) {
                             skillLine = 1;
                             break;
                         }

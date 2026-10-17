@@ -8,6 +8,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/ObjectClient/Bag_C.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
@@ -1865,7 +1866,7 @@ static int32_t Script_SetTrainerService(lua_State* L) {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell.m_effect[i] != 36 && spell.m_effect[i] != 57) {
+        if (spell.m_effect[i] != SPELL_EFFECT_LEARN_SPELL && spell.m_effect[i] != SPELL_EFFECT_LEARN_PET_SPELL) {
             continue;
         }
 
@@ -1875,13 +1876,13 @@ static int32_t Script_SetTrainerService(lua_State* L) {
             continue;
         }
 
-        if ((learned.m_attributes & 0x20) && (learned.m_effect[0] == 24 || learned.m_effect[0] == 157 || learned.m_effect[0] == 59) && learned.m_effectItemType[0]) {
+        if ((learned.m_attributes & 0x20) && (learned.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || learned.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || learned.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && learned.m_effectItemType[0]) {
             WOWGUID requester;
             requester.m_guid = static_cast<uint64_t>(static_cast<int64_t>(learned.m_id)) | 0x1FE0000000000000ULL;
             WOWGUID itemGuid = WOWGUID();
             tooltip->SetItem(learned.m_effectItemType[0], &requester, &itemGuid, 0, 0, 0, 0, WOWGUID(), 0, nullptr, 0, nullptr, 0, 0, 1);
         } else {
-            tooltip->SetSpell(learned.m_id, 0, 0, spell.m_effect[i] == 57, 0, 0, 0, nullptr, nullptr, 0, 0, -1, -1, 0, 0);
+            tooltip->SetSpell(learned.m_id, 0, 0, spell.m_effect[i] == SPELL_EFFECT_LEARN_PET_SPELL, 0, 0, 0, nullptr, nullptr, 0, 0, -1, -1, 0, 0);
         }
 
         return 0;
@@ -1932,7 +1933,7 @@ static int32_t Script_SetTradeSkillItem(lua_State* L) {
         return 0;
     }
 
-    if ((spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) && spell.m_effectItemType[0]) {
+    if ((spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && spell.m_effectItemType[0]) {
         int32_t minPoints;
         int32_t maxPoints;
         Spell_C_GetMinMaxPoints(&spell, 0, &minPoints, &maxPoints, 0, 0, 0, 0);
@@ -1940,7 +1941,7 @@ static int32_t Script_SetTradeSkillItem(lua_State* L) {
         tooltip->m_itemLinkInfo.m_stackCount = minPoints;
         tooltip->m_itemLinkInfo.m_maxStackCount = maxPoints;
 
-        if (spell.m_effect[0] == 24) {
+        if (spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM) {
             tooltip->m_itemLinkInfo.m_spellCharges = CGItem_C::NumBaseCharges(spell.m_effectItemType[0]);
         }
 

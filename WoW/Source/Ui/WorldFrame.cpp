@@ -41,6 +41,7 @@
 #include "WoW/Source/Game/GameClient/ProjectTex.h"
 #include "WoW/Source/Game/GameClient/WorldText.h"
 #include "WoW/Source/Game/GameTime.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/SpellVisuals.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/ObjectClient/AuraData.h"
@@ -1382,7 +1383,7 @@ void CGWorldFrame::UpdateScreenEffect() {
             }
 
             for (uint32_t j = 0; j < 3; j++) {
-                if (spell.m_effectAura[j] == 260) {
+                if (spell.m_effectAura[j] == SPELL_AURA_SCREEN_EFFECT) {
                     CGWorldFrame::SetScreenEffect(spell.m_effectMiscValue[j]);
                     return;
                 }

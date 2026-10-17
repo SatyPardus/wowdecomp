@@ -15,6 +15,7 @@
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "WoW/Source/DB/Rec/SpellVisualKitRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/SpellVisuals.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
@@ -1728,7 +1729,7 @@ void CEffect::AddMountTransition(uint32_t spellId, const SpellVisualKitRec* kit,
     this->m_displayId = 0;
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell.m_effect[i] == 6 && spell.m_effectAura[i] == 78) {
+        if (spell.m_effect[i] == SPELL_EFFECT_APPLY_AURA && spell.m_effectAura[i] == SPELL_AURA_MOUNTED) {
             int32_t creatureId = spell.m_effectMiscValue[i];
             this->m_pendingCacheId = creatureId;
             WOWGUID key = { static_cast<uint64_t>(spellId) | 0x1FE0000000000000ull };

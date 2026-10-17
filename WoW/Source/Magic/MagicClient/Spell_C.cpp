@@ -1,4 +1,5 @@
 #include "Spell_C.h"
+#include "SpellEnums.h"
 #include "WoW/Source/Magic/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -379,9 +380,9 @@ int32_t Spell_C_GetPowerCost(const SpellRec* spell, const CGUnit_C* unit) {
         }
     }
 
-    if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && Spell_C_HasEffect(spell, 97)) {
+    if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && Spell_C_HasEffect(spell, SPELL_EFFECT_CAST_BUTTON)) {
         for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-            if (spell->m_effect[i] != 97) {
+            if (spell->m_effect[i] != SPELL_EFFECT_CAST_BUTTON) {
                 continue;
             }
 
@@ -507,12 +508,12 @@ bool Spell_C_IsUsableAction(CGUnit_C* unit, const SpellRec* spell, const WOWGUID
         return false;
     }
 
-    if (spell->m_effect[0] == 47) {
+    if (spell->m_effect[0] == SPELL_EFFECT_TRADE_SKILL) {
         return true;
     }
 
     if (unit->IsActivePlayer()) {
-        bool attack = spell->m_effect[0] == 78 || (spell->m_attributes & 0x2);
+        bool attack = spell->m_effect[0] == SPELL_EFFECT_ATTACK || (spell->m_attributes & 0x2);
         uint32_t flags = static_cast<CGPlayer_C*>(unit)->m_player->m_playerFlags;
 
         if (flags & 0x1000000) {
@@ -2181,7 +2182,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         }
 
         for (uint32_t effect = 0; effect < 3; effect++) {
-            if (spell.m_effect[effect] != 33) {
+            if (spell.m_effect[effect] != SPELL_EFFECT_OPEN_LOCK) {
                 continue;
             }
 
@@ -2213,7 +2214,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
             }
 
             for (uint32_t i = 0; i < 3; i++) {
-                if (spell.m_effect[i] != 33) {
+                if (spell.m_effect[i] != SPELL_EFFECT_OPEN_LOCK) {
                     continue;
                 }
 
@@ -2255,7 +2256,7 @@ void PendingSpellCast::OnSpellGo(CDataStore* msg) {
         for (uint32_t i = 0; i < 3; i++) {
             int32_t effect = spell.m_effect[i];
 
-            if (effect == 71 || effect == 95 || effect == 116 || ((effect == 99 || effect == 127 || effect == 158) && CGGameUI::IsAutoLooting())) {
+            if (effect == SPELL_EFFECT_PICKPOCKET || effect == SPELL_EFFECT_SKINNING || effect == SPELL_EFFECT_SKIN_PLAYER_CORPSE || ((effect == SPELL_EFFECT_DISENCHANT || effect == SPELL_EFFECT_PROSPECTING || effect == SPELL_EFFECT_MILLING) && CGGameUI::IsAutoLooting())) {
                 if (!player->m_autoLoot) {
                     player->SetAutoLoot(g_autoLootDefaultCVar->m_intValue);
                 }
@@ -2845,7 +2846,7 @@ bool SpellIsTrackingAura(const SpellRec* spell) {
     for (int32_t i = 0; i < 3; i++) {
         int32_t aura = spell->m_effectAura[i];
 
-        if (aura == 44 || aura == 45 || aura == 151) {
+        if (aura == SPELL_AURA_TRACK_CREATURES || aura == SPELL_AURA_TRACK_RESOURCES || aura == SPELL_AURA_TRACK_STEALTHED) {
             return true;
         }
     }
@@ -3020,7 +3021,7 @@ int32_t SpellRec::IsHelpfulOrHarmful(const SpellRec* spell) {
     for (uint32_t i = 0; i < 3; i++) {
         switch (spell->m_implicitTargetA[i]) {
             case 1:
-                if (spell->m_effectAura[i] != 4) {
+                if (spell->m_effectAura[i] != SPELL_AURA_DUMMY) {
                     return 1;
                 }
 
@@ -3050,7 +3051,7 @@ int32_t SpellRec::IsHelpfulOrHarmful(const SpellRec* spell) {
 
         switch (spell->m_implicitTargetB[i]) {
             case 1:
-                if (spell->m_effectAura[i] != 4) {
+                if (spell->m_effectAura[i] != SPELL_AURA_DUMMY) {
                     return 1;
                 }
 
@@ -3085,7 +3086,7 @@ int32_t SpellRec::IsHelpfulOrHarmful(const SpellRec* spell) {
 // VERIFY: 69f73b82 auto
 // OFFSET: 0x008009B0
 bool SpellRec::WillSummonCritter(const SpellRec* spell) {
-    if (spell->m_effect[0] == 28) {
+    if (spell->m_effect[0] == SPELL_EFFECT_SUMMON) {
         SummonPropertiesRec* properties = g_summonPropertiesDB.GetRecord(spell->m_effectMiscValueB[0]);
 
         if (properties && properties->m_slot == 5) {
@@ -3093,7 +3094,7 @@ bool SpellRec::WillSummonCritter(const SpellRec* spell) {
         }
     }
 
-    return spell->m_effectAura[0] == 78;
+    return spell->m_effectAura[0] == SPELL_AURA_MOUNTED;
 }
 
 // VERIFY: 54ab5610 manual
@@ -3143,7 +3144,7 @@ bool SpellHistory::GetSpellCooldown(int32_t spellId, int32_t itemId, uint32_t* d
 
     SpellRec spell;
 
-    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] == 78 || spell.m_effect[0] == 47) {
+    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] == SPELL_EFFECT_ATTACK || spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL) {
         return false;
     }
 
@@ -3695,7 +3696,7 @@ void Spell_C_GetMinMaxPoints(const SpellRec* spell, uint32_t effectIndex, float*
 
         int32_t aura = spell->m_effectAura[effectIndex];
 
-        if (aura == 10 || aura == 103 || aura == 183) {
+        if (aura == SPELL_AURA_MOD_THREAT || aura == SPELL_AURA_MOD_TOTAL_THREAT || aura == SPELL_AURA_MOD_CRITICAL_THREAT) {
             Spell_C_ModifySpellValue(spell, minValue, 2);
             Spell_C_ModifySpellValue(spell, maxValue, 2);
         }
@@ -3758,7 +3759,7 @@ int32_t Spell_C_GetDuration(const SpellRec* spell, int32_t isPet, int32_t isUnit
 
     for (uint32_t i = 0; i < 3; i++) {
         if (spell->m_effectAuraPeriod[i]) {
-            if (((spell->m_attributesExE & 0x2000) || player->AffectedByAura(316, spell)) && !(spell->m_attributesExC & 0x20000000) && player->m_unit->m_unitModCastSpeed >= 0.001f) {
+            if (((spell->m_attributesExE & 0x2000) || player->AffectedByAura(SPELL_AURA_PERIODIC_HASTE, spell)) && !(spell->m_attributesExC & 0x20000000) && player->m_unit->m_unitModCastSpeed >= 0.001f) {
                 duration = CMath::fint_(duration * player->m_unit->m_unitModCastSpeed);
             }
 
@@ -4249,36 +4250,36 @@ static bool SpellCancelsAura(const SpellRec* spell, const SpellRec* aura, uint32
     }
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] != 6) {
+        if (spell->m_effect[i] != SPELL_EFFECT_APPLY_AURA) {
             continue;
         }
 
         int32_t misc = spell->m_effectMiscValue[i];
 
         switch (spell->m_effectAura[i]) {
-            case 38:
+            case SPELL_AURA_STATE_IMMUNITY:
                 if (misc == aura->m_effectAura[auraEffect]) {
                     return true;
                 }
 
                 break;
 
-            case 39:
-            case 267:
+            case SPELL_AURA_SCHOOL_IMMUNITY:
+            case SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL:
                 if (!(aura->m_attributesExB & 0x4000000) && (aura->m_schoolMask & misc)) {
                     return true;
                 }
 
                 break;
 
-            case 41:
+            case SPELL_AURA_DISPEL_IMMUNITY:
                 if (misc == aura->m_dispelType) {
                     return true;
                 }
 
                 break;
 
-            case 77:
+            case SPELL_AURA_MECHANIC_IMMUNITY:
                 if (misc == aura->m_mechanic || misc == aura->m_effectMechanic[auraEffect]) {
                     return true;
                 }
@@ -4296,11 +4297,11 @@ uint32_t GetRequiredAuraVisionBitmask(const SpellRec* spell) {
     uint32_t mask = spell->m_requiredAuraVision > 0 ? 1 << (spell->m_requiredAuraVision - 1) : 0;
 
     for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-        if (spell->m_effectAura[i] == 17) {
+        if (spell->m_effectAura[i] == SPELL_AURA_MOD_STEALTH_DETECT) {
             mask |= 0x20;
         }
 
-        if (spell->m_effectAura[i] == 19 && (!spell->m_effectMiscValue[i] || spell->m_effectMiscValue[i] == 10)) {
+        if (spell->m_effectAura[i] == SPELL_AURA_MOD_INVISIBILITY_DETECT && (!spell->m_effectMiscValue[i] || spell->m_effectMiscValue[i] == 10)) {
             mask |= 0x40;
         }
     }
@@ -4865,7 +4866,7 @@ int32_t Packet_SMSG_PLAY_SPELL_IMPACT(void* param, NETMESSAGE msgId, uint32_t ti
 // OFFSET: 0x00800950
 bool SpellAppliesNonStanceShapeshift(const SpellRec* spell) {
     for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-        if (spell->m_effectAura[i] != 36) {
+        if (spell->m_effectAura[i] != SPELL_AURA_MOD_SHAPESHIFT) {
             continue;
         }
 
@@ -5123,7 +5124,7 @@ bool Spell_C_IsActiveSpell(const SpellRec* spell, const CGUnit_C* unit) {
     CGUnit_C* vehicle = unit->m_vehiclePassenger ? unit->m_vehiclePassenger->GetVehicleUnit() : nullptr;
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] != 28) {
+        if (spell->m_effect[i] != SPELL_EFFECT_SUMMON) {
             continue;
         }
 
@@ -5155,11 +5156,11 @@ bool Spell_C_IsActiveSpell(const SpellRec* spell, const CGUnit_C* unit) {
         }
     }
 
-    if (spell->m_effectAura[0] == 78) {
+    if (spell->m_effectAura[0] == SPELL_AURA_MOUNTED) {
         SpellRec aura;
 
         for (uint32_t i = 0; i < unit->GetAuraCount(); i++) {
-            if (g_spellDB.GetRecord(self->m_auras[i].m_spellId, &aura) && aura.m_effectAura[0] == 78 && aura.m_effectMiscValue[0] == spell->m_effectMiscValue[0]) {
+            if (g_spellDB.GetRecord(self->m_auras[i].m_spellId, &aura) && aura.m_effectAura[0] == SPELL_AURA_MOUNTED && aura.m_effectMiscValue[0] == spell->m_effectMiscValue[0]) {
                 active = true;
                 break;
             }
@@ -5194,7 +5195,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
     }
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] != 28) {
+        if (spell->m_effect[i] != SPELL_EFFECT_SUMMON) {
             continue;
         }
 
@@ -5217,7 +5218,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
         SpellRec mount;
 
         for (uint32_t i = 0; i < unit->GetAuraCount(); i++) {
-            if (g_spellDB.GetRecord(unit->m_auras[i].m_spellId, &mount) && mount.m_effectAura[0] == 78 && mount.m_effectMiscValue[0] == spell->m_effectMiscValue[0] && mount.m_id != spell->m_id) {
+            if (g_spellDB.GetRecord(unit->m_auras[i].m_spellId, &mount) && mount.m_effectAura[0] == SPELL_AURA_MOUNTED && mount.m_effectMiscValue[0] == spell->m_effectMiscValue[0] && mount.m_id != spell->m_id) {
                 Spell_C_CancelAura(&mount, unit, -1);
                 return;
             }
@@ -5238,7 +5239,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
         }
 
         for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-            if (spell->m_effectAura[i] != 36) {
+            if (spell->m_effectAura[i] != SPELL_AURA_MOD_SHAPESHIFT) {
                 continue;
             }
 
@@ -5264,7 +5265,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
     }
 
     for (uint32_t i = 0; i < sizeof(spell->m_effectAura) / sizeof(spell->m_effectAura[0]); i++) {
-        if (spell->m_effectAura[i] != 236) {
+        if (spell->m_effectAura[i] != SPELL_AURA_CONTROL_VEHICLE) {
             continue;
         }
 
@@ -5306,7 +5307,7 @@ void Spell_C_CancelAura(const SpellRec* spell, CGUnit_C* unit, int32_t auraIndex
     CGUnit_C* vehicleUnit = unit->m_vehiclePassenger ? unit->m_vehiclePassenger->GetVehicleUnit() : nullptr;
 
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-        if (spell->m_effect[i] == 28 && vehicleUnit && vehicleUnit->m_obj->m_entryID == spell->m_effectMiscValue[i]) {
+        if (spell->m_effect[i] == SPELL_EFFECT_SUMMON && vehicleUnit && vehicleUnit->m_obj->m_entryID == spell->m_effectMiscValue[i]) {
             CGInputControl* input = CGInputControl::GetActive();
             CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
 
@@ -5439,11 +5440,11 @@ bool Spell_C_IsCurrentSpell(int32_t spellId) {
 
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (spell.m_effect[0] == 78) {
+    if (spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         return player && player->m_combat.m_attacking;
     }
 
-    if (spell.m_effect[0] == 47) {
+    if (spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL) {
         if (player) {
             SkillLineAbilityRec* ability = player->LookupAbility(spell.m_id);
 
@@ -6381,7 +6382,7 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
 
     char format[1024];
     format[0] = 0;
-    bool pet = spell->m_effect[0] == 57 || (spell->m_effect[0] == 36 && spell->m_implicitTargetA[0] == 5);
+    bool pet = spell->m_effect[0] == SPELL_EFFECT_LEARN_PET_SPELL || (spell->m_effect[0] == SPELL_EFFECT_LEARN_SPELL && spell->m_implicitTargetA[0] == 5);
 
     if (pet) {
         char token[64];
@@ -7383,7 +7384,7 @@ static bool CheckItemRequirement(const PendingSpellCast* cast, const SpellRec* s
     for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
         int32_t effect = spell->m_effect[i];
 
-        if ((effect == 53 || effect == 54 || effect == 156) && !CheckEnchantItemLevel(cast, spell, stats, item, reason)) {
+        if ((effect == SPELL_EFFECT_ENCHANT_ITEM || effect == SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY || effect == SPELL_EFFECT_ENCHANT_ITEM_PRISMATIC) && !CheckEnchantItemLevel(cast, spell, stats, item, reason)) {
             return false;
         }
     }
@@ -7465,11 +7466,11 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
     bool steal = false;
 
     for (uint32_t j = 0; j < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); j++) {
-        if (spell->m_effect[j] == 38 || spell->m_effect[j] == 108) {
+        if (spell->m_effect[j] == SPELL_EFFECT_DISPEL || spell->m_effect[j] == SPELL_EFFECT_DISPEL_MECHANIC) {
             dispel = true;
         }
 
-        if (spell->m_effect[j] == 126) {
+        if (spell->m_effect[j] == SPELL_EFFECT_STEAL_BENEFICIAL_BUFF) {
             steal = true;
         }
     }
@@ -7493,13 +7494,13 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
         for (uint32_t j = 0; j < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); j++) {
             int32_t effect = spell->m_effect[j];
 
-            if (effect != 38 && effect != 108 && effect != 126) {
+            if (effect != SPELL_EFFECT_DISPEL && effect != SPELL_EFFECT_DISPEL_MECHANIC && effect != SPELL_EFFECT_STEAL_BENEFICIAL_BUFF) {
                 continue;
             }
 
             int32_t misc = spell->m_effectMiscValue[j];
-            bool mechanic = effect == 108;
-            bool isSteal = effect == 126;
+            bool mechanic = effect == SPELL_EFFECT_DISPEL_MECHANIC;
+            bool isSteal = effect == SPELL_EFFECT_STEAL_BENEFICIAL_BUFF;
             int32_t harmful;
 
             if (spell->m_attributesEx & 0x10000) {
@@ -7528,7 +7529,7 @@ static bool ValidateSpellTarget(CGUnit_C* caster, const SpellRec* spell, uint32_
         for (uint32_t j = 0; j < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); j++) {
             int32_t effect = spell->m_effect[j];
 
-            if (effect && effect != 38 && effect != 108 && effect != 126) {
+            if (effect && effect != SPELL_EFFECT_DISPEL && effect != SPELL_EFFECT_DISPEL_MECHANIC && effect != SPELL_EFFECT_STEAL_BENEFICIAL_BUFF) {
                 return true;
             }
         }
@@ -7713,7 +7714,7 @@ void Spell_C::SendPendingCast(PendingSpellCast* cast, bool hideVisuals) {
     }
 
     for (uint32_t i = 0; i < sizeof(spell.m_effectAura) / sizeof(spell.m_effectAura[0]); i++) {
-        if (spell.m_effectAura[i] == 78) {
+        if (spell.m_effectAura[i] == SPELL_AURA_MOUNTED) {
             if (!caster->CanCurrentFormMount() && caster->CanAutoUnshift()) {
                 caster->CancelShapeshiftForMount();
             }
@@ -8048,7 +8049,7 @@ static bool Spell_C_BeginCast(CGUnit_C* caster, const SpellRec* spell, WOWGUID t
         bool found = false;
 
         for (uint32_t i = 0; i < sizeof(spell->m_effect) / sizeof(spell->m_effect[0]); i++) {
-            if (spell->m_effect[i] != 54) {
+            if (spell->m_effect[i] != SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY) {
                 continue;
             }
 
@@ -8203,7 +8204,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
     cast->m_petGuid = petGuid;
     bool melee;
 
-    if (spell.m_effect[0] == 78 || (spell.m_attributes & 0x2) || (spell.m_attributesExB & 0x20)) {
+    if (spell.m_effect[0] == SPELL_EFFECT_ATTACK || (spell.m_attributes & 0x2) || (spell.m_attributesExB & 0x20)) {
         melee = true;
     } else {
         melee = false;
@@ -8288,8 +8289,8 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
 
     int32_t effect = spell.m_effect[0];
 
-    if (effect != 83 && effect != 152 && effect != 162 && !CGSpellBook::IsTrackingSpell(spellId) && !SpellRec::WillSummonCritter(&spell)) {
-        uint32_t action = spell.m_effect[0] == 47 || (spell.m_attributes & 0x20) ? 6 : 2;
+    if (effect != SPELL_EFFECT_DUEL && effect != SPELL_EFFECT_SUMMON_RAF_FRIEND && effect != SPELL_EFFECT_TALENT_SPEC_SELECT && !CGSpellBook::IsTrackingSpell(spellId) && !SpellRec::WillSummonCritter(&spell)) {
+        uint32_t action = spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL || (spell.m_attributes & 0x20) ? 6 : 2;
 
         if (!CGGameUI::CanPerformAction(action)) {
             ReleasePendingSpellCast(cast);
@@ -8304,7 +8305,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         return false;
     }
 
-    if (effect == 47) {
+    if (effect == SPELL_EFFECT_TRADE_SKILL) {
         CGTradeSkillInfo::SetTradeSkill(spell.m_id, unit->m_obj->m_guid, 0, 0, 0);
         Spell_C_FailPendingCast(cast, &spell, 187);
         return false;
@@ -8331,7 +8332,7 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
 
     effect = spell.m_effect[0];
 
-    if (effect == 78) {
+    if (effect == SPELL_EFFECT_ATTACK) {
         if (unit->OnAttackIconPressed(target, 0)) {
             Spell_C_FailPendingCast(cast, &spell, 187);
             return false;
@@ -8342,12 +8343,12 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         return false;
     }
 
-    if ((effect == 99 || effect == 127 || effect == 158) && unit->GetComboPointTarget()) {
+    if ((effect == SPELL_EFFECT_DISENCHANT || effect == SPELL_EFFECT_PROSPECTING || effect == SPELL_EFFECT_MILLING) && unit->GetComboPointTarget()) {
         Spell_C_SpellFailed(cast, &spell, 74, -1, -1, false);
         return false;
     }
 
-    if (((effect == 53 || effect == 54 || effect == 92 || effect == 156) && unit->GetComboPointTarget()) || unit->m_mountTransitionSpellId) {
+    if (((effect == SPELL_EFFECT_ENCHANT_ITEM || effect == SPELL_EFFECT_ENCHANT_ITEM_TEMPORARY || effect == SPELL_EFFECT_ENCHANT_HELD_ITEM || effect == SPELL_EFFECT_ENCHANT_ITEM_PRISMATIC) && unit->GetComboPointTarget()) || unit->m_mountTransitionSpellId) {
         Spell_C_SpellFailed(cast, &spell, 105, -1, -1, false);
         return false;
     }
@@ -8486,8 +8487,8 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         for (uint32_t i = 0; i < sizeof(spell.m_effect) / sizeof(spell.m_effect[0]); i++) {
             int32_t objectEffect = spell.m_effect[i];
 
-            if (objectEffect == 50 || objectEffect == 104 || objectEffect == 105 || objectEffect == 106 || objectEffect == 107 || objectEffect == 76 || objectEffect == 81) {
-                if (objectEffect == 81) {
+            if (objectEffect == SPELL_EFFECT_TRANS_DOOR || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT1 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT2 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT3 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_SLOT4 || objectEffect == SPELL_EFFECT_SUMMON_OBJECT_WILD || objectEffect == SPELL_EFFECT_CREATE_HOUSE) {
+                if (objectEffect == SPELL_EFFECT_CREATE_HOUSE) {
                     s_cursorWorldObjectHousing = 1;
                 }
 
@@ -8573,8 +8574,8 @@ bool Spell_C_HandleSpriteClick(CGObject_C* object, PendingSpellCast* cast) {
 
     uint32_t needTargets = s_needTargets;
 
-    if (spell.m_effect[0] != 83) {
-        uint32_t action = spell.m_effect[0] == 47 || (spell.m_attributes & 0x20) ? 6 : 2;
+    if (spell.m_effect[0] != SPELL_EFFECT_DUEL) {
+        uint32_t action = spell.m_effect[0] == SPELL_EFFECT_TRADE_SKILL || (spell.m_attributes & 0x20) ? 6 : 2;
 
         if (!CGGameUI::CanPerformAction(action)) {
             return false;
@@ -8793,7 +8794,7 @@ bool Spell_C_HandleGlyphClick(int32_t socket) {
     }
 
     for (uint32_t i = 0; i < sizeof(spell.m_effect) / sizeof(spell.m_effect[0]); i++) {
-        if (spell.m_effect[i] != 74) {
+        if (spell.m_effect[i] != SPELL_EFFECT_APPLY_GLYPH) {
             continue;
         }
 
@@ -9336,7 +9337,7 @@ PendingSpellCast* Spell_C_GetDelayedTrajectoryCast() {
 // VERIFY: 4bee51ef auto
 // OFFSET: 0x008009B0
 bool SpellIsCallCompanion(const SpellRec* spell) {
-    if (spell->m_effect[0] == 28) {
+    if (spell->m_effect[0] == SPELL_EFFECT_SUMMON) {
         SummonPropertiesRec* properties = g_summonPropertiesDB.GetRecord(spell->m_effectMiscValueB[0]);
 
         if (properties && properties->m_slot == 5) {
@@ -9344,7 +9345,7 @@ bool SpellIsCallCompanion(const SpellRec* spell) {
         }
     }
 
-    return spell->m_effectAura[0] == 78;
+    return spell->m_effectAura[0] == SPELL_AURA_MOUNTED;
 }
 
 // VERIFY: 4f8ab45f manual

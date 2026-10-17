@@ -1,4 +1,5 @@
 #include "Spell_C.h"
+#include "SpellEnums.h"
 #include <cstdint>
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
@@ -266,7 +267,7 @@ static int32_t Script_CancelUnitBuff(lua_State* L) {
 
     if (g_spellDB.GetRecord(mover->GetAuraSpellId(slot), &spell)) {
         for (uint32_t i = 0; i < 3; i++) {
-            if (spell.m_effectAura[i] == 236) {
+            if (spell.m_effectAura[i] == SPELL_AURA_CONTROL_VEHICLE) {
                 mover->VehicleExit();
                 break;
             }

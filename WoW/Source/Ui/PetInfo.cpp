@@ -9,6 +9,7 @@
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Ui/SpellBookFrame.h"
@@ -833,14 +834,14 @@ void CGPetInfo::FindPossessedSpell() {
         for (uint32_t j = 0; j < 3; j++) {
             int32_t auraType = spell.m_effectAura[j];
 
-            if (auraType == 2 || auraType == 128 || auraType == 6 || (auraType == 236 && onCharmVehicle)) {
+            if (auraType == SPELL_AURA_MOD_POSSESS || auraType == SPELL_AURA_MOD_POSSESS_PET || auraType == SPELL_AURA_MOD_CHARM || (auraType == SPELL_AURA_CONTROL_VEHICLE && onCharmVehicle)) {
                 CGPetInfo::SetPossessedSpell(aura->m_spellId);
                 return;
             }
         }
 
         for (uint32_t j = 0; j < 3; j++) {
-            if (spell.m_effect[j] != 28) {
+            if (spell.m_effect[j] != SPELL_EFFECT_SUMMON) {
                 continue;
             }
 

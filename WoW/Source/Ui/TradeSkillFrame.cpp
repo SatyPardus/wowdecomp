@@ -10,6 +10,7 @@
 #include "WoW/Source/DB/Rec/SkillLineAbilityRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Game/GameClient/NameCache.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/SpellTable.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
@@ -490,7 +491,7 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
                 }
             }
 
-            if ((spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) && spell.m_effectItemType[0]) {
+            if ((spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && spell.m_effectItemType[0]) {
                 WOWGUID requester;
                 requester.m_guid = static_cast<uint32_t>(spellId) | 0x1FE0000000000000ULL;
                 ItemStats_C* stats = g_itemDBCache.GetRecord(spell.m_effectItemType[0], requester, TradeSkillListItemCallback, nullptr, false);
@@ -949,7 +950,7 @@ bool CGTradeSkillInfo::GetTradeSkillListLink(int32_t spellId, char* buffer, uint
 
     SpellRec spell;
 
-    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] != 47) {
+    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] != SPELL_EFFECT_TRADE_SKILL) {
         return false;
     }
 

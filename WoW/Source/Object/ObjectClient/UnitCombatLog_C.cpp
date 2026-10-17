@@ -31,6 +31,7 @@
 #include "WoW/Source/DB/Rec/SpellMechanicRec.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/DB/Rec/SpellDurationRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
 #include "WoW/Source/Game/ValidateName.h"
@@ -2106,7 +2107,7 @@ void UnitCombatLogPowerDrain(const WOWGUID& casterGuid, const WOWGUID& targetGui
 // OFFSET: 0x0074D3D0
 bool SpellHasOpenLockEffect(const SpellRec* spell) {
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell->m_effect[i] == 33) {
+        if (spell->m_effect[i] == SPELL_EFFECT_OPEN_LOCK) {
             return true;
         }
     }
@@ -2122,7 +2123,7 @@ bool SpellIsHiddenInCombatLog(const SpellRec* spell) {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell->m_effect[i] == 36) {
+        if (spell->m_effect[i] == SPELL_EFFECT_LEARN_SPELL) {
             return true;
         }
     }
@@ -2193,7 +2194,7 @@ void UnitCombatLogSpellMechanic(const WOWGUID& guid, const AuraData* aura, const
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell->m_effect[i] == 33) {
+        if (spell->m_effect[i] == SPELL_EFFECT_OPEN_LOCK) {
             return;
         }
     }
@@ -2768,7 +2769,7 @@ void UnitCombatLogUnitDead(CGUnit_C* unit) {
     } else {
         SpellRec spell;
 
-        if (!g_spellDB.GetRecord(unit->m_unit->m_unitCreatedBySpell, &spell) && spell.m_effect[0] == 28) {
+        if (!g_spellDB.GetRecord(unit->m_unit->m_unitCreatedBySpell, &spell) && spell.m_effect[0] == SPELL_EFFECT_SUMMON) {
             SummonPropertiesRec* summon = g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[0]);
 
             if (summon && static_cast<uint32_t>(summon->m_slot - 1) <= 3) {

@@ -14,6 +14,7 @@
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/DB/DBClient/CreatureStats_C.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/Player.h"
 #include "WoW/Source/Object/Unit.h"
@@ -271,7 +272,7 @@ void CGDressUpModelFrame::TryOnWithVisual(int32_t itemId, int32_t visual, int32_
 
             SpellRec learned;
 
-            if (spell.m_effect[0] != 36) {
+            if (spell.m_effect[0] != SPELL_EFFECT_LEARN_SPELL) {
                 continue;
             }
 
@@ -286,7 +287,7 @@ void CGDressUpModelFrame::TryOnWithVisual(int32_t itemId, int32_t visual, int32_
                 }
             }
 
-            if (g_spellDB.GetRecord(learnedId, &learned) && learned.m_effect[0] == 24) {
+            if (g_spellDB.GetRecord(learnedId, &learned) && learned.m_effect[0] == SPELL_EFFECT_CREATE_ITEM) {
                 this->TryOn(learned.m_effectItemType[0], nullptr, -1);
                 return;
             }

@@ -20,6 +20,7 @@
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Ui/QuestTextParser.h"
 #include "WoW/Source/UIUtil/Tooltip.h"
 
@@ -166,7 +167,7 @@ static int32_t Script_IsTrainerServiceSkillStep(lua_State* L) {
 
             if (g_spellDB.GetRecord(service->m_spellID, &spell)) {
                 for (uint32_t i = 0; i < 3; i++) {
-                    if (spell.m_effect[i] == 44) {
+                    if (spell.m_effect[i] == SPELL_EFFECT_SKILL_STEP) {
                         lua_pushnumber(L, 1.0);
                         return 1;
                     }
@@ -255,10 +256,10 @@ static int32_t Script_GetTrainerServiceSkillLine(lua_State* L) {
 
                 SkillLineRec* skill;
 
-                if (effect == 44) {
+                if (effect == SPELL_EFFECT_SKILL_STEP) {
                     skill = g_skillLineDB.GetRecord(spell.m_effectMiscValue[i]);
                 } else {
-                    int32_t spellId = effect != 36 || spell.m_implicitTargetA[i] == 5 ? spell.m_id : spell.m_effectTriggerSpell[i];
+                    int32_t spellId = effect != SPELL_EFFECT_LEARN_SPELL || spell.m_implicitTargetA[i] == 5 ? spell.m_id : spell.m_effectTriggerSpell[i];
                     SkillLineAbilityRec* ability = SpellTableLookupAbility(player->m_unit->m_unitFieldBytes0[0], player->m_unit->m_unitFieldBytes0[1], spellId);
 
                     if (!ability) {
@@ -402,7 +403,7 @@ static int32_t Script_GetTrainerServiceIcon(lua_State* L) {
 
     ItemRec* item;
 
-    if (CGClassTrainer::m_trainerType == 2 && (spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) && (item = g_itemDB.GetRecord(spell.m_effectItemType[0]))) {
+    if (CGClassTrainer::m_trainerType == 2 && (spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && (item = g_itemDB.GetRecord(spell.m_effectItemType[0]))) {
         const char* path = ClientDBStringLookup(3);
         char texture[260];
         SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(item->m_displayInfoID));
@@ -542,7 +543,7 @@ static int32_t Script_GetTrainerServiceStepReq(lua_State* L) {
             int32_t effect;
 
             for (effect = 0; effect < 3; effect++) {
-                if (spell.m_effect[effect] == 44) {
+                if (spell.m_effect[effect] == SPELL_EFFECT_SKILL_STEP) {
                     break;
                 }
             }
@@ -606,7 +607,7 @@ static int32_t Script_GetTrainerServiceDescription(lua_State* L) {
                 return 1;
             }
 
-            if ((spell.m_attributes & 0x20) && (spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) && spell.m_effectItemType[0]) {
+            if ((spell.m_attributes & 0x20) && (spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && spell.m_effectItemType[0]) {
                 WOWGUID guid;
                 guid.m_guid = static_cast<uint32_t>(spell.m_id) | 0x1FE0000000000000ull;
                 ItemStats_C* stats = g_itemDBCache.GetRecord(spell.m_effectItemType[0], guid, TrainerItemCallback, nullptr, false);
@@ -641,7 +642,7 @@ static int32_t Script_GetTrainerServiceStepIncrease(lua_State* L) {
             int32_t effect;
 
             for (effect = 0; effect < 3; effect++) {
-                if (spell.m_effect[effect] == 44) {
+                if (spell.m_effect[effect] == SPELL_EFFECT_SKILL_STEP) {
                     break;
                 }
             }
@@ -656,7 +657,7 @@ static int32_t Script_GetTrainerServiceStepIncrease(lua_State* L) {
                     int32_t stepEffect;
 
                     for (stepEffect = 0; stepEffect < 3; stepEffect++) {
-                        if (step.m_effect[stepEffect] == 44) {
+                        if (step.m_effect[stepEffect] == SPELL_EFFECT_SKILL_STEP) {
                             break;
                         }
                     }
@@ -864,7 +865,7 @@ static int32_t Script_GetTrainerServiceItemLink(lua_State* L) {
     if (index < CGClassTrainer::m_numServices && (service = CGClassTrainer::m_services.m_data[index])) {
         SpellRec spell;
 
-        if (g_spellDB.GetRecord(service->m_spellID, &spell) && CGClassTrainer::m_trainerType == 2 && (spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) && spell.m_effectItemType[0]) {
+        if (g_spellDB.GetRecord(service->m_spellID, &spell) && CGClassTrainer::m_trainerType == 2 && (spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && spell.m_effectItemType[0]) {
             WOWGUID none = WOWGUID();
             ItemStats_C* stats = g_itemDBCache.GetRecord(spell.m_effectItemType[0], none, nullptr, nullptr, false);
 

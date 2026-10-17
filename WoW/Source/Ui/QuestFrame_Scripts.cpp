@@ -20,6 +20,7 @@
 #include "WoW/Source/DB/Rec/PageTextMaterialRec.h"
 #include "WoW/Source/DB/Rec/SpellIconRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/Object.h"
 #include "WoW/Source/Object/ObjectClient/GameObject_C.h"
@@ -559,7 +560,7 @@ static int32_t Script_GetRewardSpell(lua_State* L) {
 
                 if (g_spellDB.GetRecord(castId, &cast)) {
                     for (uint32_t i = 0; i < 3; i++) {
-                        if (cast.m_effect[i] == 36 || cast.m_effect[i] == 57) {
+                        if (cast.m_effect[i] == SPELL_EFFECT_LEARN_SPELL || cast.m_effect[i] == SPELL_EFFECT_LEARN_PET_SPELL) {
                             learns = true;
                             break;
                         }

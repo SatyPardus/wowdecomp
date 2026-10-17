@@ -14,6 +14,7 @@
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Ui/PetInfo.h"
 #include "Engine/Source/Tempest/CMath.h"
@@ -307,7 +308,7 @@ static int32_t Script_IsAttackSpell(lua_State* L) {
 
     SpellRec spell;
 
-    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && spell.m_effect[0] == 78) {
+    if (g_spellDB.GetRecord(static_cast<int32_t>(slot) < 0 ? 0 : petSpell ? (slot < 1024 ? s_petSpellList[slot] : 0) : (slot < s_numSpells ? s_spellList[slot] : 0), &spell) && spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -1216,7 +1217,7 @@ static int32_t Script_GetSpellInfo(lua_State* L) {
 
     const char* texture = "";
 
-    if (spell.m_effect[0] == 78) {
+    if (spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         texture = CGActionBar::GetAttackTexture();
     } else if ((spell.m_attributes & 0x2) && (spell.m_attributesExB & 0x20)) {
         texture = CGActionBar::GetRangedTexture();

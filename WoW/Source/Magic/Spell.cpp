@@ -1,19 +1,20 @@
 #include "Spell.h"
 #include <cmath>
 #include "Engine/Source/Tempest/C3Vector.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 
 // VERIFY: cbd89f17 auto
 // OFFSET: 0x0076BD50
 bool Spell_IsAuraEffect(int32_t effect) {
     switch (effect) {
-        case 6:
-        case 27:
-        case 35:
-        case 65:
-        case 119:
-        case 128:
-        case 129:
-        case 143:
+        case SPELL_EFFECT_APPLY_AURA:
+        case SPELL_EFFECT_PERSISTENT_AREA_AURA:
+        case SPELL_EFFECT_APPLY_AREA_AURA_PARTY:
+        case SPELL_EFFECT_APPLY_AREA_AURA_RAID:
+        case SPELL_EFFECT_APPLY_AREA_AURA_PET:
+        case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:
+        case SPELL_EFFECT_APPLY_AREA_AURA_ENEMY:
+        case SPELL_EFFECT_APPLY_AREA_AURA_OWNER:
             return true;
 
         default:
@@ -25,13 +26,13 @@ bool Spell_IsAuraEffect(int32_t effect) {
 // OFFSET: 0x0076BE10
 bool Spell_IsUnitAuraEffect(int32_t effect) {
     switch (effect) {
-        case 6:
-        case 35:
-        case 65:
-        case 119:
-        case 128:
-        case 129:
-        case 143:
+        case SPELL_EFFECT_APPLY_AURA:
+        case SPELL_EFFECT_APPLY_AREA_AURA_PARTY:
+        case SPELL_EFFECT_APPLY_AREA_AURA_RAID:
+        case SPELL_EFFECT_APPLY_AREA_AURA_PET:
+        case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:
+        case SPELL_EFFECT_APPLY_AREA_AURA_ENEMY:
+        case SPELL_EFFECT_APPLY_AREA_AURA_OWNER:
             return true;
 
         default:
@@ -43,13 +44,13 @@ bool Spell_IsUnitAuraEffect(int32_t effect) {
 // OFFSET: 0x0076BED0
 bool Spell_IsAreaAuraEffect(int32_t effect) {
     switch (effect) {
-        case 27:
-        case 35:
-        case 65:
-        case 119:
-        case 128:
-        case 129:
-        case 143:
+        case SPELL_EFFECT_PERSISTENT_AREA_AURA:
+        case SPELL_EFFECT_APPLY_AREA_AURA_PARTY:
+        case SPELL_EFFECT_APPLY_AREA_AURA_RAID:
+        case SPELL_EFFECT_APPLY_AREA_AURA_PET:
+        case SPELL_EFFECT_APPLY_AREA_AURA_FRIEND:
+        case SPELL_EFFECT_APPLY_AREA_AURA_ENEMY:
+        case SPELL_EFFECT_APPLY_AREA_AURA_OWNER:
             return true;
 
         default:

@@ -53,6 +53,7 @@
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Glue/CWOWClientStatus.h"
 #include "WoW/Source/LoadingScreen.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Net/NetClient/NetClient.h"
 #include "WoW/Source/Net/Types.h"
@@ -4325,7 +4326,7 @@ static int32_t Script_IsDressableItem(lua_State* L) {
 
         SpellRec learned;
 
-        if (spell.m_effect[0] != 36) {
+        if (spell.m_effect[0] != SPELL_EFFECT_LEARN_SPELL) {
             continue;
         }
 
@@ -4340,7 +4341,7 @@ static int32_t Script_IsDressableItem(lua_State* L) {
             }
         }
 
-        if (!g_spellDB.GetRecord(learnedId, &learned) || learned.m_effect[0] != 24) {
+        if (!g_spellDB.GetRecord(learnedId, &learned) || learned.m_effect[0] != SPELL_EFFECT_CREATE_ITEM) {
             continue;
         }
 

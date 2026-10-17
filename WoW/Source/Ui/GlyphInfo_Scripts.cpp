@@ -14,6 +14,7 @@
 #include "WoW/Source/DB/Rec/GlyphSlotRec.h"
 #include "WoW/Source/DB/Rec/SpellIconRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/Player.h"
 #include "WoW/Source/Ui/TalentInfo.h"
@@ -99,7 +100,7 @@ static int32_t Script_GlyphMatchesSocket(lua_State* L) {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell.m_effect[i] != 74) {
+        if (spell.m_effect[i] != SPELL_EFFECT_APPLY_GLYPH) {
             continue;
         }
 
