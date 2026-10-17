@@ -6862,50 +6862,51 @@ int32_t CM2Model::InitializeLoaded() {
 
     M2Data* data = shared->m_data;
     M2SkinProfile* skin = shared->m_skinData;
-    uint32_t emitterBytes = 0;
-
-    for (uint32_t i = 0; i < data->m_particles.m_count; i++) {
+    // The instance arena contains native pointers, unlike the on-disk M2
+    // arrays. Align every subarray independently on both 32- and 64-bit hosts.
+    constexpr size_t budget = 64 * 1024 * 1024;
+    size_t arenaSize = 0;
+    bool fits = true;
+    auto reserve = [&](size_t size, size_t alignment, size_t count) {
+        if (!count) return arenaSize;
+        const size_t offset = (arenaSize + alignment - 1) & ~(alignment - 1);
+        if (offset > budget || count > (budget - offset) / size) { fits = false; return size_t(0); }
+        arenaSize = offset + count * size;
+        return offset;
+    };
+    const size_t bonesOffset = reserve(sizeof(M2ModelBone), alignof(M2ModelBone), data->m_bones.m_count);
+    const size_t loopsOffset = reserve(sizeof(int32_t), alignof(int32_t), data->m_loops.m_count);
+    const size_t skinSectionsOffset = reserve(sizeof(uint32_t), alignof(uint32_t), skin->m_skinSections.m_count);
+    const size_t colorsOffset = reserve(sizeof(M2ModelColor), alignof(M2ModelColor), data->m_colors.m_count);
+    const size_t texturesOffset = reserve(sizeof(CTexture*), alignof(CTexture*), data->m_textures.m_count);
+    const size_t textureWeightsOffset = reserve(sizeof(M2ModelTrack<float>), alignof(M2ModelTrack<float>), data->m_textureWeights.m_count);
+    const size_t textureTransformsOffset = reserve(sizeof(M2ModelTextureTransform), alignof(M2ModelTextureTransform), data->m_textureTransforms.m_count);
+    const size_t attachmentsOffset = reserve(sizeof(M2ModelTrack<uint8_t>), alignof(M2ModelTrack<uint8_t>), data->m_attachments.m_count);
+    const size_t lightsOffset = reserve(sizeof(M2ModelLight), alignof(M2ModelLight), data->m_lights.m_count);
+    const size_t camerasOffset = reserve(sizeof(M2ModelCamera), alignof(M2ModelCamera), data->m_cameras.m_count);
+    const size_t ribbonsOffset = reserve(sizeof(M2ModelRibbon), alignof(M2ModelRibbon), data->m_ribbons.m_count);
+    const size_t ribbonEmittersOffset = reserve(sizeof(CRibbonEmitter*), alignof(CRibbonEmitter*), data->m_ribbons.m_count);
+    const size_t particlesOffset = reserve(sizeof(M2ModelParticle), alignof(M2ModelParticle), data->m_particles.m_count);
+    const size_t particleEmittersOffset = reserve(sizeof(CParticleEmitter2*), alignof(CParticleEmitter2*), data->m_particles.m_count);
+    const size_t ribbonOffset = reserve(sizeof(CRibbonEmitter), alignof(CRibbonEmitter), data->m_ribbons.m_count);
+    static_assert(alignof(CPlaneParticleEmitter) == alignof(CSphereParticleEmitter) &&
+        alignof(CSplineParticleEmitter) == alignof(CSphereParticleEmitter), "Contiguous emitter alignment");
+    const size_t emitterOffset = (arenaSize + alignof(CSphereParticleEmitter) - 1) & ~(alignof(CSphereParticleEmitter) - 1);
+    arenaSize = emitterOffset;
+    for (uint32_t i = 0; i < data->m_particles.m_count; ++i) {
         switch (data->m_particles[i].m_emitterType) {
-            case 1:
-                emitterBytes += sizeof(CPlaneParticleEmitter);
-                break;
-
-            case 2:
-                emitterBytes += sizeof(CSphereParticleEmitter);
-                break;
-
-            case 3:
-                emitterBytes += sizeof(CSplineParticleEmitter);
-                break;
+            case 1: reserve(sizeof(CPlaneParticleEmitter), alignof(CPlaneParticleEmitter), 1); break;
+            case 2: reserve(sizeof(CSphereParticleEmitter), alignof(CSphereParticleEmitter), 1); break;
+            case 3: reserve(sizeof(CSplineParticleEmitter), alignof(CSplineParticleEmitter), 1); break;
+            default: return 0;
         }
     }
-
-    uint32_t ribbonCount = data->m_ribbons.m_count;
-    uint32_t ribbonOffset = skin->m_skinSections.m_count * sizeof(uint32_t)
-        + data->m_textures.m_count * sizeof(CTexture*)
-        + data->m_loops.m_count * sizeof(int32_t)
-        + data->m_bones.m_count * sizeof(M2ModelBone)
-        + data->m_particles.m_count * (sizeof(M2ModelParticle) + sizeof(CParticleEmitter2*))
-        + data->m_lights.m_count * sizeof(M2ModelLight)
-        + data->m_textureWeights.m_count * sizeof(M2ModelTrack<float>)
-        + data->m_attachments.m_count * sizeof(M2ModelTrack<uint8_t>)
-        + ribbonCount * (sizeof(M2ModelRibbon) + sizeof(CRibbonEmitter*))
-        + data->m_colors.m_count * sizeof(M2ModelColor)
-        + data->m_textureTransforms.m_count * sizeof(M2ModelTextureTransform)
-        + data->m_cameras.m_count * sizeof(M2ModelCamera);
-    uint32_t emitterOffset = ribbonOffset + ribbonCount * sizeof(CRibbonEmitter);
-
-    uint8_t* memory = static_cast<uint8_t*>(SMemAlloc(emitterBytes + emitterOffset, __FILE__, __LINE__, 0));
-
-    if (!memory) {
-        return 0;
-    }
-
-    uint8_t* cursor = memory;
+    if (!fits) return 0;
+    uint8_t* memory = static_cast<uint8_t*>(SMemAlloc(arenaSize, __FILE__, __LINE__, 0));
+    if (!memory) return 0;
 
     if (data->m_bones.m_count) {
-        this->m_bones = reinterpret_cast<M2ModelBone*>(cursor);
-        cursor += data->m_bones.m_count * sizeof(M2ModelBone);
+        this->m_bones = reinterpret_cast<M2ModelBone*>(memory + bonesOffset);
 
         for (uint32_t i = 0; i < data->m_bones.m_count; i++) {
             new (&this->m_bones[i]) M2ModelBone();
@@ -6927,8 +6928,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_loops.m_count) {
-        this->m_loops = reinterpret_cast<int32_t*>(cursor);
-        cursor += data->m_loops.m_count * sizeof(int32_t);
+        this->m_loops = reinterpret_cast<int32_t*>(memory + loopsOffset);
 
         for (uint32_t i = 0; i < data->m_loops.m_count; i++) {
             new (&this->m_loops[i]) int32_t(0);
@@ -6937,8 +6937,7 @@ int32_t CM2Model::InitializeLoaded() {
 
     if (skin->m_skinSections.m_count) {
         CM2Model* source = this->m_model30;
-        this->m_skinSections = reinterpret_cast<uint32_t*>(cursor);
-        cursor += skin->m_skinSections.m_count * sizeof(uint32_t);
+        this->m_skinSections = reinterpret_cast<uint32_t*>(memory + skinSectionsOffset);
 
         if (source) {
             memcpy(this->m_skinSections, source->m_skinSections, skin->m_skinSections.m_count * sizeof(uint32_t));
@@ -6950,8 +6949,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_colors.m_count) {
-        this->m_colors = reinterpret_cast<M2ModelColor*>(cursor);
-        cursor += data->m_colors.m_count * sizeof(M2ModelColor);
+        this->m_colors = reinterpret_cast<M2ModelColor*>(memory + colorsOffset);
 
         for (uint32_t i = 0; i < data->m_colors.m_count; i++) {
             new (&this->m_colors[i]) M2ModelColor();
@@ -6959,8 +6957,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_textures.m_count) {
-        this->m_textures = reinterpret_cast<CTexture**>(cursor);
-        cursor += data->m_textures.m_count * sizeof(CTexture*);
+        this->m_textures = reinterpret_cast<CTexture**>(memory + texturesOffset);
 
         for (uint32_t i = 0; i < data->m_textures.m_count; i++) {
             CTexture* texture = this->m_model30 ? this->m_model30->m_textures[i] : this->m_shared->m_textures[i];
@@ -6969,8 +6966,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_textureWeights.m_count) {
-        this->m_textureWeights = reinterpret_cast<M2ModelTrack<float>*>(cursor);
-        cursor += data->m_textureWeights.m_count * sizeof(M2ModelTrack<float>);
+        this->m_textureWeights = reinterpret_cast<M2ModelTrack<float>*>(memory + textureWeightsOffset);
 
         for (uint32_t i = 0; i < data->m_textureWeights.m_count; i++) {
             new (&this->m_textureWeights[i]) M2ModelTrack<float>();
@@ -6978,8 +6974,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_textureTransforms.m_count) {
-        this->m_textureTransforms = reinterpret_cast<M2ModelTextureTransform*>(cursor);
-        cursor += data->m_textureTransforms.m_count * sizeof(M2ModelTextureTransform);
+        this->m_textureTransforms = reinterpret_cast<M2ModelTextureTransform*>(memory + textureTransformsOffset);
 
         for (uint32_t i = 0; i < data->m_textureTransforms.m_count; i++) {
             new (&this->m_textureTransforms[i]) M2ModelTextureTransform();
@@ -6993,8 +6988,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_attachments.m_count) {
-        this->m_attachments = reinterpret_cast<M2ModelTrack<uint8_t>*>(cursor);
-        cursor += data->m_attachments.m_count * sizeof(M2ModelTrack<uint8_t>);
+        this->m_attachments = reinterpret_cast<M2ModelTrack<uint8_t>*>(memory + attachmentsOffset);
 
         for (uint32_t i = 0; i < data->m_attachments.m_count; i++) {
             new (&this->m_attachments[i]) M2ModelTrack<uint8_t>();
@@ -7006,8 +7000,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_lights.m_count) {
-        this->m_lights = reinterpret_cast<M2ModelLight*>(cursor);
-        cursor += data->m_lights.m_count * sizeof(M2ModelLight);
+        this->m_lights = reinterpret_cast<M2ModelLight*>(memory + lightsOffset);
 
         for (uint32_t i = 0; i < data->m_lights.m_count; i++) {
             M2Light* lightData = &data->m_lights[i];
@@ -7021,8 +7014,7 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_cameras.m_count) {
-        this->m_cameras = reinterpret_cast<M2ModelCamera*>(cursor);
-        cursor += data->m_cameras.m_count * sizeof(M2ModelCamera);
+        this->m_cameras = reinterpret_cast<M2ModelCamera*>(memory + camerasOffset);
 
         for (uint32_t i = 0; i < data->m_cameras.m_count; i++) {
             new (&this->m_cameras[i]) M2ModelCamera();
@@ -7050,15 +7042,13 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_ribbons.m_count) {
-        this->m_ribbons = reinterpret_cast<M2ModelRibbon*>(cursor);
-        cursor += data->m_ribbons.m_count * sizeof(M2ModelRibbon);
+        this->m_ribbons = reinterpret_cast<M2ModelRibbon*>(memory + ribbonsOffset);
 
         for (uint32_t i = 0; i < data->m_ribbons.m_count; i++) {
             new (&this->m_ribbons[i]) M2ModelRibbon();
         }
 
-        this->m_ribbonEmitters = reinterpret_cast<CRibbonEmitter**>(cursor);
-        cursor += data->m_ribbons.m_count * sizeof(CRibbonEmitter*);
+        this->m_ribbonEmitters = reinterpret_cast<CRibbonEmitter**>(memory + ribbonEmittersOffset);
         memset(this->m_ribbonEmitters, 0, data->m_ribbons.m_count * sizeof(CRibbonEmitter*));
 
         uint8_t* emitterMemory = memory + ribbonOffset;
@@ -7113,14 +7103,13 @@ int32_t CM2Model::InitializeLoaded() {
     }
 
     if (data->m_particles.m_count) {
-        this->m_particles = reinterpret_cast<M2ModelParticle*>(cursor);
-        cursor += data->m_particles.m_count * sizeof(M2ModelParticle);
+        this->m_particles = reinterpret_cast<M2ModelParticle*>(memory + particlesOffset);
 
         for (uint32_t i = 0; i < data->m_particles.m_count; i++) {
             new (&this->m_particles[i]) M2ModelParticle();
         }
 
-        this->m_particleEmitters = reinterpret_cast<CParticleEmitter2**>(cursor);
+        this->m_particleEmitters = reinterpret_cast<CParticleEmitter2**>(memory + particleEmittersOffset);
         memset(this->m_particleEmitters, 0, data->m_particles.m_count * sizeof(CParticleEmitter2*));
 
         uint8_t* emitterMemory = memory + emitterOffset;
