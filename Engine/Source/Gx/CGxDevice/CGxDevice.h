@@ -4,6 +4,7 @@
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include "Engine/Source/Platform/CallingConvention.h"
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxDevice/CGxShader.h"
 #include "Engine/Source/Gx/CGxDevice/EmergencyMem.h"
@@ -66,7 +67,7 @@ struct CGxAppRenderState {
     /* 0014 */ int32_t m_dirty;
 };
 
-typedef void (__fastcall* GxDeviceCallback)();
+typedef void (WOW_FASTCALL* GxDeviceCallback)();
 
 class CGxDevice {
     public:

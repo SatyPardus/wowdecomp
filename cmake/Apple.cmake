@@ -78,6 +78,11 @@ target_link_libraries(Tempest PUBLIC AppleFoundation)
 add_subdirectory(Engine/Source/lua-5.1)
 target_link_libraries(lua PUBLIC AppleFoundation)
 
+# Compile the original shared device/resource/state code as the native backend
+# is connected. Platform factories and full client linkage are still pending.
+add_subdirectory(Engine/Source/Gx)
+target_link_libraries(Gx PUBLIC Tempest AppleArchives)
+
 add_library(AppleTextureData STATIC Engine/Source/BLPFile/BlpImage.cpp)
 target_include_directories(AppleTextureData PUBLIC ${CMAKE_SOURCE_DIR})
 

@@ -133,6 +133,8 @@ blend equations (including alpha), independent alpha testing, the Gx channel-wri
 mask, blend constants, six filter modes and independent U/V wrap/clamp. Pipeline
 and sampler objects are cached; alpha testing uses an MSL function specialization.
 It is not yet connected to the full CGxDevice interface.
+The original shared Gx sources also compile as a native static library; Apple
+device factories, platform hooks and full client linkage remain pending.
 
 The Metal probe verifies known alpha cases, filtering and blending, then draws and
 reads back each mip through both native and forced-expanded upload paths. Expanded
