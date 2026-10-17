@@ -22,7 +22,7 @@ struct Pool {
     id<MTLBuffer> gpu;
     std::vector<Update> updates;
 };
-struct Texture { BLP::Image image; id<MTLTexture> gpu; uint32_t base = 0; };
+struct Texture { BLP::Image image; id<MTLTexture> gpu; uint32_t base = 0; bool renderTarget = false; };
 struct Shader { std::shared_ptr<GxMetal::UIShader> ui; uint32_t permutation; };
 std::vector<uint8_t> ReadShader(const char* path) {
     SFileImpl* file = nullptr;
@@ -60,22 +60,25 @@ struct CGxDeviceMetal::Impl {
     std::unordered_map<CGxShader*, Shader> shaders;
     id<MTLCommandBuffer> command;
     MTLRenderPassDescriptor* pass;
+    MTLRenderPassDescriptor* defaultPass;
+    id<MTLTexture> targetDepth;
     id<MTLDrawable> drawable;
     void* window = nullptr;
-    bool passUsed = false;
     dispatch_semaphore_t frames = dispatch_semaphore_create(3);
-    void EnsurePass() {
-        if (!passUsed) {
-            id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
+    static void ConsumedLoads(MTLRenderPassDescriptor* descriptor) {
+        descriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
+        descriptor.depthAttachment.loadAction = MTLLoadActionLoad;
+    }
+    void EnsureLoads(MTLRenderPassDescriptor* descriptor) {
+        if (descriptor.colorAttachments[0].loadAction != MTLLoadActionLoad ||
+            (descriptor.depthAttachment.texture && descriptor.depthAttachment.loadAction != MTLLoadActionLoad)) {
+            id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:descriptor];
             Require(encoder != nil, "Cannot encode Gx attachment load/clear");
-            [encoder endEncoding]; ConsumedPass();
+            [encoder endEncoding]; ConsumedLoads(descriptor);
         }
     }
-    void ConsumedPass() {
-        passUsed = true;
-        pass.colorAttachments[0].loadAction = MTLLoadActionLoad;
-        pass.depthAttachment.loadAction = MTLLoadActionLoad;
-    }
+    void EnsurePass() { EnsureLoads(pass); }
+    void ConsumedPass() { ConsumedLoads(pass); }
     void ReadSurface(id<MTLTexture> surface, CiRect& rect, void* output) {
         Require(command && surface && !surface.framebufferOnly && surface.sampleCount == 1,
             "Gx readback requires an active frame and a readable single-sample attachment");
@@ -156,6 +159,7 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_texFilterTrilinear = m_caps.m_texFilterAnisotropic = 1;
     m_caps.m_colorWrite = m_caps.m_blendFactor = m_caps.m_shaderAlphaRef = 1;
     for (auto format : {GxTex_Argb8888, GxTex_Argb4444, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
+    m_caps.m_rttFormat[GxTex_Argb8888] = 1;
     m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
     m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
     m_caps.m_texNonPow2 = 1;
@@ -226,17 +230,20 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     m->command = [m->gpu.queue commandBuffer];
     if (!m->command) { dispatch_semaphore_signal(m->frames); throw std::runtime_error("Cannot allocate Metal frame command"); }
     m->command.label = @"Gx game frame";
-    m->pass = [pass copy]; m->drawable = drawable; m->passUsed = false;
-    m->pass.colorAttachments[0].storeAction = MTLStoreActionStore;
-    m->pass.depthAttachment.storeAction = MTLStoreActionStore;
-    m_curWindowRect.maxX = pass.colorAttachments[0].texture.width;
-    m_curWindowRect.maxY = pass.colorAttachments[0].texture.height;
+    m->defaultPass = [pass copy]; m->drawable = drawable;
+    m->defaultPass.colorAttachments[0].storeAction = MTLStoreActionStore;
+    m->defaultPass.depthAttachment.storeAction = MTLStoreActionStore;
+    m_defWindowRect.minX = m_defWindowRect.minY = 0;
+    m_defWindowRect.maxX = pass.colorAttachments[0].texture.width;
+    m_defWindowRect.maxY = pass.colorAttachments[0].texture.height;
+    ApplyRenderTarget();
 }
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
 void CGxDeviceMetal::ScenePresent() {
     Require(m->command != nil, "No active Metal frame to present");
     if (m_scrShotClick) { DeviceScreenShot(); }
     m->EnsurePass();
+    m->EnsureLoads(m->defaultPass);
     dispatch_semaphore_t frames = m->frames;
     [m->command addCompletedHandler:^(id<MTLCommandBuffer> command) {
         if (command.error) { CGxDevice::Log("Metal frame failed: %s", command.error.localizedDescription.UTF8String); }
@@ -244,6 +251,7 @@ void CGxDeviceMetal::ScenePresent() {
     }];
     if (m->drawable) { [m->command presentDrawable:m->drawable]; }
     [m->command commit]; m->command = nil; m->drawable = nil;
+    m->pass = m->defaultPass = nil;
     CGxDevice::ScenePresent();
 }
 void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
@@ -327,12 +335,18 @@ int32_t CGxDeviceMetal::TexCreate(EGxTexTarget target, uint32_t width, uint32_t 
     texture = nullptr;
     Require((target == GxTex_2d || target == GxTex_NonPow2) && width && height && width <= 16384 && height <= 16384 && depth <= 1,
         "Unsupported Gx texture target or extent");
-    Require(format == dataFormat && callback && !flags.m_generateMipMaps && !flags.m_renderTarget, "Unsupported Gx texture conversion, generation or render target");
-    ImageFormat(format);
+    Require(!flags.m_generateMipMaps, "Gx automatic mip generation is not implemented");
+    if (flags.m_renderTarget) {
+        Require(format == GxTex_Argb8888, "Gx render target format is not implemented");
+    } else {
+        Require(format == dataFormat && callback, "Unsupported Gx texture conversion or missing callback");
+        ImageFormat(format);
+    }
     return CGxDevice::TexCreate(target, width, height, depth, format, dataFormat, flags, arg, callback, name, texture);
 }
 void CGxDeviceMetal::TexDestroy(CGxTex* texture) {
     if (!texture) { return; }
+    if (m_textureTarget[GxBuffers_Color].m_texture == texture) { DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0); }
     for (int state = GxRs_Texture0; state <= GxRs_Texture15; ++state) {
         if (m_appRenderStates[state].m_value.m_data.p == texture) { RsSet(EGxRenderState(state), nullptr); }
     }
@@ -341,9 +355,15 @@ void CGxDeviceMetal::TexDestroy(CGxTex* texture) {
 }
 void CGxDeviceMetal::DeviceSetBaseMipLevel(uint32_t level) {
     if (level != m_baseMipLevel) {
-        for (auto* texture = m_textures.Head(); texture; texture = m_textures.Next(texture)) { texture->m_needsCreation = 1; }
+        for (auto* texture = m_textures.Head(); texture; texture = m_textures.Next(texture)) {
+            // GPU-authored targets are recreated only if their actual mip
+            // allocation changes. Non-mipmapped targets keep their contents.
+            if (!texture->m_flags.m_renderTarget) { texture->m_needsCreation = 1; }
+        }
+        if (m->command) { m->EnsurePass(); }
+        CGxDevice::DeviceSetBaseMipLevel(level);
+        if (m_textureTarget[GxBuffers_Color].m_texture) { ApplyRenderTarget(); }
     }
-    CGxDevice::DeviceSetBaseMipLevel(level);
 }
 void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     Require(texture != nullptr, "Missing Gx texture");
@@ -351,7 +371,30 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     ITexWHDStartEnd(texture, width, height, base, end);
     width = std::max(width, 1u); height = std::max(height, 1u);
     auto& storage = m->textures[texture];
-    const bool recreate = texture->m_needsCreation || !storage.gpu || storage.base != base || storage.image.mips.size() != end - base;
+    if (texture->m_flags.m_renderTarget) {
+        Require(texture->m_format == GxTex_Argb8888 && !texture->m_flags.m_generateMipMaps,
+            "Unsupported Gx render target format or mip generation");
+        const bool recreate = texture->m_needsCreation || !storage.gpu || !storage.renderTarget || storage.base != base ||
+            storage.gpu.mipmapLevelCount != end - base;
+        if (recreate) {
+            size_t total = 0;
+            for (uint32_t mip = 0; mip < end - base; ++mip) { total += size_t(std::max(1u, width >> mip)) * std::max(1u, height >> mip) * 4; }
+            Require(total <= ResourceBudget, "Gx render target exceeds memory budget");
+            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
+            descriptor.mipmapLevelCount = end - base;
+            descriptor.storageMode = MTLStorageModePrivate;
+            descriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+            id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
+            Require(replacement != nil, "Cannot allocate Gx color render target");
+            replacement.label = @"Gx color render target";
+            storage.gpu = replacement; storage.base = base; storage.renderTarget = true; storage.image = {};
+        }
+        texture->m_apiSpecificData = &storage;
+        texture->m_needsCreation = texture->m_needsFlagUpdate = 0;
+        CGxDevice::ITexMarkAsUpdated(texture);
+        return;
+    }
+    const bool recreate = texture->m_needsCreation || !storage.gpu || storage.renderTarget || storage.base != base || storage.image.mips.size() != end - base;
     if (!recreate && !texture->m_needsUpdate) { texture->m_needsFlagUpdate = 0; return; }
     Require(texture->m_userFunc && !texture->m_flags.m_generateMipMaps && !texture->m_flags.m_renderTarget && texture->m_format == texture->m_dataFormat,
         "Unsupported updated Gx texture flags or conversion");
@@ -406,7 +449,7 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
         width = std::max(1u, width >> 1); height = std::max(1u, height >> 1);
     }
     // Immutable replacement keeps previously encoded frames' texture contents alive.
-    storage.gpu = m->gpu.Upload(image); storage.image = std::move(image); storage.base = base;
+    storage.gpu = m->gpu.Upload(image); storage.image = std::move(image); storage.base = base; storage.renderTarget = false;
     texture->m_apiSpecificData = &storage;
     texture->m_needsCreation = texture->m_needsFlagUpdate = 0;
     CGxDevice::ITexMarkAsUpdated(texture);
@@ -485,6 +528,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         batch->m_count <= m_primVertexBuf->m_itemCount, "Gx draw exceeds its logical buffer range");
     auto* texture = static_cast<CGxTex*>(pointer(GxRs_Texture0));
     Require(texture != nullptr, "Native UI draw requires texture 0");
+    Require(texture != m_textureTarget[GxBuffers_Color].m_texture, "Gx draw cannot sample its active color target");
     ITexMarkAsUpdated(texture);
     GxMetal::GeometryDraw draw;
     draw.vertices = m->Flush(m_primVertexBuf); draw.vertexOffset = m_primVertexBuf->m_index;
@@ -569,7 +613,50 @@ void CGxDeviceMetal::DeviceReadDepths(CiRect& rect, TSGrowableArray<float>& dept
     m->ReadSurface(m->pass.depthAttachment.texture, rect, depths.Ptr());
 }
 void CGxDeviceMetal::DeviceTakeScreenShot() { CGxDevice::DeviceTakeScreenShot(); }
-void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer, CGxTex*, uint32_t) { Unsupported("game render target binding"); }
+void CGxDeviceMetal::ApplyRenderTarget() {
+    auto* texture = m_textureTarget[GxBuffers_Color].m_texture;
+    if (!texture) {
+        m_curWindowRect = m_defWindowRect;
+        if (m->command) { m->pass = m->defaultPass; }
+        return;
+    }
+    ITexMarkAsUpdated(texture);
+    id<MTLTexture> color = m->textures.at(texture).gpu;
+    // D3D9 reuses a scratch depth surface while it is large enough. Preserve
+    // that lifetime, including depth values when switching to a smaller target.
+    if (!m->targetDepth || m->targetDepth.width < color.width || m->targetDepth.height < color.height) {
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float width:color.width height:color.height mipmapped:NO];
+        descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+        id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
+        Require(replacement != nil, "Cannot allocate Gx scratch depth surface");
+        m->targetDepth = replacement;
+    }
+    m_curWindowRect.minX = m_curWindowRect.minY = 0;
+    m_curWindowRect.maxX = color.width; m_curWindowRect.maxY = color.height;
+    if (m->command) {
+        m->pass = [MTLRenderPassDescriptor renderPassDescriptor];
+        m->pass.colorAttachments[0].texture = color;
+        m->pass.colorAttachments[0].loadAction = MTLLoadActionLoad;
+        m->pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+        m->pass.depthAttachment.texture = m->targetDepth;
+        m->pass.depthAttachment.loadAction = MTLLoadActionLoad;
+        m->pass.depthAttachment.storeAction = MTLStoreActionStore;
+        m->pass.renderTargetWidth = color.width; m->pass.renderTargetHeight = color.height;
+    }
+}
+void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, uint32_t plane) {
+    if (!m_context) { return; }
+    Require((buffer == GxBuffers_Color || buffer == GxBuffers_Depth) && plane == 0, "Unsupported Gx target buffer or plane");
+    Require(buffer == GxBuffers_Color || !texture, "Gx explicit depth texture targets are not implemented");
+    Require(!texture || (texture->m_flags.m_renderTarget && texture->m_format == GxTex_Argb8888), "Invalid Gx color render target");
+    auto& target = m_textureTarget[buffer];
+    if (target.m_texture == texture && target.m_plane == plane) { return; }
+    if (texture) { ITexMarkAsUpdated(texture); }
+    if (m->command) { m->EnsurePass(); }
+    CGxDevice::DeviceSetRenderTarget(buffer, texture, plane);
+    ApplyRenderTarget();
+    m_viewportDirty = m_scissorRectDirty = 1;
+}
 void CGxDeviceMetal::DeviceSaveDepthSurface() { Unsupported("save depth surface"); }
 void CGxDeviceMetal::DeviceRestoreDepthSurface() { Unsupported("restore depth surface"); }
 void CGxDeviceMetal::DeviceResolveDepthBuffer(CGxTex*) { Unsupported("resolve depth"); }

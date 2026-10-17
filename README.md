@@ -175,8 +175,13 @@ completion. Shared UI immediate geometry now reaches the device, including
 ignores nonzero rectangle origins and its depth reader fills zero; native Metal
 returns the requested rectangle/actual depth. Current game pixel callers use
 origin zero, and no game depth-reader call sites were found. The discrepancy still
-needs original Windows verification. Copies, queries, render targets, partial
-viewport clears, gamma ramps and stereo remain explicit unsupported operations. Geometry draws
+needs original Windows verification. BGRA8 color render targets now support
+offscreen drawing/sampling, switching back to the current default surface, and
+reusing a scratch Depth32Float surface across smaller targets. Binding and texture
+contents survive frame boundaries; host resizing and bound-target destruction
+restore the correct default surface. Other render-target formats, explicit depth
+textures, copies, queries, partial viewport clears, gamma ramps and stereo remain
+explicit unsupported operations. Geometry draws
 currently open individual render encoders; pass batching, upload allocation reuse
 and texture-update bandwidth optimization remain to be implemented.
 

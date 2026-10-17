@@ -70,6 +70,7 @@ public:
     void DeviceUnk82() override {}
     void DeviceUnk83(uint32_t, uint32_t) override {}
 private:
+    void ApplyRenderTarget();
     struct Impl;
     std::unique_ptr<Impl> m;
 };
