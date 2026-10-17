@@ -100,7 +100,12 @@ void CGAchievementInfo::InitializeGame() {
     s_completedQuests.Clear();
 
     for (int32_t i = 0; i < g_achievementDB.m_numRecords; i++) {
-        AchievementRec* rec = i < 0 || i >= g_achievementDB.m_numRecords ? nullptr : &g_achievementDB.m_records[i];
+        AchievementRec* rec = &g_achievementDB.m_records[i];
+        
+        if (!rec) {
+            continue;
+        }
+
         int32_t id = rec->m_id;
 
         ACHIEVEMENT* achievement = s_achievements.New(id, HASHKEY_NONE(), 0, 0);
@@ -108,7 +113,7 @@ void CGAchievementInfo::InitializeGame() {
     }
 
     for (int32_t i = 0; i < g_achievement_CriteriaDB.m_numRecords; i++) {
-        Achievement_CriteriaRec* rec = i < 0 || i >= g_achievement_CriteriaDB.m_numRecords ? nullptr : &g_achievement_CriteriaDB.m_records[i];
+        Achievement_CriteriaRec* rec = &g_achievement_CriteriaDB.m_records[i];
 
         if (!rec || !g_achievementDB.GetRecord(rec->m_achievementID) || static_cast<uint32_t>(rec->m_type) > 123) {
             continue;

@@ -3494,20 +3494,16 @@ int32_t SpellRec::GetCastTime(const SpellRec* spell, int32_t isPet, int32_t isUn
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
             if (player) {
-                CGBag_C* bag = &player->m_bag;
+                CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->m_bag.GetItemGuid(17) }, TYPEMASK_ITEM, __FILE__, __LINE__));
 
-                if (bag) {
-                    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ bag->GetItemGuid(17) }, TYPEMASK_ITEM, __FILE__, __LINE__));
+                if (item) {
+                    ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, player->m_obj->m_guid, nullptr, nullptr, false);
 
-                    if (item) {
-                        ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, player->m_obj->m_guid, nullptr, nullptr, false);
+                    if (stats && stats->m_delay) {
+                        uint32_t speed = player->m_unit->m_unitFieldRangedattacktime;
 
-                        if (stats && stats->m_delay) {
-                            uint32_t speed = player->m_unit->m_unitFieldRangedattacktime;
-
-                            if (speed) {
-                                castTime = static_cast<int32_t>(static_cast<float>(speed) / static_cast<int32_t>(stats->m_delay) * castTime);
-                            }
+                        if (speed) {
+                            castTime = static_cast<int32_t>(static_cast<float>(speed) / static_cast<int32_t>(stats->m_delay) * castTime);
                         }
                     }
                 }
@@ -5776,9 +5772,9 @@ int32_t SpellHistory::RecentlyCast(int32_t spellId, int32_t itemId) {
 // OFFSET: 0x007FEA30
 ItemSubClassRec* FindAnyItemSubclassRec(int32_t classId, int32_t subclassMask) {
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-        ItemSubClassRec* rec = i < 0 || i >= g_itemSubClassDB.m_numRecords ? nullptr : &g_itemSubClassDB.m_records[i];
+        ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
 
-        if (rec->m_classID == classId && ((1 << rec->m_subClassID) & subclassMask)) {
+        if (rec && (rec->m_classID == classId && ((1 << rec->m_subClassID) & subclassMask))) {
             return rec;
         }
     }
@@ -5808,9 +5804,9 @@ void ShowPetSpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t r
             bool found = false;
 
             for (int32_t i = 0; i < g_itemSubClassMaskDB.m_numRecords; i++) {
-                ItemSubClassMaskRec* rec = i < 0 || i >= g_itemSubClassMaskDB.m_numRecords ? nullptr : &g_itemSubClassMaskDB.m_records[i];
+                ItemSubClassMaskRec* rec = &g_itemSubClassMaskDB.m_records[i];
 
-                if (rec->m_classID == misc1 && rec->m_mask == misc2) {
+                if (rec && rec->m_classID == misc1 && rec->m_mask == misc2) {
                     SStrPrintf(text, sizeof(text), format, rec->m_name);
                     CGGameUI::DisplayError(ERR_SPELL_FAILED_S, text);
                     found = true;
@@ -5871,7 +5867,7 @@ void ShowPetSpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t r
                     continue;
                 }
 
-                SpellShapeshiftFormRec* form = static_cast<int32_t>(i) < 0 || static_cast<int32_t>(i) >= g_spellShapeshiftFormDB.m_numRecords ? nullptr : &g_spellShapeshiftFormDB.m_records[i];
+                SpellShapeshiftFormRec* form = &g_spellShapeshiftFormDB.m_records[i];
 
                 if (form && form->m_name && *form->m_name) {
                     SStrPrintf(format, sizeof(format), text, form->m_name);
@@ -6452,9 +6448,9 @@ void Spell_C_SpellFailed(PendingSpellCast* cast, const SpellRec* spell, int32_t 
             bool found = false;
 
             for (int32_t i = 0; i < g_itemSubClassMaskDB.m_numRecords; i++) {
-                ItemSubClassMaskRec* rec = i < 0 || i >= g_itemSubClassMaskDB.m_numRecords ? nullptr : &g_itemSubClassMaskDB.m_records[i];
+                ItemSubClassMaskRec* rec = &g_itemSubClassMaskDB.m_records[i];
 
-                if (rec->m_classID == misc1 && rec->m_mask == misc2) {
+                if (rec && rec->m_classID == misc1 && rec->m_mask == misc2) {
                     SStrPrintf(text, sizeof(text), format, rec->m_name);
                     message = text;
                     found = true;

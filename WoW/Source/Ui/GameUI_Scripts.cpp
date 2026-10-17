@@ -2038,7 +2038,11 @@ static int32_t Script_GetZonePVPInfo(lua_State* L) {
     const char* factionName = "";
 
     for (int32_t i = 0; i < g_factionGroupDB.m_numRecords; i++) {
-        FactionGroupRec* group = i >= 0 && i < g_factionGroupDB.m_numRecords ? &g_factionGroupDB.m_records[i] : nullptr;
+        FactionGroupRec* group = &g_factionGroupDB.m_records[i];
+
+        if (!group) {
+            continue;
+        }
 
         if (((1 << group->m_maskID) & area->m_factionGroupMask) && *group->m_name) {
             factionName = group->m_name;
@@ -2651,7 +2655,7 @@ static int32_t Script_GetItemInfo(lua_State* L) {
     const ItemSubClassRec* subClass = nullptr;
 
     for (int32_t i = 0; i < g_itemSubClassDB.m_numRecords; i++) {
-        const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
+        const ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
 
         if (rec && rec->m_classID == static_cast<int32_t>(stats->m_class) && rec->m_subClassID == static_cast<int32_t>(stats->m_subClass)) {
             subClass = rec;
@@ -5088,7 +5092,7 @@ int32_t FindItemClassTypeCallback(const CGItem_C* item, void* param) {
 
     while (i) {
         i--;
-        const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
+        const ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
 
         if (rec && rec->m_classID == static_cast<int32_t>(stats->m_class) && rec->m_subClassID == static_cast<int32_t>(stats->m_subClass)) {
             if (!SStrCmpUTF8I(rec->m_verboseName, type, STORM_MAX_STR) || !SStrCmpUTF8I(rec->m_displayName, type, STORM_MAX_STR)) {
@@ -5103,7 +5107,11 @@ int32_t FindItemClassTypeCallback(const CGItem_C* item, void* param) {
 
     while (i) {
         i--;
-        const ItemSubClassMaskRec* rec = i >= 0 && i < g_itemSubClassMaskDB.m_numRecords ? &g_itemSubClassMaskDB.m_records[i] : nullptr;
+        const ItemSubClassMaskRec* rec = &g_itemSubClassMaskDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (rec->m_classID == static_cast<int32_t>(stats->m_class) && ((1 << stats->m_subClass) & rec->m_mask) && !SStrCmpUTF8I(rec->m_name, type, STORM_MAX_STR)) {
             return 1;
@@ -5320,7 +5328,11 @@ static int32_t Script_EquipItemByName(lua_State* L) {
             const char* name = lua_tolstring(L, 2, nullptr);
 
             for (int32_t i = 0; i < g_paperDollItemFrameDB.m_numRecords; i++) {
-                const PaperDollItemFrameRec* rec = i >= 0 && i < g_paperDollItemFrameDB.m_numRecords ? &g_paperDollItemFrameDB.m_records[i] : nullptr;
+                const PaperDollItemFrameRec* rec = &g_paperDollItemFrameDB.m_records[i];
+
+                if (!rec) {
+                    continue;
+                }
 
                 if (!SStrCmpI(rec->m_itemButtonName, name, STORM_MAX_STR)) {
                     dstSlot = rec->m_slotNumber;

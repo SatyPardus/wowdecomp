@@ -522,7 +522,11 @@ void CGMailInfo::InitializeGame() {
     CGMailInfo::m_stationeries.SetCount(numStationeries);
 
     for (int32_t i = 0; i < static_cast<int32_t>(numStationeries); i++) {
-        StationeryRec* rec = i < 0 || i >= g_stationeryDB.m_numRecords ? nullptr : &g_stationeryDB.m_records[i];
+        StationeryRec* rec = &g_stationeryDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         CGMailInfo::m_stationeries.m_data[i] = static_cast<StationeryInfo*>(SMemAlloc(sizeof(StationeryInfo), __FILE__, __LINE__, 0));
         CGMailInfo::m_stationeries.m_data[i]->m_id = rec->m_id;

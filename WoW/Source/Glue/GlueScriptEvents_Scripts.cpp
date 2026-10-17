@@ -581,9 +581,9 @@ static int32_t Script_GetServerName(lua_State* L) {
 
     if (realm) {
         for (int32_t i = 0; i < g_cfg_ConfigsDB.m_numRecords; i++) {
-            Cfg_ConfigsRec* config = i >= 0 && i < g_cfg_ConfigsDB.m_numRecords ? &g_cfg_ConfigsDB.m_records[i] : nullptr;
+            const Cfg_ConfigsRec* config = &g_cfg_ConfigsDB.m_records[i];
 
-            if (config->m_realmType == realm->m_type) {
+            if (config && config->m_realmType == realm->m_type) {
                 pvp = config->m_playerKillingAllowed != 0;
                 rp = config->m_roleplaying != 0;
                 down = realm->m_flags & 0x2;

@@ -1011,8 +1011,12 @@ int32_t ClientDBGetUnarmedWeapon() {
 static void LocateWeaponSubclass() {
     s_weaponItemClass = nullptr;
 
+    if (g_itemClassDB.m_numRecords <= 0) {
+        return;
+    }
+
     for (int32_t i = g_itemClassDB.m_numRecords - 1; i >= 0; i--) {
-        const ItemClassRec* rec = i >= 0 && i < g_itemClassDB.m_numRecords ? &g_itemClassDB.m_records[i] : nullptr;
+        const ItemClassRec* rec = &g_itemClassDB.m_records[i];
 
         if (rec->m_flags & 1) {
             s_weaponItemClass = rec;
@@ -1055,7 +1059,7 @@ void InitResistances() {
     s_resistances.SetCount(count);
 
     for (int32_t i = 0; static_cast<uint32_t>(i) < count; i++) {
-        const ResistancesRec* rec = i >= 0 && i < g_resistancesDB.m_numRecords ? &g_resistancesDB.m_records[i] : nullptr;
+        const ResistancesRec* rec = &g_resistancesDB.m_records[i];
 
         if (rec->m_flags & 1) {
             s_physicalDamageClassID = i;
@@ -1096,11 +1100,19 @@ void InitWeaponSubclasses() {
     s_unarmedWeapon = nullptr;
     LocateWeaponSubclass();
 
+    if (!s_weaponItemClass) {
+        return;
+    }
+
     int32_t weaponClass = s_weaponItemClass->m_classID;
     int32_t count = 0;
 
     for (int32_t i = g_itemSubClassDB.m_numRecords - 1; i >= 0; i--) {
-        const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
+        const ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (rec->m_classID == weaponClass && count <= rec->m_subClassID + 1) {
             count = rec->m_subClassID + 1;
@@ -1110,7 +1122,11 @@ void InitWeaponSubclasses() {
     s_weaponSubclasses.SetCount(count);
 
     for (int32_t i = g_itemSubClassDB.m_numRecords - 1; i >= 0; i--) {
-        const ItemSubClassRec* rec = i >= 0 && i < g_itemSubClassDB.m_numRecords ? &g_itemSubClassDB.m_records[i] : nullptr;
+        const ItemSubClassRec* rec = &g_itemSubClassDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         if (rec->m_classID == weaponClass) {
             s_weaponSubclasses[rec->m_subClassID] = rec;
@@ -1172,16 +1188,16 @@ const char* ClientDBStringLookup(uint32_t lookup) {
 // OFFSET: 0x00634950
 MapDifficultyRec* GetMapDifficultyEntryByMapIdAndDifficulty(int32_t mapId, uint32_t difficulty, int32_t* index) {
     for (int32_t i = 0; i < g_mapDifficultyDB.m_numRecords; i++) {
-        MapDifficultyRec* rec = i < 0 || i >= g_mapDifficultyDB.m_numRecords ? nullptr : &g_mapDifficultyDB.m_records[i];
+        const MapDifficultyRec* rec = &g_mapDifficultyDB.m_records[i];
 
         if (rec->m_mapID != mapId) {
             continue;
         }
 
         for (int32_t j = i; j < g_mapDifficultyDB.m_numRecords; j++) {
-            MapDifficultyRec* entry = j < 0 || j >= g_mapDifficultyDB.m_numRecords ? nullptr : &g_mapDifficultyDB.m_records[j];
+            MapDifficultyRec* entry = &g_mapDifficultyDB.m_records[j];
 
-            if (entry->m_mapID != mapId) {
+            if (!entry || entry->m_mapID != mapId) {
                 break;
             }
 

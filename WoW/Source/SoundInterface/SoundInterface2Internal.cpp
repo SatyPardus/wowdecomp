@@ -363,7 +363,11 @@ void SI2::InitWorldStateZoneSoundOverrides() {
     for (uint32_t i = 0; i < s_worldStateZoneSoundOverrides.Count(); i++) {
         s_worldStateZoneSoundOverrides[i] = static_cast<WorldStateZoneSoundOverride*>(SMemAlloc(sizeof(WorldStateZoneSoundOverride), __FILE__, __LINE__, 0));
 
-        WorldStateZoneSoundsRec* rec = (static_cast<int32_t>(i) < 0 || static_cast<int32_t>(i) >= g_worldStateZoneSoundsDB.m_numRecords) ? nullptr : &g_worldStateZoneSoundsDB.m_records[i];
+        WorldStateZoneSoundsRec* rec = &g_worldStateZoneSoundsDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
 
         s_worldStateZoneSoundOverrides[i]->m_areaId = rec->m_areaID;
         s_worldStateZoneSoundOverrides[i]->m_wmoAreaId = rec->m_wmoareaID;
@@ -446,7 +450,7 @@ void SI2::InitSoundKitLookup() {
     memset(s_soundKitDefs.Ptr(), 0, sizeof(VSOUNDKITDEF*) * count);
 
     for (int32_t i = 0; i < g_soundEntriesDB.m_numRecords; i++) {
-        SoundEntriesRec* rec = (i < 0 || i >= g_soundEntriesDB.m_numRecords) ? nullptr : &g_soundEntriesDB.m_records[i];
+        SoundEntriesRec* rec = &g_soundEntriesDB.m_records[i];
 
         if (!rec) {
             continue;
@@ -515,7 +519,11 @@ void SI2::InitZoneSoundOverrides() {
     char key[64];
 
     for (int32_t i = 0; i < g_worldChunkSoundsDB.m_numRecords; i++) {
-        WorldChunkSoundsRec* rec = (i < 0 || i >= g_worldChunkSoundsDB.m_numRecords) ? nullptr : &g_worldChunkSoundsDB.m_records[i];
+        WorldChunkSoundsRec* rec = &g_worldChunkSoundsDB.m_records[i];
+
+        if (!key) {
+            continue;
+        }
 
         SStrPrintf(key, sizeof(key), "%010d_%010d_%010d_%010d_%010d", rec->m_id, rec->m_chunkX, rec->m_chunkY, rec->m_subchunkX, rec->m_subchunkY);
 

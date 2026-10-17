@@ -6456,7 +6456,7 @@ int32_t CGTooltip::SetItem(int32_t itemId, const WOWGUID* requester, const WOWGU
 
                 if (suffix) {
                     for (uint32_t i = 0; i < 5; i++) {
-                        this->m_itemLinkInfo.m_enchants[i + 7] = i < 5 ? suffix->m_enchantment[i] : 0;
+                        this->m_itemLinkInfo.m_enchants[i + 7] = suffix->m_enchantment[i];
                     }
                 }
             }

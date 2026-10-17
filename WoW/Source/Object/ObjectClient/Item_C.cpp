@@ -1271,13 +1271,13 @@ int32_t CGItem_C::GetRepairCost() {
     int32_t cost;
 
     if (itemClass == 2) {
-        if (subClass > 21) {
+        if (subClass >= 21) {
             return 0;
         }
 
         cost = costs->m_weaponSubClassCost[subClass];
     } else {
-        if (itemClass != 4 || subClass > 8) {
+        if (itemClass != 4 || subClass >= 8) {
             return 0;
         }
 
@@ -1423,16 +1423,10 @@ void CGItem_C::SignalEvent(CGItem_C* item, uint32_t event) {
         return;
     }
 
-    CGBag_C* bag = &player->m_bag;
-
-    if (!bag) {
-        return;
-    }
-
     WOWGUID container;
     uint32_t slot;
 
-    if (!bag->FindItem(FindItemCallback, item, container, slot, 136)) {
+    if (!player->m_bag.FindItem(FindItemCallback, item, container, slot, 136)) {
         return;
     }
 
@@ -1453,7 +1447,7 @@ void CGItem_C::SignalEvent(CGItem_C* item, uint32_t event) {
     }
 
     for (uint32_t i = 0; i < 4; i++) {
-        WOWGUID guid = i + 19 < static_cast<uint32_t>(bag->m_numSlots) ? bag->m_slots[i + 19] : WOWGUID();
+        WOWGUID guid = i + 19 < static_cast<uint32_t>(player->m_bag.m_numSlots) ? player->m_bag.m_slots[i + 19] : WOWGUID();
 
         if (guid == container) {
             FrameScript_SignalEvent(event, "%d%d", i + 1, slot + 1);
@@ -1462,7 +1456,7 @@ void CGItem_C::SignalEvent(CGItem_C* item, uint32_t event) {
     }
 
     for (uint32_t i = 0; i < 7; i++) {
-        WOWGUID guid = i + 67 < static_cast<uint32_t>(bag->m_numSlots) ? bag->m_slots[i + 67] : WOWGUID();
+        WOWGUID guid = i + 67 < static_cast<uint32_t>(player->m_bag.m_numSlots) ? player->m_bag.m_slots[i + 67] : WOWGUID();
 
         if (guid == container) {
             FrameScript_SignalEvent(event, "%d%d", i + 5, slot + 1);

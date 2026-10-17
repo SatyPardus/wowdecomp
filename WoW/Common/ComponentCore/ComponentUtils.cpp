@@ -252,9 +252,9 @@ int32_t BuildComponentArray(uint32_t count, st_race** lookupOut) {
     int32_t baseSection = first->m_baseSection;
 
     for (int32_t i = 0; i < g_charSectionsDB.m_numRecords; i++) {
-        CharSectionsRec* rec = (i < 0 || i >= g_charSectionsDB.m_numRecords) ? nullptr : &g_charSectionsDB.m_records[i];
+        CharSectionsRec* rec = &g_charSectionsDB.m_records[i];
 
-        if (rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
+        if (!rec || rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
             continue;
         }
 
@@ -292,9 +292,9 @@ int32_t BuildComponentArray(uint32_t count, st_race** lookupOut) {
     int32_t colorIndex = 0;
 
     for (int32_t i = 0; i < g_charSectionsDB.m_numRecords; i++) {
-        CharSectionsRec* rec = (i < 0 || i >= g_charSectionsDB.m_numRecords) ? nullptr : &g_charSectionsDB.m_records[i];
+        CharSectionsRec* rec = &g_charSectionsDB.m_records[i];
 
-        if (rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
+        if (!rec || rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
             continue;
         }
 
@@ -335,9 +335,9 @@ int32_t BuildComponentArray(uint32_t count, st_race** lookupOut) {
     }
 
     for (int32_t i = 0; i < g_charSectionsDB.m_numRecords; i++) {
-        CharSectionsRec* rec = (i < 0 || i >= g_charSectionsDB.m_numRecords) ? nullptr : &g_charSectionsDB.m_records[i];
+        CharSectionsRec* rec = &g_charSectionsDB.m_records[i];
 
-        if (rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
+        if (!rec || rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
             continue;
         }
 
@@ -364,12 +364,12 @@ int32_t BuildComponentArray(uint32_t count, st_race** lookupOut) {
 int32_t CountFacialFeatures(uint32_t count, uint32_t** facialFeatures) {
     uint32_t* counts = static_cast<uint32_t*>(SMemAlloc(sizeof(uint32_t) * count, __FILE__, __LINE__, SMEM_FLAG_ZEROMEMORY));
 
-    if (!counts) {
+    if (!counts || g_characterFacialHairStylesDB.m_numRecords <= 0) {
         return 0;
     }
 
     for (int32_t i = 0; i < g_characterFacialHairStylesDB.m_numRecords; i++) {
-        CharacterFacialHairStylesRec* rec = (i < 0 || i >= g_characterFacialHairStylesDB.m_numRecords) ? nullptr : &g_characterFacialHairStylesDB.m_records[i];
+        CharacterFacialHairStylesRec* rec = &g_characterFacialHairStylesDB.m_records[i];
 
         if (!rec) {
             return 0;

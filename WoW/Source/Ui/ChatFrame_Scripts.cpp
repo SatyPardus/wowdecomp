@@ -650,7 +650,7 @@ static int32_t Script_GetNumLanguages(lua_State* L) {
     int32_t numRecords = g_languagesDB.m_numRecords;
 
     for (int32_t i = 0; i < numRecords; i++) {
-        const LanguagesRec* rec = (i >= 0 && i < g_languagesDB.m_numRecords) ? &g_languagesDB.m_records[i] : nullptr;
+        const LanguagesRec* rec = &g_languagesDB.m_records[i];
         uint32_t skill;
 
         if (rec && player->GetLanguageSkill(rec->m_id, skill)) {
@@ -681,7 +681,7 @@ static int32_t Script_GetLanguageByIndex(lua_State* L) {
     int32_t found = 0;
 
     for (int32_t i = 0; i < numRecords; i++) {
-        const LanguagesRec* rec = (i >= 0 && i < g_languagesDB.m_numRecords) ? &g_languagesDB.m_records[i] : nullptr;
+        const LanguagesRec* rec = &g_languagesDB.m_records[i];
         uint32_t skill;
 
         if (rec && player->GetLanguageSkill(rec->m_id, skill) && ++found == wanted) {

@@ -254,7 +254,12 @@ void ObjectEffectSystem_Initialize() {
     int32_t packageCount = g_objectEffectPackageDB.m_numRecords;
 
     for (int32_t i = 0; i < packageCount; i++) {
-        ObjectEffectPackageRec* rec = (i < 0 || i >= g_objectEffectPackageDB.m_numRecords) ? nullptr : &g_objectEffectPackageDB.m_records[i];
+        ObjectEffectPackageRec* rec = &g_objectEffectPackageDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
+
         OBJ_EFFECT_PACKAGE_DEF_LOOKUP* packageLookup = s_packageDefLookup.New(rec->m_id, s_hashKeyNone, 0, 0);
         packageLookup->m_objectEffectPackageDef.m_id = rec->m_id;
     }
@@ -262,7 +267,12 @@ void ObjectEffectSystem_Initialize() {
     int32_t groupCount = g_objectEffectGroupDB.m_numRecords;
 
     for (int32_t i = 0; i < groupCount; i++) {
-        ObjectEffectGroupRec* rec = (i < 0 || i >= g_objectEffectGroupDB.m_numRecords) ? nullptr : &g_objectEffectGroupDB.m_records[i];
+        ObjectEffectGroupRec* rec = &g_objectEffectGroupDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
+
         OBJ_EFFECT_GROUP_DEF_LOOKUP* groupLookup = s_groupDefLookup.New(rec->m_id, s_hashKeyNone, 0, 0);
         groupLookup->m_objectEffectGroupDef.m_id = rec->m_id;
     }
@@ -270,7 +280,12 @@ void ObjectEffectSystem_Initialize() {
     int32_t elemCount = g_objectEffectPackageElemDB.m_numRecords;
 
     for (int32_t i = 0; i < elemCount; i++) {
-        ObjectEffectPackageElemRec* rec = (i < 0 || i >= g_objectEffectPackageElemDB.m_numRecords) ? nullptr : &g_objectEffectPackageElemDB.m_records[i];
+        ObjectEffectPackageElemRec* rec = &g_objectEffectPackageElemDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
+
         OBJ_EFFECT_PACKAGE_DEF_LOOKUP* packageLookup = s_packageDefLookup.Ptr(rec->m_objectEffectPackageID, s_hashKeyNone);
 
         if (!packageLookup) {
@@ -292,7 +307,12 @@ void ObjectEffectSystem_Initialize() {
     int32_t effectCount = g_objectEffectDB.m_numRecords;
 
     for (int32_t i = 0; i < effectCount; i++) {
-        ObjectEffectRec* rec = (i < 0 || i >= g_objectEffectDB.m_numRecords) ? nullptr : &g_objectEffectDB.m_records[i];
+        ObjectEffectRec* rec = &g_objectEffectDB.m_records[i];
+
+        if (!rec) {
+            continue;
+        }
+
         OBJ_EFFECT_DEF_LOOKUP* effectLookup = s_effectDefLookup.New(rec->m_id, s_hashKeyNone, 0, 0);
         effectLookup->m_objectEffectDef.m_id = rec->m_id;
         effectLookup->m_objectEffectDef.m_effectRecType = rec->m_effectRecType;

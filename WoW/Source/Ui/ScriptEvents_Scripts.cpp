@@ -637,7 +637,7 @@ static int32_t Script_FillLocalizedClassList(lua_State* L) {
     lua_settop(L, 1);
 
     for (int32_t i = 0; static_cast<uint32_t>(i) < count; i++) {
-        ChrClassesRec* rec = (i < 0 || i >= g_chrClassesDB.m_numRecords) ? nullptr : &g_chrClassesDB.m_records[i];
+        ChrClassesRec* rec = &g_chrClassesDB.m_records[i];
 
         if (rec) {
             lua_pushstring(L, rec->m_filename);
@@ -1081,7 +1081,11 @@ static int32_t Script_UnitFactionGroup(lua_State* L) {
 
     if (faction) {
         for (int32_t i = 0; i < g_factionGroupDB.m_numRecords; i++) {
-            FactionGroupRec* group = i >= 0 && i < g_factionGroupDB.m_numRecords ? &g_factionGroupDB.m_records[i] : nullptr;
+            FactionGroupRec* group = &g_factionGroupDB.m_records[i];
+
+            if (!group) {
+                continue;
+            }
 
             if (((1 << group->m_maskID) & faction->m_factionGroup) && *group->m_name) {
                 lua_pushstring(L, group->m_internalName);

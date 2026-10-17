@@ -1078,7 +1078,12 @@ void CGQuestLog::Update(int32_t a1) {
     int32_t timeOffset = CGQuestLog::m_timeOffset;
 
     for (uint32_t slot = 0; slot < 25; slot++) {
-        PlayerQuestLogEntry* entry = slot > 25 ? nullptr : &player->m_player->m_playerQuestLog[slot];
+        PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[slot];
+
+        if (!entry) {
+            continue;
+        }
+
         int32_t questId = entry->m_questId;
 
         if (questId <= 0) {
@@ -1313,7 +1318,7 @@ int32_t CGQuestLog::IsOnQuest(int32_t questId) {
     }
 
     for (uint32_t slot = 0; slot < 25; slot++) {
-        PlayerQuestLogEntry* entry = slot > 25 ? nullptr : &player->m_player->m_playerQuestLog[slot];
+        PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[slot];
 
         if (entry && entry->m_questId && static_cast<int32_t>(entry->m_questId) == questId) {
             return 1;

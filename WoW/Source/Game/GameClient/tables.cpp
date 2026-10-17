@@ -51,8 +51,12 @@ ClientGameTableBase::ClientGameTableBase(const char* name) {
 // VERIFY: 001196df auto
 // OFFSET: 0x007F6A10
 void ClientGameTableBase::Initialize() {
+    if (g_gameTablesDB.m_numRecords <= 0) {
+        return;
+    }
+
     for (int32_t i = 0; i <= g_gameTablesDB.m_numRecords; i++) {
-        GameTablesRec* rec = i >= 0 && i < g_gameTablesDB.m_numRecords ? &g_gameTablesDB.m_records[i] : nullptr;
+        GameTablesRec* rec = &g_gameTablesDB.m_records[i];
 
         if (!SStrCmpI(this->m_name, rec->m_name, STORM_MAX_STR)) {
             this->m_gameTable = rec;

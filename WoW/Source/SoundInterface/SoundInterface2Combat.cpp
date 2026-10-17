@@ -38,10 +38,8 @@ static void InitWeaponImpactSound(WeaponImpactSoundsRec* rec) {
 // VERIFY: d720637a auto
 // OFFSET: 0x004D04E0
 void SI2::InitWeaponSwingCombatSounds() {
-    for (int32_t i = g_weaponSwingSounds2DB.m_numRecords; i;) {
-        i--;
-
-        WeaponSwingSounds2Rec* rec = (i < 0 || i >= g_weaponSwingSounds2DB.m_numRecords) ? nullptr : &g_weaponSwingSounds2DB.m_records[i];
+    for (int32_t i = g_weaponSwingSounds2DB.m_numRecords - 1; i >= 0; --i) {
+        WeaponSwingSounds2Rec* rec = &g_weaponSwingSounds2DB.m_records[i];
 
         if (rec && rec->m_swingType < 3 && rec->m_crit < 2) {
             s_swingSounds[rec->m_swingType][rec->m_crit != 0] = rec->m_soundID;
@@ -205,10 +203,13 @@ int32_t SI2::PlayMissedSound(bool oneHand, const C3Vector* position, int32_t sel
 void SI2::InitWeaponImpactCombatSounds() {
     s_impactSounds.SetCount(ClientDBGetNumWeaponSubClasses());
 
-    for (int32_t i = g_weaponImpactSoundsDB.m_numRecords; i;) {
-        i--;
+    for (int32_t i = g_weaponImpactSoundsDB.m_numRecords - 1; i >= 0; i--) {
+        WeaponImpactSoundsRec* rec = &g_weaponImpactSoundsDB.m_records[i];
 
-        WeaponImpactSoundsRec* rec = (i < 0 || i >= g_weaponImpactSoundsDB.m_numRecords) ? nullptr : &g_weaponImpactSoundsDB.m_records[i];
+        if (!rec) {
+            continue;
+        }
+
         InitWeaponImpactSound(rec);
     }
 }

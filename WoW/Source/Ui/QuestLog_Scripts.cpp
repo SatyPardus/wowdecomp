@@ -260,7 +260,7 @@ static int32_t Script_GetQuestTimers(lua_State* L) {
     }
 
     for (int32_t i = 0; static_cast<uint32_t>(i) < numQuest; i++) {
-        if (i < 0 || i >= CGQuestLog::m_numQuest || CGQuestLog::m_quests[i].m_isHeader) {
+        if (CGQuestLog::m_quests[i].m_isHeader) {
             continue;
         }
 
@@ -272,7 +272,7 @@ static int32_t Script_GetQuestTimers(lua_State* L) {
 
         PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[slot];
 
-        if (!entry || !entry->m_time || (entry->m_state & 2) || (i < CGQuestLog::m_numQuest && CGQuestLog::m_quests[i].m_expired)) {
+        if (!entry || !entry->m_time || (entry->m_state & 2) || CGQuestLog::m_quests[i].m_expired) {
             continue;
         }
 
@@ -597,7 +597,7 @@ static int32_t Script_GetAbandonQuestItems(lua_State* L) {
             return 0;
         }
 
-        int32_t questId = i < 0 || i >= CGQuestLog::m_numQuest || CGQuestLog::m_quests[i].m_isHeader ? 0 : CGQuestLog::m_quests[i].m_questId;
+        int32_t questId = CGQuestLog::m_quests[i].m_isHeader ? 0 : CGQuestLog::m_quests[i].m_questId;
         QuestCache* quest = g_questDBCache.GetRecord(questId, none, nullptr, nullptr, false);
 
         if (!quest || quest == abandon) {
@@ -916,7 +916,7 @@ static int32_t Script_GetQuestIndexForTimer(lua_State* L) {
         int32_t timeOffset = CGQuestLog::m_timeOffset;
 
         for (int32_t i = 0; static_cast<uint32_t>(i) < numQuest; i++) {
-            if (i < 0 || i >= CGQuestLog::m_numQuest || CGQuestLog::m_quests[i].m_isHeader) {
+            if (CGQuestLog::m_quests[i].m_isHeader) {
                 continue;
             }
 
