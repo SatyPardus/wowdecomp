@@ -203,6 +203,7 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             out << "Native Gx factory, UI shader creation/binding, streaming-buffer wrap, immutable texture updates, partial-origin callbacks, pixel/depth readback, screenshots and exact ARGB4444 font textures passed.\n";
             out << "Gx color render targets: offscreen draw/sample ordering, default clear preservation, scratch depth reuse, target destruction and host resize passed.\n";
             out << "Gx surface copies: default versus explicit source, exact partial RGBA copies, nearest/linear scaling, offset destination, invalid bounds and same-frame mip sampling passed.\n";
+            out << "Gx regional clears: independent color/depth masks, viewport/scissor rounding and deferral, offscreen Y origin and preservation outside shared depth bounds passed.\n";
             out << "Original MPQ font rendered through Gxu/FreeType: multiline text, embedded color, AA/monochrome, normal/thick outlines, shadow, resize/restore and font/texture-cache recreation passed.\n";
             out << "BC endpoint/alpha cases, BGRA channel order, straight alpha blending and bilinear sampling passed.\n";
             out << "Gx: 12 RGBA blend modes, alpha-test equality/clip, channel masks, six mip filters and independent U/V addressing passed.\n";

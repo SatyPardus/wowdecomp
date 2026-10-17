@@ -37,6 +37,9 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     id<MTLLibrary> library = [device newLibraryWithSource:@(TextureQuadSource) options:options error:&error];
     if (!library) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Metal shader compilation failed"); }
     m_vertex = [library newFunctionWithName:@"textureQuadVertex"];
+    m_clearVertex = [library newFunctionWithName:@"clearVertex"];
+    m_clearFragment = [library newFunctionWithName:@"clearFragment"];
+    Require(m_clearVertex && m_clearFragment, "Missing native attachment clear functions");
     NSString* geometryFunctions[] = {@"unlitP", @"unlitPC", @"unlitPT", @"unlitPCT"};
     for (bool screenAtDepth : {false, true}) {
         MTLFunctionConstantValues* constants = [MTLFunctionConstantValues new];
@@ -220,6 +223,45 @@ void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDes
     [encoder setFragmentBytes:&constants length:sizeof(constants) atIndex:0];
     [encoder setFragmentTexture:texture atIndex:0];
     [encoder setFragmentSamplerState:sampler atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
+    [encoder endEncoding];
+}
+
+void GxMetal::TextureDevice::ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass,
+    const MTLScissorRect& region, uint32_t mask, simd_float4 color) {
+    const bool hasDepth = pass.depthAttachment.texture != nil, writeColor = (mask & 1) != 0, writeDepth = (mask & 2) != 0;
+    auto target = pass.colorAttachments[0].texture;
+    Require(command && target && target.pixelFormat == MTLPixelFormatBGRA8Unorm && target.sampleCount == 1 &&
+        (!hasDepth || pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float) && (!writeDepth || hasDepth),
+        "Unsupported Metal regional clear attachments");
+    Require(mask && mask <= 3 && region.width && region.height && region.x < target.width && region.y < target.height &&
+        region.width <= target.width - region.x && region.height <= target.height - region.y, "Invalid Metal clear region");
+    auto& pipeline = m_clearPipelines[hasDepth][writeColor];
+    if (!pipeline) {
+        auto descriptor = [MTLRenderPipelineDescriptor new];
+        descriptor.label = @"Gx regional attachment clear";
+        descriptor.vertexFunction = m_clearVertex; descriptor.fragmentFunction = m_clearFragment;
+        descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+        descriptor.colorAttachments[0].writeMask = writeColor ? MTLColorWriteMaskAll : MTLColorWriteMaskNone;
+        if (hasDepth) { descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float; }
+        NSError* error = nil;
+        pipeline = [device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+        if (!pipeline) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Cannot create regional clear pipeline"); }
+    }
+    auto& depth = m_clearDepth[writeDepth];
+    if (!depth) {
+        auto descriptor = [MTLDepthStencilDescriptor new];
+        descriptor.depthCompareFunction = MTLCompareFunctionAlways; descriptor.depthWriteEnabled = writeDepth;
+        depth = [device newDepthStencilStateWithDescriptor:descriptor];
+        Require(depth != nil, "Cannot create clear depth state");
+    }
+    auto encoder = [command renderCommandEncoderWithDescriptor:pass];
+    Require(encoder != nil, "Cannot encode regional Gx clear");
+    [encoder setRenderPipelineState:pipeline]; [encoder setDepthStencilState:depth];
+    [encoder setCullMode:MTLCullModeNone];
+    [encoder setViewport:MTLViewport{double(region.x), double(region.y), double(region.width), double(region.height), 0, 1}];
+    [encoder setScissorRect:region];
+    [encoder setFragmentBytes:&color length:sizeof(color) atIndex:0];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
     [encoder endEncoding];
 }

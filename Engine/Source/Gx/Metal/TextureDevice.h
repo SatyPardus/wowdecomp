@@ -66,12 +66,17 @@ public:
         const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport = nullptr);
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state);
+    void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
+        uint32_t mask, simd_float4 color);
     bool SupportsBC() const;
 
 private:
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
     id<MTLFunction> m_geometryVertex[2][4];
+    id<MTLFunction> m_clearVertex, m_clearFragment;
+    id<MTLRenderPipelineState> m_clearPipelines[2][2]{};
+    id<MTLDepthStencilState> m_clearDepth[2]{};
     std::unordered_map<uint32_t, id<MTLRenderPipelineState>> m_pipelines;
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;

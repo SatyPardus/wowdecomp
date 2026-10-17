@@ -183,7 +183,10 @@ restore the correct default surface. BGRA8 surface copies preserve partial recta
 and target mips; framebuffer copy/stretch reads the default color surface even
 while an offscreen target is bound. Exact copies use GPU blits, while nearest/linear
 scaling uses native sampling on the same command stream without a CPU round trip.
-Other render-target formats, explicit depth textures, queries, partial viewport clears, gamma ramps and stereo remain
+Color/depth clears honor viewport bounds and the last applied scissor state,
+including the original offscreen Y convention. Full-surface clears use attachment
+load actions; regional clears preserve surrounding pixels and the unused portion
+of a larger shared depth surface. Other render-target formats, explicit depth textures, queries, gamma ramps and stereo remain
 explicit unsupported operations. Geometry draws
 currently open individual render encoders; pass batching, upload allocation reuse
 and texture-update bandwidth optimization remain to be implemented.

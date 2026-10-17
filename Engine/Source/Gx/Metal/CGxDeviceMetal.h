@@ -71,6 +71,8 @@ public:
     void DeviceUnk83(uint32_t, uint32_t) override {}
 private:
     void ApplyRenderTarget();
+    MTLViewport Viewport() const;
+    MTLScissorRect Scissor() const;
     struct Impl;
     std::unique_ptr<Impl> m;
 };

@@ -15,6 +15,12 @@ constant bool alphaTest [[function_constant(0)]];
 constant bool screenAtDepth [[function_constant(1)]];
 struct QuadVertex { float4 position [[position]]; float2 uv; float4 color; };
 
+vertex float4 clearVertex(uint index [[vertex_id]]) {
+    const float2 uv = float2(index >> 1, index & 1);
+    return float4(uv * float2(2, -2) + float2(-1, 1), 1, 1);
+}
+fragment float4 clearFragment(constant float4& color [[buffer(0)]]) { return color; }
+
 vertex QuadVertex textureQuadVertex(uint index [[vertex_id]], constant QuadParameters& p [[buffer(0)]]) {
     const float2 uv = float2(index >> 1, index & 1);
     // Native Metal clip coordinates, top-left texture origin, no D3D9 half-pixel offset.

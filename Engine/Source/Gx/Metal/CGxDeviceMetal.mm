@@ -71,6 +71,8 @@ struct CGxDeviceMetal::Impl {
     id<MTLTexture> targetDepth;
     id<MTLDrawable> drawable;
     void* window = nullptr;
+    bool scissorEnabled = false;
+    MTLScissorRect scissor{};
     dispatch_semaphore_t frames = dispatch_semaphore_create(3);
     static void ConsumedLoads(MTLRenderPassDescriptor* descriptor) {
         descriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
@@ -275,6 +277,7 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
     m_curWindowRect.minX = m_curWindowRect.minY = 0;
     m_curWindowRect.maxX = format.m_size.x; m_curWindowRect.maxY = format.m_size.y;
     m_defWindowRect = m_curWindowRect;
+    m->scissor = {0, 0, size_t(format.m_size.x), size_t(format.m_size.y)};
     return 1;
 }
 void CGxDeviceMetal::DeviceDestroy() { Require(!m->command, "End the Metal frame before destroying its host"); Drain(); m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy(); }
@@ -296,10 +299,12 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     m->defaultPass = [pass copy]; m->drawable = drawable;
     m->defaultPass.colorAttachments[0].storeAction = MTLStoreActionStore;
     m->defaultPass.depthAttachment.storeAction = MTLStoreActionStore;
+    const bool resized = m_defWindowRect.maxX != pass.colorAttachments[0].texture.width || m_defWindowRect.maxY != pass.colorAttachments[0].texture.height;
     m_defWindowRect.minX = m_defWindowRect.minY = 0;
     m_defWindowRect.maxX = pass.colorAttachments[0].texture.width;
     m_defWindowRect.maxY = pass.colorAttachments[0].texture.height;
     ApplyRenderTarget();
+    if (resized) { m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)}; m_scissorRectDirty = 1; }
 }
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
 void CGxDeviceMetal::ScenePresent() {
@@ -319,15 +324,64 @@ void CGxDeviceMetal::ScenePresent() {
 }
 void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
     Require(m->command && (mask & ~3u) == 0, "Invalid Metal Gx clear");
-    Require(m_viewport.m_x.m_l == 0 && m_viewport.m_x.m_h == 1 && m_viewport.m_y.m_l == 0 && m_viewport.m_y.m_h == 1,
-        "Partial-viewport Gx clear is not implemented");
-    if (mask & 1) { m->pass.colorAttachments[0].loadAction = MTLLoadActionClear;
-        m->pass.colorAttachments[0].clearColor = MTLClearColorMake(color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0); }
-    if (mask & 2) { Require(m->pass.depthAttachment.texture != nil, "No depth surface to clear");
-        m->pass.depthAttachment.loadAction = MTLLoadActionClear; m->pass.depthAttachment.clearDepth = 1; }
-    [[m->command renderCommandEncoderWithDescriptor:m->pass] endEncoding]; m->ConsumedPass();
+    if (!mask) { return; }
+    if (mask & 2) { Require(m->pass.depthAttachment.texture != nil, "No depth surface to clear"); }
+    const auto viewport = Viewport();
+    size_t left = viewport.originX, top = viewport.originY;
+    size_t right = left + viewport.width, bottom = top + viewport.height;
+    // D3D9 SceneClear synchronizes the viewport, but uses the last applied
+    // scissor state/rectangle. Pending RsSet/SetScissor changes wait for Draw.
+    if (m->scissorEnabled) {
+        left = std::max(left, m->scissor.x); top = std::max(top, m->scissor.y);
+        right = std::min(right, m->scissor.x + m->scissor.width); bottom = std::min(bottom, m->scissor.y + m->scissor.height);
+    }
+    if (right <= left || bottom <= top) { return; }
+    const auto whole = [&](id<MTLTexture> texture) { return left == 0 && top == 0 && right == texture.width && bottom == texture.height; };
+    if ((!(mask & 1) || whole(m->pass.colorAttachments[0].texture)) && (!(mask & 2) || whole(m->pass.depthAttachment.texture))) {
+        if (mask & 1) { m->pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+            m->pass.colorAttachments[0].clearColor = MTLClearColorMake(color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0); }
+        if (mask & 2) { m->pass.depthAttachment.loadAction = MTLLoadActionClear; m->pass.depthAttachment.clearDepth = 1; }
+        m->EnsurePass();
+    } else {
+        // A load-action clear would erase pixels outside the viewport, or the
+        // unused part of a larger scratch depth attachment. Draw only this area.
+        m->gpu.ClearRegion(m->command, m->pass, {left, top, right - left, bottom - top}, mask,
+            {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f});
+        m->ConsumedPass();
+    }
 }
-void CGxDeviceMetal::IRsSendToHw(EGxRenderState) { /* Pipeline/state snapshots are bound at Draw. */ }
+void CGxDeviceMetal::IRsSendToHw(EGxRenderState which) {
+    if (which == GxRs_ScissorTest) { m->scissorEnabled = m_appRenderStates[which].m_value.m_data.u[0] != 0; }
+    // Other pipeline/state snapshots are bound at Draw.
+}
+
+MTLViewport CGxDeviceMetal::Viewport() const {
+    const float width = m_curWindowRect.maxX, height = m_curWindowRect.maxY;
+    auto rounded = [](float value) { Require(std::isfinite(value) && value >= 0, "Invalid Gx viewport"); return std::floor(value + 0.5f); };
+    MTLViewport viewport{};
+    viewport.originX = rounded(m_viewport.m_x.m_l * width);
+    viewport.originY = rounded((1 - m_viewport.m_y.m_h) * height);
+    viewport.width = rounded(m_viewport.m_x.m_h * width - float(viewport.originX));
+    viewport.height = rounded((1 - m_viewport.m_y.m_l) * height - float(viewport.originY));
+    if (m_textureTarget[GxBuffers_Color].m_texture || m_textureTarget[GxBuffers_Depth].m_texture) {
+        const float y = height * m_viewport.m_y.m_l;
+        Require(std::isfinite(y) && y >= 0, "Invalid Gx offscreen viewport");
+        viewport.originY = std::floor(y); // Original D3D9 offscreen origin truncates.
+    }
+    viewport.znear = m_viewport.m_z.m_l; viewport.zfar = m_viewport.m_z.m_h;
+    Require(viewport.originX + viewport.width <= width && viewport.originY + viewport.height <= height &&
+        viewport.znear >= 0 && viewport.zfar <= 1 && viewport.znear <= viewport.zfar, "Gx viewport exceeds its target");
+    return viewport;
+}
+MTLScissorRect CGxDeviceMetal::Scissor() const {
+    const float width = m_curWindowRect.maxX, height = m_curWindowRect.maxY;
+    auto edge = [](float value, float limit) { Require(std::isfinite(value), "Invalid Gx scissor"); return size_t(std::clamp(value, 0.0f, limit)); };
+    const size_t left = edge(m_scissorRect.minX * width + 0.5f, width), right = edge(m_scissorRect.maxX * width + 1, width);
+    const bool offscreen = m_textureTarget[GxBuffers_Color].m_texture || m_textureTarget[GxBuffers_Depth].m_texture;
+    const size_t top = edge((offscreen ? m_scissorRect.minY : 1 - m_scissorRect.maxY) * height + 0.5f, height);
+    const size_t bottom = edge((offscreen ? m_scissorRect.maxY : 1 - m_scissorRect.minY) * height + 1, height);
+    return {left, top, right > left ? right - left : 0, bottom > top ? bottom - top : 0};
+}
 
 void CGxDeviceMetal::PoolSizeSet(CGxPool* pool, uint32_t size) {
     Require(pool && size && size <= ResourceBudget && !m_bufLocked[pool->m_target], "Invalid Gx pool resize");
@@ -604,22 +658,15 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     draw.depthWrite = MasterEnable(GxMasterEnable_DepthWrite) && integer(GxRs_DepthWrite);
     draw.depthFunction = integer(GxRs_DepthFunc);
     draw.culling = MasterEnable(GxMasterEnable_Culling) ? integer(GxRs_Culling) : 0;
-    const double width = m_curWindowRect.maxX, height = m_curWindowRect.maxY;
-    auto rounded = [](double v) { Require(std::isfinite(v) && v >= 0, "Invalid Gx viewport"); return std::floor(v + 0.5); };
     draw.viewportEnabled = true;
-    draw.viewport.originX = rounded(m_viewport.m_x.m_l * width);
-    draw.viewport.originY = rounded((1 - m_viewport.m_y.m_h) * height);
-    draw.viewport.width = rounded(m_viewport.m_x.m_h * width - draw.viewport.originX);
-    draw.viewport.height = rounded((1 - m_viewport.m_y.m_l) * height - draw.viewport.originY);
-    draw.viewport.znear = m_viewport.m_z.m_l; draw.viewport.zfar = m_viewport.m_z.m_h;
+    draw.viewport = Viewport();
+    m->scissor = Scissor(); m_scissorRectDirty = 0;
+    IRsSync(0);
     if (!draw.viewport.width || !draw.viewport.height) { return; }
     draw.scissorEnabled = integer(GxRs_ScissorTest);
     if (draw.scissorEnabled) {
-        auto edge = [](double value, double limit) { Require(std::isfinite(value), "Invalid Gx scissor"); return size_t(std::clamp(value, 0.0, limit)); };
-        const size_t left = edge(m_scissorRect.minX * width + 0.5, width), right = edge(m_scissorRect.maxX * width + 1, width);
-        const size_t top = edge((1 - m_scissorRect.maxY) * height + 0.5, height), bottom = edge((1 - m_scissorRect.minY) * height + 1, height);
-        if (right <= left || bottom <= top) { return; }
-        draw.scissor = {left, top, right - left, bottom - top};
+        draw.scissor = m->scissor;
+        if (!draw.scissor.width || !draw.scissor.height) { return; }
     }
     GxMetal::TextureDrawState state;
     state.blend = EGxBlend(integer(GxRs_BlendingMode)); state.alphaRef = integer(GxRs_AlphaRef);
@@ -628,7 +675,6 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     state.filter = EGxTexFilter(texture->m_flags.m_filter);
     state.wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); state.wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
     state.anisotropy = texture->m_flags.m_maxAnisotropy;
-    IRsSync(0);
     m->gpu.DrawUnlit(m->command, m->pass, m->textures.at(texture).gpu, draw, {}, state);
     m->ConsumedPass();
 }
@@ -718,6 +764,7 @@ void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, ui
     if (m->command) { m->EnsurePass(); }
     CGxDevice::DeviceSetRenderTarget(buffer, texture, plane);
     ApplyRenderTarget();
+    m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)};
     m_viewportDirty = m_scissorRectDirty = 1;
 }
 void CGxDeviceMetal::DeviceSaveDepthSurface() { Unsupported("save depth surface"); }

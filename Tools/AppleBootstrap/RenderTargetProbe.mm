@@ -37,6 +37,81 @@ void Draw(CGxDeviceMetal& device, CGxTex* texture, uint32_t color, float z) {
     C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex, 0, &identity.a0, 4);
     CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3}; GxDraw(&batch, 0);
 }
+void CheckClears(CGxDeviceMetal& device, CGxTex* small, CGxTex* white) {
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 1, 1);
+    descriptor.pixelFormat = MTLPixelFormatDepth32Float;
+    pass.depthAttachment.texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.depthAttachment.loadAction = MTLLoadActionClear; pass.depthAttachment.clearDepth = 0.75;
+    CiRect whole(0, 0, 16, 16); TSGrowableArray<float> depth;
+    GxRsSet(GxRs_ScissorTest, 0); device.IRsSync(0);
+    GxRsSet(GxRs_ColorWrite, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_AlphaRef, 255);
+    GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Add)); GxRsSet(GxRs_DepthTest, 1);
+    for (uint32_t mask : {0, 1, 2, 3}) {
+        device.BeginFrame(pass); GxXformSetViewport(0.25f, 0.75f, 0.25f, 0.5f, 0.2f, 0.4f);
+        device.SceneClear(mask, CImVector(17, 34, 51, 68));
+        auto pixels = Read(device, 16, 16); device.DeviceReadDepths(whole, depth);
+        for (unsigned y = 0; y < 16; ++y) { for (unsigned x = 0; x < 16; ++x) {
+            const bool inside = x >= 4 && x < 12 && y >= 8 && y < 12;
+            Require(pixels[y * 16 + x] == (inside && (mask & 1) ? 0x44332211 : 0xFF0000FF), "Gx viewport color clear changed the wrong region or obeyed draw state");
+            Require(depth[y * 16 + x] == (inside && (mask & 2) ? 1.0f : 0.75f), "Gx viewport depth clear changed outside pixels or used the viewport depth range");
+        } }
+        GxScenePresent();
+    }
+    GxXformSetViewport(0, 1, 0, 1, 0, 1); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_AlphaRef, 0);
+    GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Opaque));
+    device.BeginFrame(pass);
+    device.SetScissor(CRect{0.25f, 0.125f, 0.5f, 0.5f}); GxRsSet(GxRs_ScissorTest, 1);
+    Draw(device, white, 0xFFFFFFFF, 0); // No color/depth writes; applies scissor.
+    device.SetScissor(CRect{0, 0, 1, 1}); GxRsSet(GxRs_ScissorTest, 0);
+    device.SceneClear(1, CImVector(0, 255, 0, 255));
+    auto pixels = Read(device, 16, 16);
+    for (unsigned y = 0; y < 16; ++y) { for (unsigned x = 0; x < 16; ++x) {
+        Require(pixels[y * 16 + x] == (x >= 2 && x < 9 && y >= 8 && y < 13 ? 0xFF00FF00 : 0xFF0000FF),
+            "Gx clear did not preserve the last applied scissor state");
+    } }
+    device.IRsSync(0); device.SceneClear(2, CImVector()); device.DeviceReadDepths(whole, depth);
+    for (uint32_t i = 0; i < depth.Count(); ++i) { Require(depth[i] == 1, "Gx clear retained a disabled scissor"); }
+    GxScenePresent(); GxRsSet(GxRs_ColorWrite, 15); GxRsSet(GxRs_DepthWrite, 1);
+    CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget = 1;
+    CGxTex* wide = nullptr;
+    device.TexCreate(GxTex_2d, 16, 16, 0, GxTex_Argb8888, GxTex_Unknown, flags, nullptr, nullptr, "Gx clear target", wide);
+    device.BeginFrame(pass); GxRenderTargetSet(GxBuffers_Color, wide, 0);
+    device.SceneClear(3, CImVector()); Draw(device, white, 0xFFFF0000, 0.25f);
+    GxRenderTargetSet(GxBuffers_Color, small, 0); device.SceneClear(2, CImVector());
+    GxRenderTargetSet(GxBuffers_Color, wide, 0); device.DeviceReadDepths(whole, depth);
+    for (unsigned y = 0; y < 16; ++y) { for (unsigned x = 0; x < 16; ++x) {
+        Require(depth[y * 16 + x] == (x < 8 && y < 6 ? 1.0f : 0.25f), "Gx small-target clear erased depth outside its bounds");
+    } }
+    device.SceneClear(1, CImVector(0, 255, 0, 255));
+    GxXformSetViewport(0, 0.5f, 0.13f, 0.38f, 0, 1);
+    device.SceneClear(1, CImVector(0, 0, 255, 255));
+    pixels = Read(device, 16, 16);
+    for (unsigned y = 0; y < 16; ++y) { for (unsigned x = 0; x < 16; ++x) {
+        Require(pixels[y * 16 + x] == (x < 8 && y >= 2 && y < 6 ? 0xFFFF0000 : 0xFF00FF00), "Gx offscreen clear origin/rounding mismatch");
+    } }
+    Draw(device, white, 0xFF0000FF, 0.25f); pixels = Read(device, 16, 16);
+    for (unsigned y = 0; y < 16; ++y) { for (unsigned x = 0; x < 16; ++x) {
+        Require(pixels[y * 16 + x] == (x < 8 && y >= 2 && y < 6 ? 0xFF0000FF : 0xFF00FF00), "Gx offscreen draw and clear use different viewport origins");
+    } }
+    GxXformSetViewport(0, 1, 0, 1, 0, 1);
+    device.SetScissor(CRect{0.125f, 0.25f, 0.375f, 0.75f}); GxRsSet(GxRs_ScissorTest, 1);
+    GxRsSet(GxRs_ColorWrite, 0); GxRsSet(GxRs_DepthWrite, 0); Draw(device, white, 0xFFFFFFFF, 0);
+    device.SceneClear(1, CImVector(255, 255, 255, 255));
+    auto scissored = Read(device, 16, 16);
+    for (unsigned y = 0; y < 16; ++y) { for (unsigned x = 0; x < 16; ++x) {
+        Require(scissored[y * 16 + x] == (x >= 4 && x < 13 && y >= 2 && y < 7 ? 0xFFFFFFFF : pixels[y * 16 + x]), "Gx offscreen scissor origin mismatch");
+    } }
+    GxRenderTargetSet(GxBuffers_Color, nullptr, 0);
+    device.SceneClear(1, CImVector(0, 255, 255, 255));
+    Solid(Read(device, 16, 16), 0xFFFFFF00, "Gx target switch did not reset the applied scissor rectangle");
+    GxScenePresent(); GxTexDestroy(wide);
+    GxRsSet(GxRs_ColorWrite, 15); device.IRsSync(0);
+}
 void CheckCopies(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass, CGxTex* offscreen) {
     auto& gpu = device.GPU();
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:8 height:8 mipmapped:NO];
@@ -212,5 +287,6 @@ void CheckGxRenderTargets(CGxDeviceMetal& device) {
     Solid(Read(device, 20, 10), 0xFF0000FF, "Gx resized default clear mismatch");
     GxScenePresent();
     CheckCopies(device, pass, large);
+    CheckClears(device, large, white);
     GxTexDestroy(large); GxTexDestroy(white);
 }
