@@ -1,6 +1,8 @@
 #include <cstdint>
 #include <cstring>
-#include <malloc.h>
+#include <string>
+#include <vector>
+#include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
@@ -207,27 +209,19 @@ void CVar::ArchiveCodeRegisteredOnly() {
 // OFFSET: 0x00766400
 int32_t CVar::Load(HOSFILE file) {
     int32_t result = 1;
-    uint32_t size = static_cast<uint32_t>(OsGetFileSize(file));
-
-    if (!size) {
-        return 1;
-    }
-
-    char* buffer;
-    bool onStack;
-
-    if (size >= 0x2000) {
-        buffer = static_cast<char*>(SMemAlloc(size + 1, __FILE__, __LINE__, 0));
-        onStack = false;
-    } else {
-        buffer = static_cast<char*>(alloca(size + 1));
-        onStack = true;
-    }
+    const uint64_t fileSize = OsGetFileSize(file);
+    if (!fileSize) { return 1; }
+    // Configuration is text, not an arbitrary game asset. Bound allocation and
+    // retain the actual read count if the file changes while it is being loaded.
+    if (fileSize > 16 * 1024 * 1024) { return 0; }
+    const uint32_t size = uint32_t(fileSize);
+    std::vector<char> storage(size + 1);
+    char* buffer = storage.data();
 
     uint32_t bytesRead;
 
     if (OsReadFile(file, buffer, size, &bytesRead)) {
-        buffer[size] = '\0';
+        buffer[bytesRead] = '\0';
         const char* cur = buffer;
 
         if (cur && bytesRead >= 3 && static_cast<uint8_t>(cur[0]) == 0xEF && static_cast<uint8_t>(cur[1]) == 0xBB && static_cast<uint8_t>(cur[2]) == 0xBF) {
@@ -246,10 +240,6 @@ int32_t CVar::Load(HOSFILE file) {
         result = 0;
     }
 
-    if (!onStack) {
-        SMemFree(buffer, __FILE__, __LINE__, 0);
-    }
-
     return result;
 }
 
@@ -259,6 +249,7 @@ int32_t CVar::Load(const char* fileName) {
     HOSFILE file = OsCreateFile(fileName, OS_GENERIC_READ, 0, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
 
     if (file == OS_INVALID_FILE) {
+        if (Blizzard::File::IsAbsolutePath(fileName)) { return 0; }
         char path[260];
         SStrPrintf(path, sizeof(path), "WTF\\%s", fileName);
         file = OsCreateFile(path, OS_GENERIC_READ, 0, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
@@ -281,6 +272,7 @@ int32_t CVar::Delete(const char* fileName) {
     char buffer[260];
 
     if (!OsFileExists(fileName)) {
+        if (Blizzard::File::IsAbsolutePath(fileName)) { return 0; }
         SStrPrintf(buffer, sizeof(buffer), "WTF\\%s", fileName);
 
         if (!OsFileExists(buffer)) {
@@ -302,9 +294,8 @@ int32_t CVar::SaveCvar(const char* name, const char* value, void* arg) {
     SStrPrintf(line, sizeof(line), "SET %s \"%s\"\n", name, value);
 
     uint32_t written = 0;
-    OsWriteFile(static_cast<HOSFILE>(arg), line, SStrLen(line), &written);
-
-    return written != 0;
+    const uint32_t length = SStrLen(line);
+    return OsWriteFile(static_cast<HOSFILE>(arg), line, length, &written) && written == length;
 }
 
 // VERIFY: 14646b6b auto
@@ -686,20 +677,18 @@ int32_t CVar::SaveAll() {
         return 1;
     }
 
-    CVar::m_needsSave = false;
+    if (!CVar::s_configFile) { return 0; }
     int32_t result = 0;
 
-    char path[260];
-    SStrCopy(path, "WTF\\", sizeof(path));
-    SStrPack(path, CVar::s_configFile, sizeof(path));
-
-    HOSFILE file = OsCreateFile(path, OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+    const std::string path = Blizzard::File::IsAbsolutePath(CVar::s_configFile) ? CVar::s_configFile : std::string("WTF\\") + CVar::s_configFile;
+    HOSFILE file = OsCreateFile(path.c_str(), OS_GENERIC_WRITE, 0, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
 
     if (file != OS_INVALID_FILE) {
         result = CVar::IterateForArchive(0, 0, CVar::SaveCvar, file);
-        OsCloseFile(file);
+        if (!OsCloseFile(file)) { result = 0; }
     }
 
+    if (result) { CVar::m_needsSave = false; }
     return result;
 }
 
@@ -852,13 +841,23 @@ CVar* CVar::Register(const char* name, const char* help, uint32_t flags, const c
 // VERIFY: ff762198 auto
 // OFFSET: 0x00768340
 void CVar::Initialize(const char* fileName) {
-    CVar::s_configFile = fileName;
+    if (!fileName || !*fileName) { return; }
+    CVar::s_configFile = CStringManager::Get()->Add(fileName);
     CVar::m_initialized = true;
-
-    char path[260];
-    SFile::GetBasePath(path, sizeof(path));
-    SStrPrintf(path, sizeof(path), "%s%s\\", path, "WTF");
-    TryCreateDirectory(path);
+    if (Blizzard::File::IsAbsolutePath(fileName)) {
+        std::string parent(fileName);
+        const auto separator = parent.find_last_of("/\\");
+        if (separator != std::string::npos) {
+            const size_t root = Blizzard::File::GetRootChars(fileName);
+            parent.resize(separator > root ? separator : root);
+            OsCreateDirectory(parent.c_str(), 1);
+        }
+    } else {
+        char base[260], path[260];
+        SFile::GetBasePath(base, sizeof(base));
+        SStrPrintf(path, sizeof(path), "%s%s\\", base, "WTF");
+        TryCreateDirectory(path);
+    }
 
     ConsoleCommandRegister("set", SetCommandHandler, CATEGORY_DEFAULT, "Set the value of a CVar");
     ConsoleCommandRegister("cvar_reset", CvarResetCommandHandler, CATEGORY_DEFAULT, "Set the value of a CVar to it's startup value");

@@ -206,6 +206,7 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             out << "Original FFX PassBox4/PassGauss4 through Services/Gx: custom PCT4 streams, four texture bindings, fixed vertex matrices, downsampling pixel centers, padded targets, shader cache and caller state restoration passed.\n";
             out << "Original FFX Glow composition: scene/blur coordinates, blue/alpha weights, opaque alpha, saturation and ordered Box4/Gauss4/Glow pass chain passed.\n";
             out << "Original FFX GlowWave: generated RG wave texture, time-dependent PCT3 coordinates, wrap sampling, pixel-constant scales and displaced scene/blur composition passed.\n";
+            out << "Original FFX Init/Start/Finish and EffectGlow: CVar selection, default-framebuffer capture, both effect modes, disable/re-enable and target resizing passed.\n";
             out << "Native Gx factory, UI shader creation/binding, streaming-buffer wrap, immutable texture updates, partial-origin callbacks, pixel/depth readback, screenshots and exact ARGB4444 font textures passed.\n";
             out << "Gx color render targets: offscreen draw/sample ordering, default clear preservation, scratch depth reuse, target destruction and host resize passed.\n";
             out << "Gx surface copies: default versus explicit source, exact partial RGBA copies, nearest/linear scaling, offset destination, invalid bounds and same-frame mip sampling passed.\n";

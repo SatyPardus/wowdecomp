@@ -5,6 +5,10 @@
 #include "Engine/Source/FFX/PassGauss4.h"
 #include "Engine/Source/FFX/PassGlow.h"
 #include "Engine/Source/FFX/PassGlowWave.h"
+#include "Engine/Source/FFX/EffectGlow.h"
+#include "Engine/Source/ConsoleBase/ConsoleVar.h"
+#include "Engine/Source/ConsoleBase/ConsoleCommand.h"
+#include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Base/Handle.h"
@@ -14,6 +18,9 @@
 #include <cstring>
 #include <stdexcept>
 #include <vector>
+#include <filesystem>
+#include <memory>
+#include <unistd.h>
 
 namespace {
 void Require(bool ok, const char* message) { if (!ok) { throw std::runtime_error(message); } }
@@ -69,6 +76,17 @@ Image GlowReference(const Image& scene, const Image& blur, CImVector color) {
         result.pixels[y * scene.width + x][3] = 255;
     } }
     return result;
+}
+Image WaveData() {
+    auto* texture = TextureGetGxTex(PassGlowWave::s_waveTex.m_texture, 1, nullptr);
+    Image image{128, 128, std::vector<Pixel>(128 * 128)};
+    uint32_t rowBytes = 0; const void* pixels = nullptr;
+    texture->m_userFunc(GxTex_Lock, 128, 128, 0, 0, texture->m_userArg, rowBytes, pixels);
+    texture->m_userFunc(GxTex_Latch, 128, 128, 0, 0, texture->m_userArg, rowBytes, pixels);
+    Require(rowBytes == 128 * 4 && pixels, "Original wave texture producer returned invalid pixels");
+    std::memcpy(image.pixels.data(), pixels, image.pixels.size() * 4);
+    texture->m_userFunc(GxTex_Unlock, 128, 128, 0, 0, texture->m_userArg, rowBytes, pixels);
+    return image;
 }
 Image WaveReference(const Image& scene, const Image& blur, const Image& wave, const FFX::VertexPCT3* vertices, CImVector color) {
     Image result = scene;
@@ -210,14 +228,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
     FFX::Tex* waveInputs[] = {&PassGlowWave::s_waveTex, &input, &output};
     PassGlowWave wave(waveInputs, 3, &screen, GxBlend_Opaque, true);
     Require(wave.Valid() && wave.m_shaderIndex == 2, "FFX wave did not select the original RG-in-UNORM permutation");
-    auto* waveTexture = TextureGetGxTex(PassGlowWave::s_waveTex.m_texture, 1, nullptr);
-    Image waveData{128, 128, std::vector<Pixel>(128 * 128)};
-    uint32_t rowBytes = 0; const void* pixels = nullptr;
-    waveTexture->m_userFunc(GxTex_Lock, 128, 128, 0, 0, waveTexture->m_userArg, rowBytes, pixels);
-    waveTexture->m_userFunc(GxTex_Latch, 128, 128, 0, 0, waveTexture->m_userArg, rowBytes, pixels);
-    Require(rowBytes == 128 * 4 && pixels, "Original wave texture producer returned invalid pixels");
-    std::memcpy(waveData.pixels.data(), pixels, waveData.pixels.size() * 4);
-    waveTexture->m_userFunc(GxTex_Unlock, 128, 128, 0, 0, waveTexture->m_userArg, rowBytes, pixels);
+    const Image waveData = WaveData();
     // Capture the real pass's time-dependent UVs from the existing CPU shadow,
     // then independently evaluate texture filtering, displacement and composition.
     for (CImVector color : {CImVector(0, 23, 101, 0), CImVector(83, 11, 197, 173)}) {
@@ -234,4 +245,82 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
     }
     GxRsSet(GxRs_AlphaRef, 0);
 
+}
+
+
+void CheckGxFFXEffect(CGxDeviceMetal& device) {
+    std::string pattern = (std::filesystem::temp_directory_path() / "wow-ffx-XXXXXX").string();
+    std::vector<char> directory(pattern.begin(), pattern.end()); directory.push_back(0);
+    Require(mkdtemp(directory.data()) != nullptr, "Cannot create FFX config directory");
+    struct Scope {
+        CGxDeviceMetal& device;
+        std::string directory;
+        std::unique_ptr<EffectGlow> effect;
+        CTexture* source = nullptr;
+        CGxShader* vertex[2]{}, *pixel = nullptr;
+        ~Scope() {
+            FFX::SetEffect(nullptr); effect.reset(); FFX::Destroy();
+            if (source) { HandleClose(reinterpret_cast<HOBJECT>(source)); }
+            TextureGxCacheFlush();
+            for (auto& shader : vertex) { device.ShaderDestroy(shader); } device.ShaderDestroy(pixel);
+            CVar::Destroy(); ConsoleCommandDestroy(); CStringManager::DestroyManager();
+            std::error_code error; std::filesystem::remove_all(directory, error);
+        }
+    } scope{device, directory.data()};
+    CVar::Initialize((scope.directory + "/Config.wtf").c_str());
+    CVar::Register("gxMultisample", "probe sample count", 1, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
+    FFX::Init(); scope.effect = std::make_unique<EffectGlow>(); FFX::SetEffect(scope.effect.get());
+    device.ShaderCreate(scope.vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
+    device.ShaderCreate(&scope.pixel, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
+    const auto wave = WaveData();
+    // The same effect instance survives enable/mode changes and a host resize.
+    struct Case { unsigned size; int mode; bool global, glow; };
+    for (const auto test : {Case{32, 0, true, true}, Case{32, 1, true, true}, Case{32, 0, false, true},
+        Case{32, 0, true, false}, Case{64, 0, true, true}}) {
+        ConsoleCommandExecute(test.global ? "set ffx 1" : "set ffx 0", 0);
+        ConsoleCommandExecute(test.glow ? "set ffxGlow 1" : "set ffxGlow 0", 0);
+        const int parameters[] = {test.mode, 173, 85}; scope.effect->SetParameters(3, parameters);
+        const bool enabled = test.global && test.glow;
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:test.size height:test.size mipmapped:NO];
+        descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+        auto frame = [MTLRenderPassDescriptor renderPassDescriptor];
+        frame.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+        frame.colorAttachments[0].loadAction = MTLLoadActionClear;
+        Image source{test.size, test.size, std::vector<Pixel>(test.size * test.size)};
+        for (unsigned y = 0; y < test.size; ++y) { for (unsigned x = 0; x < test.size; ++x) {
+            source.pixels[y * test.size + x] = {uint8_t((x * 53 + y * 29) % 256), uint8_t((x * 79 + y * 17) % 256),
+                uint8_t((x * 23 + y * 61) % 256), uint8_t((x * 31 + y * 37) % 256)};
+        } }
+        if (scope.source) { HandleClose(reinterpret_cast<HOBJECT>(scope.source)); }
+        scope.source = Texture(test.size, test.size, test.size, test.size, &source).m_texture;
+        GxRsSet(GxRs_VertexShader, scope.vertex[0]); GxRsSet(GxRs_PixelShader, scope.pixel);
+        GxRsSet(GxRs_Texture0, TextureGetGxTex(scope.source, 1, nullptr));
+        GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_Culling, 0);
+        GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Opaque)); GxRsSet(GxRs_AlphaRef, 0); GxRsSet(GxRs_ColorWrite, 15);
+        C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex, 0, &identity.a0, 4);
+        device.BeginFrame(frame); FFX::Start();
+        const C3Vector positions[] = {{-1, 1, 0}, {-1, -1, 0}, {1, 1, 0}, {1, -1, 0}};
+        const C2Vector coordinates[] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}}; const CImVector white(255, 255, 255, 255);
+        GxPrimVertexPtr(4, positions, sizeof(C3Vector), nullptr, 0, &white, 0, coordinates, sizeof(C2Vector), nullptr, 0);
+        CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3}; GxDraw(&batch, 0);
+        GxRsSet(GxRs_VertexShader, static_cast<void*>(nullptr)); GxRsSet(GxRs_PixelShader, static_cast<void*>(nullptr));
+        FFX::Finish();
+        FFX::Tex screen{nullptr, {int(test.size), int(test.size)}, {int(test.size), int(test.size)}, {1.0f / test.size, 1.0f / test.size}};
+        auto actual = Read(device, screen);
+        if (!enabled) { Compare(actual, source, 0); }
+        else {
+            Require(FFX::s_full[0].m_size.x == int(test.size) && FFX::s_quart[0].m_size.x == int(test.size / 4), "FFX Start did not allocate/resize original targets");
+            Compare(Read(device, FFX::s_full[0]), source, 0);
+            auto filtered = Read(device, FFX::s_quart[0]);
+            const CImVector color(85, 85, 85, 173);
+            if (!test.mode) { Compare(actual, GlowReference(source, filtered, color), 1); }
+            else {
+                const auto* buffer = device.m_primVertexFormatBuf[GxVA_Position];
+                FFX::VertexPCT3 vertices[4];
+                std::memcpy(vertices, static_cast<const uint8_t*>(buffer->m_pool->m_mem) + buffer->m_index, sizeof(vertices));
+                Compare(actual, WaveReference(source, filtered, wave, vertices, color), 2);
+            }
+        }
+        GxScenePresent();
+    }
 }

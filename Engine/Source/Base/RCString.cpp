@@ -52,9 +52,13 @@ void CStringMemory::AllocateBlock(uint32_t size) {
 // VERIFY: dc39ef0f auto
 // OFFSET: 0x0047CE40
 char* CStringMemory::New(const char* str) {
-    uint32_t bytes = (SStrLen(str) + sizeof(char*) + 4) & ~3;
+    // Each interned entry starts with a native pointer. Preserve the 32-bit
+    // layout while keeping every subsequent link aligned on arm64/Win64.
+    const size_t alignment = alignof(char*);
+    const size_t bytes = (size_t(SStrLen(str)) + sizeof(char*) + 1 + alignment - 1) & ~(alignment - 1);
 
-    if (this->m_cursor + bytes > this->m_blockEnd) {
+    if (bytes > UINT32_MAX) { throw std::bad_alloc(); }
+    if (bytes > size_t(this->m_blockEnd - this->m_cursor)) {
         this->AllocateBlock(bytes);
     }
 

@@ -3,6 +3,7 @@
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include "Engine/Source/Base/ConvertUTF.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
+#include "Engine/Source/Os/System.h"
 #include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00ADBD48
@@ -323,4 +324,31 @@ int32_t AddLineToExecFile(const char* line) {
 void AddToHistory(const char* command) {
     SStrCopy(g_commandHistory[g_commandHistoryIndex], command, sizeof(g_commandHistory[0]));
     g_commandHistoryIndex = (g_commandHistoryIndex + 1) & 31;
+}
+
+// Shared command dispatch also serves CVar file loading before console UI exists.
+// OFFSET: 0x007658A0
+void ConsoleCommandExecute(const char* commandLine, int32_t addToHistory) {
+    if (!commandLine) { return; }
+    if ((s_execState == 0 || s_execState == 1 || s_execState == 2) && !AddLineToExecFile(commandLine)) { return; }
+    while (*commandLine == ' ') { ++commandLine; }
+    if (addToHistory) {
+        const char* last = ConsoleCommandHistory(0);
+        if (!last || SStrCmp(commandLine, last, STORM_MAX_STR)) { AddToHistory(commandLine); }
+    }
+    char arguments[1024];
+    const char* command;
+    CONSOLECOMMAND* entry = ParseCommand(commandLine, &command, arguments, sizeof(arguments));
+    if (!entry) {
+        if (g_defaultCommand) {
+            if (!g_defaultCommand(command, arguments)) { ConsoleWrite("Unknown command", DEFAULT_COLOR); }
+            return; // A declined default handler cannot make the null entry callable.
+        }
+        entry = g_consoleCommandHash.Ptr("run");
+        if (!entry) { ConsoleWrite("Unknown command", DEFAULT_COLOR); return; }
+        command = "";
+        SStrCopy(arguments, commandLine, sizeof(arguments));
+    }
+    OsValidateFunctionPointer(reinterpret_cast<const void*>(entry->m_handler));
+    entry->m_handler(command, arguments);
 }

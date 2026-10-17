@@ -220,7 +220,14 @@ also runs its original procedural wave texture and time-dependent PCT3 vertices,
 with independent scene/blur displacement scales from pixel constants. Its GPU
 output is checked against the actual generated RG data and submitted coordinates.
 The reachable RG-in-BGRA8 branch is verified; UV88 texture support remains pending.
-The complete FFX effect setup and other shader families are not yet connected.
+The original `FFX::Init/Start/Finish` and `EffectGlow` now run through shared
+CVar registration and command dispatch, including default-framebuffer capture,
+both effect modes, enable/disable and target reallocation after resize. GPU
+checks exercise the original effect object across these transitions. Shared CVar
+configuration supports an explicit writable absolute path, bounded loading and
+retryable saves; native console output currently goes to startup diagnostics.
+Interactive console UI, persistent host configuration and other shader families
+remain to be connected.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

@@ -15,6 +15,9 @@
 #include <unistd.h>
 #include "Tools/AppleBootstrap/Probe.h"
 #include "Engine/Source/Os/OsFile.h"
+#include "Engine/Source/ConsoleBase/ConsoleVar.h"
+#include "Engine/Source/ConsoleBase/ConsoleCommand.h"
+#include "Engine/Source/ConsoleBase/IConsole.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/BLPFile/Types.h"
@@ -391,6 +394,43 @@ void CheckStormLog(const std::string& scratchDirectory) {
     Require(std::filesystem::file_size(scratch.path) == size, "Storm no-file flag modified disk log");
 }
 
+void CheckCVars(const std::string& scratchDirectory) {
+    ScratchFile scratch(scratchDirectory);
+    const std::string directory = scratch.directory + "/settings", config = directory + "/Config.wtf";
+    struct Cleanup {
+        std::string directory;
+        ~Cleanup() { CVar::Destroy(); ConsoleCommandDestroy(); CStringManager::DestroyManager(); std::error_code error; std::filesystem::remove_all(directory, error); }
+    } cleanup{directory};
+    CVar::Initialize(config.c_str());
+    auto validate = [](CVar*, const char*, const char* value, void*) -> bool { return std::strcmp(value, "bad") != 0; };
+    auto* glow = CVar::Register("ffxGlow", "probe glow setting", 1, "1", validate, CATEGORY_GRAPHICS, false, nullptr, false);
+    Require(glow && glow->m_intValue == 1, "CVar registration failed");
+    ConsoleCommandExecute("set ffxGlow \"0\"", 1);
+    Require(glow->m_intValue == 0 && CVar::m_needsSave && !std::strcmp(ConsoleCommandHistory(0), "set ffxGlow \"0\""), "Shared CVar command or history failed");
+    Require(glow->Set("bad", true, false, false, true) && glow->m_intValue == 0, "CVar callback rejection changed its value");
+    glow->SetReadOnly(true); ConsoleCommandExecute("set ffxGlow \"1\"", 0);
+    Require(glow->m_intValue == 0, "CVar read-only state was ignored"); glow->SetReadOnly(false);
+    const char* destination = CVar::s_configFile; CVar::s_configFile = directory.c_str();
+    Require(!CVar::SaveAll() && CVar::m_needsSave, "Failed CVar save lost pending configuration");
+    CVar::s_configFile = destination;
+    Require(CVar::SaveAll() && !CVar::m_needsSave && OsFileExists(config.c_str()), "CVar absolute-path save failed");
+    CVar::Destroy(); ConsoleCommandDestroy();
+    { std::ofstream file(config, std::ios::binary); file << "\xef\xbb\xbfSET ffxGlow \"0\"\r\nSET gxMultisample \"1\"\r\n"; }
+    CVar::Initialize(config.c_str());
+    glow = CVar::Register("ffxGlow", "probe glow setting", 1, "1", validate, CATEGORY_GRAPHICS, false, nullptr, false);
+    Require(glow->m_intValue == 0 && !std::strcmp(glow->m_defaultValue.m_str, "1") && CVar::Lookup("gxMultisample")->m_intValue == 1,
+        "CVar BOM/config reload or registered default overwrote the saved setting");
+    ConsoleCommandExecute("ffxGlow 1", 0);
+    Require(glow->m_intValue == 1 && CVar::SaveAll(), "Direct CVar command failed");
+    // Exercise the safe fallback for an unhandled command, including the
+    // original dispatcher's fixed-size argument buffer.
+    g_defaultCommand = [](const char*, const char*) -> int32_t { return 0; };
+    ConsoleCommandExecute("not-a-command", 0); g_defaultCommand = nullptr;
+    ConsoleCommandRegister("run", [](const char*, const char* args) -> int32_t { Require(std::strlen(args) == 1023, "Console fallback argument bound failed"); return 1; }, CATEGORY_DEFAULT, "probe fallback");
+    ConsoleCommandExecute(std::string(2048, 'x').c_str(), 0);
+    Require(CVar::Delete(config.c_str()) && !OsFileExists(config.c_str()), "CVar explicit-path delete failed");
+}
+
 void CheckOsFiles(const std::string& scratchDirectory) {
     ScratchFile scratch(scratchDirectory);
     const std::string directory = scratch.directory + "/settings", filePath = directory + "/Config.wtf";
@@ -572,9 +612,10 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(!range->Read(buffer.data(), -1, 1, &bytes), "negative offset accepted");
         CheckFileStack(scratchDirectory);
         CheckOsFiles(scratchDirectory);
+        CheckCVars(scratchDirectory);
         CheckClientLocalFile(scratchDirectory);
         CheckStormLog(scratchDirectory);
-        report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, game OsFile config IO/attributes/enumeration, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
+        report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, game OsFile config IO/attributes/enumeration, shared CVar save/reload/commands, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
         report = std::string("Core check failed: ") + error.what() + "\n";

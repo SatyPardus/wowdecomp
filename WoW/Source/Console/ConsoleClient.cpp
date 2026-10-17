@@ -917,58 +917,6 @@ void ConsolePrintf(const char* format, ...) {
     va_end(args);
 }
 
-// VERIFY: d43d21f6 manual
-// OFFSET: 0x007658A0
-void ConsoleCommandExecute(const char* commandLine, int32_t addToHistory) {
-    if (s_execState == 1 || s_execState == 0 || s_execState == 2) {
-        if (!AddLineToExecFile(commandLine)) {
-            return;
-        }
-    }
-
-    while (*commandLine == ' ') {
-        commandLine++;
-    }
-
-    if (addToHistory) {
-        const char* last = ConsoleCommandHistory(0);
-
-        if (!last || SStrCmp(commandLine, last, STORM_MAX_STR)) {
-            AddToHistory(commandLine);
-        }
-    }
-
-    char* arguments = static_cast<char*>(SMemAlloc(1024, __FILE__, __LINE__, 0));
-    const char* command;
-    CONSOLECOMMAND* entry = ParseCommand(commandLine, &command, arguments, 1024);
-
-    if (!entry) {
-        if (g_defaultCommand) {
-            if (g_defaultCommand(command, arguments)) {
-                goto done;
-            }
-        } else {
-            entry = g_consoleCommandHash.Ptr("run");
-
-            if (!entry) {
-                ConsoleWrite("Unknown command", DEFAULT_COLOR);
-                goto done;
-            }
-
-            command = "";
-            SStrCopy(arguments, commandLine, STORM_MAX_STR);
-        }
-    }
-
-    OsValidateFunctionPointer(reinterpret_cast<const void*>(entry->m_handler));
-    entry->m_handler(command, arguments);
-
-done:
-    if (arguments) {
-        delete[] arguments;
-    }
-}
-
 // VERIFY: f39b7102 manual
 // OFFSET: 0x007659C0
 static int32_t OnIdle(const void* data, void* param) {

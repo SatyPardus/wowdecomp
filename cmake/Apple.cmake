@@ -37,6 +37,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataStore.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Handle.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RCString.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RefCount.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsFile.cpp
@@ -98,6 +100,8 @@ add_subdirectory(Engine/Source/jpeg)
 set_target_properties(jpeg PROPERTIES CXX_STANDARD 14)
 add_subdirectory(Engine/Source/Images)
 add_subdirectory(Engine/Source/BLPFile)
+add_subdirectory(Engine/Source/ConsoleBase)
+target_link_libraries(ConsoleBase PUBLIC AppleArchives)
 add_library(AppleGameResources STATIC
     Engine/Source/Base/Status.cpp
     Engine/Source/Services/Texture.cpp
@@ -105,12 +109,14 @@ add_library(AppleGameResources STATIC
     Engine/Source/Services/SysMessage.cpp
     Engine/Source/Services/AsyncFile.cpp
     Engine/Source/FFX/FFX.cpp
+    Engine/Source/FFX/FFX_CVar.cpp
+    Engine/Source/FFX/EffectGlow.cpp
     Engine/Source/FFX/PassBox4.cpp
     Engine/Source/FFX/PassGauss4.cpp
     Engine/Source/FFX/PassGlow.cpp
     Engine/Source/Base/Prop.cpp
 )
-target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile)
+target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile ConsoleBase)
 
 add_library(AppleTextureData ALIAS BLPFile)
 
@@ -138,7 +144,7 @@ target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

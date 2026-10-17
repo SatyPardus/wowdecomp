@@ -8,6 +8,7 @@
 #include <vector>
 
 void CheckGxFFXPasses(CGxDeviceMetal& device);
+void CheckGxFFXEffect(CGxDeviceMetal& device);
 void CheckGxFont(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
 
@@ -187,5 +188,6 @@ void CheckGxDevice() {
     device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
     CheckGxFont(device);
     CheckGxFFXPasses(device);
+    CheckGxFFXEffect(device);
     device.DeviceDestroy();
 }
