@@ -43,13 +43,42 @@ target_include_directories(AppleFoundation PUBLIC ${CMAKE_SOURCE_DIR})
 # must not be installed until its transport/cache backend has been ported.
 target_compile_definitions(AppleFoundation PUBLIC WOW_LOCAL_FILES_ONLY=1)
 
+add_subdirectory(ThirdParty EXCLUDE_FROM_ALL)
+add_library(AppleArchives STATIC
+    Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQGlobals.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Mopaq/SComp.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFileArchives.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFileSignatures.cpp
+    Engine/Source/BlizzardCore/Source/Packages/iounit/IOAlignUnit.cpp
+    Engine/Source/BlizzardCore/Source/Packages/iounit/IOChecksumUnit.cpp
+    Engine/Source/BlizzardCore/Source/Packages/iounit/IOFileUnit.cpp
+    Engine/Source/BlizzardCore/Source/Packages/iounit/Apple/IOFileUnit.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Streaming/Local/Streaming.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Util/Hash.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Util/MD5.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.cpp
+    Engine/Source/BlizzardCore/Source/Packages/Util/SBig.cpp
+    Engine/Source/BlizzardCore/Source/System/Process/Apple/Process.cpp
+    Engine/Source/BlizzardCore/Source/System/Hardware/Apple/Hardware.cpp
+    Engine/Source/BlizzardCore/Source/System/Debug/Debug.cpp
+    Engine/Source/BlizzardCore/Source/System/Debug/Apple/Debug.cpp
+    Engine/Source/BlizzardCore/Source/System/Log/Log.cpp
+    Engine/Source/BlizzardCore/Source/System/Log/Apple/Log.cpp
+    Engine/Source/Storm/Source/SComp.cpp
+    Engine/Source/Storm/Source/SStr.cpp
+    Engine/Source/Storm/Source/SOption.cpp
+)
+target_link_libraries(AppleArchives PUBLIC AppleFoundation blast bzip2 lzma zlib)
+
 add_subdirectory(Engine/Source/Tempest)
 target_link_libraries(Tempest PUBLIC AppleFoundation)
 add_subdirectory(Engine/Source/lua-5.1)
 target_link_libraries(lua PUBLIC AppleFoundation)
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Tempest lua AppleFoundation)
+target_link_libraries(AppleProbeCore PUBLIC Tempest lua AppleArchives AppleFoundation)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     enable_language(OBJCXX)

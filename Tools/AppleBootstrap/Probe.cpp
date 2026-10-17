@@ -6,6 +6,7 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -16,6 +17,10 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFileArchives.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.h"
+#include "Engine/Source/BlizzardCore/Include/Blizzard/Util/MD5.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
@@ -92,6 +97,7 @@ uint32_t Read32(const uint8_t* bytes) {
 }
 
 void InspectArchive(const std::filesystem::path& path, std::ostream& out) {
+    Blizzard::File::SetLastErrorStack(nullptr);
     Unit file(IOPosixFileUnit::OpenRead(path.c_str()));
     Require(bool(file), "cannot open archive read-only");
     int64_t size;
@@ -123,6 +129,60 @@ void InspectArchive(const std::filesystem::path& path, std::ostream& out) {
     }
     out << path.filename().string() << ": " << size << " bytes, MPQ v" << version
         << ", " << live << " hash entries / " << blockCount << " blocks\n";
+    struct CloseArchive { void operator()(System_SFile::ARCHIVEREC* archive) const { Blizzard::Mopaq::SFileCloseArchive(archive); } };
+    System_SFile::ARCHIVEREC* opened = nullptr;
+    Require(Blizzard::Mopaq::SFileOpenArchive(path.c_str(), 0, 0x800, &opened), "SFile archive open failed");
+    std::unique_ptr<System_SFile::ARCHIVEREC, CloseArchive> archive(opened);
+    void* contents = nullptr;
+    uint32_t listBytes = 0;
+    if (!Blizzard::Mopaq::SFileLoadFile(archive.get(), "(listfile)", &contents, &listBytes, 1, 0)) {
+        if (Blizzard::Mopaq::SFileGetLastError() == 2) {
+            out << "  SFile: no (listfile); archive lookup remains available for known asset names\n";
+            return;
+        }
+        throw std::runtime_error("SFile listfile decompression failed: " + std::to_string(Blizzard::Mopaq::SFileGetLastError()) + " " +
+            Blizzard::Debug::ErrorStackAsText(Blizzard::File::GetLastErrorStack()));
+    }
+    std::unique_ptr<void, decltype(&Blizzard::Mopaq::SFileUnloadFile)> listfile(contents, Blizzard::Mopaq::SFileUnloadFile);
+    out << "  SFile: decompressed (listfile), " << listBytes << " bytes\n";
+    std::istringstream names(std::string(static_cast<char*>(contents), listBytes));
+    std::set<std::string> wanted{".dbc", ".blp", ".m2", ".wmo", ".adt", ".wav", ".ogg", ".lua", ".xml"};
+    std::string name;
+    while (std::getline(names, name) && !wanted.empty()) {
+        if (!name.empty() && name.back() == '\r') { name.pop_back(); }
+        std::string extension = std::filesystem::path(name).extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (!wanted.count(extension)) { continue; }
+        IOMpqUnit* openedFile = nullptr;
+        if (!Blizzard::Mopaq::SFileOpenFileEx(archive.get(), name.c_str(), 0, &openedFile)) {
+            if (Blizzard::Mopaq::SFileGetLastError() == 2) { continue; } // stale listfile entry
+            throw std::runtime_error("SFile cannot open listed resource: " + name);
+        }
+        Unit asset(openedFile);
+        const auto assetSize = Blizzard::Mopaq::SFileGetFileSize(openedFile, nullptr);
+        if (assetSize > 64u * 1024 * 1024) { continue; } // bounded probe, not a loader limit
+        std::vector<uint8_t> data(assetSize);
+        uint32_t read = 0;
+        if (!Blizzard::Mopaq::SFileReadFile(openedFile, data.data(), assetSize, &read) || read != assetSize) {
+            throw std::runtime_error("SFile resource read/decompression failed: " + name + " " +
+                Blizzard::Debug::ErrorStackAsText(Blizzard::File::GetLastErrorStack()));
+        }
+        Blizzard::Util::MD5 md5;
+        md5.Process(data.data(), assetSize);
+        uint8_t digest[16];
+        md5.Finish(digest);
+        const auto* expected = openedFile->GetMd5();
+        const bool hasDigest = expected && *expected != System_SFile::s_emptyMd5;
+        if (hasDigest && std::memcmp(digest, expected->m_data, sizeof(digest))) {
+            throw std::runtime_error("Resource differs from archive MD5: " + name);
+        }
+        const char hex[] = "0123456789abcdef";
+        std::string text;
+        for (uint8_t byte : digest) { text += hex[byte >> 4]; text += hex[byte & 15]; }
+        out << "  " << name << ": " << assetSize << " bytes, md5 " << text
+            << (hasDigest ? " (archive MD5 matched)" : " (no archive MD5)") << '\n';
+        wanted.erase(extension);
+    }
 }
 
 struct ScratchFile {
@@ -303,7 +363,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
             }
         }
         out << "Inspected " << archives.size() << " archives read-only. Inspection order is not game mount order.\n"
-            << "Not yet available: SFile mounting/patch and locale resolution, game loop, Metal, audio, networking.\n";
+            << "SFile reads local archive resources; game mount/patch/locale selection, game loop, Metal, audio and networking are not yet integrated.\n";
         report = out.str();
         return success;
     } catch (const std::exception& error) {

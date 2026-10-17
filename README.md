@@ -79,9 +79,12 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 The native port currently builds **foundation probes**, not a playable client. They
 link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
-memory, synchronization, timing and positional file IO. No Windows emulation is
-used. Full SFile mounting, patch/locale resolution, game startup, Metal, audio and
-network integration remain to be connected.
+memory, synchronization, pthread threads/TLS, timing and the original Blizzard file
+API backed by native positional file IO. No Windows emulation is
+used. Original SFile archive/resource IO and decompression are linked. Game mount
+ordering, patch/locale selection, game startup, Metal, audio and
+network integration remain to be connected. Apple currently selects a full local
+filesystem (`WOW_LOCAL_FILES_ONLY`); the remote streaming filesystem is not enabled.
 
 Use CMake 3.21+ and Xcode. The presets target arm64, macOS 11+ and iOS 15+; the
 installed Xcode 27 SDK requires iOS 15 as its minimum deployment target.
@@ -101,10 +104,14 @@ cmake --build --preset ios-simulator-arm64 --parallel
 ```
 
 The macOS probe checks native core behavior and reads MPQ v0/v1 headers and hash
-tables using the original MPQ decryption. It does not extract assets or establish
+tables using the original MPQ decryption. It opens archives through SFile, reads
+their listfiles and representative model, terrain, WMO, texture, DBC, script and
+audio resources, checking embedded MD5 digests when present. It does not establish
 the game's archive priority. Data is always opened read-only; the large-offset IO
 check uses a temporary sparse file outside Data and removes it afterwards. A
 failed check, missing Data, or an unsupported archive returns a nonzero exit code.
+Native log output defaults to a `wowdecomp` directory under the app's temporary
+directory; `WOW_LOG_ROOT` can select a writable log root separately from Data.
 
 The iOS app is `build/ios-arm64/bin/RelWithDebInfo/WowAppleBootstrap.app`. For device
 deployment, reconfigure with

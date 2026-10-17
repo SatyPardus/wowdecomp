@@ -1,6 +1,11 @@
 #include <cstdint>
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#define _alloca alloca
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.h"
 
 // STATIC: 0x00A505D8

@@ -21,7 +21,11 @@ class IOFileUnit : public IOUnit {
     virtual bool Close();
 
     IOFileUnit(Blizzard::File::StreamRecord* stream, bool ownsMemory);
+#if defined(__APPLE__)
+    bool ReadNative(int64_t offset, const char* path, void* buffer, uint32_t count, uint32_t* bytesRead);
+#else
     bool ReadNative(uint32_t offset, const char* path, void* buffer, uint32_t count, uint32_t* bytesRead);
+#endif
 };
 
 class IOUnbufferedFileUnit : public IOFileUnit {

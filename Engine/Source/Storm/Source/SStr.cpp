@@ -1,4 +1,9 @@
 #include <cmath>
+#include <cctype>
+#if !defined(_WIN32)
+#include <strings.h>
+#define _strnicmp strncasecmp
+#endif
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
@@ -609,7 +614,11 @@ static size_t ISStrVPrintf(char* dest, size_t maxchars, const char* format, va_l
     if (g_opt.orderedprintfenabled) {
         result = vsnoprintf(dest, maxchars, format, arglist);
     } else {
+#if defined(_WIN32)
         result = _vsnprintf(dest, maxchars, format, arglist);
+#else
+        result = vsnprintf(dest, maxchars, format, arglist);
+#endif
     }
 
     if (result >= maxchars) {
@@ -886,13 +895,21 @@ uint32_t STORMAPI SStrHashHT(const char* string) {
 // VERIFY: 95c28b4a auto
 // OFFSET: 0x0076F6C0
 void STORMAPI SStrUpper(char* string) {
+#if defined(_WIN32)
     _strupr(string);
+#else
+    for (char* p = string; *p; ++p) { *p = std::toupper(static_cast<unsigned char>(*p)); }
+#endif
 }
 
 // VERIFY: 760ebea0 auto
 // OFFSET: 0x0076F6E0
 void STORMAPI SStrLower(char* string) {
+#if defined(_WIN32)
     _strlwr(string);
+#else
+    for (char* p = string; *p; ++p) { *p = std::tolower(static_cast<unsigned char>(*p)); }
+#endif
 }
 
 // VERIFY: d9e4e017 auto

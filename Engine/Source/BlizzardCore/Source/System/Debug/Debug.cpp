@@ -40,7 +40,7 @@ char* Blizzard::Debug::CanonicalStr(const char* src, char* dst, uint32_t maxchar
         uint32_t length = prefix ? static_cast<uint32_t>(strlen(prefix)) : 0;
         prefix += length + 1;
 
-        if (current && !_strnicmp(buffer, current, length)) {
+        if (current && Blizzard::String::EqualI(buffer, current, length)) {
             Blizzard::String::Copy(dst, buffer + length, maxchars);
             break;
         }

@@ -50,7 +50,11 @@ bool IOFileUnit::Read(void* buffer, int64_t offset, uint32_t count, uint32_t* by
         Blizzard::File::StreamingInfo* streaming = this->m_stream->m_streaming;
 
         if (!streaming || !streaming->m_entry || Blizzard::Streaming::CheckFileRange(path, offset, count, path, 5) == 1) {
+#if defined(__APPLE__)
+            return this->ReadNative(offset, path, buffer, count, bytesRead);
+#else
             return this->ReadNative(static_cast<uint32_t>(offset), path, buffer, count, bytesRead);
+#endif
         }
     }
 

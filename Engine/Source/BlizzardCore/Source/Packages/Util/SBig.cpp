@@ -1,7 +1,12 @@
 #include "SBig.h"
 #include <cstdint>
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#define _alloca alloca
+#else
 #include <malloc.h>
+#endif
 #include <vector>
 
 // INLINED

@@ -2,6 +2,9 @@
 #define ENGINE_SOURCE_BLIZZARDCORE_SOURCE_SYSTEM_LOG_LOG_H
 
 #include <cstdarg>
+#if defined(__APPLE__)
+#include <atomic>
+#endif
 #include <cstdint>
 #include <cstdio>
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
@@ -53,7 +56,12 @@ struct LogFile {
 extern bool s_threadRunning;
 extern bool s_threadDone;
 extern Blizzard::Lock::Mutex s_mutex;
+#if defined(__APPLE__)
+extern std::atomic<int32_t> s_state;
+void GetDefaultDirectory(char* buffer, uint32_t capacity);
+#else
 extern int32_t s_state;
+#endif
 extern int32_t s_prefCount;
 extern uint32_t s_stringPoolSize;
 extern Blizzard::Time::Timestamp s_startTime;

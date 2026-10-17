@@ -3,7 +3,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#if defined(_WIN32)
 #include <windows.h>
+#else
+#include <cerrno>
+#include <mutex>
+static int fopen_s(FILE** result, const char* path, const char* mode) {
+    *result = std::fopen(path, mode);
+    return *result ? 0 : errno;
+}
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 #include "Engine/Source/BlizzardCore/Source/System/Log/Log.h"
@@ -26,7 +35,11 @@ bool System_Log::s_threadDone;
 Blizzard::Lock::Mutex System_Log::s_mutex;
 
 // STATIC: 0x00B33C74
+#if defined(__APPLE__)
+std::atomic<int32_t> System_Log::s_state{};
+#else
 int32_t System_Log::s_state;
+#endif
 
 // STATIC: 0x00B33C78
 int32_t System_Log::s_prefCount;
@@ -472,8 +485,12 @@ void System_Log::Init(int32_t logClass) {
         s_Prefs[0].m_maxOpenTime = 30000;
         s_Prefs[0].m_maxIdleTime = 15000;
 
-        char directory[MAX_PATH];
+        char directory[1024];
+#if defined(__APPLE__)
+        GetDefaultDirectory(directory, sizeof(directory));
+#else
         Blizzard::Process::GetProcessDirectory(directory, sizeof(directory));
+#endif
         s_Prefs[0].m_directory = static_cast<char*>(malloc(strlen(directory) + 1));
         Blizzard::String::MakeUnivPath(directory, s_Prefs[0].m_directory, static_cast<int32_t>(strlen(directory) + 1));
         s_prefCount++;
@@ -508,7 +525,7 @@ void System_Log::ShutdownProc() {
 
     s_state = -1;
 
-    if (s_thread->m_state >= 0 && s_threadRunning) {
+    if (s_thread && s_threadRunning) {
         Blizzard::Thread::WaitForever(s_thread);
         Blizzard::Thread::Close(s_thread);
     }
@@ -529,11 +546,18 @@ bool System_Log::Acquire(int32_t logClass) {
     }
 
     if (!s_state) {
+#if defined(__APPLE__)
+        static std::once_flag once;
+        std::call_once(once, [] {
+#endif
         s_startTime = Blizzard::Time::GetTimestamp();
         Blizzard::Lock::MutexCreate(s_mutex);
         s_state = 1;
         s_threadRunning = true;
-        Blizzard::Thread::Create(LogThread, nullptr, &s_thread, "", 0, 0x10000);
+        s_threadRunning = Blizzard::Thread::Create(LogThread, nullptr, &s_thread, "", 0, 0x10000);
+#if defined(__APPLE__)
+        });
+#endif
     }
 
     Blizzard::Lock::MutexEnter(s_mutex);
