@@ -22,6 +22,7 @@
 void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference);
 void CheckGameModels();
 void CheckGameTerrain();
+void CheckGameWmoRoots();
 
 namespace {
 void Require(bool value, const char* message) { if (!value) { throw std::runtime_error(message); } }
@@ -71,6 +72,7 @@ void CheckGameAsyncFiles() {
         EventProcessPending();
         CheckGameModels();
         CheckGameTerrain();
+        CheckGameWmoRoots();
         {
             CStatus status;
             auto* texture = TextureCreate("Interface\\GLUES\\COMMON\\GLUES-WOW-BCLOGO.BLP", CGxTexFlags(GxTex_NearestMipNearest), &status, 1);

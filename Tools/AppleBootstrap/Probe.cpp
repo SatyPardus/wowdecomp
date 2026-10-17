@@ -720,7 +720,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
             reject([&] { GxReadShaderBinary(vertex.bytes, 16); });
         }
         out << "Original UI vs/ps_2_0 and vs/ps_3_0 BLS recognized; modified code, truncation and memory budget checks passed.\n";
-        out << "Full local archive layout and locale fallback are active. Client signature policy, game loop, full Gx/Metal integration, audio and networking remain to be integrated.\n";
+        out << "Full local archive layout and locale fallback are active. Client signature policy, full world/game startup, remaining Gx/Metal effects and game networking remain to be integrated.\n";
         report = out.str();
         return success;
     } catch (const std::exception& error) {

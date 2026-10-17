@@ -1,4 +1,5 @@
 #include "MapObj.h"
+#include "WmoData.h"
 #include <cstdlib>
 #if defined(_MSC_VER)
 #include <malloc.h>
@@ -1791,10 +1792,14 @@ void CMapObj::InitPtrs() {
     this->m_header = nullptr;
     this->m_textureNameList = nullptr;
     this->m_groupNameList = nullptr;
+    this->m_skybox = nullptr;
     this->m_groupInfo = nullptr;
     this->m_portalVertexList = nullptr;
     this->m_portalList = nullptr;
     this->m_portalRefList = nullptr;
+    this->m_visBlockVertList = nullptr;
+    this->m_visBlockList = nullptr;
+    this->m_materialList = nullptr;
     this->m_lightList = nullptr;
     this->m_doodadSetList = nullptr;
     this->m_doodadNameList = nullptr;
@@ -1807,6 +1812,9 @@ void CMapObj::InitPtrs() {
     this->m_planeVertCount = 0;
     this->m_portalsCount = 0;
     this->m_portalRefCount = 0;
+    this->m_visBlockVertCount = 0;
+    this->m_visBlockCount = 0;
+    this->m_materialsCount = 0;
     this->m_ligtsCount = 0;
     this->m_doodadSetCount = 0;
     this->m_doodadNameSize = 0;
@@ -1835,11 +1843,13 @@ void CMapObj::WaitLoad() {
     while (this->m_asyncObject) {
         AsyncFileReadWait(this->m_asyncObject);
     }
+    if (this->m_rootReadFailed) throw std::runtime_error("WMO root read failed");
 }
 
 // VERIFY: edb456aa manual
 // OFFSET: 0x007AE300
 void CMapObj::Init() {
+    this->m_rootReadFailed = false;
     this->m_flushTimer = 0.0f;
     this->m_refCount = 0;
     this->m_pWmoData = nullptr;
@@ -1854,11 +1864,15 @@ void CMapObj::Init() {
     this->m_materialsCount = 0;
     this->m_mapObjGroupCount = 0;
     this->InitPtrs();
+
+    this->m_rootData.reset();
 }
 
 // VERIFY: b756cecb manual
 // OFFSET: 0x007AE3B0
 void CMapObj::Clear() {
+    this->m_isGroupLoaded = 0;
+    this->m_asyncLoadLink.Unlink();
     int32_t freeData = 1;
 
     if (this->m_asyncObject) {
@@ -1891,6 +1905,7 @@ void CMapObj::Clear() {
         this->m_pWmoData = nullptr;
     }
 
+    this->m_rootData.reset();
     this->m_wmoFileSize = 0;
 }
 

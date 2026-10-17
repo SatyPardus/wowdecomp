@@ -1,4 +1,5 @@
 #include "MapObjRead.h"
+#include "WmoData.h"
 #include "Engine/Source/Tempest/NTempest.h"
 #include "Engine/Source/Tempest/C3Ray.h"
 #include "WoW/Common/AaBsp.h"
@@ -56,96 +57,115 @@ void CMapObjGroup::FixColorVertexAlpha() {
 // VERIFY: cd3ffadf manual
 // OFFSET: 0x007D7470
 void CMapObj::Load() {
-    SIffChunk* chunk = reinterpret_cast<SIffChunk*>(static_cast<uint8_t*>(this->m_pWmoData) + 12);
-    this->m_header = reinterpret_cast<SMOHeader*>(&chunk->m_data);
+    static_assert(sizeof(SMOMaterial) == 64, "WMO material disk layout changed");
+    auto data = std::make_unique<WmoData>(this->m_pWmoData, this->m_wmoFileSize);
+    auto& headerChunk = data->Require(0x4D4F4844);
+    if (headerChunk.Count<SMOHeader>() != 1) throw std::runtime_error("Invalid WMO root header");
+    auto* header = headerChunk.Records<SMOHeader>();
+    auto& texturesChunk = data->Require(0x4D4F5458);
+    auto* textures = texturesChunk.Records<char>();
+    const auto texturesCount = texturesChunk.Count<char>();
+    auto& materialsChunk = data->Require(0x4D4F4D54);
+    auto* materials = materialsChunk.Records<SMOMaterial>();
+    const auto materialsCount = materialsChunk.Count<SMOMaterial>();
+    auto& groupNamesChunk = data->Require(0x4D4F474E);
+    auto* groupNames = groupNamesChunk.Records<char>();
+    const auto groupNamesCount = groupNamesChunk.Count<char>();
+    auto& groupsChunk = data->Require(0x4D4F4749);
+    auto* groups = groupsChunk.Records<SMOGroupInfo>();
+    const auto groupsCount = groupsChunk.Count<SMOGroupInfo>();
+    auto& portalVerticesChunk = data->Require(0x4D4F5056);
+    auto* portalVertices = portalVerticesChunk.Records<C3Vector>();
+    const auto portalVerticesCount = portalVerticesChunk.Count<C3Vector>();
+    auto& portalsChunk = data->Require(0x4D4F5054);
+    auto* portals = portalsChunk.Records<SMOPortal>();
+    const auto portalsCount = portalsChunk.Count<SMOPortal>();
+    auto& portalRefsChunk = data->Require(0x4D4F5052);
+    auto* portalRefs = portalRefsChunk.Records<SMOPortalRef>();
+    const auto portalRefsCount = portalRefsChunk.Count<SMOPortalRef>();
+    auto& visibleVerticesChunk = data->Require(0x4D4F5656);
+    auto* visibleVertices = visibleVerticesChunk.Records<C3Vector>();
+    const auto visibleVerticesCount = visibleVerticesChunk.Count<C3Vector>();
+    auto& visibleBlocksChunk = data->Require(0x4D4F5642);
+    auto* visibleBlocks = visibleBlocksChunk.Records<SMOVisibleBlock>();
+    const auto visibleBlocksCount = visibleBlocksChunk.Count<SMOVisibleBlock>();
+    auto& lightsChunk = data->Require(0x4D4F4C54);
+    auto* lights = lightsChunk.Records<SMOLight>();
+    const auto lightsCount = lightsChunk.Count<SMOLight>();
+    auto& doodadSetsChunk = data->Require(0x4D4F4453);
+    auto* doodadSets = doodadSetsChunk.Records<SMODoodadSet>();
+    const auto doodadSetsCount = doodadSetsChunk.Count<SMODoodadSet>();
+    auto& doodadNamesChunk = data->Require(0x4D4F444E);
+    auto* doodadNames = doodadNamesChunk.Records<char>();
+    const auto doodadNamesCount = doodadNamesChunk.Count<char>();
+    auto& doodadsChunk = data->Require(0x4D4F4444);
+    auto* doodads = doodadsChunk.Records<SMODoodadDef>();
+    const auto doodadsCount = doodadsChunk.Count<SMODoodadDef>();
+    auto& fogsChunk = data->Require(0x4D464F47);
+    auto* fogs = fogsChunk.Records<SMOFog>();
+    const auto fogsCount = fogsChunk.Count<SMOFog>();
+    auto& skyChunk = data->Require(0x4D4F5342);
+    if (skyChunk.size) skyChunk.CheckString(0);
+    char* skybox = skyChunk.size && *skyChunk.Records<char>() ? skyChunk.Records<char>() : nullptr;
+    auto* convexChunk = data->Find(0x4D435650);
+    auto* convex = convexChunk ? convexChunk->Records<C4Plane>() : nullptr;
+    auto convexCount = convexChunk ? convexChunk->Count<C4Plane>() : 0;
 
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_textureNameList = reinterpret_cast<char*>(&chunk->m_data);
-    this->m_texturesSize = chunk->m_size;
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_materialList = reinterpret_cast<SMOMaterial*>(&chunk->m_data);
-    this->m_materialsCount = chunk->m_size / sizeof(SMOMaterial);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_groupNameList = reinterpret_cast<char*>(&chunk->m_data);
-    this->m_groupNameSize = chunk->m_size;
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_groupInfo = reinterpret_cast<SMOGroupInfo*>(&chunk->m_data);
-    this->m_groupInfoCount = chunk->m_size / sizeof(SMOGroupInfo);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_skybox = reinterpret_cast<char*>(&chunk->m_data);
-
-    if (!this->m_skybox[0]) {
-        this->m_skybox = nullptr;
+    // Authored patch WMOs (including Stormwind and Dalaran) retain stale MOHD
+    // counts. The original loader derives runtime counts from the actual chunks.
+    if (groupsCount > 512) throw std::runtime_error("WMO exceeds the original group capacity");
+    for (uint32_t i = 0; i < materialsCount; ++i) {
+        texturesChunk.CheckString(materials[i].m_texture1);
+        texturesChunk.CheckString(materials[i].m_texture2);
+        // Runtime texture handles must never be read from serialized padding.
+        materials[i].Textures()[0] = nullptr;
+        materials[i].Textures()[1] = nullptr;
     }
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-
-    if (!this->m_skybox) {
-        for (uint32_t i = 0; i < static_cast<uint32_t>(this->m_groupInfoCount); i++) {
-            this->m_groupInfo[i].m_flags &= ~0x40000;
+    for (uint32_t i = 0; i < groupsCount; ++i) {
+        if (groups[i].m_nameoffset != UINT32_MAX) groupNamesChunk.CheckString(groups[i].m_nameoffset);
+        if (!skybox) groups[i].m_flags &= ~0x40000;
+    }
+    for (uint32_t i = 0; i < portalsCount; ++i) {
+        auto& portal = portals[i];
+        if (portal.m_startVertex > portalVerticesCount || portal.m_count > portalVerticesCount - portal.m_startVertex)
+            throw std::runtime_error("WMO portal vertices are out of bounds");
+        // Preserve the original client's repair for an undefined portal plane.
+        if (std::isnan(static_cast<double>(portal.m_plane.d))) {
+            portal.m_plane.n = C3Vector(0, 0, 1);
+            portal.m_plane.d = 800000.0f;
         }
     }
+    for (uint32_t i = 0; i < portalRefsCount; ++i)
+        if (portalRefs[i].m_portalIndex >= portalsCount || portalRefs[i].m_groupIndex >= groupsCount)
+            throw std::runtime_error("WMO portal reference is out of bounds");
+    for (uint32_t i = 0; i < visibleBlocksCount; ++i)
+        if (visibleBlocks[i].m_firstVertex > visibleVerticesCount || visibleBlocks[i].m_count > visibleVerticesCount - visibleBlocks[i].m_firstVertex)
+            throw std::runtime_error("WMO visibility vertices are out of bounds");
+    for (uint32_t i = 0; i < doodadSetsCount; ++i)
+        if (doodadSets[i].m_startIdx > doodadsCount || doodadSets[i].m_count > doodadsCount - doodadSets[i].m_startIdx)
+            throw std::runtime_error("WMO doodad set is out of bounds");
+    for (uint32_t i = 0; i < doodadsCount; ++i) doodadNamesChunk.CheckString(doodads[i].m_flags & 0xFFFFFF);
 
-    this->m_portalVertexList = reinterpret_cast<C3Vector*>(&chunk->m_data);
-    this->m_planeVertCount = chunk->m_size / sizeof(C3Vector);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_portalList = reinterpret_cast<SMOPortal*>(&chunk->m_data);
-    this->m_portalsCount = chunk->m_size / sizeof(SMOPortal);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-
-    for (int32_t i = 0; i < this->m_portalsCount; i++) {
-        if (std::isnan(static_cast<double>(this->m_portalList[i].m_plane.d))) {
-            this->m_portalList[i].m_plane.n.x = 0.0f;
-            this->m_portalList[i].m_plane.n.y = 0.0f;
-            this->m_portalList[i].m_plane.n.z = 1.0f;
-            this->m_portalList[i].m_plane.d = 800000.0f;
-        }
-    }
-
-    this->m_portalRefList = reinterpret_cast<SMOPortalRef*>(&chunk->m_data);
-    this->m_portalRefCount = chunk->m_size / sizeof(SMOPortalRef);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_visBlockVertList = reinterpret_cast<C3Vector*>(&chunk->m_data);
-    this->m_visBlockVertCount = chunk->m_size / sizeof(C3Vector);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_visBlockList = reinterpret_cast<SMOVisibleBlock*>(&chunk->m_data);
-    this->m_visBlockCount = chunk->m_size / sizeof(SMOVisibleBlock);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_lightList = reinterpret_cast<SMOLight*>(&chunk->m_data);
-    this->m_ligtsCount = chunk->m_size / sizeof(SMOLight);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_doodadSetList = reinterpret_cast<SMODoodadSet*>(&chunk->m_data);
-    this->m_doodadSetCount = chunk->m_size / sizeof(SMODoodadSet);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_doodadNameList = reinterpret_cast<char*>(&chunk->m_data);
-    this->m_doodadNameSize = chunk->m_size;
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_doodadDefList = reinterpret_cast<SMODoodadDef*>(&chunk->m_data);
-    this->m_doodadDefCount = chunk->m_size / sizeof(SMODoodadDef);
-
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-    this->m_fogList = reinterpret_cast<SMOFog*>(&chunk->m_data);
-    this->m_fogsCount = chunk->m_size / sizeof(SMOFog);
-
-    uint8_t* end = static_cast<uint8_t*>(this->m_pWmoData) + this->m_wmoFileSize;
-    chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(&chunk->m_data) + chunk->m_size);
-
-    if (reinterpret_cast<uint8_t*>(chunk) < end && chunk->m_token == 0x4D435650) {
-        this->m_convexVolumePlanes = reinterpret_cast<C4Plane*>(&chunk->m_data);
-        this->m_convexVolumePlaneCount = chunk->m_size / sizeof(C4Plane);
-    }
+    // Publish only after all checks pass. The original root bytes remain intact;
+    // runtime pointer slots, flags and plane repair live in the aligned copy.
+    this->m_header = header;
+    this->m_textureNameList = textures; this->m_texturesSize = texturesCount;
+    this->m_materialList = materials; this->m_materialsCount = materialsCount;
+    this->m_groupNameList = groupNames; this->m_groupNameSize = groupNamesCount;
+    this->m_groupInfo = groups; this->m_groupInfoCount = groupsCount;
+    this->m_portalVertexList = portalVertices; this->m_planeVertCount = portalVerticesCount;
+    this->m_portalList = portals; this->m_portalsCount = portalsCount;
+    this->m_portalRefList = portalRefs; this->m_portalRefCount = portalRefsCount;
+    this->m_visBlockVertList = visibleVertices; this->m_visBlockVertCount = visibleVerticesCount;
+    this->m_visBlockList = visibleBlocks; this->m_visBlockCount = visibleBlocksCount;
+    this->m_lightList = lights; this->m_ligtsCount = lightsCount;
+    this->m_doodadSetList = doodadSets; this->m_doodadSetCount = doodadSetsCount;
+    this->m_doodadNameList = doodadNames; this->m_doodadNameSize = doodadNamesCount;
+    this->m_doodadDefList = doodads; this->m_doodadDefCount = doodadsCount;
+    this->m_fogList = fogs; this->m_fogsCount = fogsCount;
+    this->m_skybox = skybox;
+    this->m_convexVolumePlanes = convex; this->m_convexVolumePlaneCount = convexCount;
+    this->m_rootData = std::move(data);
 }
 
 // VERIFY: 4e3ee2fd auto
@@ -416,22 +436,38 @@ void CMapObj::PostloadCallback(void* arg) {
     AsyncFileReadDestroyObject(mapObj->m_asyncObject);
     mapObj->m_asyncObject = nullptr;
     mapObj->m_asyncLoadLink.Unlink();
-    mapObj->Load();
-    mapObj->CreateMaterials();
-    mapObj->m_argbColor = *reinterpret_cast<CImVector*>(&mapObj->m_header->m_ambColor);
-    mapObj->m_bbox = mapObj->m_header->m_boundingBox;
-    mapObj->m_mapObjGroupCount = mapObj->m_groupInfoCount;
-
-    for (uint32_t i = 0; i < static_cast<uint32_t>(mapObj->m_groupInfoCount); i++) {
-        mapObj->m_mapObjGroupArray[i] = CMap::AllocMapObjGroup();
+    try {
+        mapObj->Load();
+        mapObj->CreateMaterials();
+        mapObj->m_argbColor = *reinterpret_cast<CImVector*>(&mapObj->m_header->m_ambColor);
+        mapObj->m_bbox = mapObj->m_header->m_boundingBox;
+        mapObj->m_mapObjGroupCount = 0;
+        for (uint32_t i = 0; i < static_cast<uint32_t>(mapObj->m_groupInfoCount); i++) {
+            auto* group = CMap::AllocMapObjGroup();
+            if (!group) throw std::bad_alloc();
+            mapObj->m_mapObjGroupArray[mapObj->m_mapObjGroupCount++] = group;
+        }
+        mapObj->m_isGroupLoaded = 1;
+    } catch (...) {
+        mapObj->Clear();
+        mapObj->m_rootReadFailed = true;
+        throw;
     }
+}
 
-    mapObj->m_isGroupLoaded = 1;
+static void RootReadFailed(void* arg) {
+    auto* mapObj = static_cast<CMapObj*>(arg);
+    AsyncFileReadDestroyObject(mapObj->m_asyncObject);
+    mapObj->m_asyncObject = nullptr;
+    mapObj->m_asyncLoadLink.Unlink();
+    mapObj->Clear();
+    mapObj->m_rootReadFailed = true;
 }
 
 // VERIFY: 737e6a62 manual
 // OFFSET: 0x007D80C0
 bool CMapObj::Read(char* fileName) {
+    this->m_rootReadFailed = false;
     SStrCopy(this->m_wmoName, fileName, STORM_MAX_STR);
 
     SFileImpl* file = nullptr;
@@ -439,11 +475,16 @@ bool CMapObj::Read(char* fileName) {
     if (CMap::SafeOpen(fileName, &file)) {
         SStrCopy(this->m_wmoName, fileName, STORM_MAX_STR);
     } else {
-        CMap::SafeOpen("world\\wmo\\Dungeon\\test\\missingwmo.wmo", &file);
+        if (!CMap::SafeOpen("world\\wmo\\Dungeon\\test\\missingwmo.wmo", &file)) return false;
         SStrCopy(this->m_wmoName, "world\\wmo\\Dungeon\\test\\missingwmo.wmo", STORM_MAX_STR);
     }
 
-    this->m_wmoFileSize = SFileGetFileSize(file, nullptr);
+    const uint32_t size = SFileGetFileSize(file, nullptr);
+    if (size < 12 || size > WmoData::MaxBytes) {
+        SFileCloseFile(file);
+        throw std::runtime_error("Invalid WMO byte size or resource budget exceeded");
+    }
+    this->m_wmoFileSize = size;
     this->m_pWmoData = SMemAlloc(this->m_wmoFileSize, __FILE__, __LINE__, 0);
 
     this->m_asyncObject = AsyncFileReadAllocObject();
@@ -452,6 +493,7 @@ bool CMapObj::Read(char* fileName) {
     this->m_asyncObject->m_buffer = this->m_pWmoData;
     this->m_asyncObject->m_size = this->m_wmoFileSize;
     this->m_asyncObject->m_userPostloadCallback = reinterpret_cast<void*>(CMapObj::PostloadCallback);
+    this->m_asyncObject->m_userPostUnloadCallback = reinterpret_cast<void*>(RootReadFailed);
     this->m_asyncObject->m_priority = 124;
     AsyncFileReadObject(this->m_asyncObject, 0);
 

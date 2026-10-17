@@ -11,6 +11,8 @@
 #include <stdexcept>
 #include <vector>
 
+void CheckWmoRoots(const ClientData& client, std::ostream& report);
+
 namespace {
 void Require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 uint32_t Word(const std::vector<uint8_t>& bytes, size_t offset) {
@@ -35,6 +37,7 @@ template<class T> std::vector<T> Chunk(const std::vector<uint8_t>& bytes, uint32
 }
 
 void CheckWorldData(const ClientData& client, std::ostream& report) {
+    CheckWmoRoots(client, report);
     const auto asset = client.Read("World\\wmo\\Azeroth\\Buildings\\AltarOfStorms\\AltarOfStorms_000.wmo", 64*1024*1024, true);
     auto nodes = Chunk<CAaBspNode>(asset.bytes, 0x4D4F424E);
     auto references = Chunk<uint16_t>(asset.bytes, 0x4D4F4252);

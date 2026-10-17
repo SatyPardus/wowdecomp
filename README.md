@@ -247,8 +247,20 @@ The shared BSP digest/cache and bit-array implementations now build natively;
 checks use 961 actual WMO nodes and 465 leaves, preserving face flags/order and
 geometry and clearing cached node pointers on release. LiquidType/LiquidMaterial
 DBCs also use their original loaders; all 26 liquid and three material records
-are checked against archive bytes on macOS and the iOS simulator. World instance
-linking still requires the sound-object lifecycle and world UI model hit testing.
+are checked against archive bytes on macOS and the iOS simulator. Original world
+objects now link through the shared sound-object lifecycle and extracted world
+UI model hit-testing implementation.
+
+The original WMO root loader now owns aligned, bounded chunk payloads. Disk
+material records remain 64 bytes; native texture pointers no longer occupy an
+unaligned archive address. Altar of Storms, Stormwind and Dalaran retain all 417
+materials, 378 groups and 10,831 doodads, including the original behavior of using
+chunk lengths when patched files contain stale header counts. Original async
+postload allocates the world groups and loads the altar's material textures through
+Services/Gx. Truncation, failed-read cleanup/retry, cancellation and recreation
+pass on macOS with ASan/UBSan and Metal validation, and in the iOS simulator;
+both iOS targets build. WMO group geometry loading,
+native WMO shaders and world placement/rendering remain to be connected.
 Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against

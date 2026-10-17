@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/C4Plane.h"
 #include "Engine/Source/Tempest/C4Quaternion.h"
@@ -24,6 +25,7 @@ class C3Vector;
 class C4Plane;
 class CAsyncObject;
 class CMapObj;
+class WmoData;
 class CMapObjDef;
 class CMapObjGroup;
 class CShaderEffect;
@@ -154,6 +156,9 @@ class CMapObj : public CMapObjIndex, public TSHashObject<CMapObj, HASHKEY_NONE> 
     /* 01E8 */ TSExplicitList<CMapObjGroup, offsetof(CMapObjGroup, m_asyncLoadLink)> m_mapObjGroupList;
     /* 01F4 */ int32_t m_mapObjGroupCount;
     /* 01F8 */ CMapObjGroup* m_mapObjGroupArray [512];
+    // Native runtime storage; serialized records retain their original sizes.
+    std::unique_ptr<WmoData> m_rootData;
+    bool m_rootReadFailed = false;
 
     CMapObj();
     ~CMapObj();

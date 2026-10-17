@@ -167,6 +167,7 @@ class CGWorldFrame : public CSimpleFrame {
     int32_t OnLayerMouseWheel(const CMouseEvent& evt) override;
     void operator delete(void* ptr);
     void AddObjectToHitTestList(CModelRecord* record, uint32_t flags);
+    static void AddModelToHitTest(CM2Model* model, uint32_t group, void* owner, uint32_t mode);
     void UpdateObject(CGObject_C* object, uint32_t flags);
     void ClearTrackedObjects();
     int32_t GetLineSegment(float mouseX, float mouseY, C3Vector* start, C3Vector* end);
