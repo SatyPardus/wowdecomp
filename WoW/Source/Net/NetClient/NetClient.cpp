@@ -10,6 +10,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/WowServices/HMAC.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // STATIC: 0x00AD2ED0
 static TSList<NETCLIENTNODE> s_clientList;
@@ -277,6 +278,10 @@ int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_
     msg->Get(msgId);
     this->ValidateMessageId(msgId);
 
+    if (ModCore::Manager().OnPacketReceived(msgId, timeReceived, msg)) {
+        return 1;
+    }
+
     if (msgId < NUM_MSG_TYPES && this->m_handlers[msgId]) {
         return this->m_handlers[msgId](this->m_handlerParams[msgId], static_cast<NETMESSAGE>(msgId), timeReceived, msg);
     }
@@ -411,6 +416,7 @@ int32_t NetClient::HandleDisconnect() {
 
     this->m_netState = NS_INITIALIZED;
     ConsolePrintf("NetClient::HandleDisconnect()");
+    ModCore::Manager().OnDisconnect();
     CGlueMgr::NetDisconnectHandler(this);
     NetClient::PopObjMgr();
 
@@ -574,13 +580,17 @@ NetClient::NetClient() {
 // VERIFY: 3e4c9045 manual
 // OFFSET: 0x00632B50
 void NetClient::Send(CDataStore* msg) {
-    if (this->m_netState != NS_CONNECTED) {
+    if (!this || this->m_netState != NS_CONNECTED) {
         return;
     }
 
     uint32_t size = msg->m_size - msg->m_read;
 
     if (!size) {
+        return;
+    }
+
+    if (ModCore::Manager().OnPacketSend(0, size, msg)) {
         return;
     }
 

@@ -17,6 +17,7 @@
 #include "Engine/Source/Base/CDataStore.h"
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "Engine/Source/FrameXML/LoadXML.h"
 #include "WoW/Source/Ui/PetInfo.h"
 #include "WoW/Source/DB/Rec/TotemCategoryRec.h"
@@ -221,6 +222,9 @@ static int32_t Script_UseAction(lua_State* L) {
     }
 
     int32_t slot = static_cast<int32_t>(lua_tonumber(L, 1));
+    if (ModCore::Manager().OnActionUse(slot)) {
+        return 0;
+    }
     WOWGUID target;
 
     if (Script_GetGUIDFromToken(lua_tolstring(L, 2, nullptr), target, true)) {

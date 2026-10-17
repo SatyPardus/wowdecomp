@@ -2884,12 +2884,7 @@ static int32_t Script_GetComboPoints(lua_State* L) {
     double points = 0.0;
 
     if (unit == ClntObjMgrGetActivePlayer()) {
-        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-        uint8_t classId = player ? player->m_unit->m_unitFieldBytes0[1] : 0;
-
-        if (!player || classId == 4 || classId == 11) {
-            points = CGGameUI::GetComboPoints(target);
-        }
+        points = CGGameUI::GetComboPoints(target);
     } else if (unit == CGPetInfo::GetPet(0)) {
         points = CGPetInfo::GetComboPoints(target);
     }

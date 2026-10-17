@@ -10,6 +10,7 @@
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/Ui/ChatFrame.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // VERIFY: 1ef15c2e auto
 // OFFSET: 0x009858B0
@@ -38,7 +39,13 @@ static int32_t Script_PlayMusic(lua_State* L) {
         lua_error(L);
     }
 
-    SI2::PlaySoundFile(lua_tolstring(L, 1, nullptr), 5);
+    const char* music = lua_tolstring(L, 1, nullptr);
+    if (ModCore::Manager().OnPlayMusic(music)) {
+        lua_pushnumber(L, 1.0);
+        return 1;
+    }
+
+    SI2::PlaySoundFile(music, 5);
     lua_pushnumber(L, 1.0);
     return 1;
 }

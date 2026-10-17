@@ -1,4 +1,5 @@
 #include "CGlueMgr.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include <cmath>
 #include <cstdarg>
 #include <cstring>
@@ -713,6 +714,8 @@ void CGlueMgr::Resume() {
     SI2::RegisterScriptFunctions();
     AccountMsg_RegisterScriptFunctions();
     CGVideoOptions::RegisterScriptFunctions();
+    ModCore::Manager().RegisterLuaBindings(nullptr);
+    ModCore::Manager().OnGlueResume();
     CGlueMgr::s_scriptFunctionsLoaded = 1;
     FrameScript_CreateEvents(g_glueScriptEvents, sizeof(g_glueScriptEvents) / sizeof(g_glueScriptEvents[0]));
 
@@ -817,6 +820,7 @@ void CGlueMgr::RealmListDialogCancelled() {
 // VERIFY: 227c1fe1 auto
 // OFFSET: 0x004D82A0
 void CGlueMgr::SetScreen(const char* screen) {
+    ModCore::Manager().OnGlueScreenChange(screen);
     FrameScript_SignalEvent(GLUE_EVENT_SET_GLUE_SCREEN, "%s", screen);
 }
 
@@ -1084,6 +1088,12 @@ void CGlueMgr::Initialize() {
 // VERIFY: 5e7db3b8 manual
 // OFFSET: 0x004DAB40
 int32_t CGlueMgr::Idle(const void* data, void* param) {
+    struct GlueIdleGuard {
+        ~GlueIdleGuard() {
+            ModCore::Manager().OnGlueIdle();
+        }
+    } idleGuard;
+
     if (g_theGxDevicePtr->StereoEnabled()) {
         CGlueMgr::SetUIDepth(g_theGxDevicePtr->StereoGetConvergence());
     }

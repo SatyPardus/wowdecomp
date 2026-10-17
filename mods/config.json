@@ -1,0 +1,11 @@
+{
+  "devMode": true,
+  "cacheEnabled": true,
+  "aiExportOnBoot": true,
+  "hotReload": true,
+  "logLevel": "DEBUG",
+  "searchPaths": [
+    "mods/system",
+    "mods/user_mods"
+  ]
+}
