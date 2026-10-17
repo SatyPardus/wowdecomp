@@ -187,7 +187,10 @@ scene/cache recreation. The original `Particle.wfx` now loads both particle effe
 `Color_T1` and `CDiffuse_T1` cover their ten rigid vertex variants each, preserving
 vertex color, the original white-output branch, directional/local lighting and fog.
 The original fireball emits and renders four particle batches through its own
-billboard geometry and blending. Effect loading checks complete bounded reads,
+billboard geometry and blending. Rejuvenation's five original ribbon emitters draw
+their streamed triangle strips; its sphere/plane particles also reach the renderer.
+The scene probe checks ribbons separately before enabling the particle emitters.
+Effect loading checks complete bounded reads,
 argument lengths, scopes and the original pass/stage capacities. Model and particle
 constructors initialize reserved flag bits instead of retaining allocator contents.
 Other model materials, colored skinning, shadows and full world rendering remain
@@ -201,7 +204,8 @@ or `WOW_MODEL` to an explicit archive path without creature appearance replaceme
 These options are mutually exclusive. Character composition is not integrated;
 an unsupported shader reports its name and stops rendering.
 `WOW_MODEL='Spells\Fireball_Missile_Low.m2'` exercises original particle emission
-and drawing. The view owns depth,
+and drawing; `WOW_MODEL='Spells\Rejuvenation_Impact_Base.m2'` also exercises ribbons
+and sphere emitters. The view owns depth,
 scene/cache lifetime and foreground recreation. This remains a native rendering
 bootstrap, not a playable client or a replacement for the game's UI.
 
