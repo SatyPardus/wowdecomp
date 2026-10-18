@@ -17,8 +17,11 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
     }
     throw std::runtime_error("Invalid native model vertex family");
 }
-bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect) {
-    return target == GxSh_Vertex ? permutation < (UsesModelMaterial(vertexEffect) ? 30u : 10u) : permutation < 16 && (permutation & 3) == 0;
+bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect, FragmentEffect effect) {
+    if (target == GxSh_Vertex)
+        return permutation < (vertexEffect == ModelVertexEffect::Diffuse ? 60u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
+    return permutation < 16 && ((permutation & 3) == 0 ||
+        ((effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod) && (permutation & 7) == 1));
 }
 void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect) {
     if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
@@ -28,8 +31,45 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
     }
     // Bits: lighting + 2*(point lights + 5*(skinning + 3*shadow)).
     // These 30 vertex variants cover 0/1/4 bone influences and 0..4 local lights.
-    // Pixel 0/4 share code, as do 8/12 (shader alpha test). Shadows are not mapped
-    // to these functions: selecting one fails explicitly at the draw call.
+    // Pixel 0/4 share code, as do 8/12 (shader alpha test). The dynamic
+    // receiver uses R32F depth sampling; hardware PCF and banded models remain distinct.
+    // Diffuse_T1 dynamic-shadow view/normal/projection outputs (SM3).
+    static const char* dynamicShadowVertex[] = {
+        "e58d136456637bf01db9db092c89b7f1",
+        "95ed459f6acd963af469cd3f445ff4f6",
+        "e58d136456637bf01db9db092c89b7f1",
+        "5065e3340b9383e0e2d39f30e969c08f",
+        "e58d136456637bf01db9db092c89b7f1",
+        "cdf6c68318611ea574a203d8d82b9811",
+        "e58d136456637bf01db9db092c89b7f1",
+        "d80494194d051438d60e2ffee6f2aa1a",
+        "e58d136456637bf01db9db092c89b7f1",
+        "58a4d789277bdc09c0d012f8f512d899",
+        "0c58fc2718cee41e5bfc3e9da6b71108",
+        "5afd894a91d58c1b4f7ca79a33f9c3af",
+        "0c58fc2718cee41e5bfc3e9da6b71108",
+        "5b6afb561e18c3c93b7025bceab1aead",
+        "0c58fc2718cee41e5bfc3e9da6b71108",
+        "1f55b3a65a2118eb16a7bcf472fdc8f1",
+        "0c58fc2718cee41e5bfc3e9da6b71108",
+        "3d466d1bbb70088007ba3a83f8f17f4d",
+        "0c58fc2718cee41e5bfc3e9da6b71108",
+        "f9cf70b9107bf1904376e9584b7404ab",
+        "f26d86f644719381bd72b518e89383ba",
+        "c132e972518f060c36f312c2402265a0",
+        "f26d86f644719381bd72b518e89383ba",
+        "2128b1936f05dff8f5668d4fce722b2b",
+        "f26d86f644719381bd72b518e89383ba",
+        "52018ff7ad1afc4e91bbf8579f3f39c6",
+        "f26d86f644719381bd72b518e89383ba",
+        "a9cdf18c596b82020244d9998167e233",
+        "f26d86f644719381bd72b518e89383ba",
+        "c2a55400df8ce24151c9cf907024204e",
+    };
+    static const char* dynamicShadowPixel[2][2] = {
+        {"705a7856449d672da7d8ed3bb011fa84", "c9b9c2d74181fc60bafba4d6ef2321a5"},
+        {"d3761940c97672c9351c987201d0f70c", "fbec23c409af74b2db35438405483845"},
+    };
     static const char* vertex[] = {
         "089abea1c8a391a0f0f946dbca2d42bc",
         "40d1a248ecea6289d7f1b55863232ceb",
@@ -244,7 +284,7 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         {"8a64d4b05e2398a2ba4c62a5fe4aa997", "fd945970147ffd0cff289204ef658ab1"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
-        if (!SupportsModelPermutation(target, i, vertexEffect)) continue;
+        if (!SupportsModelPermutation(target, i, vertexEffect, effect)) continue;
         const auto& shader = shaders[i];
         Blizzard::Util::MD5 hash;
         hash.Process(shader.code.data(), uint32_t(shader.code.size()));
@@ -253,8 +293,9 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
         const char* expected = target == GxSh_Vertex ?
-            (vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
-            pixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3];
+            (i >= 30 ? dynamicShadowVertex[i-30] : vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
+            ((i & 3) ? dynamicShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3] :
+                pixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3]);
         if (fingerprint != expected) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");
         }

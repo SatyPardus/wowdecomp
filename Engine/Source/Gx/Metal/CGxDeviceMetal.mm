@@ -1199,10 +1199,11 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         ((netherBlur || liquid || shadow || detail || ripple) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui))),
         "Unsupported native Gx vertex/pixel shader combination");
     if (model && (!GxMetal::SupportsModelPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation, m->shaders.at(vertex).vertexEffect) ||
-        !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation))) {
+        !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation, m->shaders.at(vertex).vertexEffect, effect))) {
         throw std::runtime_error("Metal model vertex/shadow permutation is not implemented (vertex " +
             std::to_string(m->shaders.at(vertex).permutation) + ", pixel " + std::to_string(m->shaders.at(pixel).permutation) + ")");
     }
+    if (model) Require(m->shaders.at(vertex).permutation / 30 == (m->shaders.at(pixel).permutation & 3), "Mismatched model shadow coordinates and material");
     if (detail) {
         Require(GxMetal::SupportsDetailDoodadPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
             GxMetal::SupportsDetailDoodadPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation), "Detail-doodad shadow receivers are not implemented");
@@ -1431,14 +1432,21 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertex.attenuationConstant = vector(25); native.vertex.attenuationLinear = vector(26); native.vertex.attenuationQuadratic = vector(27);
         native.vertex.diffuse = vector(28); native.vertex.emissive = vector(29); native.vertex.fog = vector(30);
         std::memcpy(&native.fragment.fogColorAlphaRef, s_shadowConstants[0].constants + 8, sizeof(simd_float4));
-        if (native.permutation >= 10) {
+        if (native.permutation >= 30) {
+            native.shadow.projection = {vector(224),vector(225),vector(226)};
+            const float* pixelConstants = s_shadowConstants[0].constants;
+            std::memcpy(&native.shadow.distanceFade,pixelConstants+3*4,sizeof(simd_float4));
+            std::memcpy(&native.shadow.lightDirection,pixelConstants+4*4,sizeof(simd_float4));
+            std::memcpy(native.shadow.offsets,pixelConstants+5*4,sizeof(native.shadow.offsets));
+        }
+        if (native.permutation % 30 >= 10) {
             Require(draw.format == GxVBF_PBNT2, "Native model skinning requires the packed bone vertex layout");
             const auto& storage = m->Storage(vertices->m_pool);
             const auto offset = GxVertexAttribOffset(draw.format, GxVA_BlendIndices);
             const size_t first = indexed ? batch->m_minIndex : 0, last = indexed ? batch->m_maxIndex : batch->m_count - 1;
             for (size_t i = first; i <= last; ++i) {
                 const uint8_t* indices = storage.shadow.data() + vertices->m_index + i * vertices->m_itemSize + offset;
-                for (unsigned j = 0; j < (native.permutation >= 20 ? 4u : 1u); ++j) {
+                for (unsigned j = 0; j < (native.permutation % 30 >= 20 ? 4u : 1u); ++j) {
                     Require(indices[j] < native.bones.size(), "Model bone index exceeds the native palette");
                     native.boneCount = std::max(native.boneCount, uint32_t(indices[j]) + 1);
                 }
@@ -1493,7 +1501,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     std::array<id<MTLTexture>, 9> textures{};
     std::array<GxMetal::TextureDrawState, 9> states;
     states.fill(state);
-    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : (1u << inputs) - 1;
+    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model && modelParameters->permutation >= 30 ? 1u << 4 : 0);
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
         Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");
@@ -1514,7 +1522,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     else if (ripple) { m->gpu.DrawWaterRipple(m->command, m->pass, textures[0], draw, states[0], encoder); }
     else if (detail) { m->gpu.DrawDetailDoodad(m->command, m->pass, textures[0], draw, states[0], encoder); }
     else if (shadow) { m->gpu.DrawShadowMap(m->command, m->pass, textures[0], draw, inputs ? states[0] : state, encoder); }
-    else if (model) { m->gpu.DrawModel(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
+    else if (model) { m->gpu.DrawModel(m->command, m->pass, textures, draw, states, encoder); }
     else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (terrain) { m->gpu.DrawTerrain(m->command, m->pass, textures, draw, states, encoder); }

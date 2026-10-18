@@ -534,8 +534,8 @@ and vertex fog. Four pixel variants per material preserve opaque versus textured
 alpha and independent shader/state alpha tests, including equality boundaries.
 Runtime function constants specialize the original choices; Gx register uploads
 become typed native data, and only the referenced palette range is uploaded.
-Original SM3 bytecode fingerprints guard supported variants; selecting a shadow
-variant fails explicitly. GPU checks cover those variants, both real wolf material
+Original SM3 bytecode fingerprints guard supported variants; unsupported shadow
+variants fail explicitly. GPU checks cover those variants, both real wolf material
 batches and changing bone/pixel output as its original animation advances, including
 scene/cache recreation. The original `Particle.wfx` now loads both particle effects;
 `Color_T1` and `CDiffuse_T1` cover their ten rigid vertex variants each, preserving
@@ -547,7 +547,7 @@ The scene probe checks ribbons separately before enabling the particle emitters.
 Effect loading checks complete bounded reads,
 argument lengths, scopes and the original pass/stage capacities. Model and particle
 constructors initialize reserved flag bits instead of retaining allocator contents.
-Other model materials, colored skinning, shadows and full world rendering remain
+Other model materials, colored skinning, remaining shadows and full world rendering remain
 open; these checks are not a Windows visual-equivalence claim.
 
 `Diffuse_T1_Env` adds 30 unshadowed model vertex variants with original view-space
@@ -588,8 +588,23 @@ cutouts. All 90 vertex and 16 pixel handles are validated against the mounted
 original shader data. R32F targets preserve full float depth, exact copies,
 regional clears and D3D9 absent-channel sampling values; unsupported float
 filtering and blending fail explicitly. The original wolf shadow gather/draw
-path exercises both opaque and cutout batches. Shadow receivers, complete world
-shadow queries and PCF depth textures are still incomplete.
+path exercises both opaque and cutout batches. Complete world shadow queries
+and PCF depth textures are still incomplete.
+
+`Diffuse_T1` also supports its 30 R32F dynamic-shadow vertex variants, paired with
+`Combiners_Opaque` / `Combiners_Mod` pixel variants 1 and 9. Native typed constants
+preserve the original projected coordinates, five/nine LOD-zero samples, lit depth
+equality, border/distance/normal fades, RGB modulation before texturing/fog, and
+unchanged alpha. The numeric fixture checks 2,700 independent outputs including
+skinning, sampling transitions and shader alpha boundaries. The original wolf
+scene generates its R32F map from both opaque/cutout batches, selects both receiver
+materials through the original scene/cache code, and produces 125 darker pixels
+with unchanged alpha coverage across two resource lifetimes on Mac and iOS
+simulator. Numeric and scene checks pass with Metal validation (Mac also under
+ASan/UBSan); the Mac application and both iOS client targets build. These checks
+use explicit shadow/light inputs; they do not establish full world shadow behavior
+or Windows visual equivalence. Other model families/materials, distant shadow
+bands and hardware PCF remain unsupported.
 
 Native `DetailDoodad` rendering preserves sun and three-point-light paths,
 unnormalized terrain normals, vertex tint, distance fading, fog and independent

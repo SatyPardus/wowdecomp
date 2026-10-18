@@ -87,7 +87,12 @@ struct ModelDrawParameters {
     uint32_t permutation = 0, boneCount = 1;
     ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse;
     bool shaderAlphaTest = false;
+    struct ShadowParameters {
+        ModelAffine projection;
+        simd_float4 distanceFade, lightDirection, offsets[8], decodeScale{1,1,1,1};
+    } shadow{};
 };
+static_assert(sizeof(ModelDrawParameters::ShadowParameters) == 224, "Native model shadow layout");
 
 struct ShadowMapVertexParameters {
     simd_float4x4 projection;
@@ -253,8 +258,8 @@ public:
         const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawShadowMap(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
-    void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
-        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawLiquid(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
@@ -295,8 +300,8 @@ private:
     id<MTLFunction> m_terrainVertex[128]{};
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
-    id<MTLFunction> m_modelVertex[8][30]{};
-    id<MTLFunction> m_modelFragment[13][2][2][2]{};
+    id<MTLFunction> m_modelVertex[8][60]{};
+    id<MTLFunction> m_modelFragment[13][2][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];

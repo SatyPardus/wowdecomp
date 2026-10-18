@@ -365,6 +365,9 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     if (IsModelEffect(effect)) {
+        const bool dynamicShadow = modelPermutation >= 30;
+        const uint32_t basePermutation = modelPermutation % 30;
+        Require(!dynamicShadow || effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod, "Unsupported model shadow material");
         const bool material = UsesModelMaterial(vertexEffect);
         const bool reflectionOnly = vertexEffect == ModelVertexEffect::DiffuseReflection;
         const bool environment = vertexEffect == ModelVertexEffect::DiffuseEnvironment || reflectionOnly;
@@ -376,19 +379,19 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         const bool normal = (material && (!projected || (modelPermutation & 1))) || (colorMode == 2 && (modelPermutation & 1));
         const bool color = !material && !(colorMode == 1 && (modelPermutation & 1));
         Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth && (!secondTexture || (!reflectionOnly && (environment || dualUV || projected))) &&
-            (modelPermutation < 10 || format == GxVBF_PBNT2) &&
+            (basePermutation < 10 || format == GxVBF_PBNT2) &&
             (!normal || GxVertexHasAttrib(format, GxVA_Normal)) &&
             (!color || GxVertexHasAttrib(format, GxVA_Color0)) && (projected || reflectionOnly || GxVertexHasAttrib(format, GxVA_TexCoord0)) &&
             (!dualUV || GxVertexHasAttrib(format, GxVA_TexCoord1)),
             "Unsupported native model vertex layout or permutation");
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation];
         const bool textureAlpha = effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA || effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x;
-        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked];
+        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][dynamicShadow];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
         [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
-        [constants setConstantValue:&modelPermutation type:MTLDataTypeUInt atIndex:5];
+        [constants setConstantValue:&basePermutation type:MTLDataTypeUInt atIndex:5];
         [constants setConstantValue:&shaderAlphaTest type:MTLDataTypeBool atIndex:6];
         [constants setConstantValue:&textureAlpha type:MTLDataTypeBool atIndex:7];
         [constants setConstantValue:&colorMode type:MTLDataTypeUInt atIndex:8];
@@ -397,12 +400,13 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&dualUV type:MTLDataTypeBool atIndex:11];
         [constants setConstantValue:&projected type:MTLDataTypeBool atIndex:20];
         [constants setConstantValue:&reflectionOnly type:MTLDataTypeBool atIndex:33];
+        [constants setConstantValue:&dynamicShadow type:MTLDataTypeBool atIndex:35];
         NSError* error = nil;
-        NSString* vertexName = material ? (modelPermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex") :
+        NSString* vertexName = material ? (basePermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex") :
             normal ? @"modelColorLitVertex" : color ? @"modelColorVertex" : @"modelWhiteVertex";
-        if (projected) vertexName = modelPermutation >= 10 ? @"modelProjectedSkinVertex" :
+        if (projected) vertexName = basePermutation >= 10 ? @"modelProjectedSkinVertex" :
             normal ? @"modelProjectedNormalVertex" : color ? @"modelProjectedColorVertex" : @"modelProjectedPositionVertex";
-        if (reflectionOnly) vertexName = modelPermutation < 10 ? @"modelProjectedNormalVertex" : @"modelProjectedSkinVertex";
+        if (reflectionOnly) vertexName = basePermutation < 10 ? @"modelProjectedNormalVertex" : @"modelProjectedSkinVertex";
         if (!vertex) vertex = [m_library newFunctionWithName:vertexName constantValues:constants error:&error];
         if (!fragment) fragment = [m_library newFunctionWithName:@"modelDiffuseFragment" constantValues:constants error:&error];
         if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Model specialization failed");
@@ -418,7 +422,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         if (color) attribute(5, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
         if (!projected && !reflectionOnly) attribute(2, GxVA_TexCoord0, MTLVertexFormatFloat2);
         if (dualUV) attribute(6, GxVA_TexCoord1, MTLVertexFormatFloat2);
-        if (modelPermutation >= 10) {
+        if (basePermutation >= 10) {
             attribute(3, GxVA_BlendWeight, MTLVertexFormatUChar4Normalized);
             attribute(4, GxVA_BlendIndices, MTLVertexFormatUChar4);
         }

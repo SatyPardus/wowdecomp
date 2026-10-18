@@ -12,6 +12,8 @@
 #include "Engine/Source/Services/RibbonEmitter.h"
 #include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/ShaderEffect/ShaderEffectManager.h"
+#include "Engine/Source/ShaderEffect/ShadowCache.h"
+#include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxVertexPC.h"
@@ -22,6 +24,8 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <array>
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 
@@ -206,9 +210,12 @@ void CheckGameModels() {
         if (!opaque.m_count || !cutout.m_count) throw std::runtime_error("Wolf shadow gather omitted opaque or cutout batches");
         device.RsPush();
         struct RestoreState { CGxDeviceMetal& device; ~RestoreState() { device.RsPop(); } } restoreState{device};
-        struct DepthTarget { CGxDeviceMetal& device; CGxTex* texture = nullptr; ~DepthTarget() { device.TexDestroy(texture); } } shadowTarget{device};
+        struct DepthTarget { CTexture* owner = nullptr; CGxTex* texture = nullptr; ~DepthTarget() { if(owner) HandleClose(reinterpret_cast<HOBJECT>(owner)); } } shadowTarget;
         CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget = 1;
-        device.TexCreate(GxTex_2d, 128, 128, 0, GxTex_R32F, GxTex_R32F, flags, nullptr, nullptr, "Original wolf shadow depth", shadowTarget.texture);
+        shadowTarget.owner = TextureCreate(GxTex_2d,128,128,0,GxTex_R32F,GxTex_R32F,flags,nullptr,
+            [](EGxTexCommand,uint32_t,uint32_t,uint32_t,uint32_t,void*,uint32_t&,const void*&) {},"Original wolf shadow depth",0);
+        if(!shadowTarget.owner || !(shadowTarget.texture=TextureGetGxTex(shadowTarget.owner,1,nullptr)))
+            throw std::runtime_error("Original wolf shadow target creation failed");
         device.BeginFrame(pass); device.DeviceSetRenderTarget(GxBuffers_Color, shadowTarget.texture, 0);
         device.SceneClear(3, CImVector(255,255,255,255));
         effect->SetCurrent(); CShaderEffect::SetTexMtx_Identity(0); CShaderEffect::UpdateProjMatrix();
@@ -227,6 +234,56 @@ void CheckGameModels() {
         if (draws != opaque.m_count + cutout.m_count || covered < 256 || positive < 128)
             throw std::runtime_error("Original shadow batches did not generate a visible depth map");
         device.DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0);
+        device.ScenePresent();
+        struct RestoreShadows {
+            CM2Model* model;
+            decltype(CM2Model::m_lightingCallback) lighting;
+            EShadowMode mode=CShadowCache::s_shadowMode;
+            int32_t recreate=CShadowCache::s_recreateTextures;
+            uint32_t pcf=CShaderEffect::s_usePcfFiltering;
+            CShadowBand band=CShadowCache::s_extDynShadow;
+            C4Vector cutoff=CShadowCache::s_cutoffPlane, direction=CShadowCache::s_sunDirViewSpace;
+            std::array<C4Vector,12> matrices;
+            std::array<C4Vector,8> offsets;
+            RestoreShadows(CM2Model* m):model(m),lighting(m->m_lightingCallback) {
+                std::copy_n(CShadowCache::s_shadowMatrices,12,matrices.begin());
+                std::copy_n(CShadowCache::s_pcfOffsets,8,offsets.begin());
+            }
+            ~RestoreShadows() {
+                model->m_lightingCallback=lighting; CShadowCache::s_shadowMode=mode; CShadowCache::s_recreateTextures=recreate;
+                CShaderEffect::s_usePcfFiltering=pcf; CShadowCache::s_extDynShadow=band;
+                CShadowCache::s_cutoffPlane=cutoff; CShadowCache::s_sunDirViewSpace=direction;
+                std::copy(matrices.begin(),matrices.end(),CShadowCache::s_shadowMatrices);
+                std::copy(offsets.begin(),offsets.end(),CShadowCache::s_pcfOffsets);
+            }
+        } restoreShadows{visible};
+        CShadowCache::s_shadowMode=SHADOW_LOW; CShadowCache::s_recreateTextures=0; CShaderEffect::s_usePcfFiltering=0;
+        CShadowCache::s_extDynShadow.m_textures[0]=shadowTarget.owner;
+        auto vector=[](float x,float y,float z,float w) { C4Vector v; v.x=x; v.y=y; v.z=z; v.w=w; return v; };
+        CShadowCache::s_cutoffPlane=vector(0,0,0,0); CShadowCache::s_sunDirViewSpace=vector(0,0,1,0);
+        CShadowCache::s_shadowMatrices[0]=vector(1,0,0,0); CShadowCache::s_shadowMatrices[1]=vector(0,1,0,0);
+        CShadowCache::s_shadowMatrices[2]=vector(0,0,.5f,.21f); // Same light transform, explicit 0.01 receiver offset.
+        const C2Vector offsets[]={{-1,0},{-1,-1},{0,-1},{1,-1},{1,0},{1,1},{0,1},{-1,1}};
+        for(unsigned i=0;i<8;++i) CShadowCache::s_pcfOffsets[i]=vector(offsets[i].x/128,offsets[i].y/128,0,0);
+        visible->m_lightingCallback=[](CM2Model*,CM2Lighting* lighting,void*) {
+            lighting->AddAmbient(C3Vector(.4f,.4f,.4f)); lighting->AddDiffuse(C3Vector(.6f,.6f,.6f),C3Vector(0,0,-1));
+            lighting->SetFog(C3Vector(.1f,.2f,.3f),1,20); lighting->m_flags|=0x10;
+        };
+        device.BeginFrame(pass); visible->m_fFlags|=8; visible->SetAnimating(1); scene->Animate(C3Vector(0,0,0));
+        unsigned receivers=0;
+        for(unsigned i=0;i<scene->m_elements.Count();++i) {
+            const auto& element=scene->m_elements[i];
+            if(element.m_model==visible && element.m_shadowValue==1 && element.m_vertexPermute>=50 && (element.m_pixelPermute&3)==1) ++receivers;
+        }
+        if(receivers!=2) throw std::runtime_error("Original wolf scene did not select both dynamic shadow receivers");
+        scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
+        TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received); unsigned darker=0;
+        for(unsigned i=0;i<received.Count();++i) {
+            if(received[i].a!=animated[i].a) throw std::runtime_error("Dynamic shadow changed original wolf alpha coverage");
+            darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(animated[i].r)+animated[i].g+animated[i].b;
+        }
+        if(darker<64) throw std::runtime_error("Generated R32F shadow did not reach the original wolf material");
+        std::fprintf(stderr,"Original wolf dynamic shadow receivers: %u batches, %u darker pixels, unchanged alpha coverage\n",receivers,darker);
         device.ScenePresent();
     }
     CheckGameDetailDoodads(scene, device, pass);
