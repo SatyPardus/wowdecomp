@@ -418,9 +418,15 @@ TEXCOORD5 affine coordinates, with scaling in the fragment stage and no texture
 inputs. Its 64 compatible vertex variants pass 512 float/RGBA reference draws
 plus varying-quad interpolation checks. Mac ASan/UBSan and Metal validation,
 both iOS builds, and simulator GPU checks with 120 terrain frames pass. The
-original CWorld initializer now
-returns successfully on Mac; the world shutdown path still needs LightRec linked
-into the Apple target before its lifecycle can be exercised.
+original CWorld initialization and destruction now complete twice on Mac and
+iOS simulator, with real shader, footprint, doodad and liquid resources. The
+shutdown dependency on LightRec is linked. Weather and particulate globals are
+detached before freeing their instances, and footprint texture/batch caches are
+cleared so reinitialization reloads valid handles. Live and between-world CVar
+callbacks, portrait notification detach, Mac ASan/UBSan and Metal validation pass;
+both iOS targets build and the simulator subsequently presents 120 terrain frames.
+This exercises startup/shutdown without an active map; full world loading,
+DayNight updates and application ownership of the world remain pending.
 The native host can now draw a complete authored ADT surface with
 `WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
 This selection is mutually exclusive with the model/creature variables. It uses

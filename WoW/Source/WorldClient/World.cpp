@@ -1627,12 +1627,17 @@ void CWorld::Destroy() {
 
     if (CWorld::particulate) {
         Particulate* particulate = CWorld::particulate;
+        CWorld::particulate = nullptr;
         particulate->~Particulate();
         SMemFree(particulate, "delete", SLOG_FUNCTION, 0);
     }
 
     if (World::s_weather) {
         Weather* weather = World::s_weather;
+        // CVar callbacks remain registered between world lifetimes. Detach the
+        // old instance before destruction or a later Weather constructor can
+        // notify a freed object while re-registering weatherDensity.
+        World::s_weather = nullptr;
         weather->~Weather();
         SMemFree(weather, "delete", SLOG_FUNCTION, 0);
     }

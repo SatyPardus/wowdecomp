@@ -800,16 +800,16 @@ CMapFootprintTexture::CMapFootprintTexture() {
 // VERIFY: fa585208 manual
 // OFFSET: 0x0079F860
 void CMap::FootprintDestroy() {
-    for (uint32_t i = 0; i < 144; i++) {
-        for (uint32_t j = 0; j < 4; j++) {
-            s_footprints[i][j].m_link.Unlink();
-        }
-    }
+    CMap::ClearAllFootprints();
 
     for (uint32_t i = 0; i < s_footprintTextures.Count(); i++) {
-        if (s_footprintTextures[i].m_texture) {
-            HandleClose(reinterpret_cast<HOBJECT>(s_footprintTextures[i].m_texture));
+        auto& footprint = s_footprintTextures[i];
+        if (footprint.m_texture) {
+            HandleClose(reinterpret_cast<HOBJECT>(footprint.m_texture));
+            footprint.m_texture = nullptr;
         }
+        footprint.m_footprintIndices.SetCount(0);
+        footprint.m_vertexCount = 0;
     }
 }
 

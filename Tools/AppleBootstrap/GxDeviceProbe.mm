@@ -11,6 +11,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device);
 void CheckGxFFXEffect(CGxDeviceMetal& device);
 void CheckGameEvents();
 void CheckGameAsyncFiles();
+void CheckGameWorldLifecycle();
 void CheckModelShaders(CGxDeviceMetal& device);
 void CheckShadowMapShaders(CGxDeviceMetal& device);
 void CheckDetailDoodadShaders(CGxDeviceMetal& device);
@@ -304,5 +305,6 @@ void CheckGxDevice() {
     CheckLiquidShaders(device);
     CheckGameEvents();
     CheckGameAsyncFiles();
+    CheckGameWorldLifecycle();
     device.DeviceDestroy();
 }
