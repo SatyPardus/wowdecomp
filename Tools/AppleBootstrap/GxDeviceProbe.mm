@@ -27,6 +27,7 @@ void CheckLiquidShaders(CGxDeviceMetal& device);
 void CheckGxFont(CGxDeviceMetal& device);
 void CheckOriginalUI(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
+void CheckGxQueries(CGxDeviceMetal& device);
 void CheckPackedTextureFormats(CGxDeviceMetal& device);
 
 namespace {
@@ -69,12 +70,14 @@ void CheckGxDevice(const char* focus) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (focus && !std::strcmp(focus, "queries")) { CheckGxQueries(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "atlas")) { CheckGameTextureAtlases(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "fixed")) { CheckFixedUnlit(device); CheckWaterRippleShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-shaders")) { CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ffx")) { CheckGxFFXPasses(device); CheckGxFFXEffect(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ui")) { CheckOriginalUI(device); device.DeviceDestroy(); return; }
     CheckDisplaySettings(device);
+    if (!focus) CheckGxQueries(device);
     if (focus && std::strcmp(focus, "render-target")) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }
     auto& gpu = device.GPU();
     CGxShader* vertex[2]{}; CGxShader* pixel = nullptr;

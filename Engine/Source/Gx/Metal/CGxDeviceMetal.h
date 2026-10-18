@@ -14,6 +14,7 @@ public:
     struct EncodingStatistics {
         uint64_t geometryDraws = 0, renderPasses = 0, bufferUploadPasses = 0;
         uint64_t streamedBytes = 0, streamPageAllocations = 0;
+        uint64_t visibilityPageAllocations = 0, querySubmissions = 0, queryWaits = 0;
     };
     EncodingStatistics EncodingStats() const;
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);
@@ -67,6 +68,7 @@ public:
     int32_t TexStretch(CGxTex*, const CiRect*, const CiRect*, uint32_t, uint32_t) override;
     bool QueryBegin(CGxQuery*) override;
     void QueryCreate(CGxQuery*&, EGxQueryType) override;
+    void QueryDestroy(CGxQuery*&) override;
     bool QueryEnd(CGxQuery*) override;
     bool QueryGetParam(CGxQuery*, EGxQueryParam, uint32_t&) override;
     bool QueryGetData(CGxQuery*, uint32_t&) override;

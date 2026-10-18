@@ -1051,7 +1051,7 @@ scaling uses native sampling on the same command stream without a CPU round trip
 Color/depth clears honor viewport bounds and the last applied scissor state,
 including the original offscreen Y convention. Full-surface clears use attachment
 load actions; regional clears preserve surrounding pixels and the unused portion
-of a larger shared depth surface. Other render-target formats, explicit depth textures, queries, gamma ramps and stereo remain
+of a larger shared depth surface. Other render-target formats, explicit depth textures, gamma ramps and stereo remain
 explicit unsupported operations. Geometry draws
 share an encoder while attachments and resource ordering permit. Buffer uploads,
 copies, synchronous readback and target switches end the pass; full clears can be
@@ -1228,6 +1228,19 @@ Windows voice behavior is unchanged. Game sound, music and movie playback remain
 in scope; Apple native frameworks may decode audio and pure video without
 reproducing the original decoder internals or bit-identical samples. Resource
 compatibility, timing, volume, looping, A/V sync and lifecycle remain required.
+
+Native Metal counting visibility queries now serve the original sun/moon glare
+consumer. Overlapping brackets and pass/frame splits accumulate sample counts;
+clear/copy implementation draws are excluded. Availability polls never submit or
+wait, while explicit result reads may flush and wait as in the original Gx API.
+Shared result pages remain owned until both their query and GPU work finish and
+then recycle. `WOW_METAL_CHECK=queries` checks 48 counts/lifetimes, including the
+original planet geometry and glare fractions at full, half and zero visibility,
+on Mac with ASan/UBSan and Metal validation. The real client also enters the local
+world and exits with this capability enabled. Simulator does not support counting
+queries and retains the original point-occlusion fallback; its capability check
+and subsequent 120-frame preview pass. The iOS device target builds; physical
+iPhone/iPad execution and original Windows visual comparison remain pending.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

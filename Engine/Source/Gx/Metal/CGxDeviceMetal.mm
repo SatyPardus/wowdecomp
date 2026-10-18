@@ -16,12 +16,25 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <TargetConditionals.h>
 
 namespace {
 void Require(bool ok, const char* message) { if (!ok) { throw std::runtime_error(message); } }
 [[noreturn]] void Unsupported(const char* operation) { throw std::runtime_error(std::string("Metal Gx operation not implemented: ") + operation); }
 constexpr size_t ResourceBudget = 256 * 1024 * 1024;
 struct BufferBinding { id<MTLBuffer> buffer; size_t offset; };
+struct VisibilityPage {
+    id<MTLBuffer> buffer;
+    id<MTLCommandBuffer> lastWriter;
+    size_t used = 0;
+};
+struct VisibilitySample { std::shared_ptr<VisibilityPage> page; size_t offset; };
+struct QueryResult {
+    std::vector<VisibilitySample> samples;
+    id<MTLCommandBuffer> completion;
+    bool building = false;
+    bool Ready() const { return !building && (!completion || completion.status == MTLCommandBufferStatusCompleted); }
+};
 // Each frame owns append-only shared pages until its GPU completion. Gx's
 // logical streaming pool can wrap independently without overwriting a draw.
 struct StreamFrame {
@@ -224,6 +237,11 @@ struct CGxDeviceMetal::Impl {
     std::vector<Pool*> preparedPools;
     std::unordered_map<CGxTex*, Texture> textures;
     std::unordered_map<CGxShader*, Shader> shaders;
+    std::unordered_map<CGxQuery*, std::shared_ptr<QueryResult>> queries;
+    std::vector<std::shared_ptr<QueryResult>> activeQueries;
+    std::vector<std::shared_ptr<VisibilityPage>> visibilityPages;
+    std::shared_ptr<VisibilityPage> renderVisibility;
+    bool countingVisibility = false;
     id<MTLCommandBuffer> command;
     id<MTLRenderCommandEncoder> renderEncoder;
     EncodingStatistics statistics;
@@ -241,18 +259,61 @@ struct CGxDeviceMetal::Impl {
         descriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
         descriptor.depthAttachment.loadAction = MTLLoadActionLoad;
     }
+    void EndVisibility() {
+        if (countingVisibility) [renderEncoder setVisibilityResultMode:MTLVisibilityResultModeDisabled offset:0];
+        countingVisibility = false;
+    }
     void EndRender() {
+        EndVisibility();
         if (renderEncoder) { [renderEncoder endEncoding]; renderEncoder = nil; }
+        renderVisibility.reset();
+    }
+    std::shared_ptr<VisibilityPage> VisibilityStorage() {
+        // Never reuse a slot while a query still owns its answer or the GPU can
+        // write it. Append only within one command, keeping CPU reads of older
+        // results separate from buffers still being written by later frames.
+        for (auto& page : visibilityPages) {
+            if (page.use_count() == 1 && (!page->lastWriter || page->lastWriter.status >= MTLCommandBufferStatusCompleted)) {
+                page->used = 0; page->lastWriter = nil;
+            }
+            if ((!page->lastWriter || page->lastWriter == command) && page->used < page->buffer.length) return page;
+        }
+        constexpr size_t pageBytes = 4096;
+        Require(visibilityPages.size() < ResourceBudget / pageBytes, "Gx visibility queries exceed memory budget");
+        auto page = std::make_shared<VisibilityPage>();
+        page->buffer = [gpu.device newBufferWithLength:pageBytes options:MTLResourceStorageModeShared];
+        Require(page->buffer != nil, "Cannot allocate Metal visibility results");
+        page->buffer.label = @"Gx retained visibility query results";
+        visibilityPages.push_back(page); ++statistics.visibilityPageAllocations;
+        return page;
     }
     id<MTLRenderCommandEncoder> Render() {
         if (!renderEncoder) {
-            renderEncoder = [command renderCommandEncoderWithDescriptor:pass];
+            MTLRenderPassDescriptor* descriptor = [pass copy];
+            if (!queries.empty()) {
+                renderVisibility = VisibilityStorage();
+                descriptor.visibilityResultBuffer = renderVisibility->buffer;
+            }
+            renderEncoder = [command renderCommandEncoderWithDescriptor:descriptor];
             Require(renderEncoder != nil, "Cannot begin Gx render pass");
             renderEncoder.label = @"Gx attachment drawing";
             ++statistics.renderPasses;
             ConsumedLoads(pass);
         }
         return renderEncoder;
+    }
+    id<MTLRenderCommandEncoder> DrawEncoder() {
+        if (!activeQueries.empty() && !countingVisibility) {
+            if (renderEncoder && (!renderVisibility || renderVisibility->used == renderVisibility->buffer.length)) EndRender();
+            Render();
+            const size_t offset = renderVisibility->used;
+            renderVisibility->used += sizeof(uint64_t);
+            renderVisibility->lastWriter = command;
+            for (auto& query : activeQueries) query->samples.push_back({renderVisibility, offset});
+            [renderEncoder setVisibilityResultMode:MTLVisibilityResultModeCounting offset:offset];
+            countingVisibility = true;
+        }
+        return Render();
     }
     void EnsureLoads(MTLRenderPassDescriptor* descriptor) {
         if (descriptor.colorAttachments[0].loadAction != MTLLoadActionLoad ||
@@ -431,6 +492,9 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_maxTexAnisotropy = 16;
     m_caps.m_texFilterTrilinear = m_caps.m_texFilterAnisotropic = 1;
     m_caps.m_colorWrite = m_caps.m_blendFactor = m_caps.m_shaderAlphaRef = 1;
+#if !TARGET_OS_SIMULATOR
+    m_caps.m_occlusionQuery = [device supportsFamily:MTLGPUFamilyApple3] || [device supportsFamily:MTLGPUFamilyMac2];
+#endif
     for (auto format : {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_texFmt[GxTex_Argb4444] = 1;
     for (auto format : {GxTex_Argb1555, GxTex_Rgb565}) { m_caps.m_texFmt[format] = 1; }
@@ -456,6 +520,7 @@ CGxDeviceMetal::~CGxDeviceMetal() {
         m->command = nil;
     }
     Drain();
+    while (auto* query = m_queryList.Head()) QueryDestroy(query);
     while (auto* texture = m_textures.Head()) { TexDestroy(texture); }
     while (!m->shaders.empty()) {
         CGxShader* shader = m->shaders.begin()->first;
@@ -618,6 +683,7 @@ void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
     } else {
         // A load-action clear would erase pixels outside the viewport, or the
         // unused part of a larger scratch depth attachment. Draw only this area.
+        m->EndVisibility(); // A clear's implementation draw is not game geometry.
         m->gpu.ClearRegion(m->command, m->pass, {left, top, right - left, bottom - top}, mask,
             {color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f}, m->Render());
     }
@@ -1443,7 +1509,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         Require(texture->m_format != GxTex_R32F || states[i].filter == GxTex_Nearest || states[i].filter == GxTex_NearestMipNearest ||
             m->gpu.device.supports32BitFloatFiltering, "This GPU cannot filter R32F textures with the requested sampler");
     }
-    const auto encoder = m->Render();
+    const auto encoder = m->DrawEncoder();
     if (fixed) { m->gpu.DrawFixedUnlit(m->command, m->pass, textures, draw, states, encoder); }
     else if (ripple) { m->gpu.DrawWaterRipple(m->command, m->pass, textures[0], draw, states[0], encoder); }
     else if (detail) { m->gpu.DrawDetailDoodad(m->command, m->pass, textures[0], draw, states[0], encoder); }
@@ -1600,11 +1666,80 @@ int32_t CGxDeviceMetal::TexStretch(CGxTex* dest, const CiRect* destRect, const C
         int64_t(s.maxY) - s.minY != int64_t(d.maxY) - d.minY;
     return m->CopyColor(src, s, dst, level, d, linear);
 }
-bool CGxDeviceMetal::QueryBegin(CGxQuery*) { Unsupported("query begin"); }
-void CGxDeviceMetal::QueryCreate(CGxQuery*& query, EGxQueryType) { query = nullptr; Unsupported("query creation"); }
-bool CGxDeviceMetal::QueryEnd(CGxQuery*) { Unsupported("query end"); }
-bool CGxDeviceMetal::QueryGetParam(CGxQuery*, EGxQueryParam, uint32_t&) { Unsupported("query parameter"); }
-bool CGxDeviceMetal::QueryGetData(CGxQuery*, uint32_t&) { Unsupported("query readback"); }
+void CGxDeviceMetal::QueryCreate(CGxQuery*& query, EGxQueryType type) {
+    Require(m_caps.m_occlusionQuery && type == GxQueryType_Occlusion, "Counting occlusion queries are unavailable on this Metal device");
+    auto owner = std::make_unique<CGxQuery>(type);
+    auto state = std::make_shared<QueryResult>();
+    m->queries.emplace(owner.get(), state);
+    owner->m_apiSpecific = state.get(); m_queryList.LinkToTail(owner.get()); query = owner.release();
+}
+void CGxDeviceMetal::QueryDestroy(CGxQuery*& query) {
+    if (!query) return;
+    auto found = m->queries.find(query);
+    Require(found != m->queries.end(), "Metal query belongs to another device");
+    m->EndVisibility();
+    auto& active = m->activeQueries;
+    active.erase(std::remove(active.begin(), active.end(), found->second), active.end());
+    m->queries.erase(found); query->m_apiSpecific = nullptr;
+    CGxDevice::QueryDestroy(query);
+}
+bool CGxDeviceMetal::QueryBegin(CGxQuery* query) {
+    auto found = m->queries.find(query);
+    if (!m_context || found == m->queries.end()) return false;
+    auto next = std::make_shared<QueryResult>(); next->building = true;
+    m->EndVisibility();
+    auto& active = m->activeQueries;
+    active.erase(std::remove(active.begin(), active.end(), found->second), active.end());
+    active.push_back(next); found->second = next; query->m_apiSpecific = next.get();
+    return true;
+}
+bool CGxDeviceMetal::QueryEnd(CGxQuery* query) {
+    auto found = m->queries.find(query);
+    if (!m_context || found == m->queries.end()) return false;
+    m->EndVisibility();
+    auto& active = m->activeQueries;
+    active.erase(std::remove(active.begin(), active.end(), found->second), active.end());
+    auto& result = *found->second;
+    if (!result.building) result.samples.clear(); // Reissued END abandons the previous answer.
+    result.building = false;
+    result.completion = m->command;
+    if (!result.completion) {
+        result.completion = [m->gpu.queue commandBuffer];
+        Require(result.completion != nil, "Cannot enqueue Metal query marker");
+        [result.completion commit];
+    }
+    return true;
+}
+bool CGxDeviceMetal::QueryGetParam(CGxQuery* query, EGxQueryParam param, uint32_t& data) {
+    auto found = m->queries.find(query);
+    if (!m_context || found == m->queries.end()) return false;
+    if (param == GxQueryParam_Unk0) { data = sizeof(uint32_t); return true; }
+    // Preserve the original Gx D3D9 wrapper's return value as well as its output.
+    if (param == GxQueryParam_Unk1) data = found->second->Ready();
+    return false;
+}
+bool CGxDeviceMetal::QueryGetData(CGxQuery* query, uint32_t& data) {
+    auto found = m->queries.find(query);
+    if (!m_context || found == m->queries.end() || found->second->building) return false;
+    const auto& result = *found->second;
+    if (result.completion && result.completion == m->command) {
+        id<MTLCommandBuffer> continuation = [m->gpu.queue commandBuffer];
+        Require(continuation != nil, "Cannot continue the Gx frame after a query readback");
+        m->EnsurePass(); m->EndRender();
+        [m->command commit]; m->command = continuation;
+        m->command.label = @"Gx frame after explicit query readback";
+        ++m->statistics.querySubmissions;
+    }
+    if (result.completion && result.completion.status < MTLCommandBufferStatusCompleted) {
+        ++m->statistics.queryWaits; [result.completion waitUntilCompleted];
+    }
+    if (result.completion.error) return false;
+    uint64_t samples = 0;
+    for (const auto& part : result.samples)
+        samples += *reinterpret_cast<const uint64_t*>(static_cast<const uint8_t*>(part.page->buffer.contents) + part.offset);
+    data = uint32_t(samples);
+    return true;
+}
 void CGxDeviceMetal::StereoSetConvergence(float) { Unsupported("stereo convergence"); }
 // Original mono D3D9 initializes convergence to 1; no stereo device is enabled.
 float CGxDeviceMetal::StereoGetConvergence() { return 1.0f; }
