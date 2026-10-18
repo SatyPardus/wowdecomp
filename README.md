@@ -599,9 +599,12 @@ unchanged alpha. Three distant bands retain their separate projections/samplers,
 strict near/middle footprint boundaries and far-border fade. Model mode 3 keeps
 its original five-tap dynamic sample without border fading; both banded modes
 take the minimum after dynamic distance fading, then apply normal fading.
-These rules differ from the terrain receiver. The numeric fixture checks 13,140
-independent outputs including skinning, sampling/band transitions, fade order
-and shader alpha boundaries. The original wolf scene generates its R32F map from
+These rules differ from the terrain receiver. `Diffuse_T1_Env` also supports its
+60 shadow vertex variants with `Combiners_Opaque_AddAlpha` receivers. Its reflection
+coordinates remain independent; reflection RGB is weighted by its own alpha and
+added after the shadowed base, before fog. The numeric fixture checks 19,710
+independent outputs including both vertex families, skinning, sampling/band
+transitions, fade order, independent reflection and shader alpha boundaries. The original wolf scene generates its R32F map from
 both opaque/cutout batches, selects both receiver materials through the original
 scene/cache code, and produces 125/130/130 darker pixels in the three modes with
 unchanged alpha coverage across two resource lifetimes on Mac and iOS simulator.
@@ -745,16 +748,17 @@ separate baked color, doubled diffuse contribution, environment layer and alpha
 semantics. Four independent projection/sampler bindings retain near/middle/far
 selection, distance/normal fade order and the highest mode's distinct close-map
 rules. `WOW_METAL_CHECK=wmo-shaders` runs 9,360 WMO numeric draws plus the
-13,140 shared M2 shadow references. Mac ASan/UBSan and Metal validation pass;
+19,710 shared M2 shadow references. Mac ASan/UBSan and Metal validation pass;
 the same references and subsequent 120 preview frames pass on iOS simulator.
 The Mac CLI/application and both iOS client targets build.
 The full Mac client entered Feral's Stormwind world with the original
 `extShadowQuality=1` option in a separate runtime, rendered 1,200 frames, captured
 the world and shut down normally. This removes the WMO receiver failure found
 on that real path; it does not establish every zone or Windows visual equivalence.
-With `extShadowQuality=3`, the real world now reaches a remaining unsupported M2
-material (vertex 71, pixel 2); that higher-quality run is not complete. WMO hardware
-PCF remains explicitly unsupported.
+With `extShadowQuality=3`, the full Mac client also completes 1,200 frames, world
+readback and normal shutdown after adding the actual environment-reflection M2
+receiver (vertex 71, pixel 2). This is one Stormwind view, not complete world or
+quality-switch validation. WMO hardware PCF remains explicitly unsupported.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct

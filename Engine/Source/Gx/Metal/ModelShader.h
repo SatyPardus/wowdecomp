@@ -27,8 +27,11 @@ constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
         ModelTextureCount(effect) == 2 ? ModelLayerOperation::Add : ModelLayerOperation::None;
 }
 const char* ModelVertexFamily(ModelVertexEffect effect);
+constexpr bool ModelShadowMaterial(FragmentEffect effect) {
+    return effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelOpaqueAddAlpha;
+}
 // Original SM3 model materials, environment reflection and colored particles.
-// Diffuse supports rigid/1/4 weights and R32F dynamic/banded shadow receivers;
+// Diffuse and environment support rigid/1/4 weights and R32F shadow receivers;
 // colored vertices currently support rigid streams. Other skinning/shadow
 // handles fail explicitly when drawn.
 void ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse);

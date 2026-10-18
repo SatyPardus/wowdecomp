@@ -369,7 +369,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     }
     if (IsModelEffect(effect)) {
         const uint32_t basePermutation = modelPermutation % 30;
-        Require(!modelShadowMode || effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod, "Unsupported model shadow material");
+        Require(!modelShadowMode || ModelShadowMaterial(effect), "Unsupported model shadow material");
         const bool material = UsesModelMaterial(vertexEffect);
         const bool reflectionOnly = vertexEffect == ModelVertexEffect::DiffuseReflection;
         const bool environment = vertexEffect == ModelVertexEffect::DiffuseEnvironment || reflectionOnly;

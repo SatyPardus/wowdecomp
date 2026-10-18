@@ -19,9 +19,9 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
 }
 bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect, FragmentEffect effect) {
     if (target == GxSh_Vertex)
-        return permutation < (vertexEffect == ModelVertexEffect::Diffuse ? 90u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
+        return permutation < (vertexEffect == ModelVertexEffect::Diffuse || vertexEffect == ModelVertexEffect::DiffuseEnvironment ? 90u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
     return permutation < 16 && ((permutation & 3) == 0 ||
-        ((effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod) && (permutation & 4) == 0));
+        (ModelShadowMaterial(effect) && (permutation & 4) == 0));
 }
 void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect) {
     if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
@@ -106,6 +106,74 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
     static const char* bandedShadowPixel[2][2][2] = {
         {{"f384f937ae18203c8f7f7802b7e29a12", "94a9cc00ef6fe43a4d3c93a3c42b5089"}, {"00226b5faf6e5a946bc05b8d1ef2ae9f", "e5d4cb1e35a84f17a0b352c3012edf60"}},
         {{"d83149168880ffd054c521ac54a360cd", "91ce8ef8e1b8be8467f9f306d67a3121"}, {"ea2f6e7059485a470ee85a30dbc92353", "43a8c4381a9b478464df5a7fcbd743ef"}},
+    };
+    // Environment coordinates and shadow coordinates remain separate outputs.
+    static const char* environmentShadowVertex[] = {
+        "f2c6860f0b6021cec5e9798e2e1ee754",
+        "2a45d2e0b4b97d686aecc53733b087c3",
+        "f2c6860f0b6021cec5e9798e2e1ee754",
+        "5bf2a26b6d343e20481ff44904d8ba8f",
+        "f2c6860f0b6021cec5e9798e2e1ee754",
+        "77c731ce7dad550cd3007b46b15615fd",
+        "f2c6860f0b6021cec5e9798e2e1ee754",
+        "de6947392a1323c6c3bc7abf3d89fda5",
+        "f2c6860f0b6021cec5e9798e2e1ee754",
+        "eeaafffee44b939e6dcc703f04dd5755",
+        "7651c573c45abb216cfc6053a211d4a0",
+        "aa0ed9eaf319bd712a968379f1ea8cde",
+        "7651c573c45abb216cfc6053a211d4a0",
+        "02c0a1b9fcde81f29dbc9e62c1744249",
+        "7651c573c45abb216cfc6053a211d4a0",
+        "3d1c3aad7530070ca7b220ae01f3fed8",
+        "7651c573c45abb216cfc6053a211d4a0",
+        "d1a9270f4de2ecc7efc784c2ccc6ea80",
+        "7651c573c45abb216cfc6053a211d4a0",
+        "952a93569db5a964a858af18bc080306",
+        "8c32f2d258b681e658d4681b5c2fdfee",
+        "532d4b3ad3663180bab40b50eb0dd754",
+        "8c32f2d258b681e658d4681b5c2fdfee",
+        "8b0644bac39f7fdc9a5da1e4a616fdfa",
+        "8c32f2d258b681e658d4681b5c2fdfee",
+        "bf53649d5de3f70c6534d0256cf0ffce",
+        "8c32f2d258b681e658d4681b5c2fdfee",
+        "11e6046e7f4cf7bba0050bbe4a878631",
+        "8c32f2d258b681e658d4681b5c2fdfee",
+        "42c3342f4054f495450e1e781af99268",
+        "38f51e88c10407978c97601928145477",
+        "646c4855bcf9300613b6de5c676be9ec",
+        "38f51e88c10407978c97601928145477",
+        "47bfdc2dce37ab688d7ae2434a6d8420",
+        "38f51e88c10407978c97601928145477",
+        "2c36c62fc66f3b14804cca774fa25860",
+        "38f51e88c10407978c97601928145477",
+        "73799f36b006f041a43007b019c3cef4",
+        "38f51e88c10407978c97601928145477",
+        "889441666ccecf0373d15d8fdc5af067",
+        "ab90f3ea7d870c08c6c455ac1df5fba4",
+        "6f3f2bf64dc6b8c16691169f5b4abc95",
+        "ab90f3ea7d870c08c6c455ac1df5fba4",
+        "6e468f37e91651ea949d3eb5f36697a8",
+        "ab90f3ea7d870c08c6c455ac1df5fba4",
+        "3af8f066950cf9eae23f7b27ce90dc9b",
+        "ab90f3ea7d870c08c6c455ac1df5fba4",
+        "7c94b74cdb13a54303b2c9008f89aa14",
+        "ab90f3ea7d870c08c6c455ac1df5fba4",
+        "5bbec1405d3a2467123a936c7eeb7546",
+        "4fc76a868ce3e5281b9fc4ebe5c9aa3e",
+        "9ccdad7023327ffe443b109f2bac1e75",
+        "4fc76a868ce3e5281b9fc4ebe5c9aa3e",
+        "fdd47a5757a9dd37a25dcc2c5936e11a",
+        "4fc76a868ce3e5281b9fc4ebe5c9aa3e",
+        "8b4899e8b646209b5feaa52ca1197920",
+        "4fc76a868ce3e5281b9fc4ebe5c9aa3e",
+        "fe6e2cd36a96addf6ad3296f2853cd05",
+        "4fc76a868ce3e5281b9fc4ebe5c9aa3e",
+        "905bef32c4342b7fd9eceb928528f9f1",
+    };
+    static const char* environmentShadowPixel[3][2] = {
+        {"56cdb1c03a2db9c4bd947f68abce8092", "f6c1e31ed6e331ed2e39dd05ecf44d42"},
+        {"b80f4ee76977e6070915e28134d96a1d", "c0711557729aba22332f2e7b75a329cf"},
+        {"1c812f7b0d4055e13a4db598fa189c68", "ea3863b36ac3c6df46264c78530b519b"},
     };
     static const char* vertex[] = {
         "089abea1c8a391a0f0f946dbca2d42bc",
@@ -330,8 +398,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
         const char* expected = target == GxSh_Vertex ?
-            (i >= 60 ? bandedShadowVertex[i-60] : i >= 30 ? dynamicShadowVertex[i-30] : vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
-            ((i & 3) >= 2 ? bandedShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][(i & 3)-2][i >> 3] : (i & 3) ? dynamicShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3] :
+            (i >= 30 && vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentShadowVertex[i-30] : i >= 60 ? bandedShadowVertex[i-60] : i >= 30 ? dynamicShadowVertex[i-30] : vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
+            ((i & 3) && effect == FragmentEffect::ModelOpaqueAddAlpha ? environmentShadowPixel[(i & 3)-1][i >> 3] : (i & 3) >= 2 ? bandedShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][(i & 3)-2][i >> 3] : (i & 3) ? dynamicShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3] :
                 pixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3]);
         if (fingerprint != expected) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");
