@@ -1,4 +1,5 @@
 #include "PortraitButton.h"
+#include "WoW/Source/WorldClient/WorldParam.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Tempest/CImVector.h"
@@ -138,6 +139,7 @@ void PortraitInitialize() {
 
     s_playerPortraitCache = nullptr;
     s_unitPortraitCache = nullptr;
+    CWorldParam::SetPortraitRefreshCallback([] { UpdateAllPortraits(); });
 }
 
 // VERIFY: 59c574b9 auto
@@ -832,6 +834,7 @@ int32_t ReadyModelForUI(CGUnit_C* unit, uint32_t flags) {
 // VERIFY: 7490c1d9 auto
 // OFFSET: 0x00617860
 void PortraitShutdown() {
+    CWorldParam::SetPortraitRefreshCallback(nullptr);
     s_portraitMaskGxTex = nullptr;
     HandleClose(reinterpret_cast<HOBJECT>(s_portraitMaskTexture));
     s_portraitMaskTexture = nullptr;

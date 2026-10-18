@@ -257,12 +257,6 @@ int32_t CGWorldFrame::GetLineSegment(float mouseX, float mouseY, C3Vector* start
     return 1;
 }
 
-// VERIFY: 0b3308f3 manual
-// OFFSET: 0x004F6650
-void CGWorldFrame::GetCameraPosition(C3Vector* position) {
-    *position = CGWorldFrame::s_currentWorldFrame->m_camera->m_position;
-}
-
 // VERIFY: c8cc818e auto
 // OFFSET: 0x004F66C0
 void CGWorldFrame::OnLayerTrackTerrain(const HITTESTRESULT& result) {

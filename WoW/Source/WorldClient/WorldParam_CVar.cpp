@@ -7,7 +7,6 @@
 #include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
 #include "WoW/Common/AaBsp.h"
-#include "WoW/Source/UIUtil/PortraitButton.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/Types.h"
 #include "WoW/Source/WorldClient/World.h"
@@ -15,6 +14,10 @@
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
+
+namespace { void (*s_portraitRefreshCallback)() = nullptr; }
+
+void CWorldParam::SetPortraitRefreshCallback(void (*callback)()) { s_portraitRefreshCallback = callback; }
 
 // STATIC: 0x00D1C414
 static uint32_t s_mapObjLightLOD;
@@ -525,7 +528,7 @@ bool CWorldParam::BaseMipCallback(CVar* var, const char* oldValue, const char* v
     if (level <= 1) {
         g_theGxDevicePtr->DeviceSetBaseMipLevel(level);
         TextureNotifyGxRestart();
-        UpdateAllPortraits();
+        if (s_portraitRefreshCallback) s_portraitRefreshCallback();
         World::s_texCacheDirty = 1;
 
         char buffer[256];

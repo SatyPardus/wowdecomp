@@ -13,6 +13,8 @@
 #include <thread>
 #include <vector>
 #include <unistd.h>
+#include <CoreFoundation/CoreFoundation.h>
+#include "Engine/Source/Os/System.h"
 #include "Tools/AppleBootstrap/Probe.h"
 #include "Tools/AppleBootstrap/AudioProbe.h"
 #include "Engine/Source/Os/OsFile.h"
@@ -455,6 +457,45 @@ void CheckCVars(const std::string& scratchDirectory) {
     Require(CVar::Delete(config.c_str()) && !OsFileExists(config.c_str()), "CVar explicit-path delete failed");
 }
 
+void CheckNativeSettings() {
+    Require(OsGetPhysicalMemory() >= 1024 * 1024, "Native physical memory query failed");
+    auto uuid = CFUUIDCreate(kCFAllocatorDefault);
+    auto uuidString = CFUUIDCreateString(kCFAllocatorDefault, uuid);
+    char unique[64];
+    Require(CFStringGetCString(uuidString, unique, sizeof(unique), kCFStringEncodingUTF8), "Cannot create preference check key");
+    CFRelease(uuidString); CFRelease(uuid);
+    const auto path = std::string("wow-port-check-")+unique;
+    auto nativeName = path+"\nvalue";
+    std::transform(nativeName.begin(), nativeName.end(), nativeName.begin(), [](unsigned char c) { return std::tolower(c); });
+    auto nativeKey = CFStringCreateWithCString(kCFAllocatorDefault, nativeName.c_str(), kCFStringEncodingUTF8);
+    struct Cleanup {
+        CFStringRef key;
+        ~Cleanup() {
+            CFPreferencesSetValue(key, nullptr, CFSTR("org.wowdecomp.client"), kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
+            CFPreferencesSynchronize(CFSTR("org.wowdecomp.client"), kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
+            CFRelease(key);
+        }
+    } cleanup{nativeKey};
+    const auto flags = SREG_ABSOLUTE | SREG_EXCLUDE_LOCAL_MACHINE;
+    uint32_t value = 17;
+    Require(!SRegLoadValue(path.c_str(), "Value", flags, &value) && value == 17 && SErrGetLastError() == 2, "Missing preference changed output");
+    Require(SRegSaveValue(path.c_str(), "Value", flags | SREG_FLUSH_KEY, UINT32_MAX), "Native DWORD preference write failed");
+    Require(SRegLoadValue(path.c_str(), "VALUE", flags, &value) && value == UINT32_MAX, "Native DWORD preference was truncated or case-sensitive");
+    char text[64];
+    Require(SRegLoadString(path.c_str(), "value", flags, text, sizeof(text)) && !std::strcmp(text, "4294967295"), "DWORD preference string conversion changed");
+    for (const auto& sample : {std::pair<const char*,uint32_t>{"0x1234",0x1234}, {"-1",UINT32_MAX}, {"4294967296",UINT32_MAX}}) {
+        Require(SRegSaveString(path.c_str(), "value", flags, sample.first) && SRegLoadValue(path.c_str(), "Value", flags, &value) &&
+            value == sample.second, "Native string preference does not preserve 32-bit DWORD parsing");
+    }
+    const char* utf8 = "\xE4\xB8\x96\xE7\x95\x8C-native";
+    Require(SRegSaveString(path.c_str(), "value", flags, utf8) && SRegLoadString(path.c_str(), "value", flags, text, sizeof(text)) &&
+        !std::strcmp(text, utf8), "Native preference changed UTF-8 bytes");
+    Require(SRegLoadString(path.c_str(), "value", flags, text, 1) && !text[0], "Native preference did not terminate a short output buffer");
+    Require(!SRegLoadValue(path.c_str(), "value", SREG_ABSOLUTE | SREG_EXCLUDE_CURRENT_USER | SREG_EXCLUDE_LOCAL_MACHINE, &value),
+        "Excluded preference scope was read");
+    Require(!SRegLoadValue(nullptr, "value", flags, &value) && SErrGetLastError() == 87, "Invalid preference key was accepted");
+}
+
 void CheckOsFiles(const std::string& scratchDirectory) {
     ScratchFile scratch(scratchDirectory);
     const std::string directory = scratch.directory + "/settings", filePath = directory + "/Config.wtf";
@@ -637,9 +678,10 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckFileStack(scratchDirectory);
         CheckOsFiles(scratchDirectory);
         CheckCVars(scratchDirectory);
+        CheckNativeSettings();
         CheckClientLocalFile(scratchDirectory);
         CheckStormLog(scratchDirectory);
-        report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, game OsFile config IO/attributes/enumeration, shared CVar save/reload/commands, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
+        report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, game OsFile config IO/attributes/enumeration, shared CVar save/reload/commands, native physical memory and scoped persistent preferences, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
         report = std::string("Core check failed: ") + error.what() + "\n";

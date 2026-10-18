@@ -56,6 +56,8 @@ class CWorldParam {
     static bool HorizonNearClipScaleCallback(CVar* var, const char* oldValue, const char* value, void* arg);
     static bool HWPCFCallback(CVar* var, const char* oldValue, const char* value, void* arg);
     static void Initialize();
+    // The UI subscribes while portraits exist; the shared world also runs without a UI.
+    static void SetPortraitRefreshCallback(void (*callback)());
     static bool LodCallback(CVar* var, const char* oldValue, const char* value, void* arg);
     static bool MapObjLightLODCallback(CVar* var, const char* oldValue, const char* value, void* arg);
     static bool MapShadowsCallback(CVar* var, const char* oldValue, const char* value, void* arg);

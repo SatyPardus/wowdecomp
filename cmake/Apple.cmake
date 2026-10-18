@@ -51,12 +51,15 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsFile.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsMemory.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/System.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/SReg.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/TimeManager.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Processor.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Processor.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/FunctionValidation.cpp
 )
 target_include_directories(AppleFoundation PUBLIC ${CMAKE_SOURCE_DIR})
+target_link_libraries(AppleFoundation PUBLIC "-framework CoreFoundation")
 # Full local installations are supported first. The remote streaming filesystem
 # must not be installed until its transport/cache backend has been ported.
 target_compile_definitions(AppleFoundation PUBLIC WOW_LOCAL_FILES_ONLY=1)
@@ -132,6 +135,9 @@ add_library(AppleGameResources STATIC
     WoW/Source/DB/WowClientDB.cpp
     WoW/Source/DB/DBClient/AnimationData.cpp
     WoW/Source/DB/Rec/AnimationDataRec.cpp
+    WoW/Source/DB/DBClient/WorldEffectData.cpp
+    WoW/Source/DB/Rec/FootprintTexturesRec.cpp
+    WoW/Source/DB/Rec/GroundEffectDoodadRec.cpp
     WoW/Source/DB/DBClient/MapData.cpp
     WoW/Source/DB/Rec/MapRec.cpp
     WoW/Source/DB/DBClient/LiquidData.cpp
@@ -173,7 +179,8 @@ target_link_libraries(WorldSupport PUBLIC Tempest)
 add_subdirectory(WoW/Source/WorldClient)
 add_subdirectory(WoW/Source/LiquidSystem)
 target_link_libraries(LiquidSystem PUBLIC Model2 WorldSupport)
-target_sources(WorldClient PRIVATE ${CMAKE_SOURCE_DIR}/WoW/Source/Ui/WorldFrameHitTest.cpp)
+target_sources(WorldClient PRIVATE ${CMAKE_SOURCE_DIR}/WoW/Source/Ui/WorldFrameHitTest.cpp
+    ${CMAKE_SOURCE_DIR}/WoW/Source/ConsoleDevice/ConsoleDevice.cpp)
 add_library(WorldTerrain STATIC WoW/Common/TerrainGeometry.cpp WoW/Common/TerrainSurface.cpp WoW/Common/TerrainAlpha.cpp)
 target_link_libraries(WorldTerrain PUBLIC Tempest)
 target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain WorldSupport SoundInterface LiquidSystem)

@@ -232,6 +232,11 @@ materials; `WOW_CREATURE_DISPLAY=25870` selects the motorcycle and its layered
 materials.
 
 The shared `WorldClient` static library now builds for all three Apple targets.
+The original world-parameter and startup entry points now link on macOS; startup
+currently stops explicitly at the unimplemented `Diffuse_Proj_Proj` effect.
+Apple Storm settings use the app-owned `org.wowdecomp.client` Core Foundation
+preferences domain, preserving user/system lookup flags and 32-bit values.
+The normal game CVars continue to use their configured WTF file.
 Its platform fixes retain Windows headers on Windows, use the shared allocator
 type-name helper and portable stack allocation/finite checks, and keep anisotropic
 filtering's flag at its original 32-bit width. This is a compilation milestone;

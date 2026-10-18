@@ -38,6 +38,28 @@ template<class T> std::vector<T> Chunk(const std::vector<uint8_t>& bytes, uint32
 
 void CheckWorldData(const ClientData& client, std::ostream& report) {
     CheckWmoRoots(client, report);
+    g_footprintTexturesDB.Load(__FILE__, __LINE__);
+    g_groundEffectDoodadDB.Load(__FILE__, __LINE__);
+    auto checkEffects = [&](const char* name, unsigned width, unsigned count, auto recordAt, auto pathAt) {
+        const auto asset = client.Read(name, 1024*1024, true);
+        Require(Word(asset.bytes, 4) == count && Word(asset.bytes, 12) == width, "World effect DBC extent differs");
+        const size_t strings = 20+size_t(count)*width;
+        for (unsigned i = 0; i < count; ++i) {
+            const auto row = 20+size_t(i)*width;
+            const auto* record = recordAt(i);
+            Require(record && uint32_t(record->m_id) == Word(asset.bytes,row), "World effect record ID changed");
+            const auto offset = Word(asset.bytes,row+4);
+            Require(strings+offset < asset.bytes.size() && !std::strcmp(pathAt(record), reinterpret_cast<const char*>(asset.bytes.data()+strings+offset)),
+                "World effect resource name changed on arm64");
+        }
+    };
+    checkEffects(FootprintTexturesRec::GetFilename(), 8, g_footprintTexturesDB.m_numRecords,
+        [](unsigned i) { return g_footprintTexturesDB.GetRecordByIndex(i); }, [](const FootprintTexturesRec* r) { return r->m_footstepFilename; });
+    checkEffects(GroundEffectDoodadRec::GetFilename(), 12, g_groundEffectDoodadDB.m_numRecords,
+        [](unsigned i) { return g_groundEffectDoodadDB.GetRecordByIndex(i); }, [](const GroundEffectDoodadRec* r) { return r->m_doodadpath; });
+    report << "Original world effect tables: " << g_footprintTexturesDB.m_numRecords << " footprint textures, "
+        << g_groundEffectDoodadDB.m_numRecords << " ground doodads; native IDs/resource names passed.\n";
+
     const auto asset = client.Read("World\\wmo\\Azeroth\\Buildings\\AltarOfStorms\\AltarOfStorms_000.wmo", 64*1024*1024, true);
     auto nodes = Chunk<CAaBspNode>(asset.bytes, 0x4D4F424E);
     auto references = Chunk<uint16_t>(asset.bytes, 0x4D4F4252);

@@ -205,9 +205,6 @@ WowClientDB<FactionTemplateRec> g_factionTemplateDB;
 // STATIC: 0x00AD38A8
 WowClientDB<FileDataRec> g_fileDataDB;
 
-// STATIC: 0x00AD38CC
-WowClientDB<FootprintTexturesRec> g_footprintTexturesDB;
-
 // STATIC: 0x00AD38F0
 WowClientDB<FootstepTerrainLookupRec> g_footstepTerrainLookupDB;
 
@@ -246,9 +243,6 @@ WowClientDB<GMSurveySurveysRec> g_gmSurveySurveysDB;
 
 // STATIC: 0x00AD3AA0
 WowClientDB<GMTicketCategoryRec> g_gmTicketCategoryDB;
-
-// STATIC: 0x00AD3AC4
-WowClientDB<GroundEffectDoodadRec> g_groundEffectDoodadDB;
 
 // STATIC: 0x00AD3AE8
 WowClientDB<GroundEffectTextureRec> g_groundEffectTextureDB;
