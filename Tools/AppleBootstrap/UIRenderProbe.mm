@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
+void CheckMovieFrame(CGxDeviceMetal& device);
 
 namespace {
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
@@ -216,6 +217,7 @@ void CheckOriginalUI(CGxDeviceMetal& device) {
         ConsoleCommandExecute("bgcolor 192 0 0 0", 0);
         ConsoleDeviceSetConsoleAccess(false);
         std::fprintf(stderr, "Original console cycle %u: access/hotkey, commands/history/completion, Unicode cursor/deletion, worker logs/256-line retention/resize, clear/close, %zu changed pixels and exact underlying UI restore\n", cycle, consoleChanges);
+        CheckMovieFrame(device);
         device.Drain();
     }
 }

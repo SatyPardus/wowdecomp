@@ -3,7 +3,9 @@
 #include <cstdlib>
 #include <cstring>
 #if defined(__APPLE__)
-#include <alloca.h>
+#include <string>
+#include "Engine/Source/Media/Apple/MovieAVI.h"
+#include "Engine/Source/Media/Apple/MovieDecoder.h"
 #else
 #include <malloc.h>
 #endif
@@ -301,6 +303,25 @@ void CSimpleMovieFrame::GetScriptTime(lua_State* L, double* time, uint32_t* coun
 // VERIFY: be393b5d manual
 // OFFSET: 0x0095DC80
 int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
+#if defined(__APPLE__)
+    if (!fileName || m_isPlaying || m_videoData || m_audioData || m_decoder || std::strlen(fileName) > 255) return 0;
+    AppleMovie::AVI avi;
+    if (!AppleMovie::ReadAVI((std::string(fileName) + ".avi").c_str(), avi)) return 0;
+    auto* video = static_cast<uint8_t*>(SMemAlloc(avi.video.size(), __FILE__, __LINE__, 0));
+    auto* audio = avi.audio.empty() ? nullptr : static_cast<uint8_t*>(SMemAlloc(avi.audio.size(), __FILE__, __LINE__, 0));
+    if (!video || (!audio && !avi.audio.empty())) {
+        if (video) SMemFree(video, __FILE__, __LINE__, 0);
+        if (audio) SMemFree(audio, __FILE__, __LINE__, 0);
+        return 0;
+    }
+    std::memcpy(video, avi.video.data(), avi.video.size());
+    if (audio) std::memcpy(audio, avi.audio.data(), avi.audio.size());
+    m_width = avi.width; m_height = avi.height; m_frameCount = avi.frames;
+    m_fps = float(avi.rate) / float(avi.scale);
+    m_videoData = m_videoPos = video; m_videoDataSize = uint32_t(avi.video.size());
+    m_audioData = audio; m_audioDataSize = uint32_t(avi.audio.size());
+    return 1;
+#else
     int32_t result = 0;
     SFileImpl* file = nullptr;
     char path[260];
@@ -436,6 +457,7 @@ int32_t CSimpleMovieFrame::ParseAVIFile(const char* fileName) {
     }
 
     return result;
+#endif
 }
 
 // VERIFY: db81495e manual
@@ -463,6 +485,9 @@ void CSimpleMovieFrame::CloseVideo() {
             this->m_textures[i] = nullptr;
         }
     }
+#if defined(__APPLE__)
+    m_videoPos = nullptr; m_videoDataSize = 0;
+#endif
 }
 
 // VERIFY: 8fc9b180 auto
@@ -478,6 +503,9 @@ void CSimpleMovieFrame::AudioDeviceChanged_ShutDown() {
 // VERIFY: 7f50dcb6 manual
 // OFFSET: 0x0095E170
 void CSimpleMovieFrame::CloseAudio() {
+#if defined(__APPLE__)
+    if (CSimpleMovieFrame::s_currentMovieFrame == this)
+#endif
     CSimpleMovieFrame::s_currentMovieFrame = nullptr;
     this->m_sound.Stop(1, -1.0f);
 
@@ -490,7 +518,15 @@ void CSimpleMovieFrame::CloseAudio() {
 // VERIFY: 90a9a30a manual
 // OFFSET: 0x0095E1C0
 bool CSimpleMovieFrame::DecodeFrame(bool render) {
+#if defined(__APPLE__)
+    if (!m_videoData || !m_videoPos || m_videoPos < m_videoData ||
+        size_t(m_videoPos - m_videoData) > m_videoDataSize || m_videoDataSize - size_t(m_videoPos - m_videoData) < 4) return false;
+    uint32_t size;
+    std::memcpy(&size, m_videoPos, sizeof(size));
+    if (size > m_videoDataSize - size_t(m_videoPos - m_videoData) - 4 || !m_frameBuffer) return false;
+#else
     uint32_t size = *reinterpret_cast<uint32_t*>(this->m_videoPos);
+#endif
     this->m_videoPos += 4;
 
     DivxDecodeFrame frame = {};
@@ -521,9 +557,16 @@ int32_t CSimpleMovieFrame::OpenVideo(const char* fileName) {
 
     this->m_startTime = OsGetAsyncTimeMs();
     this->m_elapsedMs = 0;
+#if defined(__APPLE__)
+    if (m_decoder) return 0;
+    m_decoder = AppleMovie::CreateDecoder(m_width, m_height);
+    if (m_decoder) ++s_decoderCount;
+    if (m_decoder && !SetOutputFormat(m_decoder, 1, m_width, m_height)) {
+#else
     this->m_decoder = ++CSimpleMovieFrame::s_decoderCount;
 
     if (!InitializeDivxDecoder(this->m_decoder, this->m_width, this->m_height) && !SetOutputFormat(this->m_decoder, 1, this->m_width, this->m_height)) {
+#endif
         int32_t layoutFound = 1;
 
         if (this->m_width == 1024) {
@@ -546,6 +589,10 @@ int32_t CSimpleMovieFrame::OpenVideo(const char* fileName) {
             layoutFound = 0;
         }
 
+#if defined(__APPLE__)
+        if (layoutFound && uint64_t(s_frameOffset[m_layout]) + uint64_t(m_width) * m_height * 4 >
+            uint64_t(s_frameWidth[m_layout]) * s_frameHeight[m_layout] * 4) layoutFound = 0;
+#endif
         if (layoutFound) {
             this->m_frameBuffer = static_cast<uint8_t*>(SMemAlloc(4 * s_frameWidth[this->m_layout] * s_frameHeight[this->m_layout], __FILE__, __LINE__, 0));
 
@@ -623,6 +670,10 @@ void CSimpleMovieFrame::AudioDeviceChanged_Restart() {
 // VERIFY: 74016685 auto
 // OFFSET: 0x0095E6E0
 CSimpleMovieFrame::CSimpleMovieFrame(CSimpleFrame* parent) : CSimpleFrame(parent), m_isPlaying(0), m_finished(0), m_subtitlesEnabled(0), m_audioRestart(0), m_volume(100), m_decoder(0), m_frameBuffer(nullptr), m_videoData(nullptr), m_audioData(nullptr) {
+#if defined(__APPLE__)
+    m_videoPos = nullptr; m_videoDataSize = m_audioDataSize = 0;
+    m_currentCaption = -1; m_layout = 0;
+#endif
     this->m_fps = 0.0f;
     this->m_width = 0;
     this->m_height = 0;
@@ -727,7 +778,13 @@ void CSimpleMovieFrame::CloseCaptions() {
 // VERIFY: 26d17828 auto
 // OFFSET: 0x0095EB30
 int32_t CSimpleMovieFrame::StartMovie(const char* fileName, int32_t volume) {
+#if defined(__APPLE__)
+    if (m_isPlaying) return 0;
+#endif
     if (!this->ParseAVIFile(fileName) || !this->OpenVideo(fileName)) {
+#if defined(__APPLE__)
+        CloseVideo(); CloseAudio();
+#endif
         return 0;
     }
 
@@ -847,7 +904,11 @@ bool CSimpleMovieFrame::UpdateTiming() {
 // VERIFY: f304956c auto
 // OFFSET: [0x0095E7F0, 0x0095EE40, 0x0095F310]
 CSimpleMovieFrame::~CSimpleMovieFrame() {
+#if defined(__APPLE__)
+    {
+#else
     if (this->m_isPlaying) {
+#endif
         this->CloseVideo();
         this->CloseAudio();
         this->CloseCaptions();

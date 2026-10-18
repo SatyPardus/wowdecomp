@@ -177,12 +177,17 @@ ClientData::ClientData(const std::string& dataRoot, const std::string& requested
     if (base.size() + 2 > sizeof(SFile::m_basePath) || data.size() + 2 > sizeof(System_SFile2::s_dataPath)) {
         throw std::runtime_error("Configured resource root exceeds the game file API path limit");
     }
+    // ClientInitialize selects Data/<locale> as its alternate loose-file root.
+    // MovieFrame's original Interface\\Cinematics paths depend on this lookup.
+    const auto alternate = m_locale == "----" ? std::string() : Resolve(m_locale);
+    if (alternate.size() + 2 > sizeof(System_SFile2::s_dataPath2))
+        throw std::runtime_error("Configured localized resource root exceeds the game file API path limit");
     m_previousBasePath = SFile::m_basePath;
     m_previousDataPath = System_SFile2::s_dataPath;
     m_previousAlternatePath = System_SFile2::s_dataPath2;
     SFile::SetBasePath(base.c_str());
     SFile::SetDataPath(data.c_str());
-    SFile::SetDataPathAlternate("");
+    SFile::SetDataPathAlternate(alternate.c_str());
     SFile::RebuildHash();
     m_previousDbLocale = s_locale;
     std::memcpy(m_previousLocaleCode, s_localeCode, sizeof(m_previousLocaleCode));

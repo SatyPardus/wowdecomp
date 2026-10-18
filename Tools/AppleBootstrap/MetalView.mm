@@ -5,6 +5,8 @@
 #include "Tools/AppleBootstrap/WmoPreview.h"
 #include "Tools/AppleBootstrap/WorldPreview.h"
 #include "Tools/AppleBootstrap/GameAudioPreview.h"
+#include "Tools/AppleBootstrap/UIComponents.h"
+#include "Tools/AppleBootstrap/MoviePlayback.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/GxuFont.h"
@@ -56,6 +58,7 @@ class GameEvents {
     void (*m_paint)(void*, float);
     float m_elapsedSeconds = 0;
     void* m_owner;
+    HPROPCONTEXT m_context = nullptr;
     std::string m_error;
     static int32_t Paint(const void*, void* arg) {
         auto& self = *static_cast<GameEvents*>(arg);
@@ -69,6 +72,7 @@ class GameEvents {
     }
     static int32_t Destroy(const void*, void*) { TextureDestroy(); AsyncFileReadDestroy(); return 1; }
     static int32_t Initialize(const void*, void*) {
+        s_current->m_context = PropGetSelectedContext();
         try { AsyncFileReadInitialize(0, 20); TextureInitialize(); }
         catch (const std::exception& error) { s_current->m_error = error.what(); }
         EventRegisterEx(EVENT_ID_UPDATE, Update, s_current, 0);
@@ -76,6 +80,7 @@ class GameEvents {
         return 1;
     }
 public:
+    void Select() { PropSelectContext(m_context); }
     void Check() { if (!m_error.empty()) { throw std::runtime_error(m_error); } }
     GameEvents(void (*paint)(void*, float), void* owner) : m_paint(paint), m_owner(owner) {
         if (s_current) { throw std::logic_error("A native game event host already exists"); }
@@ -167,6 +172,9 @@ public:
     std::unique_ptr<TerrainPreview> _terrain;
     std::unique_ptr<WmoPreview> _wmo;
     std::unique_ptr<WorldPreview> _world;
+    std::unique_ptr<UIComponents> _movieUI;
+    std::unique_ptr<MoviePlayback> _movie;
+    NSString* _movieSelection;
     CGxBuf* _vertices;
     CGxBuf* _indices;
     CGxShader* _vertexShaders[2];
@@ -195,6 +203,11 @@ public:
         _indices = _device->BufCreate(ip, sizeof(uint16_t), 6, 0);
         GxBufData(_vertices, vertices, sizeof(vertices), 0); GxBufData(_indices, indices, sizeof(indices), 0);
         _view = view;
+        _movieSelection = NSProcessInfo.processInfo.environment[@"WOW_MOVIE"];
+        if (_movieSelection) {
+            for (NSString* key in @[@"WOW_WORLD", @"WOW_TERRAIN", @"WOW_WMO", @"WOW_CHARACTER", @"WOW_MODEL", @"WOW_CREATURE_DISPLAY", @"WOW_AUDIO"])
+                if (NSProcessInfo.processInfo.environment[key]) throw std::runtime_error("WOW_MOVIE requires its own scene/audio selection");
+        }
         view.device = _device->GPU().device;
         view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
         view.depthStencilPixelFormat = MTLPixelFormatDepth32Float; view.clearDepth = 1;
@@ -209,12 +222,17 @@ public:
     }
     return self;
 }
+- (void)dealloc {
+    if (_movie || _movieUI) {
+        _events->Select(); _movie.reset(); _movieUI.reset();
+    }
+}
 - (void)resume {
     if (_active) return;
 #if TARGET_OS_OSX
     if ([_view isKindOfClass:WowNativeView.class]) [(WowNativeView*)_view setGameInputActive:YES];
 #endif
-    try { if (_audio) _audio->SetActive(true); }
+    try { if (_audio) _audio->SetActive(true); if (_movie) _movie->SetActive(true); }
     catch (const std::exception& error) { [self stopAfterError:error.what()]; return; }
     _active = YES;
     EventResetElapsedTime();
@@ -228,10 +246,10 @@ public:
     if ([_view isKindOfClass:WowNativeView.class]) [(WowNativeView*)_view setGameInputActive:NO];
 #endif
     _active = NO; _view.paused = YES;
-    try { if (_audio) _audio->SetActive(false); }
+    try { if (_audio) _audio->SetActive(false); if (_movie) _movie->SetActive(false); }
     catch (const std::exception& error) { NSLog(@"Game audio suspension: %s", error.what()); }
     OsQueuePut(OS_INPUT_FOCUS, 0, 0, 0, 0);
-    EventProcessPending();
+    if (!_movieUI) EventProcessPending();
     _device->Drain();
     if (_config) _config->Save();
 }
@@ -242,7 +260,28 @@ public:
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (!_active) { return; }
-    try { if (!EventProcessPending()) { [self suspend]; } }
+    try {
+        if (_movieSelection) {
+            if (!_movieUI) {
+                // Initialize the original Event/Services context before adding
+                // Scrn's PAINT handler. Its later frames own UI presentation.
+                if (!EventProcessPending()) { [self suspend]; return; }
+                _events->Check(); _events->Select();
+                _movieUI = std::make_unique<UIComponents>();
+                _movie = std::make_unique<MoviePlayback>(_movieSelection.UTF8String);
+            }
+            auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
+            if (!pass || !drawable) return;
+            _device->BeginFrame(pass, drawable);
+        }
+        if (!EventProcessPending()) { [self suspend]; return; }
+        if (_movieSelection) {
+            if (_device->FrameCommand()) _device->ScenePresent();
+            if (++_presentedFrames == 120 || _presentedFrames == 420) {
+                _movie->Report(); NSLog(@"Original MovieFrame/Scrn: %u visible frames presented", _presentedFrames);
+            }
+        }
+    }
     catch (const std::exception& error) { [self stopAfterError:error.what()]; }
 }
 - (void)stopAfterError:(const char*)message {
@@ -253,9 +292,12 @@ public:
     if (_device->FrameCommand()) _device->ScenePresent();
     _active = NO; _view.paused = YES;
     _audio.reset();
+    try { if (_movie) _movie->SetActive(false); }
+    catch (const std::exception& error) { NSLog(@"Movie suspension after error: %s", error.what()); }
     NSLog(@"Metal Gx preview stopped: %s", message);
 }
 - (void)renderGameFrame:(float)elapsedSeconds {
+    if (_movieSelection) return; // The original Scrn PAINT handler presents this scene.
     MTKView* view = _view;
     if (!_active || !view.drawableSize.width || !view.drawableSize.height) { return; }
     MTLRenderPassDescriptor* pass = view.currentRenderPassDescriptor;

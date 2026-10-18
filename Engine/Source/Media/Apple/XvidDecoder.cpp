@@ -1,4 +1,5 @@
 #include "ThirdParty/DivxDecoder/DivxDecoder.h"
+#include "MovieDecoder.h"
 #include <xvid.h>
 #include <array>
 #include <cstring>
@@ -16,11 +17,8 @@ std::array<Slot, 16> slots;
 std::mutex mutex;
 bool initialized = false;
 bool Valid(int32_t decoder) { return decoder > 0 && size_t(decoder) < slots.size(); }
-}
-
-int32_t InitializeDivxDecoder(int32_t decoder, int32_t width, int32_t height) {
+int32_t Create(int32_t decoder, int32_t width, int32_t height) {
     if (!Valid(decoder) || width <= 0 || height <= 0 || width > 4096 || height > 4096) return 1;
-    std::lock_guard<std::mutex> lock(mutex);
     if (!initialized) {
         xvid_gbl_init_t init{}; init.version = XVID_VERSION;
         if (xvid_global(nullptr, XVID_GBL_INIT, &init, nullptr) < 0) return 1;
@@ -34,6 +32,17 @@ int32_t InitializeDivxDecoder(int32_t decoder, int32_t width, int32_t height) {
     if (xvid_decore(nullptr, XVID_DEC_CREATE, &create, nullptr) < 0) return 1;
     slot.handle = create.handle; slot.width = width; slot.height = height;
     return 0;
+}
+}
+int32_t AppleMovie::CreateDecoder(int32_t width, int32_t height) {
+    std::lock_guard<std::mutex> lock(mutex);
+    for (int32_t i = 1; i < int32_t(slots.size()); ++i)
+        if (!slots[i].handle) return Create(i, width, height) ? 0 : i;
+    return 0;
+}
+int32_t InitializeDivxDecoder(int32_t decoder, int32_t width, int32_t height) {
+    std::lock_guard<std::mutex> lock(mutex);
+    return Create(decoder, width, height);
 }
 int32_t SetOutputFormat(int32_t decoder, int32_t format, int32_t width, int32_t height) {
     std::lock_guard<std::mutex> lock(mutex);

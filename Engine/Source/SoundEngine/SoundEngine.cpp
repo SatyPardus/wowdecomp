@@ -18,6 +18,14 @@
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/CRandom.h"
 
+// Native hosts can destroy and reconstruct both CVar and sound lifetimes.
+// Process-lifetime CVar pointers would then refer to freed registry entries.
+#if defined(__APPLE__)
+#define SE_CVAR_CACHE
+#else
+#define SE_CVAR_CACHE static
+#endif
+
 // STATIC: 0x00D4383C
 int32_t SE2::sm_bCaptureInitialized;
 
@@ -2594,7 +2602,7 @@ static void KillVirtualSounds() {
                 }
 
                 // STATIC: 0x00D43940
-                static CVar* s_virtualPlayWindow = CVar::Lookup("Sound_VirtualPlayWindow");
+                SE_CVAR_CACHE CVar* s_virtualPlayWindow = CVar::Lookup("Sound_VirtualPlayWindow");
 
                 if (!fileSound->m_streaming) {
                     uint32_t window = s_virtualPlayWindow ? s_virtualPlayWindow->m_intValue : 400;
@@ -2624,7 +2632,7 @@ static void KillVirtualSounds() {
 // OFFSET: 0x0087B010
 static void ProcessWaveDataDeleteList(int32_t force) {
     // STATIC: 0x00D43948
-    static CVar* s_maxCacheSize;
+    SE_CVAR_CACHE CVar* s_maxCacheSize = nullptr;
 
     int32_t maxCacheSize = 0x1000000;
 
@@ -2910,7 +2918,7 @@ int32_t SE2::CreateWaveData(FMOD::System* system, const char* filename, FMOD_MOD
         loaded = 0;
 
         // STATIC: 0x00D43984
-        static CVar* s_maxCacheableSize;
+        SE_CVAR_CACHE CVar* s_maxCacheableSize = nullptr;
 
         uint32_t maxCacheableSize = 0x100000;
 
@@ -3184,11 +3192,11 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
 
     {
         // STATIC: 0x00D43964
-        static CVar* s_enableMode2 = CVar::Lookup("Sound_EnableMode2");
+        SE_CVAR_CACHE CVar* s_enableMode2 = CVar::Lookup("Sound_EnableMode2");
         // STATIC: 0x00D43960
-        static CVar* s_enableHardware = CVar::Lookup("Sound_EnableHardware");
+        SE_CVAR_CACHE CVar* s_enableHardware = CVar::Lookup("Sound_EnableHardware");
         // STATIC: 0x00D4395C
-        static CVar* s_enableOpenAL = CVar::Lookup("Sound_EnableOpenAL");
+        SE_CVAR_CACHE CVar* s_enableOpenAL = CVar::Lookup("Sound_EnableOpenAL");
 
         int32_t hardware = s_enableHardware->m_intValue;
         int32_t mode2 = s_enableMode2->m_intValue;
@@ -3380,7 +3388,7 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
         }
 
         // STATIC: 0x00D43958
-        static CVar* s_dspBufferSize = CVar::Lookup("Sound_DSPBufferSize");
+        SE_CVAR_CACHE CVar* s_dspBufferSize = CVar::Lookup("Sound_DSPBufferSize");
 
         if (s_dspBufferSize) {
             int32_t numBuffers = s_dspBufferSize->m_intValue;
@@ -3450,7 +3458,7 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
         int32_t sampleRate = 48000;
 
         // STATIC: 0x00D43954
-        static CVar* s_outputQuality = CVar::Lookup("Sound_OutputQuality");
+        SE_CVAR_CACHE CVar* s_outputQuality = CVar::Lookup("Sound_OutputQuality");
 
         if (s_outputQuality) {
             if (s_outputQuality->m_intValue == 0) {
@@ -3467,7 +3475,7 @@ int32_t SE2::Init(int32_t maxChannels, bool (*positionCallback)(uint64_t, C3Vect
         }
 
         // STATIC: 0x00D43950
-        static CVar* s_enableMixMode2 = CVar::Lookup("Sound_EnableMixMode2");
+        SE_CVAR_CACHE CVar* s_enableMixMode2 = CVar::Lookup("Sound_EnableMixMode2");
 
         if (s_enableMixMode2 && s_enableMixMode2->m_intValue) {
             SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -###########################################################################################");
@@ -3717,7 +3725,7 @@ void SE2::InitCapture(int32_t* outputDriverIndex, const char* outputDriverName, 
 
         if (!numInputDrivers) {
             // STATIC: 0x00D43970
-            static CVar* s_enableMicrophone = CVar::Lookup("EnableMicrophone");
+            SE_CVAR_CACHE CVar* s_enableMicrophone = CVar::Lookup("EnableMicrophone");
             s_enableMicrophone->Set("0", true, false, false, true);
 
             SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -#############################################################################################");
@@ -3769,7 +3777,7 @@ void SE2::InitCapture(int32_t* outputDriverIndex, const char* outputDriverName, 
         int32_t outputRate = 48000;
 
         // STATIC: 0x00D4396C
-        static CVar* s_outputQuality = CVar::Lookup("Sound_OutputQuality");
+        SE_CVAR_CACHE CVar* s_outputQuality = CVar::Lookup("Sound_OutputQuality");
 
         if (s_outputQuality) {
             if (s_outputQuality->m_intValue == 0) {

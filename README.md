@@ -84,6 +84,15 @@ already extracted release with `-DFETCHCONTENT_SOURCE_DIR_APPLE_XVID=/path/to/xv
 Xvid's GPLv2-or-later license remains in the fetched source and
 `ThirdParty/xvidcore/licenses/xvid.txt`. The movie reader keeps the original
 AVI video packets, MP3 bytes and stream timing; it does not transcode Data.
+The original MovieFrame now uses this decoder, its existing texture layouts,
+MP3 sound clock, subtitle events and frame skipping. Set
+`WOW_MOVIE='Interface\Cinematics\WOW_Intro_1024'` when launching the Mac
+`AppleUIProbe /path/to/Data --preview`, the Metal preview, or the iOS app to play
+one original movie. Paths omit `.avi`; the selected locale's loose directory
+and MPQ subtitles follow original SFile precedence. The viewer shows subtitle
+callbacks using the original font renderer; full Glue movie sequencing and
+subtitle fades remain part of the pending complete Glue integration. Escape or
+Space stops the Mac viewer's movie. iOS touch controls remain deferred.
 
 The native port currently builds **foundation, graphics and audio probes**, not a playable client. They
 link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
@@ -877,7 +886,7 @@ checks exercise the original effect object across these transitions. Shared CVar
 configuration supports an explicit writable absolute path, bounded loading and
 retryable saves. Native console output goes to startup diagnostics and, while
 the original console screen is alive, its game-thread display queue.
-`WOW_METAL_CHECK=ui` runs only the shared UI/console input and GPU checks;
+`WOW_METAL_CHECK=ui` runs only the shared UI/console input and MovieFrame GPU/audio checks;
 its result is explicitly labelled as a focused run. Full ConsoleDevice startup,
 host display-mode switching and remaining shader families are still pending.
 

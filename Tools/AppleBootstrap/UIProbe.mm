@@ -1,6 +1,7 @@
 #include "NativeView.h"
 #include "WorldPreview.h"
 #include "UIComponents.h"
+#include "MoviePlayback.h"
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
@@ -61,6 +62,7 @@ public:
 @property(nonatomic) NSUInteger frames;
 @property(nonatomic) NSUInteger frameLimit;
 @property(nonatomic, copy) NSString* error;
+@property(nonatomic, assign) MoviePlayback* movie;
 @end
 @implementation OriginalUIPreview
 - (void)stop:(id)sender {
@@ -71,11 +73,15 @@ public:
 - (void)suspend {
     if (!self.active) return;
     self.active = NO; self.view.paused = YES; self.view.gameInputActive = NO;
+    try { if (self.movie) self.movie->SetActive(false); }
+    catch (const std::exception& error) { self.error = [NSString stringWithUTF8String:error.what()]; [self stop:nil]; }
     OsQueuePut(OS_INPUT_FOCUS, 0, 0, 0, 0); renderDevice->Drain();
 }
 - (void)resume {
     if (self.active || self.stopping) return;
     self.active = YES; self.view.gameInputActive = YES; EventResetElapsedTime();
+    try { if (self.movie) self.movie->SetActive(true); }
+    catch (const std::exception& error) { self.error = [NSString stringWithUTF8String:error.what()]; [self stop:nil]; return; }
     OsQueuePut(OS_INPUT_FOCUS, 1, 0, 0, 0); self.view.paused = NO;
 }
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender { [self stop:nil]; return NSTerminateCancel; }
@@ -99,7 +105,11 @@ public:
         if (renderDevice->FrameCommand()) renderDevice->ScenePresent();
         [self.view.inputContext invalidateCharacterCoordinates];
         if (++self.frames == 120) {
+            if (self.movie) self.movie->Report();
             NSLog(@"Original Scrn/Glue UI: 120 visible frames presented");
+        }
+        if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
+            if (self.movie) self.movie->Report();
             if (NSString* path = NSProcessInfo.processInfo.environment[@"WOW_UI_CAPTURE"]) {
                 MTLRenderPassDescriptor* readPass = [pass copy];
                 readPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
@@ -233,9 +243,15 @@ int main(int argc, char** argv) {
 
                 if (cycle == 1 && argc == 3) {
                     std::unique_ptr<BackgroundWorld> world;
+                    std::unique_ptr<MoviePlayback> movie;
+                    if (NSString* selection = NSProcessInfo.processInfo.environment[@"WOW_MOVIE"]) {
+                        if (NSProcessInfo.processInfo.environment[@"WOW_WORLD"]) throw std::runtime_error("WOW_MOVIE requires a separate viewer from WOW_WORLD");
+                        movie = std::make_unique<MoviePlayback>(selection.UTF8String);
+                    }
                     if (NSString* selection = NSProcessInfo.processInfo.environment[@"WOW_WORLD"]) world = std::make_unique<BackgroundWorld>(selection.UTF8String);
                     __attribute__((objc_precise_lifetime)) OriginalUIPreview* delegate = [OriginalUIPreview new];
                     delegate.view = view;
+                    delegate.movie = movie.get();
                     delegate.frameLimit = [NSProcessInfo.processInfo.environment[@"WOW_UI_FRAMES"] integerValue];
                     NSApp.delegate = delegate; window.delegate = delegate; view.delegate = delegate;
                     view.device = device.GPU().device; view.framebufferOnly = NO; view.autoResizeDrawable = YES;
