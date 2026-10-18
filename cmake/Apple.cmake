@@ -299,6 +299,8 @@ add_library(AppleConsole STATIC WoW/Source/Console/ConsoleClient.cpp WoW/Source/
 target_link_libraries(AppleConsole PUBLIC Frame WorldClient ConsoleBase)
 add_library(AppleSystemScripts STATIC WoW/Source/Ui/SystemFunctions.cpp WoW/Source/WowSvcs/WowSvcsClient/ClientConnectionState.cpp)
 target_link_libraries(AppleSystemScripts PUBLIC FrameScript ConsoleBase ClientWorldSupport)
+add_library(AppleGameWidgets STATIC WoW/Source/Ui/CGCooldown.cpp WoW/Source/Ui/CGCooldown_Scripts.cpp)
+target_link_libraries(AppleGameWidgets PUBLIC Frame)
 add_library(AppleKnowledgeBase STATIC
     WoW/Source/Ui/KnowledgeBase.cpp WoW/Source/Ui/KnowledgeBaseApple.cpp
     WoW/Source/Ui/CKBArticle.cpp WoW/Source/Ui/CKBQuery.cpp WoW/Source/Ui/CKBIterator.cpp
@@ -397,7 +399,7 @@ target_link_libraries(AppleTerrainView PUBLIC AppleGameResources WorldTerrain Ap
 add_library(AppleWmoView STATIC Tools/AppleBootstrap/WmoPreview.cpp Tools/AppleBootstrap/WmoLiquidPreview.cpp)
 target_link_libraries(AppleWmoView PUBLIC WorldClient AppleGameResources AppleLiquidView)
 add_library(AppleUIComponents STATIC Tools/AppleBootstrap/UIComponents.cpp Tools/AppleBootstrap/MoviePlayback.cpp)
-target_link_libraries(AppleUIComponents PUBLIC Frame AppleConsole AppleSystemScripts)
+target_link_libraries(AppleUIComponents PUBLIC Frame AppleConsole AppleSystemScripts AppleGameWidgets)
 add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/FixedUnlitProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/DisplaySettingsProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/UIRenderProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm Tools/AppleBootstrap/EventProbe.cpp Tools/AppleBootstrap/AsyncFileProbe.cpp Tools/AppleBootstrap/ModelSceneProbe.mm Tools/AppleBootstrap/ModelShaderProbe.mm Tools/AppleBootstrap/ShadowMapProbe.mm Tools/AppleBootstrap/DetailDoodadProbe.mm Tools/AppleBootstrap/WaterRippleProbe.mm Tools/AppleBootstrap/TerrainShaderProbe.mm Tools/AppleBootstrap/CubeTextureProbe.mm Tools/AppleBootstrap/WmoShaderProbe.mm Tools/AppleBootstrap/LiquidShaderProbe.mm Tools/AppleBootstrap/WmoSceneProbe.mm Tools/AppleBootstrap/TerrainSceneProbe.mm Tools/AppleBootstrap/WorldProbe.mm Tools/AppleBootstrap/DayNightProbe.mm)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 target_sources(AppleMetalProbeCore PRIVATE Tools/AppleBootstrap/MovieFrameProbe.mm)

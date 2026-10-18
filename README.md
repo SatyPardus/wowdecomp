@@ -252,7 +252,7 @@ single scheduler thread; server network pumping is explicitly unsupported.
 Original Frame/FrameXML/Scrn now build on all Apple targets. On Mac,
 `build/macos-asan/bin/AppleUIProbe /path/to/Data --preview` opens an interactive
 component window using original Glue fonts/button templates, the original color
-wheel/value selector, Lua callbacks, CSimpleTop layout, Services textures and
+wheel/value selector, original CGCooldown, Lua callbacks, CSimpleTop layout, Services textures and
 Scrn painting. The original console overlay is available with the tilde key in
 this Mac component host. It retains command history/completion, colors and the
 256-line scrollback. Native Unicode scalars are encoded as UTF-8, with character
@@ -260,7 +260,10 @@ boundaries preserved by cursor movement and deletion; worker diagnostics are que
 Its access flag is explicit in the component host; full client startup will
 continue to obtain it from the original `-console` option. The color selector uses its original generated textures, HSV/RGB
 methods and mouse tracking; the tabard/color texture callback is shared with
-the game UI. Its original edit box
+the game UI. Clicking the spell icon starts the original three-second cooldown,
+including its eight-octant sweep, rotating edge and completion flash. Reverse
+sweeps and the original Lua time conversion are also exercised by the GPU probe.
+Its original edit box
 accepts native Unicode/composition and supplies the AppKit candidate rectangle.
 Without `--preview`, it checks two full lifecycles, native button hit testing,
 composition replacement, caret movement and GPU output. `WOW_UI_FRAMES=120`
@@ -269,7 +272,8 @@ to compose the original world below the UI through Scrn. The viewer's movement
 and right-drag are suspended while the console is open or the edit box has keyboard focus; clicking
 the button clears that focus. `WOW_UI_CAPTURE=/absolute/path/frame.ppm` reads
 the composed GPU frame at frame 120. This is an integration entry point;
-full Glue/game UI, name-cache declension, movie playback and login remain pending.
+full Glue/game UI, name-cache declension and login remain pending. Original
+MovieFrame playback is available through `WOW_MOVIE` as described above.
 Clipboard has native UTF-8 platform bindings; these checks do not access the
 user's clipboard. UI Desaturate uses the original BLS luminance and alpha rules.
 Mac and iOS GPU checks now share this component initialization and exercise

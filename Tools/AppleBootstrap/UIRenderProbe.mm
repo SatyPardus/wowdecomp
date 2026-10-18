@@ -3,6 +3,7 @@
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
 #include "WoW/Source/Game/GameTime.h"
+#include "WoW/Source/Ui/CGCooldown.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -246,6 +247,67 @@ void CheckOriginalUI(CGxDeviceMetal& device) {
         ConsoleCommandExecute("bgcolor 192 0 0 0", 0);
         ConsoleDeviceSetConsoleAccess(false);
         std::fprintf(stderr, "Original console cycle %u: access/hotkey, commands/history/completion, Unicode cursor/deletion, worker logs/256-line retention/resize, clear/close, %zu changed pixels and exact underlying UI restore\n", cycle, consoleChanges);
+        auto* cooldown = static_cast<CGCooldown*>(CScriptObject::GetScriptObjectByName("AppleOriginalCooldown", CGCooldown::GetObjectType()));
+        Require(cooldown && !cooldown->m_isShown, "Original cooldown factory/initial visibility failed");
+        runSystem("AppleOriginalCooldown:SetCooldown(2147483.648, 4294967.297)");
+        Require(cooldown->m_startTime == 0x80000000u && cooldown->m_duration == 1,
+            "Cooldown Lua milliseconds lost the original 64-bit truncation/low-word conversion");
+        runSystem("AppleOriginalCooldown:SetCooldown(-0.0019, 0.0039)");
+        Require(cooldown->m_startTime == 0xffffffffu && cooldown->m_duration == 3,
+            "Cooldown Lua milliseconds changed truncation toward zero");
+        runSystem("AppleOriginalCooldown:SetCooldown(0/0, math.huge)");
+        Require(cooldown->m_startTime == 0 && cooldown->m_duration == 0,
+            "Cooldown Lua invalid conversion lost the original x87 low-word result");
+        runSystem("assert(AppleOriginalCooldown:GetObjectType()=='Cooldown'); AppleOriginalSpellButton:Click(); "
+            "assert(AppleOriginalCooldown:IsShown() and AppleOriginalCooldown:GetDrawEdge()); "
+            "AppleOriginalCooldown:SetDrawEdge(false); AppleOriginalCooldown:SetReverse(false)");
+        Require(cooldown->m_duration == 3000 && cooldown->m_starTexture && cooldown->m_edgeTexture,
+            "Original cooldown Lua did not create its authored resources");
+        Require(TextureGetGxTex(cooldown->m_starTexture, 1, nullptr) && TextureGetGxTex(cooldown->m_edgeTexture, 1, nullptr),
+            "Original cooldown MPQ textures failed to load");
+        cooldown->Hide(); step(); const auto bareIcon = read();
+        size_t darkCounts[2][8]{};
+        for (unsigned reverse = 0; reverse < 2; ++reverse) {
+            runSystem(reverse ? "AppleOriginalCooldown:SetReverse(true); assert(AppleOriginalCooldown:GetReverse())" :
+                "AppleOriginalCooldown:SetReverse(false); assert(not AppleOriginalCooldown:GetReverse())");
+            for (unsigned octant = 0; octant < 8; ++octant) {
+                // Long original durations hold each mid-octant well away from
+                // pixel boundaries while the real Event clock continues.
+                cooldown->SetCooldown(OsGetAsyncTimeMs() - (octant * 1000000 + 500000), 8000000);
+                step(); const auto pixels = read();
+                for (size_t i = 0; i < pixels.size(); ++i)
+                    darkCounts[reverse][octant] += int(pixels[i].r) + pixels[i].g + pixels[i].b + 5 <
+                        int(bareIcon[i].r) + bareIcon[i].g + bareIcon[i].b;
+                Require(darkCounts[reverse][octant] > 10, "Original cooldown sweep did not darken the icon");
+                if (octant) Require(reverse ? darkCounts[reverse][octant] >= darkCounts[reverse][octant - 1] :
+                    darkCounts[reverse][octant] <= darkCounts[reverse][octant - 1], "Original cooldown sweep direction changed");
+            }
+        }
+        Require(darkCounts[0][0] > darkCounts[0][7] * 3 && darkCounts[1][7] > darkCounts[1][0] * 3,
+            "Original cooldown did not traverse all eight octants");
+        runSystem("AppleOriginalCooldown:SetReverse(false); AppleOriginalCooldown:SetDrawEdge(false)");
+        cooldown->SetCooldown(OsGetAsyncTimeMs() - 3500000, 8000000); step(); const auto noEdge = read();
+        runSystem("AppleOriginalCooldown:SetDrawEdge(true); assert(AppleOriginalCooldown:GetDrawEdge())");
+        // The original Lua setter changes the flag without invalidating cached
+        // batches. Hide/show rebuilds them, as when reusing an action slot.
+        cooldown->Hide();
+        cooldown->SetCooldown(OsGetAsyncTimeMs() - 3500000, 8000000); step(); const auto edge = read();
+        size_t edgeChanges = 0;
+        for (size_t i = 0; i < edge.size(); ++i) edgeChanges += std::memcmp(&edge[i], &noEdge[i], 4) != 0;
+        Require(edgeChanges > 10, "Original rotating cooldown edge did not reach the GPU");
+        runSystem("AppleOriginalCooldown:SetDrawEdge(false)");
+        cooldown->Hide();
+        cooldown->SetCooldown(OsGetAsyncTimeMs() - 9000000, 8000000); step();
+        Require(cooldown->m_flashing && cooldown->m_duration == 1000, "Original cooldown completion did not enter its one-second flash");
+        cooldown->m_startTime = OsGetAsyncTimeMs() - 300; step(); const auto flash = read();
+        size_t bright = 0;
+        for (size_t i = 0; i < flash.size(); ++i) bright += int(flash[i].r) + flash[i].g + flash[i].b > int(bareIcon[i].r) + bareIcon[i].g + bareIcon[i].b + 10;
+        Require(bright > 10, "Original additive cooldown completion flash was not visible");
+        cooldown->m_startTime = OsGetAsyncTimeMs() - 1100; step();
+        Require(!cooldown->m_isShown && !cooldown->m_flashing, "Original cooldown flash did not finish and hide");
+        const auto cooldownDone = read();
+        Require(!std::memcmp(bareIcon.data(), cooldownDone.data(), bareIcon.size() * sizeof(CImVector)), "Cooldown completion did not restore the untouched icon");
+        std::fprintf(stderr, "Original cooldown cycle %u: normal/reverse eight-octant sweeps, %zu edge pixels, %zu flash pixels, Lua click/toggles, authored textures and exact completed icon passed\n", cycle, edgeChanges, bright);
         CheckMovieFrame(device);
         device.Drain();
     }

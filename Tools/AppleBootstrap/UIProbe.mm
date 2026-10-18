@@ -4,6 +4,7 @@
 #include "MoviePlayback.h"
 #include "NativeDisplayProbe.h"
 #include "WoW/Source/Console/ConsoleClient.h"
+#include "WoW/Source/Ui/CGCooldown.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -15,6 +16,7 @@
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Frame/CSimpleTop.h"
+#include "Engine/Source/Frame/CSimpleButton.h"
 #include "Engine/Source/Frame/CSimpleEditBox.h"
 #include "Engine/Source/Frame/CSimpleRender.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
@@ -251,6 +253,18 @@ int main(int argc, char** argv) {
                 [view keyUp:[NSEvent keyEventWithType:NSEventTypeKeyUp location:NSZeroPoint modifierFlags:0 timestamp:0
                     windowNumber:window.windowNumber context:nil characters:@"\r" charactersIgnoringModifiers:@"\r" isARepeat:NO keyCode:36]]; Step();
                 Require(!ConsoleGetActive(), "Native text/Enter did not execute closeconsole");
+
+                auto* cooldown = static_cast<CGCooldown*>(CScriptObject::GetScriptObjectByName("AppleOriginalCooldown", CGCooldown::GetObjectType()));
+                auto* spellButton = static_cast<CSimpleButton*>(CScriptObject::GetScriptObjectByName("AppleOriginalSpellButton", CSimpleButton::GetObjectType()));
+                CRect spellRect; Require(cooldown && spellButton && spellButton->GetRect(&spellRect), "Original spell button has no rectangle");
+                DDCToNDC((spellRect.minX + spellRect.maxX) * .5f, (spellRect.minY + spellRect.maxY) * .5f, &x, &y);
+                const NSPoint spellPoint = [view convertPoint:NSMakePoint(x * view.bounds.size.width, y * view.bounds.size.height) toView:nil];
+                mouse = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:spellPoint modifierFlags:0 timestamp:0
+                    windowNumber:window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:1];
+                [view mouseMoved:mouse]; [view mouseDown:mouse]; [view mouseUp:mouse]; Step();
+                Require(cooldown->m_isShown && cooldown->m_duration == 3000 && cooldown->m_elapsed < 1000,
+                    "Native spell click did not start the original Lua cooldown");
+                std::puts("Native AppKit click -> original Button Lua -> CGCooldown timer passed");
 
                 if (cycle == 1 && argc == 3) {
                     std::unique_ptr<BackgroundWorld> world;

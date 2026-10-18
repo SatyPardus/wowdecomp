@@ -2,6 +2,7 @@
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
+#include "WoW/Source/Ui/CGCooldown.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -41,11 +42,12 @@ UIComponents::UIComponents(bool enableConsole) {
         CSimpleFrame::CreateScriptMetaTable(); CSimpleTexture::CreateScriptMetaTable();
         CSimpleFont::CreateScriptMetaTable(); CSimpleFontString::CreateScriptMetaTable();
         CSimpleEditBox::CreateScriptMetaTable(); CSimpleButton::CreateScriptMetaTable();
-        CSimpleColorSelect::CreateScriptMetaTable(); m_metatables = true;
+        CSimpleColorSelect::CreateScriptMetaTable(); CGCooldown::CreateScriptMetaTable(); m_metatables = true;
         FrameXML_RegisterFactory("Button", Create_SimpleButton, false);
         FrameXML_RegisterFactory("EditBox", Create_SimpleEditBox, false);
         FrameXML_RegisterFactory("Frame", Create_SimpleFrame, false);
         FrameXML_RegisterFactory("ColorSelect", Create_SimpleColorSelect, false);
+        FrameXML_RegisterFactory("Cooldown", CGCooldown::Create, false);
         m_top = std::make_unique<CSimpleTop>();
         EventRegisterEx(EVENT_ID_SIZE, Resize, this, 2); m_resize = true;
         CStatus status; MD5_CTX md5; MD5Init(&md5);
@@ -79,6 +81,22 @@ UIComponents::UIComponents(bool enableConsole) {
             char errors[4096]; throw std::runtime_error(status.GetErrorStr(errors, sizeof(errors), STATUS_INFO, "\n"));
         }
         Require(m_colorSelect, "Cannot instantiate original color selector");
+        const char* spellXML = R"(<Ui><Button name="AppleOriginalSpellButton">
+            <Size><AbsDimension x="64" y="64"/></Size>
+            <Anchors><Anchor point="RIGHT"><Offset><AbsDimension x="-32" y="0"/></Offset></Anchor></Anchors>
+            <NormalTexture file="Interface\Icons\Spell_Nature_Rejuvenation.blp"/>
+            <Frames><Cooldown name="AppleOriginalCooldown" setAllPoints="true" hidden="true" drawEdge="true"/></Frames>
+            <Scripts><OnClick>AppleOriginalCooldown:SetCooldown(GetTime(), 3)</OnClick></Scripts>
+        </Button></Ui>)";
+        tree = XMLTree_Load(spellXML, uint32_t(std::strlen(spellXML)));
+        Require(tree, "Cannot parse original cooldown host XML");
+        auto* spellButton = FrameXML_CreateFrame(XMLTree_GetRoot(tree)->m_child, nullptr, &status);
+        XMLTree_Free(tree);
+        if (!status.IsEmpty()) {
+            char errors[4096]; throw std::runtime_error(status.GetErrorStr(errors, sizeof(errors), STATUS_INFO, "\n"));
+        }
+        Require(spellButton && CScriptObject::GetScriptObjectByName("AppleOriginalCooldown", CGCooldown::GetObjectType()),
+            "Cannot instantiate original cooldown widget");
         auto* memory = CSimpleEditBox::s_allocator.GetData(1, __FILE__, __LINE__);
         m_edit = new (memory) CSimpleEditBox(nullptr);
         m_edit->SetName("AppleOriginalEdit");
@@ -111,6 +129,7 @@ void UIComponents::Shutdown() {
     m_top.reset(); m_button = nullptr; m_edit = nullptr; m_colorSelect = nullptr;
     if (m_systemScripts) { SystemUnregisterFunctions(); m_systemScripts = false; }
     if (m_metatables) {
+        CGCooldown::DestroyScriptMetaTable();
         CSimpleEditBox::DestroyScriptMetaTable(); CSimpleFontString::DestroyScriptMetaTable();
         CSimpleColorSelect::DestroyScriptMetaTable();
         CSimpleButton::DestroyScriptMetaTable(); FrameXML_FreeHashNodes(); FrameXML_ClearFactories();

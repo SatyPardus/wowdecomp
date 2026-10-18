@@ -38,6 +38,17 @@ static int32_t Script_GetDrawEdge(lua_State* L) {
     return 1;
 }
 
+static uint32_t CooldownMilliseconds(double seconds) {
+    const double milliseconds = seconds * 1000.0;
+    // Original 0x5ECEF0/0x5ECF1B truncates to signed 64 bits with x87 FISTP,
+    // then passes the low 32 bits. In particular, uptime above INT32_MAX is
+    // valid. An invalid conversion produces integer indefinite (low bits 0).
+    if (!(milliseconds >= -0x1p63 && milliseconds < 0x1p63)) {
+        return 0;
+    }
+    return static_cast<uint32_t>(static_cast<int64_t>(milliseconds));
+}
+
 // VERIFY: 4ca46386 manual
 // OFFSET: 0x005ECE80
 static int32_t Script_SetCooldown(lua_State* L) {
@@ -49,8 +60,8 @@ static int32_t Script_SetCooldown(lua_State* L) {
         return 0;
     }
 
-    int32_t start = static_cast<int32_t>(lua_tonumber(L, 2) * 1000.0);
-    int32_t duration = static_cast<int32_t>(lua_tonumber(L, 3) * 1000.0);
+    uint32_t start = CooldownMilliseconds(lua_tonumber(L, 2));
+    uint32_t duration = CooldownMilliseconds(lua_tonumber(L, 3));
     cooldown->SetCooldown(start, duration);
     return 0;
 }
