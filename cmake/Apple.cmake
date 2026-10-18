@@ -61,6 +61,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Tls.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsCall.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Input.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Joystick.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/NetAddress.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
