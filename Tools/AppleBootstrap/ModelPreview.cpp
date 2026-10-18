@@ -130,7 +130,9 @@ bool ModelPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     if (!(bounds.m_radius > 0) || !std::isfinite(bounds.m_radius)) throw std::runtime_error("Preview model has invalid bounds: " + m_name);
     const auto center = (bounds.m_extent.b + bounds.m_extent.t) * 0.5f;
     m_rotation = std::fmod(m_rotation + elapsedSeconds * 0.35f, 6.2831853f);
-    C44Matrix world(1); world.RotateAroundZ(m_rotation); world.RotateAroundX(-0.65f);
+    // Orbit about the model's upright axis before applying the viewing tilt.
+    C44Matrix world = C44Matrix::RotationAroundZ(m_rotation) *
+        C44Matrix::RotationAroundX(m_character ? -1.5707963f : -0.65f);
     world.Scale(0.8f / bounds.m_radius); world.Translate(center * -1.0f);
     m_model->SetWorldTransform(world);
     C44Matrix identity(1), projection(1);
