@@ -20,6 +20,7 @@
 #include <vector>
 
 void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference);
+void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference, CTexture* atlasResource);
 void CheckGameModels();
 void CheckGameCubeTextures();
 void CheckGameTerrain();
@@ -197,4 +198,57 @@ void CheckGameAsyncFiles(bool modelsOnly) {
         Require(abandoned.failed == 1 && !abandoned.succeeded && !abandoned.object,
             "Async shutdown lost or duplicated pending resource cleanup");
     }
+}
+
+void CheckGameTextureAtlases() {
+    for (unsigned cycle=0;cycle<2;++cycle) {
+        PropInitialize(); EventInitialize(1,0);
+        struct ContextCleanup { ~ContextCleanup() { TextureEnableAtlas(0); EventDestroy(); PropDestroy(); } } contextCleanup;
+        EventCreateContextEx(1,Initialize,Destroy,1,0); EventProcessPending(); PropSelectContext(resourceContext);
+        TextureEnableAtlas(1);
+        char directory[]="/tmp/wow-native-atlas-XXXXXX";
+        Require(mkdtemp(directory), "Cannot create atlas fixture directory");
+        struct Files { const char* path; ~Files() { std::error_code error; std::filesystem::remove_all(path,error); } } files{directory};
+        struct Textures { std::vector<CTexture*> handles; ~Textures() { for (auto* h:handles) if(h) HandleClose(reinterpret_cast<HOBJECT>(h)); } } owned;
+        const char* names[]{"Interface\\Icons\\INV_Misc_QuestionMark.blp", "Interface\\Icons\\Spell_Nature_Rejuvenation.blp", "Interface\\Icons\\Spell_Nature_HealingTouch.blp"};
+        for (unsigned family=0;family<3;++family) {
+            SFileImpl* file=nullptr;
+            Require(SFile::OpenEx(nullptr,names[family],0,&file), "Cannot open original atlas reference icon");
+            std::vector<uint8_t> bytes(SFileGetFileSize(file,nullptr));
+            const bool read=SFileReadFile(file,bytes.data(),bytes.size(),nullptr,nullptr,0); SFileCloseFile(file);
+            Require(read && bytes.size()>sizeof(BLPHeader), "Cannot read original atlas reference icon");
+            auto icon=BLP::Image::Load(bytes.data(),bytes.size(),16*1024*1024);
+            Require(BLP::IsBlockCompressed(icon.format) && icon.mips[0].width==64 && icon.mips[0].height==64, "Unexpected reference icon format");
+            // Test eligibility only; all original encoded pixel blocks remain unchanged.
+            bytes[11] |= 0x10;
+            BLP::Image expected; expected.format=icon.format;
+            const auto& tile=icon.mips[0]; const uint32_t rowBytes=tile.rowBytes*8;
+            expected.mips.push_back({512,512,rowBytes,std::vector<uint8_t>(rowBytes*128)});
+            CTextureAtlas* atlas=nullptr; CTexture* representative=nullptr;
+            auto load=[&](unsigned index) {
+                const auto path=std::string(directory)+"/icon-"+std::to_string(family)+"-"+std::to_string(index)+".blp";
+                { std::ofstream out(path,std::ios::binary); out.write(reinterpret_cast<const char*>(bytes.data()),bytes.size()); Require(bool(out),"Cannot write atlas fixture"); }
+                CStatus status; auto* texture=TextureCreate(path.c_str(),CGxTexFlags(GxTex_Nearest),&status,5);
+                Require(texture!=nullptr,"Cannot create atlas texture"); owned.handles.push_back(texture);
+                Require(TextureGetGxTex(texture,1,&status) && status.IsEmpty() && texture->m_atlas,"Atlas icon upload failed");
+                if (!atlas) atlas=texture->m_atlas;
+                Require(atlas==texture->m_atlas && atlas->m_updateSlot==-1,"Atlas allocation or callback state changed");
+                const unsigned slot=texture->m_atlasBlockIndex;
+                Require(slot<64,"Atlas slot out of range");
+                auto& image=expected.mips[0];
+                for (unsigned row=0;row<16;++row) std::memcpy(image.bytes.data()+((slot/8)*16+row)*rowBytes+(slot%8)*tile.rowBytes,tile.bytes.data()+row*tile.rowBytes,tile.rowBytes);
+                C2Vector offset; float scale;
+                Require(TextureGetAtlasOffsetAndScale(texture,offset,scale) && scale==0.125f && offset.x==float(slot%8)/8 && offset.y==float(slot/8)/8,"Original atlas UV layout changed");
+                return texture;
+            };
+            for (unsigned i=0;i<12;++i) { auto* iconTexture=load(i); if (!i) representative=iconTexture; }
+            Require(atlas->m_used==12,"Atlas occupied slot count changed");
+            CheckServicesTexturePixels(atlas->m_gxTex,expected,representative);
+            auto* freed=owned.handles[owned.handles.size()-2]; const auto slot=freed->m_atlasBlockIndex;
+            HandleClose(reinterpret_cast<HOBJECT>(freed)); owned.handles[owned.handles.size()-2]=nullptr;
+            auto* reused=load(12); Require(reused->m_atlasBlockIndex==slot && atlas->m_used==12,"Atlas did not reuse its released slot");
+            CheckServicesTexturePixels(atlas->m_gxTex,expected,representative);
+        }
+    }
+    std::puts("Original texture atlas: BC1/2/3 tile creation, nonzero row/column updates, 78 icon loads, slot reuse, UV layout and all occupied pixels after recreation passed in two lifecycle cycles");
 }

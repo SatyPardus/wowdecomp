@@ -886,7 +886,9 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
                 image.mips.push_back({width, height, rowBytes, std::vector<uint8_t>(size_t(rowBytes) * rows)});
             }
             auto& dest = image.mips[mip - base];
-            CiRect rect = recreate ? CiRect(0, 0, texture->m_height, texture->m_width) : texture->m_updateRect;
+            // An atlas first uploads one tile from a local-origin callback. A
+            // new allocation does not expand that callback's available pixels.
+            CiRect rect = recreate && !texture->m_flags.m_bit15 ? CiRect(0, 0, texture->m_height, texture->m_width) : texture->m_updateRect;
             Require(rect.minX >= 0 && rect.minY >= 0 && rect.maxX <= int32_t(texture->m_width) && rect.maxY <= int32_t(texture->m_height),
                     "Invalid Gx texture dirty rectangle");
             uint32_t left = uint32_t(rect.minX) >> mip, top = uint32_t(rect.minY) >> mip;
@@ -899,13 +901,14 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
             pixels = nullptr;
             stride = 0;
             texture->m_userFunc(GxTex_Latch, width, height, uint32_t(face), mip, texture->m_userArg, stride, pixels);
-            Require(pixels && right > left && bottom > top && stride >= (texture->m_flags.m_bit15 ? right - left : right) * sourceBytes,
-                    "Missing or invalid Gx texture mip callback data");
-            Require(!recreate || !texture->m_flags.m_bit15 ||
-                        (texture->m_updateRect.minX == 0 && texture->m_updateRect.minY == 0 &&
-                         texture->m_updateRect.maxX == int32_t(texture->m_width) &&
-                         texture->m_updateRect.maxY == int32_t(texture->m_height)),
-                    "Cannot recreate a Gx texture from partial-origin callback data");
+            // D3D's callback may leave a mip untouched. Preserve resident
+            // contents; newly allocated, still-unpopulated regions start zeroed.
+            if (!pixels) {
+                width = std::max(1u, width >> 1); height = std::max(1u, height >> 1);
+                continue;
+            }
+            Require(right > left && bottom > top && stride >= (texture->m_flags.m_bit15 ? right - left : right) * sourceBytes,
+                    "Invalid Gx texture mip callback stride or region");
             auto* source = static_cast<const uint8_t*>(pixels);
             if (!texture->m_flags.m_bit15) {
                 source += size_t(top) * stride + left * sourceBytes;

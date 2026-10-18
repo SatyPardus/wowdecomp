@@ -158,6 +158,9 @@ EGxTexFormat TexturePixelFormatToGxTexFormat(PIXEL_FORMAT format) {
 // VERIFY: 10032e81 auto
 // OFFSET: 0x004B50D0
 void CTextureAtlas::Update(CTexture* texture) {
+#if defined(__APPLE__)
+    struct ResetSlot { CTextureAtlas* atlas; ~ResetSlot() { atlas->m_updateSlot = -1; } } reset{this};
+#endif
     this->m_updateSlot = texture->m_atlasBlockIndex;
     GxTexUpdate(this->m_gxTex, (texture->m_atlasBlockIndex & 7) * this->m_width, ((texture->m_atlasBlockIndex >> 3) & 7) * this->m_height, (texture->m_atlasBlockIndex & 7) * this->m_width + this->m_width, ((texture->m_atlasBlockIndex >> 3) & 7) * this->m_height + this->m_height, 1);
     this->m_updateSlot = -1;
@@ -531,19 +534,31 @@ int32_t TextureIsBlob(CTexture* texture) {
 // VERIFY: 762ce4de manual
 // OFFSET: 0x004B5930
 void ResolveMipLevel(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t face, uint32_t level, void* userArg, uint32_t& texelStrideInBytes, const void*& texels) {
+#if !defined(__APPLE__)
     // STATIC: 0x00B4A1E8
     static uint32_t s_emptyTexel;
-
-    if (command == GxTex_3) {
-        return;
-    }
+#endif
 
     CTextureAtlas* atlas = static_cast<CTextureAtlas*>(userArg);
+    if (command == GxTex_3) {
+#if defined(__APPLE__)
+        // The native image was invalidated. Reload occupied slots before the
+        // next Services lookup returns the atlas for drawing.
+        atlas->m_dirty |= 1;
+#endif
+        return;
+    }
 
     if (atlas->m_updateSlot == -1) {
         atlas->m_dirty |= 1;
         texelStrideInBytes = 0;
+#if defined(__APPLE__)
+        // No tile is being supplied. The old one-dword placeholder was not a
+        // full source row, especially for block-compressed atlas formats.
+        texels = nullptr;
+#else
         texels = &s_emptyTexel;
+#endif
         return;
     }
 
@@ -1029,9 +1044,14 @@ void CTextureAtlas::Reload() {
         }
 
         s_pumping = 1;
-
+#if defined(__APPLE__)
+        struct PumpScope { ~PumpScope() { s_pumping = 0; } } pumpScope;
+#endif
         if (!LoadBlpWithAlias(texture->m_filename, texture->m_flags & 2, &s_mipBits)) {
             GetGlobalStatusObj().Add(STATUS_ERROR, "Texture %s not loaded.\n", texture->m_filename);
+#if defined(__APPLE__)
+            throw std::runtime_error("Cannot reload occupied texture atlas slot");
+#endif
         }
 
         this->Update(texture);
@@ -1366,6 +1386,13 @@ CGxTex* TextureGetGxTex(CTexture* texture, int32_t wait, CStatus* status) {
 // VERIFY: 9761fb06 manual
 // OFFSET: 0x004B6E90
 CTextureAtlas* CTextureAtlas::Alloc(uint32_t width, uint32_t height, EGxTexFormat format, EGxTexFormat dataFormat, CGxTexFlags flags) {
+#if defined(__APPLE__)
+    // ResolveMipLevel supplies a tile-sized level-zero row. Its existing
+    // producer does not define the atlas tail mips shared by adjacent tiles.
+    if (flags.m_filter > GxTex_Linear || flags.m_forceMipTracking) {
+        throw std::runtime_error("Mipmapped texture atlases are not implemented on Apple");
+    }
+#endif
     CTextureAtlas* atlas = new (__FILE__, __LINE__) CTextureAtlas;
     atlas->m_height = height;
     atlas->m_width = width;

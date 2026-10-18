@@ -15,6 +15,7 @@ void CheckGameEvents();
 void CheckGameAsyncFiles(bool modelsOnly = false);
 void CheckGameWorldLifecycle();
 void CheckFixedUnlit(CGxDeviceMetal&);
+void CheckGameTextureAtlases();
 void CheckModelShaders(CGxDeviceMetal& device);
 void CheckShadowMapShaders(CGxDeviceMetal& device);
 void CheckDetailDoodadShaders(CGxDeviceMetal& device);
@@ -68,6 +69,7 @@ void CheckGxDevice(const char* focus) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (focus && !std::strcmp(focus, "atlas")) { CheckGameTextureAtlases(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "fixed")) { CheckFixedUnlit(device); CheckWaterRippleShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-shaders")) { CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ffx")) { CheckGxFFXPasses(device); CheckGxFFXEffect(device); device.DeviceDestroy(); return; }

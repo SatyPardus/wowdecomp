@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Gx/Blit.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include <algorithm>
@@ -368,7 +369,7 @@ void CheckGxRenderTargets(CGxDeviceMetal& device) {
 
 // Called with the original Services/Event lifecycle active. Recreate the same
 // handle at each resident base mip, which exercises its synchronous reload too.
-void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference) {
+void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference, CTexture* atlasResource) {
     auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
     CGxShader* vertex[2]{}; CGxShader* pixel = nullptr;
     device.ShaderCreate(vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
@@ -380,6 +381,10 @@ void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference) {
     GxXformSetViewport(0, 1, 0, 1, 0, 1);
     for (uint32_t requested : {0u, 2u, 0u}) {
         device.DeviceSetBaseMipLevel(requested);
+        if (atlasResource) {
+            CStatus status;
+            Require(TextureGetGxTex(atlasResource, 1, &status) == texture && status.IsEmpty(), "Atlas resource reload failed");
+        }
         uint32_t width, height, base, end;
         device.ITexWHDStartEnd(texture, width, height, base, end);
         auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
@@ -400,6 +405,10 @@ void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference) {
     }
     GxRsSet(GxRs_Texture0, static_cast<CGxTex*>(nullptr));
     device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
+}
+
+void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference) {
+    CheckServicesTexturePixels(texture, reference, nullptr);
 }
 
 void CheckPackedTextureFormats(CGxDeviceMetal& device) {
