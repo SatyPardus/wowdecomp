@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include "WoW/Source/ObjectAlloc/ObjectAlloc.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/SLock.h"
@@ -43,7 +44,7 @@ void CObjectHeap::Delete(uint32_t index, uint32_t objSize, uint32_t count) {
 
 // INLINED
 void* CObjectHeap::Ptr(uint32_t index, uint32_t objSize, uint32_t count) {
-    return static_cast<char*>(this->m_obj) + index * objSize;
+    return static_cast<char*>(this->m_obj) + size_t(index) * objSize;
 }
 
 // INLINED
@@ -68,7 +69,7 @@ bool CObjectHeap::Allocate(uint32_t objSize, uint32_t count, const char* name) {
         return false;
     }
 
-    this->m_indexStack = reinterpret_cast<uint32_t*>(static_cast<char*>(this->m_obj) + count * objSize);
+    this->m_indexStack = reinterpret_cast<uint32_t*>(static_cast<char*>(this->m_obj) + size_t(count) * objSize);
 
     for (uint32_t i = 0; i < count; i++) {
         this->m_indexStack[i] = i;
@@ -195,18 +196,18 @@ int32_t CObjectHeap::New(uint32_t objSize, uint32_t count, uint32_t* index, cons
         return 0;
     }
 
-    if (!this->m_obj) {
-        this->Allocate(objSize, count, name);
+    if (!this->m_obj && !this->Allocate(objSize, count, name)) {
+        return 0;
     }
 
     *index = this->m_indexStack[this->m_allocated++];
 
     if (zero) {
-        memset(static_cast<char*>(this->m_obj) + objSize * *index, 0, objSize);
+        memset(static_cast<char*>(this->m_obj) + size_t(objSize) * *index, 0, objSize);
     }
 
     if (ptr) {
-        *ptr = static_cast<char*>(this->m_obj) + objSize * *index;
+        *ptr = static_cast<char*>(this->m_obj) + size_t(objSize) * *index;
     }
 
     return 1;
@@ -339,6 +340,7 @@ int32_t ObjectAlloc(uint32_t heapId, uint32_t* memHandle, void** objectPtr, bool
 
     if (heapId >= s_globals.objects.Count()) {
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
+        s_globalsLock.Leave();
         return 0;
     }
 
@@ -377,6 +379,19 @@ uint32_t ObjectAllocAddHeap(uint32_t objectSize, uint32_t objectsPerBlock, const
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return 0;
     }
+
+#if defined(__APPLE__)
+    // A game object may have trailing 32-bit mirror fields. Its payload length
+    // is then only four-byte aligned even though the next native object needs
+    // pointer/max_align_t alignment. Pad the slot, not the object or wire data.
+    constexpr uint32_t alignment = alignof(std::max_align_t);
+    static_assert((alignment & (alignment - 1)) == 0, "Object heap alignment");
+    if (!objectsPerBlock || objectSize > std::numeric_limits<uint32_t>::max() - (alignment - 1)) {
+        SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
+        return 0;
+    }
+    objectSize = (objectSize + alignment - 1) & ~(alignment - 1);
+#endif
 
     s_globalsLock.Enter();
 

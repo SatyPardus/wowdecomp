@@ -689,6 +689,17 @@ static uint32_t ObjDescriptorToMirrorOffset(OBJECT_TYPE_ID typeId, int32_t local
     return (offset & 3) + 4 * CGObject::GetSavedIndexFromDataIndex(offset >> 2);
 }
 
+#if defined(__APPLE__)
+static size_t PlayerLocalMirrorListsOffset() {
+    const size_t end = sizeof(CGPlayer_C) + sizeof(CGObjectData) + sizeof(CGUnitData)
+        + sizeof(CGPlayerLocalData) + CGPlayer::TotalFields() * sizeof(uint32_t);
+    constexpr size_t alignment = alignof(TSList<void>);
+    // Wire fields stay packed as 32-bit words; the following native lists
+    // contain pointers and must start at their own natural alignment.
+    return (end + alignment - 1) & ~(alignment - 1);
+}
+#endif
+
 // VERIFY: 839b7b55 manual
 // OFFSET: 0x004D45B0
 static void SetupObjectStorage(CGObject_C* object, OBJECT_TYPE_ID typeId, WOWGUID guid) {
@@ -733,7 +744,11 @@ static void SetupObjectStorage(CGObject_C* object, OBJECT_TYPE_ID typeId, WOWGUI
 
             if (guid == ClntObjMgrGetActivePlayer()) {
                 size = sizeof(CGObjectData) + sizeof(CGUnitData) + sizeof(CGPlayerLocalData);
+#if defined(__APPLE__)
+                player->m_playerLocalMirrorLists = reinterpret_cast<TSList<void>*>(base + PlayerLocalMirrorListsOffset());
+#else
                 player->m_playerLocalMirrorLists = reinterpret_cast<TSList<void>*>(base + sizeof(CGPlayer_C) + size + CGPlayer::TotalFields() * sizeof(uint32_t));
+#endif
             } else {
                 size = sizeof(CGObjectData) + sizeof(CGUnitData) + sizeof(CGPlayerData);
                 player->m_playerLocalMirrorLists = nullptr;
@@ -803,7 +818,11 @@ static void ExpireOldObjects(uint32_t expireTime, OBJECT_TYPE_ID typeId) {
 // OFFSET: 0x004D4930
 CGObject_C* ClntObjMgrAllocObject(OBJECT_TYPE_ID typeId, WOWGUID guid) {
     if (guid == ClntObjMgrGetActivePlayer()) {
+#if defined(__APPLE__)
+        return static_cast<CGObject_C*>(SMemAlloc(PlayerLocalMirrorListsOffset() + 1002 * sizeof(TSList<void>), __FILE__, __LINE__, 0));
+#else
         return static_cast<CGObject_C*>(SMemAlloc(sizeof(CGPlayer_C) + s_objDwordCount[ID_PLAYER] * sizeof(uint32_t) + CGPlayer::TotalFields() * sizeof(uint32_t) + 1002 * sizeof(TSList<void>), __FILE__, __LINE__, 0));
+#endif
     }
 
     ExpireOldObjects(10000, typeId);
