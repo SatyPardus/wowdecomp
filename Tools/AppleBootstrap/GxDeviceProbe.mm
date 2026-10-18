@@ -16,6 +16,7 @@ void CheckShadowMapShaders(CGxDeviceMetal& device);
 void CheckDetailDoodadShaders(CGxDeviceMetal& device);
 void CheckWaterRippleShaders(CGxDeviceMetal& device);
 void CheckTerrainShaders(CGxDeviceMetal& device);
+void CheckTerrainShadowGenerator(CGxDeviceMetal& device);
 void CheckWmoShaders(CGxDeviceMetal& device);
 void CheckLiquidShaders(CGxDeviceMetal& device);
 void CheckGxFont(CGxDeviceMetal& device);
@@ -298,6 +299,7 @@ void CheckGxDevice() {
     CheckDetailDoodadShaders(device);
     CheckWaterRippleShaders(device);
     CheckTerrainShaders(device);
+    CheckTerrainShadowGenerator(device);
     CheckWmoShaders(device);
     CheckLiquidShaders(device);
     CheckGameEvents();

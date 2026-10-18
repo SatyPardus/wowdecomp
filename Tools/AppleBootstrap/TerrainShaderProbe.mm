@@ -531,3 +531,147 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                  "CMap/ShadowCache selection verified\n",
                  draws);
 }
+
+void CheckTerrainShadowGenerator(CGxDeviceMetal& device) {
+    device.RsPush();
+    struct Cleanup {
+        CGxDeviceMetal& device;
+        CGxShader* vertex[128]{};
+        CGxShader* pixel = nullptr;
+        CGxTex* target = nullptr;
+        ~Cleanup() {
+            if (device.FrameCommand())
+                device.ScenePresent();
+            device.DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0);
+            device.RsPop();
+            device.TexDestroy(target);
+            for (auto& shader : vertex)
+                device.ShaderDestroy(shader);
+            device.ShaderDestroy(pixel);
+        }
+    } cleanup{device};
+    device.ShaderCreate(cleanup.vertex, GxSh_Vertex, "Shaders\\Vertex", "Terrain", 128);
+    device.ShaderCreate(&cleanup.pixel, GxSh_Pixel, "Shaders\\Pixel", "TerrainSM", 1);
+    CGxTexFlags flags(GxTex_Nearest);
+    flags.m_renderTarget = 1;
+    device.TexCreate(GxTex_2d, 16, 16, 0, GxTex_R32F, GxTex_R32F, flags, nullptr, nullptr, "Terrain radial distance", cleanup.target);
+    for (auto state : {GxRs_DepthTest, GxRs_DepthWrite, GxRs_Culling, GxRs_Fog, GxRs_ScissorTest, GxRs_ClipPlaneMask, GxRs_PolygonOffset,
+                       GxRs_PointSprite})
+        device.RsSet(state, 0);
+    for (unsigned i = 0; i < 16; ++i)
+        device.RsSet(EGxRenderState(GxRs_Texture0 + i), static_cast<CGxTex*>(nullptr));
+    device.RsSet(GxRs_ColorWrite, 15);
+    device.RsSet(GxRs_BlendingMode, GxBlend_Opaque);
+    device.RsSet(GxRs_AlphaRef, 255);
+    GxXformSetViewport(0, 1, 0, 1, 0, 1);
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate;
+    descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    std::array<Vec, 49> c{};
+    c[0] = {.8f, .1f, 0, 0};
+    c[1] = {-.2f, .9f, .1f, 0};
+    c[2] = {0, -.1f, .7f, 0};
+    c[3] = {.04f, -.02f, .2f, 1};
+    for (unsigned i = 0; i < 4; ++i)
+        c[4 + i][i] = 1;
+    c[40] = {.7f, -.4f, .2f, .25f};
+    c[41] = {-.1f, .5f, .3f, -.15f};
+    c[42] = {.2f, .1f, .8f, .1f};
+    // Distinct unused projections expose an accidental TEXCOORD4/6 mapping.
+    for (unsigned i = 37; i < 49; ++i)
+        if (i < 40 || i > 42)
+            c[i] = {3, 4, 5, 6};
+    c[12] = {0, 1, 1, 0};
+    const Vec point{.1f, -.2f, .3f, 1};
+    Vec view = Rotate(point, c);
+    for (unsigned i = 0; i < 3; ++i)
+        view[i] += c[3][i];
+    view[3] = 1;
+    Vec projected{};
+    for (unsigned row = 0; row < 3; ++row)
+        for (unsigned j = 0; j < 4; ++j)
+            projected[row] += c[40 + row][j] * view[j];
+    const unsigned x = unsigned((view[0] + 1) * 8), y = unsigned((1 - view[1]) * 8);
+    unsigned draws = 0;
+    for (unsigned vp = 1; vp < 128; vp += 2) {
+        const auto format = (vp & 4) ? GxVBF_PNC : GxVBF_PN;
+        auto* vertex = GxBufStream(GxPoolTarget_Vertex, GxVertexSize(format), 1);
+        auto* bytes = device.BufLock(vertex);
+        std::memset(bytes, 0, GxVertexSize(format));
+        std::memcpy(bytes, point.data(), 12);
+        device.BufUnlock(vertex, 0);
+        GxPrimVertexPtr(vertex, format);
+        for (float scale : {-1.2f, 0.0f, .3f, 3.0f})
+            for (unsigned floating = 0; floating < 2; ++floating) {
+                const float squared = Dot(projected, projected) * scale * scale, distance = std::sqrt(squared);
+                device.BeginFrame(pass);
+                device.DeviceSetRenderTarget(GxBuffers_Color, floating ? cleanup.target : nullptr, 0);
+                device.SceneClear(1, CImVector(0, 0, 0, 0));
+                GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 49);
+                const Vec depth{100, 200, 300, scale};
+                GxShaderConstantsSet(GxSh_Pixel, 1, depth.data(), 1);
+                device.RsSet(GxRs_VertexShader, cleanup.vertex[vp]);
+                device.RsSet(GxRs_PixelShader, cleanup.pixel);
+                CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
+                device.Draw(&batch, 0);
+                ++draws;
+                CiRect rect(0, 0, 16, 16);
+                if (floating) {
+                    TSGrowableArray<float> actual;
+                    device.ReadFloatColor(rect, actual);
+                    if (!std::isfinite(actual[y * 16 + x]) || std::abs(actual[y * 16 + x] - distance) > 2e-6f)
+                        throw std::runtime_error("TerrainSM float distance mismatch");
+                } else {
+                    TSGrowableArray<CImVector> actual;
+                    device.DeviceReadPixels(rect, actual);
+                    const auto p = actual[y * 16 + x];
+                    if (std::abs(int(p.r) - int(std::lround(Sat(distance) * 255))) > 1 ||
+                        std::abs(int(p.g) - int(std::lround(Sat(squared) * 255))) > 1 || p.b != 255 || p.a != 255)
+                        throw std::runtime_error("TerrainSM RG distance/square or constant channels mismatch");
+                }
+                device.ScenePresent();
+            }
+    }
+    // A varying quad distinguishes per-fragment radial distance from a length
+    // computed at vertices and interpolated. Use the actual affine TEXCOORD5.
+    c = {};
+    for (unsigned i = 0; i < 4; ++i)
+        c[i][i] = c[4 + i][i] = 1;
+    for (unsigned i = 0; i < 3; ++i)
+        c[40 + i][i] = 1;
+    c[12] = {0, 1, 1, 0};
+    struct Vertex {
+        float x, y, z, nx, ny, nz;
+    };
+    const Vertex quad[] = {{-1, 1, .5f, 0, 0, 0}, {-1, -1, .5f, 0, 0, 0}, {1, 1, .5f, 0, 0, 0}, {1, -1, .5f, 0, 0, 0}};
+    auto* buffer = GxBufStream(GxPoolTarget_Vertex, sizeof(Vertex), 4);
+    std::memcpy(device.BufLock(buffer), quad, sizeof(quad));
+    device.BufUnlock(buffer, 0);
+    GxPrimVertexPtr(buffer, GxVBF_PN);
+    device.BeginFrame(pass);
+    device.DeviceSetRenderTarget(GxBuffers_Color, cleanup.target, 0);
+    GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 49);
+    const Vec depth{0, 0, 0, .5f};
+    GxShaderConstantsSet(GxSh_Pixel, 1, depth.data(), 1);
+    device.RsSet(GxRs_VertexShader, cleanup.vertex[1]);
+    CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3};
+    device.Draw(&batch, 0);
+    CiRect rect(0, 0, 16, 16);
+    TSGrowableArray<float> pixels;
+    device.ReadFloatColor(rect, pixels);
+    for (unsigned y = 0; y < 16; ++y)
+        for (unsigned x = 0; x < 16; ++x) {
+            const float px = (x + .5f) / 8 - 1, py = 1 - (y + .5f) / 8;
+            if (std::abs(pixels[y * 16 + x] - .5f * std::sqrt(px * px + py * py + .25f)) > 2e-6f)
+                throw std::runtime_error("TerrainSM fragment interpolation mismatch");
+        }
+    device.ScenePresent();
+    device.DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0);
+    std::fprintf(stderr,
+                 "TerrainSM: %u point references across 64 vertex variants, signed/zero scale, R32F and RGBA channels; interpolated radial "
+                 "distance verified without texture inputs\n",
+                 draws);
+}

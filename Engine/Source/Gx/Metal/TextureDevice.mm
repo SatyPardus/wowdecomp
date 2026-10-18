@@ -105,23 +105,29 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     Require(!IsModelEffect(effect) || SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect),
         "Unsupported native model vertex permutation");
+    const bool terrainShadow = effect == FragmentEffect::TerrainShadowMap;
     Require(!IsTerrainEffect(effect) ||
                 (terrain && SupportsTerrainPermutation(GxSh_Vertex, terrain->vertexPermutation) &&
-                 SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
-                 TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation) &&
-                 bool(terrain->vertexPermutation & 2) == bool(terrain->pixelPermutation & 1) && terrain->shadowMode < 4 &&
-                 uint32_t(terrain->layerPass) < 4 &&
-                 ((effect == FragmentEffect::Terrain0 || effect == FragmentEffect::Terrain0Environment) ==
-                  (terrain->layerPass != TerrainLayerPass::Combined)) &&
-                 (terrain->layerPass != TerrainLayerPass::Combined || bool(terrain->vertexPermutation & 1) == bool(terrain->shadowMode))),
-            "Unsupported native terrain permutation or mismatched layer count");
+                 (terrainShadow ? bool(terrain->vertexPermutation & 1)
+                                : SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
+                                      TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) ==
+                                          TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation) &&
+                                      bool(terrain->vertexPermutation & 2) == bool(terrain->pixelPermutation & 1) &&
+                                      terrain->shadowMode < 4 && uint32_t(terrain->layerPass) < 4 &&
+                                      ((effect == FragmentEffect::Terrain0 || effect == FragmentEffect::Terrain0Environment) ==
+                                       (terrain->layerPass != TerrainLayerPass::Combined)) &&
+                                      (terrain->layerPass != TerrainLayerPass::Combined ||
+                                       bool(terrain->vertexPermutation & 1) == bool(terrain->shadowMode)))),
+            "Unsupported native terrain permutation or mismatched outputs");
     Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
-    Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)), "Unsupported native liquid permutation");
+    Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)),
+            "Unsupported native liquid permutation");
     Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
     Require(effect != FragmentEffect::DetailDoodad || detail, "Missing detail-doodad parameters");
     const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
-        (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
-        (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) | (uint32_t(depthOffset) << 8);
+                           (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
+                           (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
+                           (uint32_t(depthOffset) << 8);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
@@ -343,10 +349,12 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         const uint32_t vertexPermutation = terrain->vertexPermutation, pixelPermutation = terrain->pixelPermutation;
         const bool color = (vertexPermutation & 4) != 0;
         Require(!screenAtDepth && GxVertexHasAttrib(format, GxVA_Normal) && (!color || GxVertexHasAttrib(format, GxVA_Color0)),
-            "Unsupported native terrain vertex layout");
+                "Unsupported native terrain vertex layout");
         auto& vertex = m_terrainVertex[vertexPermutation];
         auto& fragment =
-            m_terrainFragment[uint32_t(terrain->layerPass)][terrain->shadowMode][pixelPermutation][state.alphaRef != 0][decodePacked];
+            terrainShadow
+                ? m_terrainShadowFragment
+                : m_terrainFragment[uint32_t(terrain->layerPass)][terrain->shadowMode][pixelPermutation][state.alphaRef != 0][decodePacked];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -357,13 +365,18 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         const uint32_t layerPass = uint32_t(terrain->layerPass);
         [constants setConstantValue:&layerPass type:MTLDataTypeUInt atIndex:25];
         NSError* error = nil;
-        if (!vertex) vertex = [m_library newFunctionWithName:color ? @"terrainColorVertex" : @"terrainVertex" constantValues:constants error:&error];
+        if (!vertex)
+            vertex = [m_library newFunctionWithName:color ? @"terrainColorVertex" : @"terrainVertex" constantValues:constants error:&error];
         if (!fragment)
-            fragment = [m_library newFunctionWithName:(pixelPermutation & 1) ? @"terrainEnvironmentFragment" : @"terrainFragment"
+            fragment = [m_library newFunctionWithName:terrainShadow            ? @"terrainShadowMapFragment"
+                                                      : (pixelPermutation & 1) ? @"terrainEnvironmentFragment"
+                                                                               : @"terrainFragment"
                                        constantValues:constants
                                                 error:&error];
-        if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Terrain specialization failed");
-        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
+        if (!vertex || !fragment)
+            throw std::runtime_error(error.localizedDescription.UTF8String ?: "Terrain specialization failed");
+        descriptor.vertexFunction = vertex;
+        descriptor.fragmentFunction = fragment;
         auto layout = [MTLVertexDescriptor vertexDescriptor];
         const EGxVertexAttrib attributes[] = {GxVA_Position, GxVA_Normal, GxVA_Color0};
         for (unsigned i = 0; i < (color ? 3u : 2u); ++i) {

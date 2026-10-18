@@ -71,6 +71,7 @@ void GxMetal::ValidateTerrainShader(const std::vector<uint8_t>& bytes, EGxShTarg
         "1309fac04a0e5ff4038ae970412fdac7",
         "b581ce81b3f663d1058de912c2bb1c40",
     };
+    static const char* pixelSM[] = {"8e3f4f9b49bf8bd176a835e3ff49ee7c"};
     static const char* pixel0env[] = {
         "27b55fb0c625c2301eafb0924dbf5f13",
     };
@@ -136,6 +137,7 @@ void GxMetal::ValidateTerrainShader(const std::vector<uint8_t>& bytes, EGxShTarg
         }
         if (fingerprint != (target == GxSh_Vertex                           ? vertex[i]
                             : effect == FragmentEffect::Terrain0            ? pixel0[i]
+                            : effect == FragmentEffect::TerrainShadowMap ? pixelSM[i]
                             : effect == FragmentEffect::Terrain0Environment ? pixel0env[i]
                             : effect == FragmentEffect::Terrain2            ? pixel2[i]
                             : effect == FragmentEffect::Terrain3            ? pixel3[i]

@@ -99,8 +99,8 @@ struct TerrainFragmentParameters {
     simd_float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8];
     simd_float4 shadowDecodeScale = {1, 1, 1, 1};
     simd_float4 layerChannel{};
-    float stateAlphaRef;
-    float padding[3]{};
+    float stateAlphaRef, shadowDistanceScale;
+    float padding[2]{};
 };
 static_assert(sizeof(TerrainVertexParameters) == 768 && sizeof(TerrainFragmentParameters) == 288,
     "Native terrain constant layout");
@@ -253,6 +253,7 @@ private:
     id<MTLFunction> m_wmoVertex[7][10]{};
     id<MTLFunction> m_wmoFragment[7][2][2][2]{};
     id<MTLFunction> m_terrainVertex[128]{};
+    id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
     id<MTLFunction> m_modelVertex[7][30]{};
     id<MTLFunction> m_modelFragment[8][2][2][2]{};

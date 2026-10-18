@@ -15,8 +15,8 @@ struct TerrainVertexParameters {
 };
 struct TerrainFragmentParameters {
     float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8], shadowDecodeScale, layerChannel;
-    float stateAlphaRef;
-    float padding[3];
+    float stateAlphaRef, shadowDistanceScale;
+    float padding[2];
 };
 struct TerrainVertex {
     float3 position [[attribute(0)]];
@@ -251,4 +251,13 @@ fragment float4 terrainEnvironmentFragment(TerrainRaster v [[stage_in]], constan
     const float4 base = image0.sample(sampler0, coord.uv, coord.face, gradient2d(coord.dx, coord.dy));
     return terrainShade(v, p, base, image1, sampler1, image2, sampler2, image3, sampler3, image4, sampler4, dynamicImage, dynamicSampler,
                         nearImage, nearSampler, middleImage, middleSampler, farImage, farSampler);
+}
+
+// TerrainSM consumes TEXCOORD5.xyz. In the authored Terrain shadow variants
+// these are the affine rows c40..42, represented here by the named nearShadow.
+// Keep the nonlinear length calculation after perspective interpolation.
+fragment float4 terrainShadowMapFragment(TerrainRaster v [[stage_in]], constant TerrainFragmentParameters& p [[buffer(0)]]) {
+    const float3 coordinate = v.nearShadow * p.shadowDistanceScale;
+    const float squaredDistance = dot(coordinate, coordinate);
+    return float4(sqrt(squaredDistance), squaredDistance, 1, 1);
 }

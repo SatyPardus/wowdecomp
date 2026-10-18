@@ -413,6 +413,14 @@ the complete GPU checks and presents 120 terrain frames. Its lack of BC hardware
 also exercises six-face lossless expansion. Original Windows cube LOD/tie
 behavior and physical iOS hardware remain unverified. Cube render targets/copies are still explicit
 unsupported operations.
+TerrainSM now emits radial distance and squared distance from the original
+TEXCOORD5 affine coordinates, with scaling in the fragment stage and no texture
+inputs. Its 64 compatible vertex variants pass 512 float/RGBA reference draws
+plus varying-quad interpolation checks. Mac ASan/UBSan and Metal validation,
+both iOS builds, and simulator GPU checks with 120 terrain frames pass. The
+original CWorld initializer now
+returns successfully on Mac; the world shutdown path still needs LightRec linked
+into the Apple target before its lifecycle can be exercised.
 The native host can now draw a complete authored ADT surface with
 `WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
 This selection is mutually exclusive with the model/creature variables. It uses
@@ -447,9 +455,8 @@ with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
 world loading. The current ADT preview still rejects cube layers pending their
-material binding integration. TerrainSM and fixed-function terrain remain
-unsupported; the original CWorld initializer now reaches TerrainSM after
-accepting Terrain0/1/2/3 and Terrain0_env.
+material binding integration. Fixed-function terrain, complete world drawing
+and the application world lifecycle remain pending.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
 on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary

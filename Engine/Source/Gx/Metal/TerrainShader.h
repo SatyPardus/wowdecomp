@@ -7,15 +7,16 @@
 namespace GxMetal {
 enum class TerrainLayerPass : uint32_t { Combined, AlphaLayer, WeightedBase, WeightedLayer };
 constexpr bool IsTerrainEffect(FragmentEffect effect) {
-    return effect == FragmentEffect::Terrain0Environment || effect == FragmentEffect::Terrain0 || effect == FragmentEffect::Terrain ||
-           effect == FragmentEffect::Terrain2 || effect == FragmentEffect::Terrain3;
+    return effect == FragmentEffect::TerrainShadowMap || effect == FragmentEffect::Terrain0Environment ||
+           effect == FragmentEffect::Terrain0 || effect == FragmentEffect::Terrain || effect == FragmentEffect::Terrain2 ||
+           effect == FragmentEffect::Terrain3;
 }
 constexpr unsigned TerrainPermutationCount(EGxShTarget target, FragmentEffect effect) {
-    return target == GxSh_Vertex                           ? 128
-           : effect == FragmentEffect::Terrain0Environment ? 1
-           : effect == FragmentEffect::Terrain0            ? 3
-           : effect == FragmentEffect::Terrain3            ? 96
-                                                           : 32;
+    return target == GxSh_Vertex                                                                           ? 128
+           : (effect == FragmentEffect::Terrain0Environment || effect == FragmentEffect::TerrainShadowMap) ? 1
+           : effect == FragmentEffect::Terrain0                                                            ? 3
+           : effect == FragmentEffect::Terrain3                                                            ? 96
+                                                                                                           : 32;
 }
 constexpr unsigned TerrainLayerCount(EGxShTarget target, uint32_t permutation) {
     return 1 + ((permutation >> (target == GxSh_Vertex ? 4 : 1)) & 3);
@@ -23,13 +24,15 @@ constexpr unsigned TerrainLayerCount(EGxShTarget target, uint32_t permutation) {
 // Terrain3 interleaves three shadow modes inside each alpha/lighting group.
 // Keep the common surface specialization separate from shadow selection.
 constexpr uint32_t TerrainSurfacePermutation(FragmentEffect effect, uint32_t permutation) {
-    return effect == FragmentEffect::Terrain0Environment ? 1
-           : effect == FragmentEffect::Terrain0          ? 0
-           : effect == FragmentEffect::Terrain3          ? (permutation % 8) + ((permutation / 24) % 2) * 8 + (permutation / 48) * 16
-                                                         : permutation;
+    return effect == FragmentEffect::Terrain0Environment                                        ? 1
+           : (effect == FragmentEffect::Terrain0 || effect == FragmentEffect::TerrainShadowMap) ? 0
+           : effect == FragmentEffect::Terrain3 ? (permutation % 8) + ((permutation / 24) % 2) * 8 + (permutation / 48) * 16
+                                                : permutation;
 }
 constexpr uint32_t TerrainShadowMode(FragmentEffect effect, uint32_t permutation) {
-    return (effect == FragmentEffect::Terrain || effect == FragmentEffect::Terrain0 || effect == FragmentEffect::Terrain0Environment) ? 0
+    return (effect == FragmentEffect::Terrain || effect == FragmentEffect::Terrain0 || effect == FragmentEffect::Terrain0Environment ||
+            effect == FragmentEffect::TerrainShadowMap)
+               ? 0
            : effect == FragmentEffect::Terrain2 ? 1
                                                 : 1 + (permutation / 8) % 3;
 }
