@@ -431,11 +431,17 @@ static int32_t Script_IsTrialAccount(lua_State* L) {
 // VERIFY: c9c81de1 auto
 // OFFSET: 0x004DD540
 static int32_t Script_IsSystemSupported(lua_State* L) {
+#if defined(__APPLE__) && (defined(__aarch64__) || defined(__arm64__))
+    // Native arm64 uses NEON/scalar implementations. The original x86 SSE
+    // requirement is not an instruction-set requirement of this target.
+    lua_pushnumber(L, 1.0);
+#else
     if (OsGetProcessorFeatures() & 0x4) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
     }
+#endif
 
     return 1;
 }
