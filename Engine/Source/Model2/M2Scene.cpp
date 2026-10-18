@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
+#if defined(__APPLE__)
+#include <stdexcept>
+#endif
 #include "Engine/Source/Model2/M2Vector.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
@@ -1685,6 +1688,9 @@ M2Element* CM2Scene::AddParticleElement(CParticleEmitter2* emitter, CM2Model* mo
 // VERIFY: d0feeb6c manual
 // OFFSET: 0x00821A20
 int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
+#if defined(__APPLE__)
+    this->m_nativeBuffersPrepared = false;
+#endif
     this->m_frameStamp++;
 
     uint32_t optFlags = this->m_cache->m_flags & 0xE000;
@@ -2210,6 +2216,29 @@ void CM2Scene::Release() {
     }
 }
 
+#if defined(__APPLE__)
+void CM2Scene::PrepareNativeBuffers() {
+    if (this->m_nativeBuffersPrepared || g_theGxDevicePtr->DeviceApi() != GxApi_Metal || !CShaderEffect::s_enableShaders) return;
+    this->m_nativeBuffers.SetCount(0);
+    // Material draws used to upload each newly encountered model mid-pass.
+    // Prepare the existing Gx geometry in advance, retaining the original
+    // element order and optimized index selection. This also avoids depth
+    // store/load boundaries appearing only on the first equipment frame.
+    for (uint32_t i = 0; i < this->m_elements.Count(); ++i) {
+        const auto& element = this->m_elements[i];
+        if (element.m_type > 2 || (element.m_model->m_fFlags & 0x2000)) continue;
+        auto* model = element.m_model;
+        auto* shared = model->m_shared;
+        if (!shared->SetVertices(0) || !(element.m_flags & 4 ? model->SetIndices() : shared->SetIndices()))
+            throw std::runtime_error("Cannot prepare original M2 geometry");
+        this->m_nativeBuffers.New(shared->m_vertexBuf);
+        this->m_nativeBuffers.New(element.m_flags & 4 ? model->m_optGeo->m_indexBuf : shared->m_indexBuf);
+    }
+    g_theGxDevicePtr->PrepareBuffers(this->m_nativeBuffers.Ptr(), this->m_nativeBuffers.Count());
+    this->m_nativeBuffersPrepared = true;
+}
+#endif
+
 // VERIFY: 610b7e45 manual
 // OFFSET: 0x00823CB0
 void CM2Scene::Draw(M2PASS pass) {
@@ -2225,6 +2254,9 @@ void CM2Scene::Draw(M2PASS pass) {
         CM2Scene::s_optFlags = optFlags;
     }
 
+#if defined(__APPLE__)
+    this->PrepareNativeBuffers();
+#endif
     CM2SceneRender render(this);
     render.Draw(pass, this->m_elements.m_data, this->m_passElements[pass].m_data, this->m_passElements[pass].m_count);
 

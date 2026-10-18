@@ -67,15 +67,16 @@ int32_t Initialize(const void*, void*) { resourceContext = PropGetSelectedContex
 int32_t Destroy(const void*, void*) { TextureDestroy(); AsyncFileReadDestroy(); return 1; }
 }
 
-void CheckGameAsyncFiles() {
+void CheckGameAsyncFiles(bool modelsOnly) {
     for (int cycle = 0; cycle < 2; ++cycle) {
         PropInitialize(); EventInitialize(1, 0);
         struct Cleanup { bool active = true; ~Cleanup() { if (active) { EventDestroy(); } PropDestroy(); } } cleanup;
         EventCreateContextEx(1, Initialize, Destroy, 1, 0);
         EventProcessPending();
-        CheckGameCubeTextures();
+        if (!modelsOnly) CheckGameCubeTextures();
         PropSelectContext(resourceContext);
         CheckGameModels();
+        if (modelsOnly) continue;
         CheckGameTerrain();
         CheckGameWmoRoots();
         CheckGameWmoScene();

@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "Tools/AppleBootstrap/MetalProbe.h"
 #include "Engine/Source/Gx/Metal/TextureDevice.h"
 #include <algorithm>
@@ -7,7 +8,7 @@
 #include <stdexcept>
 
 void CheckGxGeometry(GxMetal::TextureDevice& gpu);
-void CheckGxDevice();
+void CheckGxDevice(bool modelsOnly = false);
 void CheckGxFilter4(GxMetal::TextureDevice& gpu);
 void CheckUIShader(GxMetal::TextureDevice& gpu, const GxMetal::UIShader& ui);
 
@@ -196,6 +197,12 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
         try {
             GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
+            if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
+                Require(std::strcmp(selection, "models") == 0, "Unknown WOW_METAL_CHECK selection");
+                CheckGxDevice(true);
+                report = "Original model/character resource and GPU checks passed (focused run).\n";
+                return true;
+            }
             CheckDecodeCases(gpu);
             CheckGxStates(gpu);
             CheckGxGeometry(gpu);

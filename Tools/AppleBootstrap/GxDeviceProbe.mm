@@ -11,7 +11,7 @@
 void CheckGxFFXPasses(CGxDeviceMetal& device);
 void CheckGxFFXEffect(CGxDeviceMetal& device);
 void CheckGameEvents();
-void CheckGameAsyncFiles();
+void CheckGameAsyncFiles(bool modelsOnly = false);
 void CheckGameWorldLifecycle();
 void CheckFixedUnlit(CGxDeviceMetal&);
 void CheckModelShaders(CGxDeviceMetal& device);
@@ -59,7 +59,7 @@ void Vertices(Vertex* output, uint32_t color, float z) {
 }
 }
 
-void CheckGxDevice() {
+void CheckGxDevice(bool modelsOnly) {
     Require(!g_theGxDevicePtr, "Gx device probe must run before the game host creates its device");
     SFile::Initialize(); SFile::EnableDirectAccess(0);
     C2iVector size{16, 16};
@@ -67,6 +67,7 @@ void CheckGxDevice() {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (modelsOnly) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }
     auto& gpu = device.GPU();
     CGxShader* vertex[2]{}; CGxShader* pixel = nullptr;
     device.ShaderCreate(vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);

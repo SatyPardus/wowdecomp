@@ -18,6 +18,7 @@ class CM2Lighting;
 class CM2Model;
 class CParticleEmitter2;
 class CShaderEffect;
+class CGxBuf;
 
 class M2HitRec {
     public:
@@ -85,6 +86,13 @@ class CM2Scene {
     /* 013C */ void* m_lastHitOwner;
     /* 0140 */ uint32_t m_liquidTypeId;
     /* 0144 */ uint32_t m_passMask;
+
+#if defined(__APPLE__)
+    // Reused preparation storage; each Animate publishes a new visible set.
+    TSGrowableArray<CGxBuf*> m_nativeBuffers;
+    bool m_nativeBuffersPrepared = false;
+    void PrepareNativeBuffers();
+#endif
 
     static uint32_t s_optFlags;
 
