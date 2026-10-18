@@ -1,5 +1,6 @@
 #include "MapArea.h"
 #include <cstring>
+#include <stdexcept>
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CiRect.h"
@@ -321,11 +322,25 @@ void CMapArea::ProcessIffChunks() {
         this->m_flyingBbox = reinterpret_cast<int16_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mfbo)->m_data);
     }
 
-    if (this->m_header->m_mh2o && reinterpret_cast<SIffChunk*>(header + this->m_header->m_mh2o)->m_size) {
-        void* mem = SMemAlloc(sizeof(Liquid::CAreaData), __FILE__, __LINE__, 0);
-        Liquid::CAreaData* liquid = mem ? new (mem) Liquid::CAreaData(nullptr) : nullptr;
-        this->m_liquid = liquid;
-        liquid->SetData(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mh2o)->m_data);
+    uint32_t liquidOffset;
+    std::memcpy(&liquidOffset, header + offsetof(SMAreaHeader, m_mh2o), sizeof(liquidOffset));
+    if (liquidOffset) {
+        const size_t offset = size_t(header - static_cast<uint8_t*>(m_fileBuffer)) + liquidOffset;
+        if (m_fileSize < 0 || offset > size_t(m_fileSize) || size_t(m_fileSize)-offset < 8)
+            throw std::runtime_error("ADT liquid chunk offset out of bounds");
+        const auto* chunk = static_cast<const uint8_t*>(m_fileBuffer) + offset;
+        uint32_t token, size;
+        std::memcpy(&token, chunk, 4); std::memcpy(&size, chunk+4, 4);
+        if (token != 0x4D48324F || size > size_t(m_fileSize)-offset-8)
+            throw std::runtime_error("Invalid ADT liquid chunk extent");
+        if (size) {
+            void* mem = SMemAlloc(sizeof(Liquid::CAreaData), __FILE__, __LINE__, 0);
+            auto* liquid = new (mem) Liquid::CAreaData(nullptr);
+            try { liquid->SetData(chunk+8, size); }
+            catch (...) { liquid->~CAreaData(); SMemFree(mem, __FILE__, __LINE__, 0); throw; }
+            if (m_liquid) { m_liquid->~CAreaData(); SMemFree(m_liquid, __FILE__, __LINE__, 0); }
+            m_liquid = liquid;
+        }
     }
 
     if (this->m_header->m_mtxf) {
@@ -598,6 +613,7 @@ void CMapArea::QueryLiquidSounds(C3Vector* pos, float radius, TSGrowableArray<Wo
 // OFFSET: [0x007D6E10, 0x007D7120]
 CMapArea::~CMapArea() {
     if (this->m_liquid) {
+        this->m_liquid->~CAreaData();
         SMemFree(this->m_liquid, __FILE__, __LINE__, 0);
         this->m_liquid = nullptr;
     }

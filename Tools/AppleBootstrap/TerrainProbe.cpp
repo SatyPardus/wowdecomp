@@ -1,4 +1,5 @@
 #include "WoW/Common/TerrainSurface.h"
+#include "WoW/Source/LiquidSystem/Liquid.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include <cmath>
 #include <cstring>
@@ -66,6 +67,8 @@ void CheckBlend(const Terrain::Surface& surface, size_t index) {
 }
 }
 
+void CheckTerrainLiquids(const std::vector<uint8_t>& adt, std::ostream& report);
+
 void CheckTerrainResources(const ClientData& client, std::ostream& report) {
     struct Case { const char* map; uint32_t x, y; };
     for (const auto test : {Case{"AhnQiraj", 26, 46}, Case{"Azeroth", 32, 48}, Case{"Northrend", 32, 32}}) {
@@ -74,6 +77,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report) {
         Require(map.bytes.size() >= 52 && Word(map.bytes, 12) == 0x4D504844, "Terrain WDT header missing");
         const bool bigAlpha = (Word(map.bytes, 20) & 4) != 0;
         const auto asset = client.Read(base + "_" + std::to_string(test.x) + "_" + std::to_string(test.y) + ".adt", 64 * 1024 * 1024, true);
+        CheckTerrainLiquids(asset.bytes, report);
         // Exercise even an unaligned file base, in addition to the real ADT's
         // naturally unaligned inner chunks. The source must remain untouched.
         std::vector<uint8_t> unaligned(asset.bytes.size() + 1);

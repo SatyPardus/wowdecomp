@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include "Engine/Source/Base/CDataAllocator.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
@@ -204,6 +205,7 @@ namespace Liquid {
         public:
         /* 0008 */ const uint8_t* m_data;
         /* 000C */ uint32_t m_format;
+        uint16_t m_nativeTexCoord[2]{};
 
         virtual float GetHeight(uint32_t index);
         virtual uint8_t GetDepth(uint32_t index);
@@ -219,6 +221,7 @@ namespace Liquid {
         /* 0008 */ const uint8_t* m_data;
         /* 000C */ const SMLiquidInstance* m_instance;
         /* 0010 */ uint32_t m_vertexCount;
+        uint16_t m_nativeTexCoord[2]{};
 
         virtual float GetHeight(uint32_t index);
         virtual uint8_t GetDepth(uint32_t index);
@@ -237,13 +240,23 @@ namespace Liquid {
         /* 0004 */ const uint8_t* m_data;
 
         CAreaData(const void* data);
+        ~CAreaData();
+        CAreaData(const CAreaData&) = delete;
+        CAreaData& operator=(const CAreaData&) = delete;
         void SetData(const void* data);
+        // Owns an immutable MH2O payload and aligned descriptors. A rejected
+        // replacement leaves the current data intact; nullptr/0 clears it.
+        void SetData(const void* data, size_t size);
         bool HasData() const;
         const SMLiquidChunkDesc* GetChunkDesc(uint32_t x, uint32_t y) const;
         const SMLiquidInstance* GetInstanceDesc(const SMLiquidChunkDesc* chunk, uint32_t index) const;
         const uint8_t* GetFishableTable(const SMLiquidChunkDesc* chunk) const;
         const uint8_t* GetDeepTable(const SMLiquidChunkDesc* chunk) const;
         const uint8_t* GetExistsTable(const SMLiquidInstance* instance) const;
+    private:
+        struct Storage;
+        std::unique_ptr<Storage> m_storage;
+        size_t ChunkIndex(const SMLiquidChunkDesc* chunk) const;
     };
 
     class CMaterialSettings {
