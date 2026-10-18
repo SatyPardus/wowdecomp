@@ -63,6 +63,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsLibrary.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsMemory.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/System.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Path.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Time.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/SReg.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/TimeManager.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Processor.cpp
@@ -388,6 +390,7 @@ enable_language(OBJCXX)
 set(CMAKE_OBJCXX_STANDARD 17)
 set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 target_sources(AppleFoundation PRIVATE Engine/Source/Os/Apple/OsURLDownload.mm Engine/Source/Os/Apple/OsFileVersionInfo.mm Engine/Source/Storm/Source/Apple/SCmd.mm)
+target_sources(AppleFoundation PRIVATE Engine/Source/Os/Apple/SystemInfo.mm)
 target_compile_options(AppleFoundation PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(AppleFoundation PUBLIC "-framework Foundation")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS Engine/Source/Gx/Metal/TextureQuad.metal Engine/Source/Gx/Metal/Skinning.metal Engine/Source/Gx/Metal/ShadowMap.metal Engine/Source/Gx/Metal/Model.metal Engine/Source/Gx/Metal/Terrain.metal Engine/Source/Gx/Metal/Wmo.metal Engine/Source/Gx/Metal/Liquid.metal Engine/Source/Gx/Metal/DetailDoodad.metal Engine/Source/Gx/Metal/WaterRipple.metal Engine/Source/Gx/Metal/FixedUnlit.metal)

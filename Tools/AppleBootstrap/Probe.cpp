@@ -14,7 +14,10 @@
 #include <vector>
 #include <unistd.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <TargetConditionals.h>
 #include "Engine/Source/Os/System.h"
+#include "Engine/Source/Os/Path.h"
+#include "Engine/Source/Os/Time.h"
 #include "Tools/AppleBootstrap/Probe.h"
 #include "Tools/AppleBootstrap/AudioProbe.h"
 #include "Engine/Source/Os/OsFile.h"
@@ -698,6 +701,61 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckCommandLine(scratchDirectory);
         CheckVersionInfo(scratchDirectory);
         CheckNativeProcesses(scratchDirectory);
+        {
+            char executable[4096], directory[4096];
+            const uint32_t length = GetExecutablePathUTF8(executable, sizeof(executable));
+            Require(length == std::strlen(executable) && length && executable[0] == '/' &&
+                std::filesystem::is_regular_file(executable), "Native executable path is not the actual process image");
+            OsGetExePath(directory, sizeof(directory));
+            Require(std::string(directory) == std::filesystem::path(executable).parent_path().string() + "/",
+                "Native executable directory lost its path or trailing separator");
+            OsPathStripFilename(executable);
+            Require(!std::strcmp(executable, directory) && OsPathGetRootChars(executable) == 1 &&
+                OsPathGetRootChars("Interface\\Icons\\Spell.blp") == 0, "Native path root/filename handling changed");
+            char root[] = "/file"; OsPathStripFilename(root);
+            Require(!std::strcmp(root, "/"), "Native path stripped the filesystem root");
+            char boundary[] = {'x', 'g'};
+            Require(!GetExecutablePathUTF8(boundary, 1) && boundary[0] == 0 && boundary[1] == 'g',
+                "Native path truncation damaged the output boundary");
+            Require(!GetModuleFileNameUTF8(reinterpret_cast<void*>(1), boundary, 1) && errno == ENOTSUP,
+                "Opaque module handle was mistaken for a native image address");
+            for (bool user : {false, true}) {
+                auto query = user ? OsGetUserName : OsGetComputerName;
+                uint32_t required = 0;
+                const int result = query(nullptr, &required);
+#if TARGET_OS_IPHONE
+                // Simulator's process UID need not have an entry in its own
+                // password database. The original bug-report caller already
+                // omits this field when the platform query returns false.
+                if (user && !result && errno == ENOENT) {
+                    char unavailable[8] = "guard"; uint32_t capacity = sizeof(unavailable);
+                    Require(!query(unavailable, &capacity) && errno == ENOENT && !std::strcmp(unavailable, "guard"),
+                        "Unavailable native account query published a fabricated name");
+                    Require(!query(unavailable, nullptr) && errno == EINVAL, "Native account query accepted a missing size");
+                    std::fputs("Native startup queries: system has no username for this process UID; original caller skips the optional report field\n", stderr);
+                    continue;
+                }
+#endif
+                Require(!result && errno == ERANGE && required > 1 && required < 65536,
+                    "Native identity query did not return its required buffer size");
+                std::vector<char> name(required + 1, 'g'); uint32_t capacity = required;
+                Require(query(name.data(), &capacity) && name[required] == 'g' &&
+                    capacity == std::strlen(name.data()) + (user ? 1 : 0), "Native identity successful length differs from original API");
+                capacity = required - 1;
+                Require(!query(name.data(), &capacity) && capacity == required && errno == ERANGE && name[0] == 0,
+                    "Native identity query truncated or overwrote a short buffer");
+                Require(!query(name.data(), nullptr) && errno == EINVAL, "Native identity query accepted a missing size");
+            }
+            char version[128]; OsGetVersionString(version, sizeof(version));
+            Require((!std::strncmp(version, "macOS ", 6) || !std::strncmp(version, "iOS ", 4)) && std::strchr(version, '.'),
+                "Native OS report does not identify its actual platform/version");
+            boundary[0] = 'x'; OsGetVersionString(boundary, 1);
+            Require(boundary[0] == 0 && boundary[1] == 'g', "Native version string exceeded its buffer");
+            const uint32_t before = OsGetAsyncTimeMs(); const float seconds = OsGetAsyncTimeSec(); const uint32_t after = OsGetAsyncTimeMs();
+            Require(before > after || (seconds >= float(before) * .001f && seconds <= float(after) * .001f),
+                "Original float seconds wrapper no longer uses the native millisecond clock");
+            std::fprintf(stderr, "Native startup queries: executable/root paths, identity buffer/length rules, version and original float clock passed (%s)\n", version);
+        }
         const int32_t previousRace = StreamingGetRace();
         for (int32_t race : {-1, 1, 4, 11}) {
             StreamingSetRace(race);

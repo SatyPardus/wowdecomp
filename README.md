@@ -159,6 +159,14 @@ read/write/replacement, 64-bit sizes, directory and hidden/read-only attributes,
 glob enumeration, copy/move and cleanup. Its directory attributes use the bits
 expected by CVar/AddOns callers; unsupported attribute flags fail explicitly.
 Windows cross-process sharing restrictions remain unsupported on Apple.
+Startup path queries now return the actual native executable and its directory;
+opaque dynamic-library handles are explicitly unsupported for image-path queries.
+Computer/account names and OS versions come from the platform, with the original
+buffer-length conventions. A missing iOS account database entry remains unavailable
+(the original optional bug-report field is skipped), without a fabricated username.
+The original float-seconds wrapper uses the native millisecond clock. Mac sanitizer
+and iOS simulator checks cover these queries and their buffer boundaries.
+
 `SCreateProcess` can launch native macOS helpers with the original command-line
 quoting, an optional worker completion callback, and child reaping even without
 a callback. Only standard descriptors are inherited. PATH lookup uses direct
