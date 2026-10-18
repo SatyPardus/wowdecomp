@@ -4,7 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 
-enum CMDOPT {
+// Client.h extends this shared command ID space beyond the engine's entries.
+// A fixed 32-bit representation permits those IDs without an invalid enum load.
+enum CMDOPT : uint32_t {
     CMD_D3D = 0,
     CMD_D3D9EX = 1,
     CMD_DATA_DIR = 2,

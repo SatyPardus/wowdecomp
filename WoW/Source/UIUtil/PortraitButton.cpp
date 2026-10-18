@@ -74,6 +74,12 @@ static void PortraitDepthTextureCallback(EGxTexCommand command, uint32_t width, 
 // VERIFY: 9cb5c23b auto
 // OFFSET: 0x00616DC0
 int32_t RTAlphaSupported() {
+#if defined(__APPLE__)
+    // Native render targets are explicitly BGRA8 with stored alpha. Unlike
+    // legacy display formats this is known without clearing/readback, and
+    // gxRestart can query it between host frames.
+    if (g_theGxDevicePtr->DeviceApi() == GxApi_Metal) return 1;
+#endif
     if (g_theGxDevicePtr->DeviceApi() == GxApi_OpenGl && !g_theGxDevicePtr->Caps().m_oglRtAlpha) {
         return 0;
     }

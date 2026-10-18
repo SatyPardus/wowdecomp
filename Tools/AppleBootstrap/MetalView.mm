@@ -1,4 +1,5 @@
 #include "Engine/Source/Os/Gui.h"
+#include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "Tools/AppleBootstrap/MetalView.h"
 #include "Tools/AppleBootstrap/NativeView.h"
 #include "Tools/AppleBootstrap/ModelPreview.h"
@@ -70,6 +71,10 @@ private:
         ConsoleCommandDestroy();
         CVar::s_configFile = nullptr;
     }
+};
+
+struct GameDisplayDelete {
+    void operator()(CGxDeviceMetal*) const { ConsoleDeviceDestroy(); }
 };
 
 class GameEvents {
@@ -178,12 +183,12 @@ public:
 @end
 
 @implementation WowTextureRenderer {
-    // The native window, game resources, Base and device must die first.
+    // Device destruction uses registered CVars; configuration and Base must
+    // outlive it. Event/resources are still released before the device.
     std::unique_ptr<GameStorm> _storm;
-    std::unique_ptr<CGxDeviceMetal> _device;
-    // Base owns global properties and strings until Event and CVar teardown.
     std::unique_ptr<GameBase> _base;
     std::unique_ptr<GameConfig> _config;
+    std::unique_ptr<CGxDeviceMetal, GameDisplayDelete> _device;
     // Texture handles and fonts die before Services; Services dies before Gx.
     std::unique_ptr<GameEvents> _events;
     std::unique_ptr<GameAudioPreview> _audio;
@@ -210,10 +215,11 @@ public:
     if ((self = [super init])) {
         if (g_theGxDevicePtr) { throw std::runtime_error("A game Gx device already owns the native host"); }
         _storm = std::make_unique<GameStorm>();
-        C2iVector size{std::max(1, int32_t(view.drawableSize.width)), std::max(1, int32_t(view.drawableSize.height))};
-        CGxFormat format(true, size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, 0, 1, true, false, false, false, 0);
+        _base = std::make_unique<GameBase>();
+        _config = std::make_unique<GameConfig>();
         OsGuiSetGxWindow((__bridge void*)view);
-        _device.reset(static_cast<CGxDeviceMetal*>(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format)));
+        ConsoleDeviceInitialize("World of Warcraft", false, false);
+        _device.reset(static_cast<CGxDeviceMetal*>(g_theGxDevicePtr));
         if (!_device || _device->DeviceWindow() != (__bridge void*)view) { throw std::runtime_error("Cannot create the native game Gx device"); }
         _image = std::make_unique<GameTexture>(textureName);
         _device->ShaderCreate(_vertexShaders, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
@@ -239,12 +245,10 @@ public:
         view.framebufferOnly = NO; // Gx screenshot / framebuffer copy source.
         view.clearColor = MTLClearColorMake(0.12, 0.14, 0.18, 1);
         view.paused = YES; view.enableSetNeedsDisplay = NO; view.delegate = self;
-        _base = std::make_unique<GameBase>();
-        _config = std::make_unique<GameConfig>();
         _events = std::make_unique<GameEvents>([](void* owner, float elapsed) {
             [(__bridge WowTextureRenderer*)owner renderGameFrame:elapsed];
         }, (__bridge void*)self);
-        OsInputSetDrawableSize(uint32_t(size.x), uint32_t(size.y));
+        OsInputSetDrawableSize(uint32_t(_device->m_format.m_size.x), uint32_t(_device->m_format.m_size.y));
     }
     return self;
 }

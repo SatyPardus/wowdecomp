@@ -1,4 +1,5 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Os/Gui.h"
 #include "Engine/Source/Gx/Metal/UIShader.h"
@@ -208,6 +209,7 @@ bool RectFits(const CiRect& rect, const CiRect& surface) {
 }
 
 struct CGxDeviceMetal::Impl {
+    void (*displayRestart)() = nullptr;
     explicit Impl(id<MTLDevice> device) : gpu(device) {}
     GxMetal::TextureDevice gpu;
     std::unordered_map<CGxPool*, Pool> pools;
@@ -504,6 +506,7 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
 }
 void CGxDeviceMetal::DeviceDestroy() {
     Require(!m->command, "End the Metal frame before destroying its host");
+    m->displayRestart = nullptr;
     Drain(); OsInputApplyWindowResizeLock(nullptr);
     if (m->window && OsGuiGetWindow(0) == m->window) OsGuiSetGxWindow(nullptr);
     m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy();
@@ -540,6 +543,16 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     if (resized) { m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)}; m_scissorRectDirty = 1; }
 }
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
+bool CGxDeviceMetal::DeferDisplayRestart(void (*restart)()) {
+    Require(NSThread.isMainThread, "Display restart requires the native host thread");
+    if (!m->command) return false;
+    m->displayRestart = restart;
+    return true;
+}
+bool GxMetal::DeferDisplayRestart(void (*restart)()) {
+    return g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal &&
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->DeferDisplayRestart(restart);
+}
 void CGxDeviceMetal::ScenePresent() {
     Require(m->command != nil, "No active Metal frame to present");
     if (m_scrShotClick) { DeviceScreenShot(); }
@@ -556,6 +569,9 @@ void CGxDeviceMetal::ScenePresent() {
     [m->command commit]; m->command = nil; m->drawable = nil;
     m->pass = m->defaultPass = nil;
     CGxDevice::ScenePresent();
+    auto restart = m->displayRestart;
+    m->displayRestart = nullptr;
+    if (restart) restart();
 }
 void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
     Require(m->command && (mask & ~3u) == 0, "Invalid Metal Gx clear");

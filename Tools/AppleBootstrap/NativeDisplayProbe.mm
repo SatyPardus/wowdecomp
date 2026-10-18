@@ -3,9 +3,12 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Os/Gui.h"
+#include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
+#include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include <TargetConditionals.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
 #include <thread>
 
@@ -33,7 +36,15 @@ struct NativeDisplayProbe::Impl {
     }
     void Request(C2iVector& size) {
         CGxFormat format = original; format.m_size = size;
-        Require(device.DeviceSetFormat(format), "Native windowed format request failed");
+        if (ConsoleDeviceExists()) {
+            SetGxCVars(format);
+            Require(CCGxRestart(nullptr, nullptr), "Original gxRestart failed");
+        } else {
+            Require(device.DeviceSetFormat(format), "Native windowed format request failed");
+        }
+        Accepted(size);
+    }
+    void Accepted(C2iVector& size) {
         const auto accepted = device.m_format.m_size;
 #if TARGET_OS_OSX
         const CGFloat scale = view.window.backingScaleFactor;
@@ -43,6 +54,13 @@ struct NativeDisplayProbe::Impl {
         Require(accepted.x == size.x && accepted.y == size.y, "UIKit changed the explicit render resolution");
 #endif
         size = accepted;
+        if (ConsoleDeviceExists()) {
+            Require(s_requestedFormat.m_size.x == size.x && s_requestedFormat.m_size.y == size.y &&
+                s_lastGoodFormat.m_size.x == size.x && s_lastGoodFormat.m_size.y == size.y,
+                "Original restart published a different size from the native window");
+            char value[64]; std::snprintf(value, sizeof(value), "%dx%d", size.x, size.y);
+            Require(!std::strcmp(CVar::Lookup("gxResolution")->m_stringValue.m_str, value), "Restart CVar retained the unadjusted size");
+        }
     }
     bool Step();
 };
@@ -52,7 +70,16 @@ bool NativeDisplayProbe::Step() { return m->Step(); }
 bool NativeDisplayProbe::Impl::Step() {
     Require(!device.FrameCommand(), "Native format check requires an idle host");
     device.XformSetViewport(0, 1, 0, 1, 0, 1);
-    if (!phase) { CheckNativeGui((__bridge void*)view); Request(sizes[phase++]); return false; }
+    if (!phase) {
+        CheckNativeGui((__bridge void*)view); Request(sizes[phase++]);
+        if (ConsoleDeviceExists()) {
+            s_requestedFormat.m_depthFormat = CGxFormat::Fmt_Ds24X;
+            CCGxRestart(nullptr, nullptr);
+            Require(device.m_format.m_depthFormat == original.m_depthFormat &&
+                s_requestedFormat.m_depthFormat == original.m_depthFormat, "Restart failed to restore last good format after rejecting D24");
+        }
+        return false;
+    }
     {
         const C2iVector size = sizes[phase - 1];
         CGxFormat requested = original; requested.m_size = size;
@@ -102,16 +129,28 @@ bool NativeDisplayProbe::Impl::Step() {
         CiRect corner(size.y - 1, size.x - 1, size.y, size.x); TSGrowableArray<float> depth;
         device.DeviceReadDepths(corner, depth);
         Require(depth.Count() == 1 && depth[0] == 1.0f, "Resized depth attachment did not clear its final pixel");
+        const bool deferred = ConsoleDeviceExists() && phase < 3;
+        if (deferred) {
+            CGxFormat next = original; next.m_size = {127, 79};
+            SetGxCVars(next); CCGxRestart(nullptr, nullptr);
+            next.m_size = sizes[phase]; SetGxCVars(next); CCGxRestart(nullptr, nullptr);
+            Require(device.m_format.m_size.x == size.x && device.m_format.m_size.y == size.y &&
+                view.drawableSize.width == size.x && view.drawableSize.height == size.y,
+                "Original restart changed attachments during an active frame");
+        }
         device.ScenePresent(); device.Drain();
+        if (deferred) Accepted(sizes[phase]);
         [view releaseDrawables];
 #if TARGET_OS_OSX
-        requested.m_vsync = 0;
-        Require(device.DeviceSetFormat(requested) && !((CAMetalLayer*)view.layer).displaySyncEnabled, "Native vsync disable did not reach the layer");
-        requested.m_vsync = 1;
-        Require(device.DeviceSetFormat(requested) && ((CAMetalLayer*)view.layer).displaySyncEnabled, "Native vsync restore did not reach the layer");
+        if (!deferred) {
+            requested.m_vsync = 0;
+            Require(device.DeviceSetFormat(requested) && !((CAMetalLayer*)view.layer).displaySyncEnabled, "Native vsync disable did not reach the layer");
+            requested.m_vsync = 1;
+            Require(device.DeviceSetFormat(requested) && ((CAMetalLayer*)view.layer).displaySyncEnabled, "Native vsync restore did not reach the layer");
+        }
 #endif
     }
-    if (phase < 3) { Request(sizes[phase++]); return false; }
-    std::fprintf(stderr, "Native display: real drawable/depth resize, odd pixel dimensions, full-surface GPU readback, input bounds, presentation rejection and active-frame/thread safety passed\n");
+    if (phase < 3) { if (!ConsoleDeviceExists()) Request(sizes[phase]); ++phase; return false; }
+    std::fprintf(stderr, "Native display: real drawable/depth resize, odd pixel dimensions, full-surface GPU readback, input bounds, presentation rejection and active-frame/thread safety passed; original ConsoleDevice restart %s\n", ConsoleDeviceExists() ? "passed (deferred latest request and last-good rollback)" : "not active");
     return true;
 }

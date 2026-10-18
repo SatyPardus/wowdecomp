@@ -302,6 +302,8 @@ target_link_libraries(LiquidSystem PUBLIC Model2 WorldSupport)
 target_sources(WorldClient PRIVATE ${CMAKE_SOURCE_DIR}/WoW/Source/Ui/WorldFrameHitTest.cpp
     ${CMAKE_SOURCE_DIR}/WoW/Source/Game/GameClient/ProjectTex.cpp
     ${CMAKE_SOURCE_DIR}/WoW/Source/ConsoleDevice/ConsoleDevice.cpp
+    ${CMAKE_SOURCE_DIR}/WoW/Source/ConsoleDevice/ConsoleDetect.cpp
+    ${CMAKE_SOURCE_DIR}/WoW/Source/ConsoleDevice/ConsoleDevice_Console.cpp
     ${CMAKE_SOURCE_DIR}/WoW/Source/ConsoleDevice/ConsoleDevice_CVar.cpp
     ${CMAKE_SOURCE_DIR}/WoW/Source/ConsoleDevice/ConsoleHardware.cpp
     ${CMAKE_SOURCE_DIR}/WoW/Source/Hardware.cpp
@@ -460,7 +462,7 @@ target_link_libraries(AppleMetalProbeCore PUBLIC CharacterAppearance)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/NativeView.mm Tools/AppleBootstrap/ModelPreview.cpp Tools/AppleBootstrap/WorldPreview.cpp)
 target_sources(AppleMetalView PRIVATE Tools/AppleBootstrap/NativeDisplayProbe.mm Tools/AppleBootstrap/NativeGuiProbe.mm)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalView PUBLIC AppleUIComponents)
+target_link_libraries(AppleMetalView PUBLIC AppleUIComponents AppleClientCore)
 target_link_libraries(AppleMetalView PUBLIC CharacterAppearance AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp Tools/AppleBootstrap/LiquidDataProbe.cpp)

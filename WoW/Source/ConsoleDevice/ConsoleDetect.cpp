@@ -70,11 +70,17 @@ void ConsoleDetectSaveHardware(const Hardware& hardware, bool& changed) {
 // VERIFY: 7f8168dc manual
 // OFFSET: 0x0076BA30
 void ConsoleDetectDetectHardware(Hardware& hardware, bool& changed) {
+#if defined(__APPLE__)
+    // Supported M1/A14 and newer devices use the original upper CPU tier.
+    // mach timebase ticks measure elapsed time, not processor MHz.
+    const uint32_t cpuIdx = 1;
+#else
     if (OsIsRemoteSession()) {
         ShowFatalMessageBox(12, "Running World of Warcraft through a Remote Desktop connection is not supported.  Exiting program.");
     }
 
     const uint32_t cpuIdx = static_cast<int64_t>(OsGetProcessorTicksPerSecond()) * 0.000001f > 1500.0f;
+#endif
     if (!ConsoleDetectSelectHardware(hardware, cpuIdx)) {
         ShowFatalMessageBox(11, "Failed to find a suitable display device.  Exiting program.");
     }

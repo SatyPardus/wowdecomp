@@ -20,6 +20,10 @@
 #include "WoW/Source/Client.h"
 #include "WoW/Source/Hardware.h"
 #include "WoW/Source/Ui/GameUI.h"
+#if defined(__APPLE__)
+#include "Engine/Source/Gx/Metal/NativeHost.h"
+#include <stdexcept>
+#endif
 
 // STATIC: 0x00CABAC8
 static int32_t s_consoleGxOverrideSet[GxOverrides_Last];
@@ -74,6 +78,14 @@ CGxFormat s_lastGoodFormat;
 
 // STATIC: 0x00ADBE0C
 static const uint32_t s_formatToBpp[] = { 16, 32, 32, 32 };
+
+#if defined(__APPLE__)
+static void NativeDefaultFormat() {
+    static CGxFormat format;
+    if (!GxMetal::GetHostFormat(format)) throw std::runtime_error("ConsoleDevice requires a bound native Metal view");
+    s_defaults.m_format = &format;
+}
+#endif
 
 // VERIFY: 992d9d20 auto
 // OFFSET: 0x00769220
@@ -196,6 +208,11 @@ void ConsoleDeviceDestroy() {
 // VERIFY: 9ae0e177 manual
 // OFFSET: 0x00769E10
 void ValidateFormatMonitor(CGxFormat& format) {
+#if defined(__APPLE__)
+    // Window/scene resolution is independent of physical display modes.
+    // DeviceSetFormat validates unsupported modes without rewriting them.
+    return;
+#endif
     static C2iVector s_resolutions[] = {
         { 1600, 1200 },
         { 1280, 1024 },
@@ -271,6 +288,9 @@ refresh:
 // OFFSET: 0x0076A130
 void ConsoleDeviceDefaults(OPTION_PAGE page) {
     ConsoleDetectSetDefaults(s_defaults, s_hardware);
+#if defined(__APPLE__)
+    NativeDefaultFormat();
+#endif
     s_cvFixedFunction->Set("0", true, false, false, true);
 
     if (page == OPTION_PAGE_0) {
@@ -328,12 +348,19 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
     s_consoleAccessEnabled = CmdLineGetBool(static_cast<CMDOPT>(CMD_CONSOLE));
 
     ConsoleDetectSetDefaultsFormat(s_defaults, s_hardware);
+#if defined(__APPLE__)
+    NativeDefaultFormat();
+    s_requestedFormat = *s_defaults.m_format;
+#endif
     RegisterGxCVars();
     ConsoleCommandRegister("gxRestart", CCGxRestart, CATEGORY_GRAPHICS, nullptr);
 
     GxAdapterMonitorModes(s_gxMonitorModes);
     ValidateFormatMonitor(s_fallbackFormat);
 
+#if defined(__APPLE__)
+    s_desktopFormat = s_fallbackFormat = *s_defaults.m_format;
+#else
     CGxMonitorMode desktop;
     desktop.m_size.x = 0;
     desktop.m_size.y = 0;
@@ -344,6 +371,7 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
         s_desktopFormat.m_colorFormat = desktop.m_bpp > 16 ? CGxFormat::Fmt_ArgbX888 : CGxFormat::Fmt_Rgb565;
         s_desktopFormat.m_refreshRate = desktop.m_refreshRate;
     }
+#endif
 
     GxLog("ConsoleDeviceInitialize(): hwDetect = %d, hwChanged = %d", s_hwDetect, s_hwChanged);
 
@@ -371,6 +399,9 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
 
     if (s_hwDetect || s_hwChanged) {
         ConsoleDetectSetDefaults(s_defaults, s_hardware);
+#if defined(__APPLE__)
+        NativeDefaultFormat();
+#endif
         s_cvFixedFunction->Set("0", true, false, false, true);
         s_requestedFormat = *s_defaults.m_format;
         s_requestedFormat.m_window = s_cvGxWindow->m_intValue != 0;
@@ -418,10 +449,17 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
     s_requestedFormat.m_window = window;
     s_desktopFormat.m_window = window;
 
-    bool desktopTried = false;
     CGxFormat format = s_requestedFormat;
     ValidateFormatMonitor(format);
 
+#if defined(__APPLE__)
+    // AppKit/UIKit already owns the event loop and input. Unsupported saved
+    // framebuffer modes fail explicitly; do not silently reduce effect quality.
+    s_device = CreateGxDevice(api, static_cast<GxWindowProc>(nullptr), format);
+    if (!s_device) throw std::runtime_error("Cannot create the requested native display format");
+    format = s_device->m_format;
+#else
+    bool desktopTried = false;
     for (s_device = CreateGxDevice(api, OsWindowProc, format); !s_device; s_device = CreateGxDevice(api, OsWindowProc, format)) {
         if (format.m_multisampleCount > 1) {
             if (format.m_multisampleCount - 2 <= 1) {
@@ -463,6 +501,7 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
 
         ValidateFormatMonitor(format);
     }
+#endif
 
     s_requestedFormat = format;
     s_lastGoodFormat = format;
@@ -516,8 +555,10 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
         s_cvVideoOptionsVersion->Set(version, true, false, false, true);
 
         RegisterStereoCVars();
+#if !defined(__APPLE__)
         OsSetSleepInBackground(1);
         OsSetBackgroundSleepMs(250);
+#endif
 
         return;
     }

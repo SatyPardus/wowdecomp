@@ -393,6 +393,11 @@ static bool CVGxStereoEnabledCallback(CVar* var, const char* oldValue, const cha
 // VERIFY: 30f5328f auto
 // OFFSET: 0x00769C30
 static bool CVGxStereoConvergenceCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
+#if defined(__APPLE__)
+    // Retain preferences while stereoscopic output is unavailable. Enabling
+    // it remains an explicit unsupported DeviceSetFormat request.
+    if (!g_theGxDevicePtr->StereoEnabled()) return true;
+#endif
     g_theGxDevicePtr->StereoSetConvergence(SStrToFloat(value));
     return true;
 }
@@ -400,6 +405,9 @@ static bool CVGxStereoConvergenceCallback(CVar* var, const char* oldValue, const
 // VERIFY: 75b13ba9 auto
 // OFFSET: 0x00769C60
 static bool CVGxStereoSeparationCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
+#if defined(__APPLE__)
+    if (!g_theGxDevicePtr->StereoEnabled()) return true;
+#endif
     g_theGxDevicePtr->StereoSetSeparation(SStrToFloat(value));
     return true;
 }

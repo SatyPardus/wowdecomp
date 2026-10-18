@@ -19,6 +19,7 @@ public:
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);
     id<MTLCommandBuffer> FrameCommand() const;
     void Drain();
+    bool DeferDisplayRestart(void (*restart)());
     int32_t DeviceCreate(GxWindowProc proc, const CGxFormat& format) override;
     int32_t DeviceCreate(void* window, const CGxFormat& format) override;
     void DeviceDestroy() override;

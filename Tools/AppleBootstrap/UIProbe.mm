@@ -6,6 +6,7 @@
 #include "NativeGuiProbe.h"
 #include "Engine/Source/Os/Gui.h"
 #include "WoW/Source/Console/ConsoleClient.h"
+#include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Ui/CGCooldown.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
@@ -188,10 +189,10 @@ int main(int argc, char** argv) {
             WowNativeView* view = [[WowNativeView alloc] initWithFrame:window.contentView.bounds device:nil];
             view.paused = YES; window.contentView = view;
             view.autoResizeDrawable = NO; view.drawableSize = CGSizeMake(600, 300);
-            C2iVector size{600, 300};
-            CGxFormat format(true, size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, 0, 1, true, false, false, false, 0);
             OsGuiSetGxWindow((__bridge void*)view);
-            std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
+            CVar::Initialize("/private/tmp/wow-ui-probe.wtf");
+            ConsoleDeviceInitialize("WoW native UI", false, false);
+            std::unique_ptr<CGxDevice, void (*)(CGxDevice*)> owner(g_theGxDevicePtr, [](CGxDevice*) { ConsoleDeviceDestroy(); });
             Require(owner && owner->DeviceWindow() == (__bridge void*)view, "Cannot create UI device on its native host");
             Require(view.drawableSize.width == owner->m_format.m_size.x && view.drawableSize.height == owner->m_format.m_size.y,
                 "Initial UI format did not reach the native drawable");
@@ -205,7 +206,7 @@ int main(int argc, char** argv) {
             Require(!(window.styleMask & NSWindowStyleMaskResizable), "Native resize unlock made a fixed host resizable");
             window.styleMask |= NSWindowStyleMaskResizable;
             std::puts("Native window resize lock/unlock and fixed-window preservation passed");
-            CVar::Initialize("/private/tmp/wow-ui-probe.wtf"); PropInitialize(); EventInitialize(1, 0);
+            PropInitialize(); EventInitialize(1, 0);
             EventCreateContextEx(1, Initialize, Destroy, 1, 0); Step(); OsInputSetDrawableSize(600, 300);
             auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:600 height:300 mipmapped:NO];
             descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
@@ -318,8 +319,9 @@ int main(int argc, char** argv) {
                 device.Drain(); view.gameInputActive = NO; view.textInputRectProvider = nil;
             }
             renderDevice = nullptr; renderPass = nil;
-            PropSelectContext(nullptr); EventDestroy(); PropDestroy(); CVar::Destroy(); ConsoleCommandDestroy(); CStringManager::DestroyManager();
+            PropSelectContext(nullptr); EventDestroy(); PropDestroy();
             owner.reset();
+            CVar::Destroy(); ConsoleCommandDestroy(); CStringManager::DestroyManager(); CVar::s_configFile = nullptr;
             Require(!OsGuiGetWindow(0), "Destroyed Gx device retained its still-live native view binding");
             std::puts("Original CSimpleTop/edit box: native Unicode and composition, layout, rendering and teardown passed");
             }

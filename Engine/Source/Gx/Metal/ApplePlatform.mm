@@ -1,5 +1,7 @@
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
+#include "Engine/Source/Os/Gui.h"
 #include "Engine/Source/Tempest/CRect.h"
 #include "Engine/Source/Os/Input.h"
 #include "Engine/Source/Os/Apple/Input.h"
@@ -12,6 +14,22 @@
 #else
 #import <UIKit/UIKit.h>
 #endif
+
+bool GxMetal::GetHostFormat(CGxFormat& format) {
+    if (!NSThread.isMainThread) return false;
+    MTKView* view = (__bridge MTKView*)OsGuiGetWindow(0);
+    if (![view isKindOfClass:MTKView.class] || !view.window ||
+        view.drawableSize.width <= 0 || view.drawableSize.height <= 0 ||
+        view.drawableSize.width > 16384 || view.drawableSize.height > 16384) return false;
+#if TARGET_OS_OSX
+    const uint32_t refresh = 0;
+#else
+    const uint32_t refresh = uint32_t(view.window.screen.maximumFramesPerSecond);
+#endif
+    format = CGxFormat(true, {int32_t(view.drawableSize.width), int32_t(view.drawableSize.height)},
+        CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, refresh, 1, true, false, false, true, 0);
+    return true;
+}
 
 bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     // AppKit/UIKit mutations and drawable acquisition share the host thread.

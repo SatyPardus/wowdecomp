@@ -938,8 +938,13 @@ configuration supports an explicit writable absolute path, bounded loading and
 retryable saves. Native console output goes to startup diagnostics and, while
 the original console screen is alive, its game-thread display queue.
 `WOW_METAL_CHECK=ui` runs only the shared UI/console input and MovieFrame GPU/audio checks;
-its result is explicitly labelled as a focused run. Full ConsoleDevice startup,
-full `gxRestart` integration and remaining shader families are still pending.
+its result is explicitly labelled as a focused run. The native UI/model hosts
+now use the original ConsoleDevice initialization and destruction, hardware DBC
+selection, display CVars and `gxRestart`. Native M1/A14 minimum hardware selects
+the original upper CPU tier; the monotonic timer is not interpreted as CPU MHz.
+The host supplies windowed BGRA8/Depth32Float defaults without modifying the DBC
+or claiming support for its legacy D24 display format. Saved unsupported modes
+fail explicitly. Stereo preferences are retained while stereo output is unavailable.
 At an idle frame boundary, Metal `DeviceSetFormat` applies windowed resolution
 and vsync requests to the actual macOS view. AppKit point rounding is published
 as the active pixel size rather than stretching a differently sized drawable.
@@ -957,6 +962,14 @@ available when no callback or native view is supplied.
 `WOW_DISPLAY_CHECK=1` checks real drawable/depth reallocation, GPU readback,
 native pixel/input sizes, unsupported requests and continued rendering across
 successive view callbacks in either native preview.
+It also exercises the original restart path, including last-good rollback and
+two requests in one active frame. The complete restart (world fade/portrait
+invalidation, format application, CVars and atlas notification) is deferred until
+submission; the latest request takes effect before the next drawable. Rounded
+window sizes are reflected in both the CVars and last-good format. Metal portrait
+alpha support is known from its BGRA8 attachment contract, so restart does not
+clear/read the framebuffer outside a host frame. Full Glue/player startup and
+remaining shader families are still pending.
 The original shared system Lua registration is also linked into Glue and the
 component host: `GetTime`, `GetGameTime`, `ConsoleExec`, the three original
 file-access-denied functions and `GetAccountExpansionLevel`. Their implementations
