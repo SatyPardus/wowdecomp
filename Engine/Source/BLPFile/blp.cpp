@@ -130,13 +130,13 @@ int32_t CBLPFile::Source(void* data, size_t size) {
         const size_t offset = header.m_mipOffsets[level], stored = header.m_mipSizes[level];
         if (offset < requiredHeader || offset > size || stored > size - offset) { return 0; }
         if (stored < needed) {
-            // Original terrain BC cubes contain single-block placeholders below
-            // 4x4 per face. They are not six-face mip payloads. The shared Gx
-            // compressed upload path ends at 4x4, so never expose these records
-            // as readable cube faces. Complete small mips remain valid.
+            // Original BC cubes and rectangular UI textures contain single-
+            // block placeholders after the shorter dimension falls below 4.
+            // ITexWHDStartEnd stops there for compressed textures. Do not
+            // expose placeholders as full mip payloads; keep complete tails.
             const uint32_t blockBytes = header.m_preferredFormat == PIXEL_DXT1 ? 8 : 16;
-            if (header.m_colorEncoding == 2 && header.m_width == 6 * header.m_height &&
-                this->Height(level) < 4 && level && stored == blockBytes) {
+            if (header.m_colorEncoding == 2 && (this->Width(level) < 4 || this->Height(level) < 4) &&
+                level && stored == blockBytes) {
                 levels = level;
                 break;
             }

@@ -216,6 +216,28 @@ void CheckBlpLoading() {
     data[11] = 0;
     data[20] = data[21] = data[22] = data[23] = 255;
     Require(rejects(data.size(), 8) && !original.Source(data.data(), data.size()), "BLP out-of-range offset accepted");
+
+    // Rectangular original UI BC2 assets have single-block placeholders once
+    // the short side is below the Gx compressed mip limit. Complete small mips
+    // must still be preserved, and a truncated reachable level must fail.
+    header = {}; header.m_magic = 0x32504C42; header.m_formatVersion = 1;
+    header.m_colorEncoding = 2; header.m_alphaSize = 8; header.m_preferredFormat = PIXEL_DXT3;
+    header.m_hasMips = 1; header.m_width = 16; header.m_height = 4;
+    size_t end = offsetof(BLPHeader, m_extended);
+    for (unsigned i = 0; i < 5; ++i) {
+        header.m_mipOffsets[i] = end;
+        header.m_mipSizes[i] = i == 0 ? 64 : i == 1 ? 32 : 16;
+        end += header.m_mipSizes[i];
+    }
+    data.assign(end, 0); std::memcpy(data.data(), &header, offsetof(BLPHeader, m_extended));
+    Require(original.Source(data.data(), data.size()) && original.m_numLevels == 5, "Complete rectangular BC tail was removed");
+    header.m_mipSizes[1] = 16; std::memcpy(data.data(), &header, offsetof(BLPHeader, m_extended));
+    Require(original.Source(data.data(), data.size()) && original.m_numLevels == 1, "Original UI placeholder tail was rejected or exposed");
+    header.m_mipSizes[0] = 63; std::memcpy(data.data(), &header, offsetof(BLPHeader, m_extended));
+    Require(!original.Source(data.data(), data.size()), "Truncated reachable rectangular BC mip accepted");
+    header.m_mipSizes[0] = 64; header.m_mipOffsets[1] = uint32_t(data.size());
+    std::memcpy(data.data(), &header, offsetof(BLPHeader, m_extended));
+    Require(!original.Source(data.data(), data.size()), "Out-of-file rectangular BC placeholder accepted");
 }
 
 void InspectArchive(const std::filesystem::path& path, std::ostream& out) {
