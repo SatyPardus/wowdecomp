@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include "Engine/Source/Tempest/C33Matrix.h"
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -50,10 +51,15 @@ C4Quaternion::C4Quaternion(const C4QuaternionCompressed& compressed) {
     this->z = 0.0f;
     this->w = 0.0f;
 
-    int64_t packed = compressed.m_packed;
-    this->x = static_cast<int32_t>(packed >> 42) * 0.00000047683716f;
-    this->y = (static_cast<int32_t>(packed >> 10) >> 11) * 0.00000095367432f;
-    this->z = static_cast<int32_t>((packed << 43) >> 43) * 0.00000095367432f;
+    const uint64_t packed = static_cast<uint64_t>(compressed.m_packed);
+    // Extract the original signed 22/21/21-bit fields without shifting a
+    // negative signed integer or overflowing its representation.
+    const auto signedField = [](uint32_t value, uint32_t signBit) {
+        return static_cast<int32_t>(value ^ signBit) - static_cast<int32_t>(signBit);
+    };
+    this->x = signedField(static_cast<uint32_t>(packed >> 42), 0x200000) * 0.00000047683716f;
+    this->y = signedField(static_cast<uint32_t>(packed >> 21) & 0x1FFFFF, 0x100000) * 0.00000095367432f;
+    this->z = signedField(static_cast<uint32_t>(packed) & 0x1FFFFF, 0x100000) * 0.00000095367432f;
 
     float length = this->z * this->z + this->x * this->x + this->y * this->y;
 
@@ -170,10 +176,11 @@ C4Quaternion operator*(const C4Quaternion& l, const C4Quaternion& r) {
 // VERIFY: 97be132a auto
 // OFFSET: 0x004F43B0
 C4QuaternionCompressed& C4QuaternionCompressed::operator=(const C4Quaternion& q) {
-    int32_t sign = q.w < 0.0f ? -1 : 1;
-    int32_t y = (sign * FloatToInt64(q.y * 1048576.0f)) & 0x1FFFFF;
-    int64_t packed = (static_cast<int64_t>(sign * FloatToInt64(q.x * 2097152.0f)) << 21) | y;
-    int32_t z = (sign * FloatToInt64(q.z * 1048576.0f)) & 0x1FFFFF;
-    this->m_packed = (packed << 21) | z;
+    const int64_t sign = q.w < 0.0f ? -1 : 1;
+    const uint64_t x = static_cast<uint64_t>(sign * FloatToInt64(q.x * 2097152.0f)) & 0x3FFFFF;
+    const uint64_t y = static_cast<uint64_t>(sign * FloatToInt64(q.y * 1048576.0f)) & 0x1FFFFF;
+    const uint64_t z = static_cast<uint64_t>(sign * FloatToInt64(q.z * 1048576.0f)) & 0x1FFFFF;
+    const uint64_t packed = (x << 42) | (y << 21) | z;
+    std::memcpy(&this->m_packed, &packed, sizeof(packed));
     return *this;
 }
