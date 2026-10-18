@@ -386,6 +386,18 @@ sessions, with normal shutdown; the return includes the original projected
 Hearthstone impact. Native movement/keyboard casting checks remain separate from
 the spellbook entry used for the outward journey.
 
+`--check-world-combat` uses the existing Moonfire action and native key bindings
+against a nearby attackable non-player critter. It turns/approaches through the
+original movement controls, stops on obstruction, clicks the target and checks
+the original target frame plus server health/death and mana changes. It can run
+after `--check-world-travel` and before `--check-world-hearthstone`; it does not
+create targets, change positions or bypass spell range/cooldowns. This covers a
+basic damaging spell, not sustained hostile combat, melee or loot.
+In Moonglade, native picking selected a Rabbit at 23.59 units; the server changed
+its health from 1 to 0 and Feral's mana from 347 to 310 after the existing Moonfire
+action. The 3,600-frame travel/combat run, 16 synchronous loading frames, final
+capture and normal shutdown passed Mac ASan/UBSan and Metal validation.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;

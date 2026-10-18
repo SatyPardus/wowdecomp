@@ -10,6 +10,7 @@
 #include "Engine/Source/Services/Texture.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/DB/Rec/SpellRangeRec.h"
 #include "WoW/Source/DB/Rec/AreaTableRec.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
@@ -29,6 +30,7 @@
 #include "WoW/Source/Ui/UIBindings.h"
 #import <Carbon/Carbon.h>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -458,6 +460,147 @@ bool CheckNativeWorldHearthstone(WowNativeView* view) {
         std::fprintf(stderr,"Native world travel: map %u -> %u, destination %.2f %.2f %.2f, area %d, %u ms item cooldown, 120 destination frames\n",
             oldMap,ClntObjMgrGetMapID(),p.x,p.y,p.z,area,duration);
         next(); return true;
+    }
+    return false;
+}
+
+
+bool CheckNativeWorldCombat(WowNativeView* view) {
+    static unsigned phase, readyFrames, button;
+    static int32_t spell, health;
+    static uint32_t mana;
+    static WOWGUID target;
+    static std::chrono::steady_clock::time_point started;
+    static std::chrono::steady_clock::time_point progressed;
+    static float approachRange, lastDistance, turnDirection;
+    if (phase == 6) return true;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) {
+        Require(!phase, "World left during native combat check"); return false;
+    }
+    if (!phase && ++readyFrames < 120) return false;
+    auto* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__));
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now - started).count();
+    auto next = [&] { ++phase; started = now; };
+    const unsigned short codes[] = {kVK_ANSI_1,kVK_ANSI_2,kVK_ANSI_3,kVK_ANSI_4,kVK_ANSI_5,kVK_ANSI_6,
+        kVK_ANSI_7,kVK_ANSI_8,kVK_ANSI_9,kVK_ANSI_0,kVK_ANSI_Minus,kVK_ANSI_Equal};
+    NSString* const texts[] = {@"1",@"2",@"3",@"4",@"5",@"6",@"7",@"8",@"9",@"0",@"-",@"="};
+    auto nativeKey = [&](unsigned short code, NSString* text, bool down) {
+        NSEvent* event = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp
+            location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:code];
+        if (down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto key = [&](bool down) { nativeKey(codes[button],texts[button],down); };
+    auto point = [&](CGUnit_C* candidate, float& x, float& y) {
+        const auto feet = candidate->GetPosition(); const auto head = candidate->GetNamePosition();
+        C3Vector body(feet.x, feet.y, feet.z + (head.z - feet.z) * .4f), projected;
+        if (!CGWorldFrame::s_currentWorldFrame->GetScreenCoordinates(body, &projected, nullptr)) return false;
+        DDCToNDC(projected.x, projected.y, &x, &y);
+        return x > .2f && x < .9f && y > .2f && y < .85f;
+    };
+    auto mouse = [&](NSEventType type) {
+        Require(unit != nullptr, "Native combat target disappeared before picking");
+        float x, y; Require(point(unit, x, y), "Native combat target moved outside the world view");
+        const NSPoint location = [view convertPoint:NSMakePoint(x * view.bounds.size.width, (view.isFlipped ? 1-y : y) * view.bounds.size.height) toView:nil];
+        NSEvent* event = [NSEvent mouseEventWithType:type location:location modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+        if (type == NSEventTypeMouseMoved) [view mouseMoved:event];
+        else if (type == NSEventTypeLeftMouseDown) [view mouseDown:event];
+        else [view mouseUp:event];
+    };
+    if (phase >= 20) {
+        Require(unit != nullptr, "Approached critter disappeared");
+        const auto a=player->GetPosition(), b=unit->GetPosition();
+        const float distance=std::hypot(b.x-a.x,b.y-a.y);
+        if (phase == 20) {
+            const float turn=std::remainder(std::atan2(b.y-a.y,b.x-a.x)-player->GetFacing(),6.283185307f);
+            if (std::abs(turn)<.08f || turn*turnDirection<0) {
+                nativeKey(turnDirection>0 ? kVK_LeftArrow:kVK_RightArrow,turnDirection>0 ? @"\uF702":@"\uF703",false);
+                if (distance<approachRange) { phase=22; started=now; }
+                else { nativeKey(kVK_ANSI_W,@"w",true); phase=21; progressed=now; lastDistance=distance; started=now; }
+            } else Require(elapsed<4,"Native arrow did not face the combat target");
+        } else if (phase == 21) {
+            if (distance<approachRange) {
+                nativeKey(kVK_ANSI_W,@"w",false); phase=22; started=now;
+                std::fprintf(stderr,"Native world combat: approached through original movement to %.2f units at %.2f %.2f %.2f\n",distance,a.x,a.y,a.z);
+            } else {
+                if (distance<lastDistance-.5f) { lastDistance=distance; progressed=now; }
+                if (std::chrono::duration<double>(now-progressed).count()>2 || elapsed>25) {
+                    nativeKey(kVK_ANSI_W,@"w",false);
+                    std::fprintf(stderr,"Native world combat: approach stopped at %.2f %.2f %.2f; target %.2f %.2f %.2f\n",a.x,a.y,a.z,b.x,b.y,b.z);
+                    throw std::runtime_error("Direct native approach was obstructed; no position override applied");
+                }
+            }
+        } else if (elapsed>.7) { phase=0; }
+        return false;
+    }
+    if (!phase) {
+        Require(!CGActionBar::m_bonusBarOffset && !CGActionBar::m_tempPageActiveFlags && CGActionBar::m_currentPage < 6,
+            "Native combat check requires a regular action bar");
+        SpellRec base; Require(g_spellDB.GetRecord(8921, &base), "Original Moonfire record is missing");
+        const unsigned first = CGActionBar::m_currentPage * 12;
+        for (unsigned i = 0; i < 12; ++i) {
+            if (!CGActionBar::IsSpell(first+i)) continue;
+            int32_t pet=0; const int32_t id=CGActionBar::GetSpell(first+i,pet); SpellRec candidate;
+            if (!pet && g_spellDB.GetRecord(id,&candidate) && !std::strcmp(candidate.m_name,base.m_name)) { spell=id; button=i; }
+        }
+        Require(spell && CGUIBindings::s_bindings, "Native combat check requires Moonfire on the existing action bar");
+        char command[32]; std::snprintf(command,sizeof(command),"ACTIONBUTTON%u",button+1);
+        const char* binding=CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,texts[button].UTF8String,1);
+        Require(binding && !std::strcmp(binding,command), "Native combat check does not match current bindings");
+        SpellRec selected; Require(g_spellDB.GetRecord(spell,&selected), "Combat spell is missing");
+        const auto* range=g_spellRangeDB.GetRecord(selected.m_rangeIndex);
+        Require(range != nullptr, "Combat spell range is missing");
+        approachRange=range->m_rangeMax[0]-5;
+        struct Search { CGPlayer_C* player; float distance; decltype(point)* project; CGUnit_C* selected=nullptr; CGUnit_C* nearby=nullptr; float nearbyDistance=125; } search{player,range->m_rangeMax[0]-1,&point};
+        ClntObjMgrEnumVisibleObjects([](WOWGUID guid,void* context) -> int32_t {
+            auto& search=*static_cast<Search*>(context);
+            auto* candidate=static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid,TYPEMASK_UNIT,__FILE__,__LINE__));
+            if (!candidate || candidate == search.player || (candidate->m_obj->m_type & TYPEMASK_PLAYER) || candidate->GetCreatureType()!=8 ||
+                candidate->IsDeadOrGhost() || !search.player->CanAttack(candidate)) return 1;
+            const auto a=search.player->GetPosition(),b=candidate->GetPosition();
+            const float distance=std::sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
+            float x,y; const bool visible=(*search.project)(candidate,x,y);
+            std::fprintf(stderr,"Native world combat candidate: %s, distance %.2f, visible %d, at %.2f %.2f %.2f\n",candidate->GetObjectName(),distance,visible,b.x,b.y,b.z);
+            if (distance<search.nearbyDistance) { search.nearbyDistance=distance; search.nearby=candidate; }
+            if (distance<search.distance && visible) { search.distance=distance; search.selected=candidate; }
+            return 1;
+        }, &search);
+        if (!search.selected && search.nearby) {
+            for (const auto& pair : {std::pair{"W","MOVEFORWARD"}, {"LEFT","TURNLEFT"}, {"RIGHT","TURNRIGHT"}}) {
+                const char* action=CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,pair.first,1);
+                Require(action && !std::strcmp(action,pair.second),"Native combat approach does not match current movement bindings");
+            }
+            target=search.nearby->m_obj->m_guid;
+            const auto a=player->GetPosition(),b=search.nearby->GetPosition();
+            const float turn=std::remainder(std::atan2(b.y-a.y,b.x-a.x)-player->GetFacing(),6.283185307f);
+            turnDirection=turn>=0 ? 1:-1;
+            std::fprintf(stderr,"Native world combat: approach from %.2f %.2f %.2f, turn %.3f radians\n",a.x,a.y,a.z,turn);
+            nativeKey(turnDirection>0 ? kVK_LeftArrow:kVK_RightArrow,turnDirection>0 ? @"\uF702":@"\uF703",true);
+            phase=20; started=now; return false;
+        }
+        Require(search.selected != nullptr, "Native combat check needs a live on-screen attackable critter within Moonfire range");
+        unit=search.selected; target=unit->m_obj->m_guid; health=unit->m_unit->m_unitFieldHealth;
+        Require(health>0, "Native combat target has no health");
+        std::fprintf(stderr,"Native world combat: picking %s, health %d, spell %d, distance %.2f\n",unit->GetObjectName(),health,spell,search.distance);
+        mouse(NSEventTypeMouseMoved); next();
+    } else if (phase == 1 && elapsed >= .1) { mouse(NSEventTypeLeftMouseDown); next(); }
+    else if (phase == 2 && elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); next(); }
+    else if (phase == 3 && elapsed >= .5) {
+        auto* frame=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("TargetFrame",CSimpleFrame::GetObjectType()));
+        Require(CGGameUI::m_lockedTarget == target && frame && frame->m_isVisible, "Native world click did not select the critter and display its original target frame");
+        mana=player->m_unit->m_unitFieldPower[0]; key(true); next();
+    } else if (phase == 4 && elapsed >= .05) { key(false); next(); }
+    else if (phase == 5) {
+        Require(unit != nullptr, "Server combat target disappeared before its health/death update");
+        if (unit->m_unit->m_unitFieldHealth < health && player->m_unit->m_unitFieldPower[0] < mana) {
+            std::fprintf(stderr,"Native world combat: original click/target frame/Moonfire, server target health %d -> %d, mana %u -> %u, dead %d\n",
+                health,unit->m_unit->m_unitFieldHealth,mana,player->m_unit->m_unitFieldPower[0],unit->IsDeadOrGhost());
+            next(); return true;
+        }
+        Require(elapsed<8, "Original Moonfire did not produce server target damage and mana change");
     }
     return false;
 }
