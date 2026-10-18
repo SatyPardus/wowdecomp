@@ -279,6 +279,13 @@ equations and original game passes. These checks pass on Mac with ASan/UBSan
 and Metal validation and on the iOS simulator; the device target builds too.
 This does not establish Windows GPU equivalence or complete world entry.
 
+`FFXPropagateFog` and `FFXFogCombine` now preserve four-tap RGBA propagation,
+alpha decay, component-wise density/minimum saturation and fog-alpha composition.
+The original propagation pass with separate input/output and persistent 33x33
+polar composition grid pass on Mac and the iOS simulator. The complete swirling
+fog effect still needs its same-texture read/write behavior checked against the
+original D3D9 path; active render-target feedback remains explicitly rejected.
+
 `AppleRealmClient` is a separate macOS command-line entry for a local AzerothCore
 server. It performs real SRP authentication, realm selection, encrypted world
 authentication and character enumeration using the original client code and

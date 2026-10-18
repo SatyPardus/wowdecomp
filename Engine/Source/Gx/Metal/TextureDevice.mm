@@ -172,11 +172,11 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     }
     if (depthAttachment) { descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float; }
     descriptor.fragmentFunction = m_fragment[state.alphaRef != 0];
-    if (effect == FragmentEffect::Box4 || effect == FragmentEffect::Gauss4) {
-        Require((effect == FragmentEffect::Box4 || effect == FragmentEffect::Gauss4) && !screenAtDepth,
+    if (effect == FragmentEffect::Box4 || effect == FragmentEffect::Gauss4 || effect == FragmentEffect::PropagateFog) {
+        Require(!screenAtDepth,
             "Invalid native FFX filter pipeline");
         descriptor.vertexFunction = m_filterVertex;
-        descriptor.fragmentFunction = m_filterFragment[uint32_t(effect) - 1][state.alphaRef != 0];
+        if (effect != FragmentEffect::PropagateFog) descriptor.fragmentFunction = m_filterFragment[uint32_t(effect) - 1][state.alphaRef != 0];
         auto layout = [MTLVertexDescriptor vertexDescriptor];
         const MTLVertexFormat formats[] = {MTLVertexFormatFloat3, MTLVertexFormatUChar4Normalized_BGRA,
             MTLVertexFormatFloat2, MTLVertexFormatFloat2, MTLVertexFormatFloat2, MTLVertexFormatFloat2};
@@ -220,6 +220,26 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
+    if (effect == FragmentEffect::PropagateFog || effect == FragmentEffect::FogCombine) {
+        const bool propagate = effect == FragmentEffect::PropagateFog, alpha = state.alphaRef != 0;
+        Require(!screenAtDepth && format == (propagate ? GxVertexBufferFormats_Last : GxVBF_PCT2), "Invalid fog effect vertex format");
+        auto& fragment = m_fogEffectFragment[propagate][alpha][decodePacked];
+        if (!fragment) {
+            auto constants = [MTLFunctionConstantValues new];
+            [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+            [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+            NSError* error = nil;
+            fragment = [m_library newFunctionWithName:propagate ? @"propagateFogFragment" : @"fogCombineFragment" constantValues:constants error:&error];
+            if (!fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Fog effect specialization failed");
+        }
+        descriptor.fragmentFunction = fragment;
+        if (!propagate) {
+            descriptor.vertexFunction = m_glowVertex;
+            descriptor.vertexDescriptor.attributes[3].bufferIndex = 1;
+            descriptor.vertexDescriptor.attributes[3].offset = GxVertexAttribOffset(format, GxVA_TexCoord1);
+            descriptor.vertexDescriptor.attributes[3].format = MTLVertexFormatFloat2;
+        }
+    }
     if (effect == FragmentEffect::NetherBlur || effect == FragmentEffect::NetherCombine) {
         const bool blur = effect == FragmentEffect::NetherBlur;
         Require(!screenAtDepth && format == (blur ? GxVBF_PCT : GxVBF_PCT2), "Invalid native nether vertex format");
@@ -260,7 +280,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         descriptor.fragmentFunction = fragment;
     }
-    if (decodePacked && effect != FragmentEffect::NetherBlur && effect != FragmentEffect::NetherCombine && effect != FragmentEffect::Death && effect != FragmentEffect::Desaturate && effect != FragmentEffect::FixedUnlit && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
+    if (decodePacked && effect != FragmentEffect::PropagateFog && effect != FragmentEffect::FogCombine && effect != FragmentEffect::NetherBlur && effect != FragmentEffect::NetherCombine && effect != FragmentEffect::Death && effect != FragmentEffect::Desaturate && effect != FragmentEffect::FixedUnlit && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;

@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 GxMetal::PostProcessShader GxMetal::PostProcessShader::FromBls(const std::vector<uint8_t>& bytes, FragmentEffect effect) {
-    if (effect != FragmentEffect::Box4 && effect != FragmentEffect::Gauss4 && effect != FragmentEffect::Glow && effect != FragmentEffect::GlowWave && effect != FragmentEffect::Death && effect != FragmentEffect::NetherBlur && effect != FragmentEffect::NetherCombine) {
+    if (effect != FragmentEffect::Box4 && effect != FragmentEffect::Gauss4 && effect != FragmentEffect::Glow && effect != FragmentEffect::GlowWave && effect != FragmentEffect::Death && effect != FragmentEffect::NetherBlur && effect != FragmentEffect::NetherCombine && effect != FragmentEffect::PropagateFog && effect != FragmentEffect::FogCombine) {
         throw std::runtime_error("Unknown native post-processing effect");
     }
     const auto permutations = GxReadShaderBinary(bytes, 1024 * 1024);
@@ -22,9 +22,11 @@ GxMetal::PostProcessShader GxMetal::PostProcessShader::FromBls(const std::vector
     };
     const uint8_t netherBlur[] = {0x9a,0x0d,0xef,0x54,0xb6,0x52,0xd8,0x08,0x40,0xf2,0x28,0x3c,0xbb,0x91,0x2b,0x9a};
     const uint8_t netherCombine[] = {0x46,0x61,0xed,0xe5,0xbe,0x85,0x5d,0xd9,0xa2,0xca,0x88,0x4b,0x93,0x09,0xa7,0xe1};
-    const auto* expected = effect == FragmentEffect::NetherBlur ? netherBlur : effect == FragmentEffect::NetherCombine ? netherCombine : effect == FragmentEffect::Box4 ? box : effect == FragmentEffect::Gauss4 ? gauss : effect == FragmentEffect::Death ? death : glow;
-    const bool sceneBlur = effect == FragmentEffect::Glow || effect == FragmentEffect::Death || effect == FragmentEffect::NetherCombine;
-    const uint32_t metadata = effect == FragmentEffect::NetherBlur ? 0x7800 : effect == FragmentEffect::NetherCombine ? 0x1800 : effect == FragmentEffect::Box4 ? 0x7a00 : effect == FragmentEffect::Gauss4 ? 0x7800 : sceneBlur ? 0x1a00 : 0x3a00;
+    const uint8_t propagateFog[] = {0x3c,0x77,0x45,0xf9,0xaa,0x76,0x07,0x71,0x91,0xe5,0x57,0x86,0x0d,0xc4,0xb7,0xab};
+    const uint8_t fogCombine[] = {0xa0,0x08,0x78,0xa0,0x4b,0x6c,0xf4,0xe3,0xb7,0xde,0x15,0x69,0x85,0xd1,0x98,0xe4};
+    const auto* expected = effect == FragmentEffect::PropagateFog ? propagateFog : effect == FragmentEffect::FogCombine ? fogCombine : effect == FragmentEffect::NetherBlur ? netherBlur : effect == FragmentEffect::NetherCombine ? netherCombine : effect == FragmentEffect::Box4 ? box : effect == FragmentEffect::Gauss4 ? gauss : effect == FragmentEffect::Death ? death : glow;
+    const bool sceneBlur = effect == FragmentEffect::Glow || effect == FragmentEffect::Death || effect == FragmentEffect::NetherCombine || effect == FragmentEffect::FogCombine;
+    const uint32_t metadata = effect == FragmentEffect::PropagateFog ? 0x7800 : effect == FragmentEffect::FogCombine ? 0x1800 : effect == FragmentEffect::NetherBlur ? 0x7800 : effect == FragmentEffect::NetherCombine ? 0x1800 : effect == FragmentEffect::Box4 ? 0x7a00 : effect == FragmentEffect::Gauss4 ? 0x7800 : sceneBlur ? 0x1a00 : 0x3a00;
     for (size_t i = 0; i < permutations.size(); ++i) {
         const auto& permutation = permutations[i];
         Blizzard::Util::MD5 hash;

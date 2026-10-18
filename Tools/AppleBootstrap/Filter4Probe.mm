@@ -80,6 +80,64 @@ void Compare(const std::vector<uint8_t>& actual, const std::vector<uint8_t>& exp
     Require(actual.size() == expected.size(), "FFX filter extent mismatch");
     for (size_t i = 0; i < actual.size(); ++i) { Require(std::abs(int(actual[i]) - expected[i]) <= tolerance, "Native FFX filter output differs from its original sampling equation"); }
 }
+void CheckFog(GxMetal::TextureDevice& gpu, const std::array<BLP::Mip, 4>& inputs,
+    const std::array<id<MTLTexture>, 4>& textures, const std::array<GxMetal::TextureDrawState, 4>& originalStates,
+    const std::array<simd_float2, 4>& offsets) {
+    using Effect = GxMetal::FragmentEffect;
+    for (auto effect : {Effect::PropagateFog, Effect::FogCombine}) {
+        auto code = Asset(effect == Effect::PropagateFog ? "Shaders\\Pixel\\ps_2_0\\FFXPropagateFog.bls" : "Shaders\\Pixel\\ps_2_0\\FFXFogCombine.bls");
+        GxMetal::PostProcessShader::FromBls(code, effect); code.back() ^= 1;
+        bool rejected = false;
+        try { GxMetal::PostProcessShader::FromBls(code, effect); } catch (const std::runtime_error&) { rejected = true; }
+        Require(rejected, "Modified fog shader accepted");
+    }
+    GxMetal::GeometryDraw geometry; geometry.batch = {GxPrim_TriangleStrip, 0, 4, 0, 3};
+    geometry.effect = Effect::PropagateFog; geometry.format = GxVertexBufferFormats_Last;
+    geometry.vertices = Quad(gpu, offsets, 0xAB123456);
+    for (float decay : {-0.2f, 0.0f, 0.17f, 1.2f}) for (unsigned alpha : {0u, 191u}) {
+        geometry.fogEffect.density = {decay, 3, 4, 5};
+        auto states = originalStates; states[0].alphaRef = alpha;
+        auto pass = Target(gpu, 8, 8); auto command = [gpu.queue commandBuffer];
+        gpu.DrawFogEffect(command, pass, textures, geometry, states);
+        std::vector<uint8_t> expected(256);
+        for (unsigned y = 0; y < 8; ++y) for (unsigned x = 0; x < 8; ++x) {
+            double channels[4]{};
+            for (unsigned c = 0; c < 4; ++c) for (unsigned tap = 0; tap < 4; ++tap)
+                channels[c] += Sample(inputs[tap], (x + 0.5f) / 8 + offsets[tap].x, (y + 0.5f) / 8 + offsets[tap].y, c, states[tap]) / 4;
+            channels[3] -= decay * 255;
+            for (unsigned c = 0; c < 4; ++c)
+                expected[(y * 8 + x) * 4 + c] = alpha && channels[3] < alpha ? (0x11223344 >> (c * 8)) & 255 : std::clamp(std::lround(channels[c]), 0l, 255l);
+        }
+        Compare(Read(gpu, command, pass.colorAttachments[0].texture), expected, 1);
+    }
+    geometry.effect = Effect::FogCombine; geometry.format = GxVBF_PCT2;
+    geometry.vertices = Quad(gpu, offsets, 0x179BCDEF, 2);
+    auto states = originalStates; states[0].alphaRef = 255;
+    for (float value : {-0.5f, 0.0f, 0.25f, 1.0f, 1.5f}) {
+        geometry.fogEffect.density = {value, value * 0.5f, 1.0f - value, 99};
+        geometry.fogEffect.minimum = {0.1f, value, -value, 98};
+        auto pass = Target(gpu, 8, 8); auto command = [gpu.queue commandBuffer];
+        gpu.DrawFogEffect(command, pass, textures, geometry, states);
+        std::vector<uint8_t> expected(256);
+        for (unsigned y = 0; y < 8; ++y) for (unsigned x = 0; x < 8; ++x) {
+            double overlay[4], scene[3], gray = 0;
+            for (unsigned c = 0; c < 4; ++c)
+                overlay[c] = Sample(inputs[0], x / 8.0f + offsets[0].x, y / 8.0f + offsets[0].y, c, states[0]);
+            for (unsigned c = 0; c < 3; ++c) {
+                scene[c] = Sample(inputs[1], x / 8.0f + offsets[1].x, y / 8.0f + offsets[1].y, c, states[1]);
+                gray += scene[c] * 0.33333298563957214;
+            }
+            for (unsigned c = 0; c < 3; ++c) {
+                const double density = std::clamp(double(geometry.fogEffect.density[2-c]), 0.0, 1.0);
+                const double minimum = std::clamp(double(geometry.fogEffect.minimum[2-c]), 0.0, 1.0);
+                const double base = ((1-density)*scene[c] + density*gray)*(1-minimum) + 255*minimum;
+                expected[(y * 8 + x) * 4 + c] = std::clamp(std::lround(base*(1-overlay[3]/255) + overlay[c]*overlay[3]/255), 0l, 255l);
+            }
+            expected[(y * 8 + x) * 4 + 3] = 255;
+        }
+        Compare(Read(gpu, command, pass.colorAttachments[0].texture), expected, 1);
+    }
+}
 void CheckNether(GxMetal::TextureDevice& gpu, const std::array<BLP::Mip, 4>& images,
     const std::array<GxMetal::TextureDrawState, 4>& originalStates, const std::array<simd_float2, 4>& offsets) {
     auto vertex = Asset("Shaders\\Vertex\\vs_2_0\\FFXNetherBlur.bls");
@@ -209,6 +267,7 @@ void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
     Require(rejectedDeath, "Modified FFXDeath silently selected the original effect");
     CheckDeath(gpu, inputs, textures, states, offsets);
     CheckNether(gpu, inputs, states, offsets);
+    CheckFog(gpu, inputs, textures, states, offsets);
     GxMetal::GeometryDraw geometry;
     geometry.format = GxVertexBufferFormats_Last;
     geometry.batch = {GxPrim_TriangleStrip, 0, 4, 0, 3};

@@ -200,7 +200,7 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
                 if (!std::strcmp(selection, "ffx")) {
                     CheckGxFilter4(gpu); CheckGxDevice(selection);
-                    report = "Original FFX shaders/passes and nether blur/composition GPU checks passed (focused run).\n";
+                    report = "Original FFX shaders/passes and nether/fog shader GPU checks passed (focused run).\n";
                     return true;
                 }
                 Require(std::strcmp(selection, "models") == 0 || std::strcmp(selection, "ui") == 0, "Unknown WOW_METAL_CHECK selection");

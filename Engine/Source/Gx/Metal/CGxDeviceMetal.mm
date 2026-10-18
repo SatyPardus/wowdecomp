@@ -105,6 +105,8 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
         case GxMetal::FragmentEffect::Glow: return "FFXGlow";
+        case GxMetal::FragmentEffect::PropagateFog: return "FFXPropagateFog";
+        case GxMetal::FragmentEffect::FogCombine: return "FFXFogCombine";
         case GxMetal::FragmentEffect::NetherBlur: return "FFXNetherBlur";
         case GxMetal::FragmentEffect::NetherCombine: return "FFXNetherCombine";
         case GxMetal::FragmentEffect::Death: return "FFXDeath";
@@ -945,7 +947,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
             }
         }
     } else {
-        for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave, Effect::Death, Effect::NetherCombine,
+        for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave, Effect::Death, Effect::NetherCombine, Effect::PropagateFog, Effect::FogCombine,
             Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
             Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x, Effect::ModelOpaqueAdd, Effect::ModelOpaqueAddAlpha, Effect::ModelOpaqueAddAlphaAlpha}) {
             if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
@@ -1074,7 +1076,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool detail = effect == GxMetal::FragmentEffect::DetailDoodad;
     const bool netherBlur = effect == GxMetal::FragmentEffect::NetherBlur;
     const bool postProcess = !fixed && !ripple && !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit && effect != GxMetal::FragmentEffect::Desaturate;
-    const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
+    const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4 || effect == GxMetal::FragmentEffect::PropagateFog;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
     unsigned fixedInputs = 0;
     if (fixed) while (fixedInputs < unsigned(m_caps.m_numTmus) && pointer(EGxRenderState(GxRs_Texture0 + fixedInputs))) ++fixedInputs;
@@ -1203,6 +1205,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         const float* constants = s_shadowConstants[1].constants;
         draw.netherBlur.angle = constants[0]; draw.netherBlur.tapSpacing = constants[4]; draw.netherBlur.convergence = constants[8];
     } else if (postProcess) {
+        if (effect == GxMetal::FragmentEffect::PropagateFog || effect == GxMetal::FragmentEffect::FogCombine)
+            std::memcpy(&draw.fogEffect, s_shadowConstants[0].constants, sizeof(draw.fogEffect));
         if (effect == GxMetal::FragmentEffect::NetherCombine)
             std::memcpy(&draw.netherTintFade, s_shadowConstants[0].constants, sizeof(draw.netherTintFade));
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
@@ -1389,6 +1393,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (terrain) { m->gpu.DrawTerrain(m->command, m->pass, textures, draw, states, encoder); }
+    else if (effect == GxMetal::FragmentEffect::PropagateFog || effect == GxMetal::FragmentEffect::FogCombine) { m->gpu.DrawFogEffect(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }
     else if (netherBlur || effect == GxMetal::FragmentEffect::NetherCombine) { m->gpu.DrawNether(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }
     else if (filter) { m->gpu.DrawFilter4(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }
     else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}, encoder); }

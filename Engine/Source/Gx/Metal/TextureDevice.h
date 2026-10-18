@@ -187,6 +187,8 @@ struct LiquidDrawParameters {
 // Unlit geometry consumes the original packed Gx vertex layout directly. The
 // caller supplies a transform to Metal clip space (z in [0,w]); it is not a
 // replacement for lighting, skinning, fog or the game's programmable effects.
+struct FogEffectParameters { simd_float4 density{}, minimum{}; };
+static_assert(sizeof(FogEffectParameters) == 32, "Native fog effect constant layout");
 struct NetherBlurParameters {
     float angle = 0, tapSpacing = 0, convergence = 1, padding = 0;
     simd_float2 pixelCenterOffset{};
@@ -210,6 +212,7 @@ struct GeometryDraw {
     simd_float2 waveSceneScale{}, waveBlurScale{};
     NetherBlurParameters netherBlur{};
     simd_float4 netherTintFade{};
+    FogEffectParameters fogEffect{};
     bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
     float depthOffset = 0; // normalized post-raster depth offset (water ripples)
@@ -264,6 +267,8 @@ public:
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawDeath(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawFogEffect(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawNether(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
@@ -297,6 +302,7 @@ private:
     id<MTLFunction> m_fragment[2];
     id<MTLFunction> m_desaturateFragment[2][2]{};
     id<MTLFunction> m_deathFragment[2][2]{};
+    id<MTLFunction> m_fogEffectFragment[2][2][2]{};
     id<MTLFunction> m_netherVertex;
     id<MTLFunction> m_netherFragment[2][2][2]{};
     id<MTLFunction> m_geometryVertex[2][4];

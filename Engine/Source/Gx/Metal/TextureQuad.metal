@@ -204,3 +204,29 @@ fragment float4 netherCombineFragment(GlowRaster v [[stage_in]], constant QuadPa
     if (alphaTest && color.a < p.alphaRef) discard_fragment();
     return color;
 }
+
+struct FogEffectParameters { float4 density, minimum; };
+fragment float4 propagateFogFragment(Filter4Raster v [[stage_in]], constant QuadParameters& p [[buffer(0)]],
+    constant FogEffectParameters& fog [[buffer(1)]], texture2d<float> image0 [[texture(0)]], texture2d<float> image1 [[texture(1)]],
+    texture2d<float> image2 [[texture(2)]], texture2d<float> image3 [[texture(3)]],
+    sampler sampling0 [[sampler(0)]], sampler sampling1 [[sampler(1)]], sampler sampling2 [[sampler(2)]], sampler sampling3 [[sampler(3)]]) {
+    float4 color = decoded(image1.sample(sampling1, v.uv1), p.decodeScale[1]) * 0.25f;
+    color = fma(decoded(image0.sample(sampling0, v.uv0), p.decodeScale[0]), 0.25f, color);
+    color = fma(decoded(image2.sample(sampling2, v.uv2), p.decodeScale[2]), 0.25f, color);
+    color = fma(decoded(image3.sample(sampling3, v.uv3), p.decodeScale[3]), 0.25f, color);
+    color.a -= fog.density.x;
+    if (alphaTest && color.a < p.alphaRef) discard_fragment();
+    return color;
+}
+fragment float4 fogCombineFragment(GlowRaster v [[stage_in]], constant QuadParameters& p [[buffer(0)]],
+    constant FogEffectParameters& fog [[buffer(1)]], texture2d<float> cloud [[texture(0)]], texture2d<float> scene [[texture(1)]],
+    sampler cloudSampling [[sampler(0)]], sampler sceneSampling [[sampler(1)]]) {
+    const float4 overlay = decoded(cloud.sample(cloudSampling, v.sceneUV), p.decodeScale[0]);
+    const float3 original = decoded(scene.sample(sceneSampling, v.blurUV), p.decodeScale[1]).rgb;
+    const float gray = dot(original, float3(0.33333298563957214f));
+    const float3 desaturated = mix(original, float3(gray), saturate(fog.density.rgb));
+    const float3 base = mix(desaturated, float3(1), saturate(fog.minimum.rgb));
+    const float4 color(mix(base, overlay.rgb, overlay.a), 1);
+    if (alphaTest && color.a < p.alphaRef) discard_fragment();
+    return color;
+}

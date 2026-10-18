@@ -9,6 +9,8 @@
 #include "WoW/Source/Game/GameClient/FFXEffects.h"
 #include "WoW/Source/Game/GameClient/PassDeath.h"
 #include "WoW/Source/Game/GameClient/PassNetherBlur.h"
+#include "WoW/Source/Game/GameClient/PassPropagateFog.h"
+#include "WoW/Source/Game/GameClient/PassFogCombine.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -290,6 +292,49 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
         GxScenePresent();
     }
     GxRsSet(GxRs_AlphaRef, 0);
+    {
+        const C2Vector taps[] = {{-1,1},{0,1},{1,1},{0,2}};
+        PassPropagateFog propagate(inputs, 1, &output, taps, GxBlend_Opaque, false);
+        Require(propagate.Valid(), "Original fog propagation shader unavailable");
+        for (float decay : {0.0f, 0.2f, 1.0f}) {
+            propagate.unk_005C = decay;
+            device.BeginFrame(frame); propagate.Execute(); checkRestore();
+            Image reference{8, 8, std::vector<Pixel>(64)};
+            for (unsigned y = 0; y < 8; ++y) for (unsigned x = 0; x < 8; ++x) {
+                double channels[4]{};
+                for (const auto& tap : taps) {
+                    const auto value = Sample(source, x * 4 + tap.x, y * 4 + tap.y);
+                    for (unsigned c = 0; c < 4; ++c) channels[c] += value[c] / 4;
+                }
+                channels[3] -= decay * 255;
+                for (unsigned c = 0; c < 4; ++c) reference.pixels[y * 8 + x][c] = std::clamp(std::lround(channels[c]), 0l, 255l);
+            }
+            Compare(Read(device, output), reference, 1); GxScenePresent();
+        }
+        // Exercise the original persistent 33x33 polar grid and density fade.
+        Image cloud{8,8,std::vector<Pixel>(64, Pixel{27,91,149,85})};
+        Image scene{8,8,std::vector<Pixel>(64, Pixel{173,63,102,17})};
+        auto cloudTex = Texture(8,8,8,8,&cloud), sceneTex = Texture(8,8,8,8,&scene);
+        scope.textures.insert(scope.textures.end(), {cloudTex.m_texture,sceneTex.m_texture});
+        FFX::Tex* fogInputs[] = {&cloudTex,&sceneTex};
+        PassFogCombine fog(fogInputs,2,&screen,GxBlend_Opaque,true);
+        Require(fog.Valid(), "Original polar fog composition unavailable");
+        for (float fade : {3.0f, 1.5f, 0.0f}) {
+            fog.m_density = 0.73f; fog.m_fadeTime = fade;
+            device.BeginFrame(frame); fog.Execute(); checkRestore();
+            const double amount = fade > 0 ? 1-fade/3 : 1, density = 0.73*amount, minimum = 0.1*amount;
+            const double gray = (173+63+102)*0.33333298563957214;
+            Image reference{32,32,std::vector<Pixel>(1024)};
+            for (auto& pixel : reference.pixels) {
+                for (unsigned c=0;c<3;++c) {
+                    const double base = (scene.pixels[0][c]*(1-density)+gray*density)*(1-minimum)+255*minimum;
+                    pixel[c] = std::lround(base*(1-85/255.0)+cloud.pixels[0][c]*85/255.0);
+                }
+                pixel[3]=255;
+            }
+            Compare(Read(device,screen),reference,1); GxScenePresent();
+        }
+    }
     PassNetherBlur nether(inputs, 1, &output, GxBlend_Opaque, false);
     PassNetherCombine combine(glowInputs, 2, &screen, GxBlend_Opaque, true);
     Require(nether.Valid() && combine.Valid(), "Original nether shaders unavailable");

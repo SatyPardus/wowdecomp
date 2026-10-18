@@ -65,6 +65,11 @@ void GxMetal::TextureDevice::DrawGlow(id<MTLCommandBuffer> command, MTLRenderPas
     Require(geometry.effect == FragmentEffect::Glow, "Invalid FFX glow effect");
     DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}}, encoder);
 }
+void GxMetal::TextureDevice::DrawFogEffect(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder) {
+    Require(geometry.effect == FragmentEffect::PropagateFog || geometry.effect == FragmentEffect::FogCombine, "Invalid fog effect");
+    DrawGeometry(command, pass, {textures[0], textures[1], textures[2], textures[3]}, geometry, {}, {states[0], states[1], states[2], states[3]}, encoder);
+}
 void GxMetal::TextureDevice::DrawNether(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
     const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::NetherBlur || geometry.effect == FragmentEffect::NetherCombine, "Invalid nether effect");
@@ -97,7 +102,7 @@ void GxMetal::TextureDevice::DrawTerrain(id<MTLCommandBuffer> command, MTLRender
 }
 void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
     const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
-    const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
+    const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4 || geometry.effect == FragmentEffect::PropagateFog;
     const bool model = IsModelEffect(geometry.effect);
     const bool detail = geometry.effect == FragmentEffect::DetailDoodad;
     Require(!detail || geometry.detail, "Missing native detail-doodad parameters");
@@ -112,7 +117,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const bool terrainShadow = geometry.effect == FragmentEffect::TerrainShadowMap;
-    const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : (filter || geometry.effect == FragmentEffect::NetherBlur) ? 4 : wave ? 3 : (geometry.effect == FragmentEffect::Glow || geometry.effect == FragmentEffect::Death || geometry.effect == FragmentEffect::NetherCombine) ? 2 : 1;
+    const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : (filter || geometry.effect == FragmentEffect::NetherBlur) ? 4 : wave ? 3 : (geometry.effect == FragmentEffect::Glow || geometry.effect == FragmentEffect::Death || geometry.effect == FragmentEffect::NetherCombine || geometry.effect == FragmentEffect::FogCombine) ? 2 : 1;
     const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : (1u << inputs) - 1;
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
@@ -190,6 +195,17 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         depth = m_depthStates.emplace(depthKey, created).first;
     }
     GeometryParameters constants{geometry.clipFromModel, parameters};
+    if (geometry.effect == FragmentEffect::FogCombine) {
+        // The original persistent polar grid bypasses SetupGeo_Quad's Metal
+        // coordinate conversion. Preserve its D3D9 integer pixel centers.
+        const auto viewport = geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1};
+        Require(viewport.width > 0 && viewport.height > 0, "Empty fog composition viewport");
+        float* matrix = &constants.clipFromModel.a0;
+        for (unsigned row = 0; row < 4; ++row) {
+            matrix[row * 4] += matrix[row * 4 + 3] / viewport.width;
+            matrix[row * 4 + 1] -= matrix[row * 4 + 3] / viewport.height;
+        }
+    }
     constants.texture.alphaRef = state.alphaRef / 255.0f;
     for (unsigned i = 0; i < std::min(inputs, 4u); ++i) { constants.texture.decodeScale[i] = states[i].decodeScale; }
     // Tempest uses row vectors. Its contiguous rows are Metal's columns, so
@@ -227,6 +243,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else if (wmo) { [encoder setVertexBytes:&geometry.wmo->vertex length:sizeof(WmoVertexParameters) atIndex:0];
     } else if (terrain) { [encoder setVertexBytes:&geometry.terrain->vertex length:sizeof(TerrainVertexParameters) atIndex:0];
     } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
+    if (geometry.effect == FragmentEffect::PropagateFog || geometry.effect == FragmentEffect::FogCombine)
+        [encoder setFragmentBytes:&geometry.fogEffect length:sizeof(geometry.fogEffect) atIndex:1];
     if (geometry.effect == FragmentEffect::NetherCombine)
         [encoder setFragmentBytes:&geometry.netherTintFade length:sizeof(geometry.netherTintFade) atIndex:1];
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
