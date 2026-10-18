@@ -1,6 +1,11 @@
 #include "Engine/Source/Base/CRTRandom.h"
 #include "Player_C.h"
+#include <cinttypes>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -95,7 +100,6 @@
 #include "WoW/Source/Ui/CGTabardCreationFrame.h"
 #include "WoW/Source/WorldClient/AreaList.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/FriendList.h"
-#include <malloc.h>
 #include "Engine/Source/Services/SysMessage.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "WoW/Source/DB/Rec/ChrClassesRec.h"
@@ -677,7 +681,7 @@ static void InitWeaponSkills() {
 static int32_t GuildUpdateHandler(WOWGUID guid, void* param) {
     CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
 
-    if (object && (object->m_obj->m_type & TYPEMASK_PLAYER) && static_cast<CGPlayer_C*>(object)->m_player->m_playerGuildid == reinterpret_cast<uint32_t>(param)) {
+    if (object && (object->m_obj->m_type & TYPEMASK_PLAYER) && static_cast<CGPlayer_C*>(object)->m_player->m_playerGuildid == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(param))) {
         static_cast<CGPlayer_C*>(object)->OnGuildChanged(0);
     }
 
@@ -11934,7 +11938,9 @@ int32_t Packet_SMSG_GUILD_EVENT(void* param, NETMESSAGE msgId, uint32_t time, CD
 
         case 17: {
             uint64_t money;
-            sscanf(strings[0], "%016I64X", &money);
+            if (sscanf(strings[0], "%16" SCNx64, &money) != 1) {
+                return 0;
+            }
             CGGuildBankInfo::m_money = money;
             CDataStore query;
             query.Put(static_cast<uint32_t>(MSG_GUILD_BANK_MONEY_WITHDRAWN));

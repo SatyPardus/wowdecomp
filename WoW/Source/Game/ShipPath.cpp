@@ -1,6 +1,10 @@
 #include "ShipPath.h"
 #include "Engine/Source/Tempest/CMath.h"
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include <new>
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"

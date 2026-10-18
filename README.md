@@ -918,6 +918,11 @@ are shared unchanged with Windows. Account expansion still comes from the real
 ClientServices connection; the component viewer does not establish a login.
 The shared in-world `Ui` module now compiles as an arm64 static library on all
 three Apple targets. The optional Windows Logitech LCD backend is excluded.
+The original `Object` and shared `Game` modules also compile on all three,
+including player/unit objects, movement, world text and game callbacks. The
+unfinished Win64 Warden platform source is excluded from Apple. Guild money
+messages use a portable 64-bit hexadecimal scan with the original 16-digit
+width; malformed input is rejected before changing the stored balance.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 

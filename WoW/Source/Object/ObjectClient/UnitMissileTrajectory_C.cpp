@@ -21,7 +21,11 @@
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/CAaSphere.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include <cmath>
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxMatrixStack.h"

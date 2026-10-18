@@ -3,7 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 
 struct LoadedWardenModule {
     /* 0000 */ void* m_imageBase;

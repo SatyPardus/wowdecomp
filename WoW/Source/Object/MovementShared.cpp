@@ -1,7 +1,11 @@
 #include "MovementShared.h"
 #include <cmath>
 #include <cstdio>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Tempest/C33Matrix.h"
 #include "Engine/Source/Tempest/C3Spline.h"
