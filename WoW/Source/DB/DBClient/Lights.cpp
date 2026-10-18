@@ -29,6 +29,8 @@ static void GetBandTimeRange(const int32_t* times, int32_t count, int32_t time, 
                 return;
             }
         } else if (time <= end || time >= start) {
+            // Equal times also select this full-day interval. Shipped band 360
+            // has duplicate times; confirmed in local Wow.exe at 0x007EAEA6.
             end += 2880;
 
             if (time < start) {

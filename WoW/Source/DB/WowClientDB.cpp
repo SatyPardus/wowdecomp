@@ -1,5 +1,8 @@
 #include "WoW/Source/DB/WowClientDB.h"
 
+// STATIC: 0x00C5DEA0
+int32_t g_clientDbPerformCompress;
+
 // INLINED
 WowClientDB_Base::WowClientDB_Base() {
     this->m_loaded = 0;

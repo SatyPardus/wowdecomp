@@ -13,9 +13,6 @@ const char* g_localeNames[12] = {
     ClientLocaleNames[8], ClientLocaleNames[9], ClientLocaleNames[10], ClientLocaleNames[11]
 };
 
-// STATIC: 0x00C5DEA0
-int32_t g_clientDbPerformCompress;
-
 // STATIC: 0x00AD2F90
 static int32_t s_physicalDamageClassID = -1;
 
@@ -709,21 +706,6 @@ WowClientDB<SoundFilterRec> g_soundFilterDB;
 
 // STATIC: 0x00AD5120
 WowClientDB<SoundFilterElemRec> g_soundFilterElemDB;
-
-// STATIC: 0x00AF4998
-WowClientDB<LightSkyboxRec> g_lightSkyboxDB;
-
-// STATIC: 0x00AF49BC
-WowClientDB_RLE<LightIntBandRec> g_lightIntBandDB;
-
-// STATIC: 0x00AF49E0
-WowClientDB_RLE<LightFloatBandRec> g_lightFloatBandDB;
-
-// STATIC: 0x00AF4A04
-WowClientDB<LightParamsRec> g_lightParamsDB;
-
-// STATIC: 0x00AF4A28
-WowClientDB<LightRec> g_lightDB;
 
 // VERIFY: da36ac34 manual
 // OFFSET: 0x006337D0

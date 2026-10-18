@@ -1416,7 +1416,14 @@ int32_t CM2Model::GetBoneSequenceInfo(uint32_t boneId, M2BoneSequenceInfo& info)
     M2ModelBone* bone = &this->m_bones[index];
     info.m_sequenceId = bone->m_sequenceId;
     info.m_variationIndex = bone->m_variationIndex;
-    info.m_time = bone->m_sequence.m_startOffset + static_cast<uint32_t>((this->m_scene->m_time - bone->m_sequence.m_startTime) * bone->m_sequence.m_speed);
+    // Original 0x00826754 subtracts wrapping clocks, loads the signed delta,
+    // then truncates the product to int64 and uses its low 32 bits. In
+    // particular, a sequence may start after the scene's current time.
+    const int32_t elapsed = static_cast<int32_t>(this->m_scene->m_time - bone->m_sequence.m_startTime);
+    const double advance = double(elapsed) * bone->m_sequence.m_speed;
+    // x87 FISTP produces INT64_MIN for non-finite/out-of-range values (low word 0).
+    const uint32_t ticks = advance >= -0x1p63 && advance < 0x1p63 ? static_cast<uint32_t>(static_cast<int64_t>(advance)) : 0;
+    info.m_time = bone->m_sequence.m_startOffset + ticks;
     info.m_speed = bone->m_sequence.m_speed;
     info.m_startTime = bone->m_sequence.m_startTime;
     info.m_endTime = bone->m_sequence.m_endTime;

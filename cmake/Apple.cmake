@@ -139,6 +139,12 @@ add_library(AppleGameResources STATIC
     WoW/Source/DB/Rec/FootprintTexturesRec.cpp
     WoW/Source/DB/Rec/GroundEffectDoodadRec.cpp
     WoW/Source/DB/Rec/LightRec.cpp
+    WoW/Source/DB/DBClient/DayNightData.cpp
+    WoW/Source/DB/DBClient/Lights.cpp
+    WoW/Source/DB/Rec/LightParamsRec.cpp
+    WoW/Source/DB/Rec/LightSkyboxRec.cpp
+    WoW/Source/DB/Rec/LightIntBandRec.cpp
+    WoW/Source/DB/Rec/LightFloatBandRec.cpp
     WoW/Source/DB/DBClient/MapData.cpp
     WoW/Source/DB/Rec/MapRec.cpp
     WoW/Source/DB/DBClient/LiquidData.cpp
@@ -220,7 +226,7 @@ add_library(AppleTerrainView STATIC Tools/AppleBootstrap/TerrainPreview.cpp Tool
 target_link_libraries(AppleTerrainView PUBLIC AppleGameResources WorldTerrain AppleLiquidView)
 add_library(AppleWmoView STATIC Tools/AppleBootstrap/WmoPreview.cpp Tools/AppleBootstrap/WmoLiquidPreview.cpp)
 target_link_libraries(AppleWmoView PUBLIC WorldClient AppleGameResources AppleLiquidView)
-add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm Tools/AppleBootstrap/EventProbe.cpp Tools/AppleBootstrap/AsyncFileProbe.cpp Tools/AppleBootstrap/ModelSceneProbe.mm Tools/AppleBootstrap/ModelShaderProbe.mm Tools/AppleBootstrap/ShadowMapProbe.mm Tools/AppleBootstrap/DetailDoodadProbe.mm Tools/AppleBootstrap/WaterRippleProbe.mm Tools/AppleBootstrap/TerrainShaderProbe.mm Tools/AppleBootstrap/CubeTextureProbe.mm Tools/AppleBootstrap/WmoShaderProbe.mm Tools/AppleBootstrap/LiquidShaderProbe.mm Tools/AppleBootstrap/WmoSceneProbe.mm Tools/AppleBootstrap/TerrainSceneProbe.mm Tools/AppleBootstrap/WorldProbe.mm)
+add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/AppleBootstrap/GeometryProbe.mm Tools/AppleBootstrap/GxDeviceProbe.mm Tools/AppleBootstrap/FontProbe.mm Tools/AppleBootstrap/RenderTargetProbe.mm Tools/AppleBootstrap/Filter4Probe.mm Tools/AppleBootstrap/FFXPassProbe.mm Tools/AppleBootstrap/EventProbe.cpp Tools/AppleBootstrap/AsyncFileProbe.cpp Tools/AppleBootstrap/ModelSceneProbe.mm Tools/AppleBootstrap/ModelShaderProbe.mm Tools/AppleBootstrap/ShadowMapProbe.mm Tools/AppleBootstrap/DetailDoodadProbe.mm Tools/AppleBootstrap/WaterRippleProbe.mm Tools/AppleBootstrap/TerrainShaderProbe.mm Tools/AppleBootstrap/CubeTextureProbe.mm Tools/AppleBootstrap/WmoShaderProbe.mm Tools/AppleBootstrap/LiquidShaderProbe.mm Tools/AppleBootstrap/WmoSceneProbe.mm Tools/AppleBootstrap/TerrainSceneProbe.mm Tools/AppleBootstrap/WorldProbe.mm Tools/AppleBootstrap/DayNightProbe.mm)
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 add_library(AppleWorldProbe STATIC Tools/AppleBootstrap/WmoProbe.cpp)
 target_link_libraries(AppleWorldProbe PUBLIC WorldClient AppleMetal)

@@ -431,8 +431,25 @@ detached before freeing their instances, and footprint texture/batch caches are
 cleared so reinitialization reloads valid handles. Live and between-world CVar
 callbacks, portrait notification detach, Mac ASan/UBSan and Metal validation pass;
 both iOS targets build and the simulator subsequently presents 120 terrain frames.
-This exercises startup/shutdown without an active map; full world loading,
-DayNight updates and application ownership of the world remain pending.
+This exercises startup/shutdown without an active CMap; full world loading and
+application ownership of the world remain pending.
+
+Original DayNight selection/interpolation now links on all Apple targets with
+715 lights, 850 parameter sets, 124 skyboxes, and 15,300 color / 5,100 float bands.
+Both original RLE storage modes retain the DBC records. Coordinate conversion,
+36,821 ordered color knots and midnight interpolation are checked; the shipped
+duplicate-time band retains the original executable's interval selection.
+Three map-light sets are exercised at five times of day. Original `DrawSky`
+renders Hellfire's sky (34 batches) and Northrend's yellow/green aurora (21 batches),
+including authored animation and stationary-frame readback through two complete
+world/model-cache lifetimes. Bone-sequence queries now use the original signed
+wrapping clock delta, preserving future starts, reverse playback and integer
+precision; unsigned float conversion previously triggered UB for these skies.
+The model cache follows the application's teardown order before a new world
+starts, since world destruction also frees shader effects. Complete procedural
+sky/cloud/planet rendering, world fog and terrain DayNight binding remain pending.
+Mac ASan/UBSan and Metal validation, both iOS target builds, and simulator GPU
+checks followed by 120 visible terrain frames pass.
 The native host can now draw a complete authored ADT surface with
 `WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
 This selection is mutually exclusive with the model/creature variables. It uses

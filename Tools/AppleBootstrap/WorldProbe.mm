@@ -18,6 +18,9 @@
 #include <vector>
 #include <unistd.h>
 
+void CheckDayNightData();
+void CheckDayNightMap(unsigned cycle);
+
 namespace {
 void Require(bool value, const char* message) {
     if (!value)
@@ -81,10 +84,13 @@ void CheckGameWorldLifecycle() {
     if (!g_animationDataDB.m_loaded)
         g_animationDataDB.Load(__FILE__, __LINE__);
     Require(ModelBlobLoad("World\\model.blob"), "World model bounds index did not load");
-    M2Initialize(8, 16);
-    scope.modelCache = true;
+    CheckDayNightData();
 
     for (unsigned cycle = 0; cycle < 2; ++cycle) {
+        // CWorld teardown destroys shader effects. The application-owned M2
+        // cache must finish that lifetime too, before another world is started.
+        M2Initialize(8, 16);
+        scope.modelCache = true;
         CWorldParam::Initialize();
         portraitRefreshes = 0;
         CWorldParam::SetPortraitRefreshCallback([] { ++portraitRefreshes; });
@@ -103,9 +109,12 @@ void CheckGameWorldLifecycle() {
         World::s_weather->m_densityChanged = 0;
         Require(weatherDensity->Set(cycle ? "3" : "0", true, false, false, false) && World::s_weather->m_densityChanged,
                 "Weather configuration did not notify the current world");
+        CheckDayNightMap(cycle);
 
         CWorld::Destroy();
         scope.world = false;
+        M2Destroy();
+        scope.modelCache = false;
         Require(!World::s_m2Scene && !World::s_weather && !CWorld::particulate, "World destruction retained owned global references");
         // CVars survive a world lifetime. This callback and registration during
         // the next constructor must not touch the destroyed Weather instance.
