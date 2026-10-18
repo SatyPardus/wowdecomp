@@ -198,6 +198,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
             if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
+                if (!std::strcmp(selection, "model-shaders")) {
+                    CheckGxDevice(selection);
+                    report = "Original model shader variants/materials and reflection-only coordinates passed (focused run).\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "ffx")) {
                     CheckGxFilter4(gpu); CheckGxDevice(selection);
                     report = "Original FFX shaders/passes and nether/fog shader GPU checks passed (focused run).\n";

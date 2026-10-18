@@ -5,9 +5,9 @@
 #include "Engine/Source/Gx/Metal/PostProcessShader.h"
 
 namespace GxMetal {
-enum class ModelVertexEffect : uint32_t { Diffuse, Color, ColorDiffuse, DiffuseEnvironment, DiffuseDualUV, DiffuseProjected, ColorProjected };
+enum class ModelVertexEffect : uint32_t { Diffuse, Color, ColorDiffuse, DiffuseEnvironment, DiffuseDualUV, DiffuseProjected, ColorProjected, DiffuseReflection };
 constexpr bool UsesModelMaterial(ModelVertexEffect effect) {
-    return effect == ModelVertexEffect::Diffuse || effect == ModelVertexEffect::DiffuseEnvironment || effect == ModelVertexEffect::DiffuseDualUV || effect == ModelVertexEffect::DiffuseProjected;
+    return effect == ModelVertexEffect::Diffuse || effect == ModelVertexEffect::DiffuseEnvironment || effect == ModelVertexEffect::DiffuseDualUV || effect == ModelVertexEffect::DiffuseProjected || effect == ModelVertexEffect::DiffuseReflection;
 }
 constexpr bool UsesModelProjection(ModelVertexEffect effect) {
     return effect == ModelVertexEffect::DiffuseProjected || effect == ModelVertexEffect::ColorProjected;
@@ -15,9 +15,10 @@ constexpr bool UsesModelProjection(ModelVertexEffect effect) {
 constexpr unsigned ModelColorMode(ModelVertexEffect effect) {
     return UsesModelMaterial(effect) ? 0 : effect == ModelVertexEffect::ColorDiffuse ? 2 : 1;
 }
-enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate, AddAlpha, AlphaWeightedAdd, BlendAlphaWeightedAdd };
+enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate, AddAlpha, AlphaWeightedAdd, BlendAlphaWeightedAdd, DoubleModulateRGB };
 constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
-    return effect == FragmentEffect::ModelOpaqueAddAlpha ? ModelLayerOperation::AlphaWeightedAdd :
+    return effect == FragmentEffect::ModelOpaqueMod2xNA ? ModelLayerOperation::DoubleModulateRGB :
+        effect == FragmentEffect::ModelOpaqueAddAlpha ? ModelLayerOperation::AlphaWeightedAdd :
         effect == FragmentEffect::ModelOpaqueAddAlphaAlpha ? ModelLayerOperation::BlendAlphaWeightedAdd :
         (effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelOpaqueAdd) ? ModelLayerOperation::AddAlpha :
         (effect == FragmentEffect::ModelOpaqueMod2x || effect == FragmentEffect::ModelModMod2x) ? ModelLayerOperation::DoubleModulate :

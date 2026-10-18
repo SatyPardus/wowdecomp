@@ -8,7 +8,8 @@ constant bool modelEnvironment [[function_constant(9)]];
 constant uint modelLayerOperation [[function_constant(10)]];
 constant bool modelDualUV [[function_constant(11)]];
 constant bool modelProjected [[function_constant(20)]];
-enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd };
+constant bool modelReflectionOnly [[function_constant(33)]];
+enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB };
 struct ModelVertexParameters {
     float4x4 projection;
     float4 uv[4];
@@ -77,7 +78,7 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
         secondaryUV = fma(reflected.xy * rsqrt(dot(sphere, sphere)), float2(0.5f), float2(0.5f));
     }
     return {p.projection * float4(view, 1), color,
-        modelProjected ? float2(dot(p.uv[0], float4(view, 1)), dot(p.uv[1], float4(view, 1))) :
+        modelReflectionOnly ? secondaryUV : modelProjected ? float2(dot(p.uv[0], float4(view, 1)), dot(p.uv[1], float4(view, 1))) :
             float2(dot(p.uv[0].xyw, texturePoint), dot(p.uv[1].xyw, texturePoint)), secondaryUV, fog, 1};
 }
 vertex ModelRaster modelRigidVertex(ModelVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
@@ -113,7 +114,7 @@ vertex ModelRaster modelWhiteVertex(ModelWhiteVertex v [[stage_in]], constant Mo
     constant ModelAffine* palette [[buffer(2)]]) {
     return modelTransform(v.position, float3(0, 0, 1), v.uv, float2(0), float4(1), palette[0], p);
 }
-// Projected geometry has no authored UV stream. These entry points match the
+// Projected and reflection-only geometry have no authored UV stream. These entry points match the
 // original PN/PC/P world batches and the existing packed skinned M2 layout.
 struct ModelProjectedPosition { float3 position [[attribute(0)]]; };
 struct ModelProjectedNormal { float3 position [[attribute(0)]]; float3 normal [[attribute(1)]]; };
@@ -170,9 +171,9 @@ fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelF
         const float3 combined = fma(layer.rgb, float3(layer.a), texel.rgb);
         const float3 base = fma(float3(texel.a), texel.rgb - combined, combined);
         shaded = fma(base, v.color.rgb, -p.fogColorAlphaRef.rgb);
-    } else if (modelLayerOperation == LayerMultiply || modelLayerOperation == LayerDoubleModulate) {
+    } else if (modelLayerOperation == LayerMultiply || modelLayerOperation == LayerDoubleModulate || modelLayerOperation == LayerDoubleModulateRGB) {
         const float3 product = texel.rgb * layer.rgb;
-        shaded = fma(modelLayerOperation == LayerDoubleModulate ? product + product : product, v.color.rgb, -p.fogColorAlphaRef.rgb);
+        shaded = fma(modelLayerOperation != LayerMultiply ? product + product : product, v.color.rgb, -p.fogColorAlphaRef.rgb);
     } else if (modelLayerOperation == LayerBlendDoubleModulate) {
         // The original combined opaque/reflection/alpha passes: base alpha
         // interpolates from double modulation back to the unmodulated base.

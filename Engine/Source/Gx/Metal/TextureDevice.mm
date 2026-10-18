@@ -366,7 +366,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     }
     if (IsModelEffect(effect)) {
         const bool material = UsesModelMaterial(vertexEffect);
-        const bool environment = vertexEffect == ModelVertexEffect::DiffuseEnvironment;
+        const bool reflectionOnly = vertexEffect == ModelVertexEffect::DiffuseReflection;
+        const bool environment = vertexEffect == ModelVertexEffect::DiffuseEnvironment || reflectionOnly;
         const bool dualUV = vertexEffect == ModelVertexEffect::DiffuseDualUV;
         const bool projected = UsesModelProjection(vertexEffect);
         const uint32_t colorMode = ModelColorMode(vertexEffect);
@@ -374,10 +375,10 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         const uint32_t layerOperation = unsigned(ModelLayer(effect));
         const bool normal = (material && (!projected || (modelPermutation & 1))) || (colorMode == 2 && (modelPermutation & 1));
         const bool color = !material && !(colorMode == 1 && (modelPermutation & 1));
-        Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth && (!secondTexture || environment || dualUV || projected) &&
+        Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth && (!secondTexture || (!reflectionOnly && (environment || dualUV || projected))) &&
             (modelPermutation < 10 || format == GxVBF_PBNT2) &&
             (!normal || GxVertexHasAttrib(format, GxVA_Normal)) &&
-            (!color || GxVertexHasAttrib(format, GxVA_Color0)) && (projected || GxVertexHasAttrib(format, GxVA_TexCoord0)) &&
+            (!color || GxVertexHasAttrib(format, GxVA_Color0)) && (projected || reflectionOnly || GxVertexHasAttrib(format, GxVA_TexCoord0)) &&
             (!dualUV || GxVertexHasAttrib(format, GxVA_TexCoord1)),
             "Unsupported native model vertex layout or permutation");
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation];
@@ -395,11 +396,13 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&layerOperation type:MTLDataTypeUInt atIndex:10];
         [constants setConstantValue:&dualUV type:MTLDataTypeBool atIndex:11];
         [constants setConstantValue:&projected type:MTLDataTypeBool atIndex:20];
+        [constants setConstantValue:&reflectionOnly type:MTLDataTypeBool atIndex:33];
         NSError* error = nil;
         NSString* vertexName = material ? (modelPermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex") :
             normal ? @"modelColorLitVertex" : color ? @"modelColorVertex" : @"modelWhiteVertex";
         if (projected) vertexName = modelPermutation >= 10 ? @"modelProjectedSkinVertex" :
             normal ? @"modelProjectedNormalVertex" : color ? @"modelProjectedColorVertex" : @"modelProjectedPositionVertex";
+        if (reflectionOnly) vertexName = modelPermutation < 10 ? @"modelProjectedNormalVertex" : @"modelProjectedSkinVertex";
         if (!vertex) vertex = [m_library newFunctionWithName:vertexName constantValues:constants error:&error];
         if (!fragment) fragment = [m_library newFunctionWithName:@"modelDiffuseFragment" constantValues:constants error:&error];
         if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Model specialization failed");
@@ -413,7 +416,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         attribute(0, GxVA_Position, MTLVertexFormatFloat3);
         if (normal) attribute(1, GxVA_Normal, MTLVertexFormatFloat3);
         if (color) attribute(5, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
-        if (!projected) attribute(2, GxVA_TexCoord0, MTLVertexFormatFloat2);
+        if (!projected && !reflectionOnly) attribute(2, GxVA_TexCoord0, MTLVertexFormatFloat2);
         if (dualUV) attribute(6, GxVA_TexCoord1, MTLVertexFormatFloat2);
         if (modelPermutation >= 10) {
             attribute(3, GxVA_BlendWeight, MTLVertexFormatUChar4Normalized);

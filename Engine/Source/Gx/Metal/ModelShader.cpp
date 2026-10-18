@@ -9,6 +9,7 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
         case ModelVertexEffect::Diffuse: return "Diffuse_T1";
         case ModelVertexEffect::Color: return "Color_T1";
         case ModelVertexEffect::ColorDiffuse: return "CDiffuse_T1";
+        case ModelVertexEffect::DiffuseReflection: return "Diffuse_Env";
         case ModelVertexEffect::DiffuseEnvironment: return "Diffuse_T1_Env";
         case ModelVertexEffect::DiffuseDualUV: return "Diffuse_T1_T2";
         case ModelVertexEffect::DiffuseProjected: return "Diffuse_Proj_Proj";
@@ -86,6 +87,38 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
             "3e86c7bd92207b6eb87db98dbef85234",
             "99d04c70b44aa87dd41647907ab99c8b",
         }
+    };
+    static const char* reflectionVertex[] = {
+        "b4e40871e5207a2cb6f88d38c4a5ed7e",
+        "291d29189f56de0f92df24d19549b797",
+        "b4e40871e5207a2cb6f88d38c4a5ed7e",
+        "d1fac14054853cea6337b47fcbc14c36",
+        "b4e40871e5207a2cb6f88d38c4a5ed7e",
+        "11c08d93c780d9791d4e74d66fbce04a",
+        "b4e40871e5207a2cb6f88d38c4a5ed7e",
+        "330d8ddb133de72b0912f6f44a5b654b",
+        "b4e40871e5207a2cb6f88d38c4a5ed7e",
+        "b26e613995cc8e9a3ea099b424983d8b",
+        "0c4d16fb042b910bf3c268ce5c568ab7",
+        "5f9f7bac03fb2004d0d397b42c4c19ba",
+        "0c4d16fb042b910bf3c268ce5c568ab7",
+        "42f9ef7b4e38d7a132db7c05e833c9d9",
+        "0c4d16fb042b910bf3c268ce5c568ab7",
+        "dfde7e6d436c706054bd6c1eff5a17cc",
+        "0c4d16fb042b910bf3c268ce5c568ab7",
+        "d382382b92cad4859bb2aa58539c8691",
+        "0c4d16fb042b910bf3c268ce5c568ab7",
+        "479aa2ee3f05352fa214a8b24cd2a116",
+        "8a4a81c8d61f64cfa59f8f70aadf03af",
+        "d7e93da0cd00c0fd8d52ac22d26730a0",
+        "8a4a81c8d61f64cfa59f8f70aadf03af",
+        "28b6f9714ceafa35cb4f8b28b1e4ee92",
+        "8a4a81c8d61f64cfa59f8f70aadf03af",
+        "8c9402381fceeeeab33655f01e4e9b95",
+        "8a4a81c8d61f64cfa59f8f70aadf03af",
+        "5161886e4b1d4586d8d68ebeefd44f71",
+        "8a4a81c8d61f64cfa59f8f70aadf03af",
+        "17a645135790ba4b32dabdee268c135b",
     };
     static const char* environmentVertex[] = {
         "3f3cadc99a29016bfd8e991941d6766a",
@@ -207,7 +240,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         {"104f8e57582256fa22cbe5e0837c178e", "071e4b850ad8e6e2b0c824572c87f7e2"},
         {"d5b196dae035baf44d83fc4e303183f8", "3e1297741de4b4505d11e5f0635fac18"},
         {"8a6f9019a0d8eefbaafc6cb2a4297504", "edd96442ff48c808c5699802f0ddb183"},
-        {"14c860d5d1dc515d2494909da7259cba", "7bfb833f935b83e2834bcd6edcc04b2f"}
+        {"14c860d5d1dc515d2494909da7259cba", "7bfb833f935b83e2834bcd6edcc04b2f"},
+        {"8a64d4b05e2398a2ba4c62a5fe4aa997", "fd945970147ffd0cff289204ef658ab1"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i, vertexEffect)) continue;
@@ -219,7 +253,7 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
         const char* expected = target == GxSh_Vertex ?
-            (vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
+            (vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
             pixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3];
         if (fingerprint != expected) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");

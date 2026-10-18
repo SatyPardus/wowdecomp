@@ -286,6 +286,14 @@ polar composition grid pass on Mac and the iOS simulator. The complete swirling
 fog effect still needs its same-texture read/write behavior checked against the
 original D3D9 path; active render-target feedback remains explicitly rejected.
 
+World loading now also accepts the original `Diffuse_Env` reflection-only
+vertex family and `Combiners_Opaque_Mod2xNA` material. The former uses sphere
+reflection for texture 0 without authored UVs; the latter doubles layered RGB
+while keeping vertex alpha. `WOW_METAL_CHECK=model-shaders` checks these with
+the existing model variants/materials on Mac and the iOS simulator. Real local
+world entry has reached server object updates; player creation is still being
+integrated.
+
 `AppleRealmClient` is a separate macOS command-line entry for a local AzerothCore
 server. It performs real SRP authentication, realm selection, encrypted world
 authentication and character enumeration using the original client code and
