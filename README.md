@@ -979,6 +979,14 @@ the Battle.net patch caller checks success before writing any output. Buffer
 growth follows received data, with an explicit rejection of responses exceeding
 the consumer's existing signed 32-bit storage limit. Mac sanitizer and simulator
 checks exercise fixed/chunked bodies, live progress, errors and active teardown.
+Native Storm errors now write flushed, private text reports beneath
+`WOW_LOG_ROOT/Errors` (the normal writable log root when unset), using the original
+title/header callbacks, handler order and prepared fatal source position. The
+last report is available before handlers run, recursive reporting is bounded,
+and shutdown clears registered callbacks. Mac checks use actual child processes
+to verify fatal reports and exit codes; iOS exercises recoverable errors and
+concurrent handlers. OS-fault interception, minidumps and modal error UI remain
+unimplemented.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 The original `Wow.ini` profile reader now runs through SFile on Apple, retaining

@@ -66,6 +66,7 @@ void CheckGameNetwork();
 void CheckURLDownloads();
 void CheckBlizzardURLDownloads();
 void CheckClientHTTPDownloads();
+void CheckNativeDiagnostics(const std::string& scratchDirectory);
 void CheckKnowledgeBaseDownloads();
 void CheckCommandLine(const std::string& scratch);
 void CheckVersionInfo(const std::string& scratch);
@@ -861,6 +862,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckNativeSettings();
         CheckClientLocalFile(scratchDirectory);
         CheckStormLog(scratchDirectory);
+        CheckNativeDiagnostics(scratchDirectory);
         report = "PASS: native Blizzard/Storm locks, wait-all/any, manual/auto events, semaphores, mutex abandonment, threads/TLS cleanup, atomics/publication, aligned IO chains, Tempest, CDataStore, Lua pool/GC/profiling, Blizzard file stack/errors/timestamps, game OsFile config IO/attributes/enumeration, shared CVar save/reload/commands, native physical memory and scoped persistent preferences, SFile2 case-insensitive loose-file IO and read-only/64-bit file IO.\n";
         return true;
     } catch (const std::exception& error) {
