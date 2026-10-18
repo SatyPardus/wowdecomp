@@ -27,6 +27,17 @@
 #include <stdexcept>
 
 namespace {
+class GameStorm {
+    static bool s_owned;
+public:
+    GameStorm() {
+        if (s_owned) throw std::logic_error("A native scene host already owns Storm");
+        StormInitialize(); s_owned = true;
+    }
+    ~GameStorm() { GxLogClose(); StormDestroy(); s_owned = false; }
+};
+bool GameStorm::s_owned = false;
+
 class GameBase {
 public:
     GameBase() { BaseInitializeGlobal(); }
@@ -166,6 +177,8 @@ public:
 @end
 
 @implementation WowTextureRenderer {
+    // The native window, game resources, Base and device must die first.
+    std::unique_ptr<GameStorm> _storm;
     std::unique_ptr<CGxDeviceMetal> _device;
     // Base owns global properties and strings until Event and CVar teardown.
     std::unique_ptr<GameBase> _base;
@@ -195,6 +208,7 @@ public:
 - (instancetype)initWithView:(MTKView*)view textureName:(const char*)textureName {
     if ((self = [super init])) {
         if (g_theGxDevicePtr) { throw std::runtime_error("A game Gx device already owns the native host"); }
+        _storm = std::make_unique<GameStorm>();
         C2iVector size{std::max(1, int32_t(view.drawableSize.width)), std::max(1, int32_t(view.drawableSize.height))};
         CGxFormat format(true, size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, 0, 1, true, false, false, false, 0);
         _device.reset(static_cast<CGxDeviceMetal*>(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format)));

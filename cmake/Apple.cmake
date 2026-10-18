@@ -84,6 +84,8 @@ target_compile_definitions(AppleFoundation PUBLIC WOW_LOCAL_FILES_ONLY=1)
 
 add_subdirectory(ThirdParty EXCLUDE_FROM_ALL)
 add_library(AppleArchives STATIC
+    Engine/Source/Storm/Source/Storm.cpp
+    Engine/Source/Storm/Source/SEvt.cpp
     WoW/Source/ClientLocale.cpp
     WoW/Source/WowServices/ClientData.cpp
     Engine/Source/BlizzardCore/SFile2-Core.cpp
@@ -469,6 +471,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/BattlenetProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/FileDownloadProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProfileProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/DiagnosticsProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/StormRuntimeProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 set_target_properties(AppleProbeCore PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)

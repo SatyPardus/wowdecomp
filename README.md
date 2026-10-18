@@ -1001,6 +1001,13 @@ properties, file-cache tables and string pool. Two visible Mac host lifetimes
 each render 120 frames with sanitizer/Metal validation; iOS foreground rebuilds
 also re-enter the original lifecycle. The existing prefetch implementation is
 unchanged and this does not add the unfinished asynchronous prefetch behavior.
+Storm now encloses that native host lifetime using the original initialization
+and region, command, file and string cleanup. Native diagnostics and open logs
+are closed immediately at shutdown so UIKit can rebuild in the same process.
+Three core lifetimes verify owned-region cleanup, command strings and flushed
+logs; two visible Mac lifetimes and iOS foreground recreation each render 120
+frames with sanitizer/Metal validation where available. Windows retains its
+original CRT exit handling and window-message registry.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth
