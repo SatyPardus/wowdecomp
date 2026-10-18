@@ -72,6 +72,33 @@ struct Callback : ComSat::Network::Session::Callback {
     std::vector<std::vector<uint8_t>> received;
     void Recv(uint64_t id, const uint8_t* bytes, uint32_t size) override { talker = id; received.emplace_back(bytes, bytes + size); }
 };
+// Wait for the actual UDP bytes before checking a deterministic dispatch
+// budget. Nonblocking loopback delivery need not finish in the sending turn.
+class ArrivedPackets : public ComSat::Network::Socket {
+    struct Packet { Address from; std::vector<uint8_t> bytes; };
+    ComSat::Network::Manager& manager;
+    ComSat::Network::SocketPosix& native;
+    std::vector<Packet> packets;
+    size_t cursor = 0;
+public:
+    ArrivedPackets(ComSat::Network::Manager& owner, size_t count) : manager(owner), native(*static_cast<ComSat::Network::SocketPosix*>(owner.m_socket)) {
+        for (size_t i = 0; i < count; ++i) {
+            Packet packet; packet.bytes.resize(1024); uint32_t size = uint32_t(packet.bytes.size());
+            Require(Receive(native, packet.from, packet.bytes.data(), size), "Native voice UDP batch did not arrive intact");
+            packet.bytes.resize(size); packets.push_back(std::move(packet));
+        }
+        manager.m_socket = this;
+    }
+    ~ArrivedPackets() override { manager.m_socket = &native; }
+    bool Bind(int32_t port) override { return native.Bind(port); }
+    int32_t SendTo(const Address& address, const uint8_t* data, uint32_t size) override { return native.SendTo(address, data, size); }
+    bool RecvFrom(Address& from, uint8_t* data, uint32_t& size) override {
+        if (cursor == packets.size()) return false;
+        const auto& packet = packets[cursor++];
+        Require(size >= packet.bytes.size(), "Original voice receive loop did not restore packet capacity");
+        from = packet.from; std::memcpy(data, packet.bytes.data(), packet.bytes.size()); size = uint32_t(packet.bytes.size()); return true;
+    }
+};
 }
 
 void CheckComSatNetwork() {
@@ -115,11 +142,14 @@ void CheckComSatNetwork() {
             std::vector<std::vector<uint8_t>> expected;
             for (unsigned i = 0; i < 12; ++i) {
                 expected.emplace_back(i % 3 == 0 ? 2 : i % 3 == 1 ? 257 : 1017, uint8_t(i + 1));
-                Require(sessionA->Send(talkerA, expected.back().data(), expected.back().size()), "Original voice session could not enqueue a packet");
+                Require(sessionA->Send(talkerA, expected.back().data(), uint32_t(expected.back().size())), "Original voice session could not enqueue a packet");
             }
-            second.Work(124);
-            Require(callbackB.received.size() == 10, "ComSat changed the ten-packet dispatch budget or truncated a larger following packet");
-            second.Work(125);
+            {
+                ArrivedPackets arrived(second, 12);
+                second.Work(124);
+                Require(callbackB.received.size() == 10, "ComSat changed the ten-packet dispatch budget or truncated a larger following packet");
+                second.Work(125);
+            }
             Require(callbackB.received == expected && callbackB.talker == talkerA, "ComSat dropped the next packet or changed a 64-bit talker/payload");
             uint8_t wrongKey[16]{};
             first.Send(0x1234, 0x23, wrongKey, addrB, raw.data(), 1);
@@ -128,7 +158,7 @@ void CheckComSatNetwork() {
             a.SendTo(addrB, raw.data(), 3);
             Socket stranger; Require(stranger.Bind(0), "Cannot bind wrong-origin voice fixture");
             stranger.SendTo(addrB, packet, sizeof(packet));
-            second.Work(126);
+            { ArrivedPackets arrived(second, 5); second.Work(126); }
             Require(callbackB.received == expected, "Voice callback accepted a wrong signature/session/talker/origin or short packet");
             Require(sessionB->Add(talkerA + 1, 0x24, key, addrA) && sessionB->m_endpoints.Count() == 1 && sessionB->Remove(talkerA),
                 "Original voice endpoint sharing/removal changed");
