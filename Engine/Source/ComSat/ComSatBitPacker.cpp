@@ -29,9 +29,11 @@ uint32_t ComSat::BitPacker::Finalize() {
 // VERIFY: c6ad9043 manual
 // OFFSET: 0x00885770
 bool ComSat::BitPacker::PackBits(const uint8_t* data, uint32_t bits) {
-    if (this->m_bitLength < bits + this->m_bitOffset + 8 * this->m_byteOffset) {
+    if (uint64_t(this->m_bitLength) < uint64_t(bits) + this->m_bitOffset + 8ull * this->m_byteOffset) {
         return false;
     }
+    if (!bits) return true;
+    if (!data || !this->m_buffer) return false;
     int32_t bytes = bits >> 3;
     uint32_t remainder = bits & 7;
     int32_t i;
@@ -39,7 +41,7 @@ bool ComSat::BitPacker::PackBits(const uint8_t* data, uint32_t bits) {
         for (i = 0; i < bytes; i++) {
             this->m_buffer[this->m_byteOffset] &= (1 << this->m_bitOffset) - 1;
             this->m_buffer[this->m_byteOffset] |= data[i] << this->m_bitOffset;
-            this->m_buffer[this->m_byteOffset + 1] &= -1 << this->m_bitOffset;
+            this->m_buffer[this->m_byteOffset + 1] &= ~uint32_t(0) << this->m_bitOffset;
             this->m_buffer[this->m_byteOffset + 1] |= data[i] >> (8 - this->m_bitOffset);
             this->m_byteOffset++;
         }
@@ -50,11 +52,16 @@ bool ComSat::BitPacker::PackBits(const uint8_t* data, uint32_t bits) {
     }
     if (remainder) {
         uint8_t value = data[i] & ((1 << remainder) - 1);
-        this->m_buffer[this->m_byteOffset] &= (0xFF >> (8 - this->m_bitOffset)) | (-1 << (this->m_bitOffset + remainder));
+        this->m_buffer[this->m_byteOffset] &= (0xFFu >> (8 - this->m_bitOffset)) | (~uint32_t(0) << (this->m_bitOffset + remainder));
         this->m_buffer[this->m_byteOffset] |= value << this->m_bitOffset;
         if (this->m_bitOffset + remainder >= 8) {
-            this->m_buffer[this->m_byteOffset + 1] &= -1 << this->m_bitOffset;
-            this->m_buffer[this->m_byteOffset + 1] |= value >> (8 - this->m_bitOffset);
+            // The original binary (0x885894) also touches the next byte here.
+            // An exact byte boundary has no spill byte (possibly no storage
+            // beyond this byte at all).
+            if (this->m_bitOffset + remainder > 8) {
+                this->m_buffer[this->m_byteOffset + 1] &= ~uint32_t(0) << this->m_bitOffset;
+                this->m_buffer[this->m_byteOffset + 1] |= value >> (8 - this->m_bitOffset);
+            }
             this->m_byteOffset++;
             this->m_bitOffset += remainder - 8;
             return true;
@@ -81,9 +88,11 @@ ComSat::BitUnpacker::~BitUnpacker() {
 // VERIFY: 6ca95947 manual
 // OFFSET: 0x00885910
 bool ComSat::BitUnpacker::UnpackBits(uint8_t* data, uint32_t bits) {
-    if (this->m_bitLength < this->m_bitOffset + bits + 8 * this->m_byteOffset) {
+    if (uint64_t(this->m_bitLength) < uint64_t(this->m_bitOffset) + bits + 8ull * this->m_byteOffset) {
         return false;
     }
+    if (!bits) return true;
+    if (!data || !this->m_buffer) return false;
     int32_t bytes = bits >> 3;
     int32_t remainder = bits & 7;
     memset(data, 0, remainder ? bytes + 1 : bytes);
@@ -114,6 +123,9 @@ bool ComSat::BitUnpacker::UnpackBits(uint8_t* data, uint32_t bits) {
         }
         data[i] = ((1 << remainder) - 1) & (this->m_buffer[this->m_byteOffset] >> this->m_bitOffset);
         this->m_bitOffset = (remainder + this->m_bitOffset) & 7;
+        // The original binary (0x885a85) likewise omits this advancement.
+        // Continue at the next byte after consuming the current byte exactly.
+        if (!this->m_bitOffset) this->m_byteOffset++;
     }
     return true;
 }

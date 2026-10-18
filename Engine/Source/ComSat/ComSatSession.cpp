@@ -5,10 +5,6 @@
 ComSat::SessionCallback::~SessionCallback() {
 }
 
-// INLINED
-ComSat::Network::Session::Callback::~Callback() {
-}
-
 // VERIFY: dd0145f9 auto
 // OFFSET: 0x00885AD0
 void ComSat::Session::SetNetworkSession(ComSat::Network::Session* session) {

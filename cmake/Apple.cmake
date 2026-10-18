@@ -310,6 +310,17 @@ target_link_libraries(WorldTerrain PUBLIC Tempest)
 target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain WorldSupport SoundInterface LiquidSystem ClientWorldSupport)
 
 add_subdirectory(WoW/Source/Net)
+add_library(AppleComSatNetwork STATIC
+    Engine/Source/ComSat/ComSatCallbacks.cpp
+    Engine/Source/ComSat/ComSatNetworkAddress.cpp
+    Engine/Source/ComSat/ComSatNetworkSocket.cpp
+    Engine/Source/ComSat/Apple/ComSatNetwork.cpp
+    Engine/Source/ComSat/ComSatNetworkManager.cpp
+    Engine/Source/ComSat/ComSatNetworkSession.cpp
+    Engine/Source/ComSat/ComSatMD5.cpp
+    Engine/Source/ComSat/ComSatHash.cpp
+    Engine/Source/ComSat/ComSatBitPacker.cpp)
+target_include_directories(AppleComSatNetwork PUBLIC ${CMAKE_SOURCE_DIR})
 add_library(AppleVideoOptions STATIC WoW/Source/Ui/VideoOptions_Scripts.cpp WoW/Source/Ui/Screen.cpp)
 target_link_libraries(AppleVideoOptions PUBLIC Frame ConsoleBase Gx)
 add_library(AppleConsole STATIC WoW/Source/Console/ConsoleClient.cpp WoW/Source/Console/ConsoleClient_Console.cpp)
@@ -475,6 +486,8 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProfileProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/DiagnosticsProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/StormRuntimeProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/PatchFilesProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ComSatProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC AppleComSatNetwork)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 set_target_properties(AppleProbeCore PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)

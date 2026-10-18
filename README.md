@@ -1023,6 +1023,17 @@ original enumeration modes retain their passes and ordering. Mac sanitizer and
 iOS checks cover long paths, case/locale and parent-directory patterns; all
 seven real patch archives match the existing mount order and priorities. This
 does not replace full client startup or add trial/remote patch downloads.
+The original ComSat network/session ownership, MD5/HMAC and bit packing now run
+over nonblocking native UDP. Darwin socket addresses are converted explicitly
+while game objects retain the original Windows address representation. Local
+loopback checks on Mac ASan/UBSan and iOS cover exact signed packet bytes,
+64-bit talkers, mixed packet sizes, ten-packet dispatch batches, invalid/truncated
+input, shared endpoints and repeated destruction. The receive-capacity reset,
+extra packet consumption and exact-byte bit cursor/spill defects were confirmed
+in the original 3.3.5a binary too; their corrections preserve the protocol format
+but intentionally differ from those original defects. This is network support;
+the voice codec, capture/playback integration and full voice interface remain
+pending. Checks use synthetic local packets and never record microphone input.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

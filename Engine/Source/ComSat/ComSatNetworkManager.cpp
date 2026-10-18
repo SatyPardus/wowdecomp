@@ -39,6 +39,7 @@ uint32_t ComSat::Network::ComputeSignature(const uint8_t (&key)[16], const uint8
 ComSat::Network::Manager::Manager(const ComSat::Initialization& init, ComSat::Allocator& allocator) : m_allocator(&allocator), m_sessions(allocator) {
     this->m_socket = ComSat::Network::Socket::Create(allocator);
     this->m_socket->Bind(init.m_port);
+    this->m_time = init.m_time;
 }
 
 // VERIFY: bab26ca7 manual
@@ -83,6 +84,13 @@ void ComSat::Network::Manager::Work(uint32_t time) {
                     }
                 }
             }
+            // The original 3.3.5a binary also has these two receive-loop bugs
+            // (0x88551a): this is an intentional correction, not decomp repair.
+            // RecvFrom replaces capacity with the received size. Restore the
+            // full packet budget, and don't consume an eleventh packet that
+            // this Work call will never dispatch.
+            if (!remaining) break;
+            size = sizeof(packet);
             if (!this->m_socket->RecvFrom(from, reinterpret_cast<uint8_t*>(&packet), size)) {
                 break;
             }
@@ -104,13 +112,13 @@ void ComSat::Network::Manager::DestroySession(ComSat::Network::Session* session)
 // OFFSET: 0x00885590
 bool ComSat::Network::Manager::Send(uint16_t networkId, uint8_t talker, const uint8_t (&key)[16], const ComSat::Network::Address& address, const uint8_t* data, uint32_t size) {
     ComSat::Network::Packet packet;
-    uint32_t length = size + 7;
-    if (length > sizeof(packet)) {
+    if (size > sizeof(packet.m_data) || (!data && size)) {
         return false;
     }
+    uint32_t length = size + 7;
     packet.m_talker = talker;
     packet.m_networkId = networkId;
-    memcpy(packet.m_data, data, length - 7);
+    if (size) memcpy(packet.m_data, data, size);
     packet.m_signature = ComSat::Network::ComputeSignature(key, reinterpret_cast<uint8_t*>(&packet), length);
     this->m_socket->SendTo(address, reinterpret_cast<uint8_t*>(&packet), length);
     return true;

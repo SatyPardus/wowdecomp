@@ -10,15 +10,6 @@ static ComSat::Sound::Manager* s_soundManager;
 // STATIC: 0x00D4398C
 static ComSat::Network::Manager* s_networkManager;
 
-// INLINED
-ComSat::Allocator::~Allocator() {
-}
-
-// VERIFY: bb2bf7b6 manual
-// OFFSET: 0x007DC350
-ComSat::Interface::Callback::~Callback() {
-}
-
 // VERIFY: 452c7806 auto
 // OFFSET: 0x00880B30
 void ComSat::Interface::Destroy(ComSat::Interface* comsat, ComSat::Allocator& allocator) {

@@ -61,6 +61,7 @@ void CheckBattlenetCore();
 void CheckFileDownloads(const std::string& scratchDirectory);
 void CheckProfiles(const std::string& scratchDirectory);
 void CheckPatchFiles(const std::string& scratchDirectory);
+void CheckComSatNetwork();
 void CheckMountedPatchFiles(const ClientData& client);
 void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
@@ -705,6 +706,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckCRTRandom();
         CheckStormSynchronization();
         CheckGameNetwork();
+        CheckComSatNetwork();
         CheckURLDownloads();
         CheckBlizzardURLDownloads();
         CheckClientHTTPDownloads();
