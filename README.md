@@ -339,6 +339,13 @@ mana change (449 to 401) passed with spell 5186 in a 1500-frame local session,
 including normal shutdown, Mac ASan/UBSan and Metal validation. This check heals
 the selected player; it does not validate hostile combat or damage.
 
+`--check-world-shadows` cycles the original live `extShadowQuality` CVar through
+all six settings, checks its active R32F texture sizes/band ownership after 120
+frames per setting, disables/recreates shadows and restores the starting value.
+It can precede `--check-world-reentry`; a 4,000-frame Mac ASan/UBSan and Metal run
+completed all modes, both world loads and normal shutdown in Stormwind.
+This exercises the original R32F path; hardware PCF remains incomplete.
+
 `--check-world-reentry` additionally opens the original game menu, clicks Logout,
 waits for the server and character-selection screen, then clicks Enter World for
 the same selected character. It never forces a logout or resets game objects.
@@ -758,7 +765,9 @@ on that real path; it does not establish every zone or Windows visual equivalenc
 With `extShadowQuality=3`, the full Mac client also completes 1,200 frames, world
 readback and normal shutdown after adding the actual environment-reflection M2
 receiver (vertex 71, pixel 2). This is one Stormwind view, not complete world or
-quality-switch validation. WMO hardware PCF remains explicitly unsupported.
+quality-switch validation elsewhere. The explicit live quality check additionally
+passed all six settings, cache recreation and character reentry in this view.
+WMO hardware PCF remains explicitly unsupported.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct

@@ -2,6 +2,9 @@
 #include "NativeView.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
+#include "Engine/Source/ConsoleBase/ConsoleVar.h"
+#include "Engine/Source/ShaderEffect/ShadowCache.h"
+#include "Engine/Source/Services/Texture.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
@@ -149,6 +152,47 @@ bool CheckNativeWorldActions(WowNativeView* view) {
         }
         Require(elapsed < 5, "Original buff icon did not cancel the server aura");
     }
+    return false;
+}
+
+bool CheckNativeWorldShadows() {
+    static unsigned phase, frames;
+    static int original;
+    static constexpr int modes[] = {0, 1, 2, 3, 4, 5, 0, 3};
+    if (phase == 10) return true;
+    if (!CGGameUI::s_inWorld || !ClntObjMgrGetActivePlayerObj()) {
+        Require(!phase, "World left during live shadow-quality check"); return false;
+    }
+    auto* setting = CVar::LookupRegistered("extShadowQuality");
+    Require(setting != nullptr, "Original shadow-quality setting is missing");
+    if (++frames < 120) return false;
+    if (!phase) original = setting->m_intValue;
+    else {
+        const int mode = phase == 9 ? original : modes[phase - 1];
+        Require(setting->m_intValue == mode && CShadowCache::GetShadowMode() == mode && !CShadowCache::s_recreateTextures,
+            "Original shadow setting did not recreate its active cache");
+        const unsigned size = mode == 2 || mode >= 4 ? 2048 : 1024;
+        auto texture = [&](CTexture* value, bool present) {
+            Require(bool(value) == present, "Shadow-quality change retained the wrong texture set");
+            if (value) Require(value->m_gxWidth == size && value->m_gxHeight == size && value->m_gxTexFormat == GxTex_R32F,
+                "Shadow-quality change used the wrong texture size/format");
+        };
+        texture(CShadowCache::s_extDynShadow.m_textures[0], mode != 0);
+        texture(CShadowCache::s_intDynShadow, mode != 0);
+        for (const auto& band : CShadowCache::s_extShadowBands) {
+            texture(band.m_textures[0], mode > 2);
+            texture(band.m_textures[1], mode > 2 && mode < 5);
+        }
+        std::fprintf(stderr, "Native world shadows: quality %d, %u-pixel cache, 120 rendered frames passed\n", mode, size);
+        if (phase == 9) {
+            ++phase;
+            std::fputs("Native world shadows: all six original qualities, disable/recreate and original setting restoration passed\n", stderr);
+            return true;
+        }
+    }
+    const int next = phase == 8 ? original : modes[phase];
+    Require(setting->Set(next, true, false, false, false), "Original shadow-quality callback rejected the requested mode");
+    ++phase; frames = 0;
     return false;
 }
 
