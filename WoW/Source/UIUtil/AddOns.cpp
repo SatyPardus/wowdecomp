@@ -1,7 +1,11 @@
 #include "AddOns.h"
 #include <cstdlib>
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Base/Status.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"

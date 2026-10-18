@@ -591,6 +591,7 @@ static bool BuildDataFileName(int32_t directory, char* buffer, uint32_t size, co
 
 // VERIFY: 4075680a manual
 // OFFSET: 0x00402B90
+#if !defined(__APPLE__)
 bool CheckDataFilesExist() {
     char installPath[1024] = {};
     char dataPath[1024];
@@ -605,6 +606,7 @@ bool CheckDataFilesExist() {
 
     return OsFileExists(dataPath) || OsFileExists(parentPath);
 }
+#endif
 
 // VERIFY: 427545c4 manual
 // OFFSET: 0x00402D50

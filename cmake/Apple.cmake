@@ -252,6 +252,40 @@ target_link_libraries(Net PUBLIC ClientWorldSupport)
 target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin)
 target_link_libraries(WowSvcs PUBLIC Net AppleGameLogin Glue)
 target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/RealmConnection.cpp)
+add_library(AppleSessionServices STATIC
+    Engine/Source/Storm/Source/SCrc.cpp
+    Engine/Source/Storm/Source/SSignature.cpp
+    Engine/Source/Storm/Source/Sha1.cpp
+    Engine/Source/Storm/Source/RSA.cpp
+    WoW/Source/UIUtil/AddOns.cpp
+    WoW/Source/UIUtil/BannedAddOns.cpp
+    WoW/Source/WowServices/Apple/ClientInstall.cpp
+    WoW/Source/Game/GameClient/WardenCache.cpp
+    WoW/Source/Game/GameClient/NameCache.cpp
+    WoW/Source/Game/GameClient/PetNameCache.cpp
+    WoW/Source/Object/CGPetition.cpp
+    WoW/Source/Object/DanceCache.cpp
+    WoW/Source/Object/QuestCache.cpp
+    WoW/Source/Object/ItemStats.cpp
+    WoW/Source/Object/ItemName.cpp
+    WoW/Source/Object/ItemTextCache.cpp
+    WoW/Source/Object/PageTextCache.cpp
+    WoW/Source/Object/GameObjectStats.cpp
+    WoW/Source/Object/NPCText.cpp
+    WoW/Source/DB/DBClient/CreatureStats_C.cpp
+    WoW/Source/DB/DBClient/GameObjectStats_C.cpp
+    WoW/Source/DB/DBClient/BannedAddOnsData.cpp
+    WoW/Source/DB/Rec/BannedAddOnsRec.cpp
+    WoW/Source/DB/DBClient/DBCache.cpp
+    WoW/Source/DB/DBClient/DBCacheInstances.cpp)
+target_link_libraries(AppleSessionServices PUBLIC Net Frame AppleGameLogin)
+target_link_libraries(WowSvcs PUBLIC AppleSessionServices)
+add_library(AppleRealmProbeCore STATIC Tools/AppleBootstrap/RealmProbe.cpp)
+target_link_libraries(AppleRealmProbeCore PUBLIC AppleGameLogin AppleSessionServices AppleMetal)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_executable(AppleRealmProbe Tools/AppleBootstrap/realm_main.cpp)
+    target_link_libraries(AppleRealmProbe PRIVATE AppleRealmProbeCore)
+endif ()
 add_library(AppleSessionProbeCore STATIC Tools/AppleBootstrap/SessionProbe.cpp)
 target_link_libraries(AppleSessionProbeCore PUBLIC Net)
 if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -306,7 +340,7 @@ target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp Tools/AppleBootstrap/LiquidDataProbe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore AppleLoginProbeCore AppleSessionProbeCore)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore AppleLoginProbeCore AppleSessionProbeCore AppleRealmProbeCore)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

@@ -35,6 +35,7 @@ ClientData::~ClientData() {
     while (!m_mounts.empty()) { m_mounts.pop_back(); }
     if (m_filePathsSelected) {
         s_locale = m_previousDbLocale;
+        std::memcpy(s_localeCode, m_previousLocaleCode, sizeof(m_previousLocaleCode));
         SFile::SetBasePath(m_previousBasePath.c_str());
         SFile::SetDataPath(m_previousDataPath.c_str());
         SFile::SetDataPathAlternate(m_previousAlternatePath.c_str());
@@ -175,6 +176,8 @@ ClientData::ClientData(const std::string& dataRoot, const std::string& requested
     SFile::SetDataPathAlternate("");
     SFile::RebuildHash();
     m_previousDbLocale = s_locale;
+    std::memcpy(m_previousLocaleCode, s_localeCode, sizeof(m_previousLocaleCode));
+    std::memcpy(s_localeCode, m_locale.c_str(), sizeof(m_previousLocaleCode));
     s_locale = 0; // Original enUS/enGB slot, also used by English alternate locales.
     for (int32_t i = 0; i < 9; ++i) if (m_locale == s_iniLocaleNames[i]) { s_locale = i; break; }
     m_filePathsSelected = true;

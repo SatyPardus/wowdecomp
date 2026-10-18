@@ -55,6 +55,8 @@ void CheckWorldData(const ClientData& client, std::ostream& report);
 void CheckGameNetwork();
 void CheckGameLogin();
 void CheckGameSession();
+void CheckGameRealm();
+void CheckRealmMetadata(const ClientData& client, std::ostream& report);
 
 namespace {
 struct ReleaseUnit { void operator()(IOUnit* unit) const { if (unit) { unit->Release(); } } };
@@ -650,6 +652,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckGameNetwork();
         CheckGameLogin();
         CheckGameSession();
+        CheckGameRealm();
         CheckBlpLoading();
 
         IOUnitContainer container(3u, 17u, 0u);
@@ -767,6 +770,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         }
         out << "SFile2 sequential, preloaded, seek/EOF and whole-file reads match all 7 mounted resources.\n";
         CheckM2Resources(client, out);
+        CheckRealmMetadata(client, out);
         CheckTerrainResources(client, out);
         CheckWorldData(client, out);
         CheckAudioResources(client, out);

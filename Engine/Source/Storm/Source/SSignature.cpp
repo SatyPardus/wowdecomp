@@ -1,6 +1,10 @@
 #include <cstdint>
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include "RSA.h"
 #include "SSignature.h"
 #include "Engine/Source/Storm/H/storm.h"

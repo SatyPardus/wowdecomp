@@ -9,3 +9,5 @@ uint32_t s_localeIds[9] = { 'enUS', 'koKR', 'frFR', 'deDE', 'zhCN', 'zhTW', 'esE
 // STATIC: 0x00C5DE9C
 int32_t s_locale;
 
+// STATIC: 0x00C5DE88
+char s_localeCode[5];

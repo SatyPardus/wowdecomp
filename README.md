@@ -104,6 +104,8 @@ build/macos-arm64/bin/AppleNetworkProbe
 build/macos-arm64/bin/AppleLoginProbe
 # Check original NetClient game-thread delivery and session teardown.
 build/macos-arm64/bin/AppleSessionProbe
+# Check original realm authentication, character flow and stream signatures.
+build/macos-arm64/bin/AppleRealmProbe
 
 # Draw and read back every authored mip; add --preview for a native window.
 build/macos-arm64/bin/AppleMetalProbe --data-root /path/to/client335a/Data \
@@ -168,10 +170,27 @@ is an explicit error. The original event payload release was restored from the
 reference executable. Native teardown releases the queue mutex before deleting
 its owner, and canceled events release their references. Receive statistics and
 the ping clock are synchronized between the worker and game thread.
-Net, Glue, WowSvcs and RealmConnection compile on Apple arm64; the full Glue
-startup and RealmConnection character/session flow are not yet running.
+Net, Glue and WowSvcs compile on Apple arm64; full Glue startup remains pending.
 Windows DLL scanning, patch execution and the remaining platform services are
 not made available merely by compiling their shared callers.
+
+`AppleRealmProbe` runs the original RealmConnection through the original Event
+POLL callback. Synthetic loopback exchanges check the 12340 session proof against
+system SHA1, encrypted queue/authentication replies, the original empty AddOns
+exchange and cache-version invalidation, two character records with equipment
+and race restrictions, selected-character login, failure/logout replies, rejected
+authentication and truncated character lists. This checks protocol behavior;
+it does not create a playable player or connect to an external realm.
+The original AddOns/cache implementations and Storm CRC/RSA/SHA1 signature stream
+are linked. An independent synthetic signature fixture checks seven streaming
+boundaries and rejects modified payloads, markers, signatures and truncation;
+its key is confined to the probe. Existing asset keys and policy are preserved.
+The resource check also loads the original BannedAddOns DBC byte for byte.
+ClientData selects and restores the cache locale alongside the DBC locale;
+native installation detection uses the selected Data root. Writable cache-root
+integration, full AddOns/UI startup and real executable version checks remain
+pending. Warden cache serialization is shared; native execution of Windows
+Warden modules is not implemented.
 
 The shared Event scheduler now has a nonblocking native-host step. Mac/iOS
 previews render continuously from the original paint event, preserving update,

@@ -61,9 +61,6 @@ WowClientDB<AuctionHouseRec> g_auctionHouseDB;
 // STATIC: 0x00AD31E8
 WowClientDB<BankBagSlotPricesRec> g_bankBagSlotPricesDB;
 
-// STATIC: 0x00AD320C
-WowClientDB<BannedAddOnsRec> g_bannedAddOnsDB;
-
 // STATIC: 0x00AD3230
 WowClientDB<BarberShopStyleRec> g_barberShopStyleDB;
 

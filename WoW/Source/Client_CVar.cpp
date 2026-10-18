@@ -134,9 +134,6 @@ static CVar* s_cvAsyncThreadSleep;
 // STATIC: 0x00B2FA08
 static CVar* s_cvAsyncHandlerTimeout;
 
-// STATIC: 0x00C5DE88
-char s_localeCode[5];
-
 // VERIFY: 1c2781fc auto
 // OFFSET: 0x004015E0
 static bool MouseSpeedCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
