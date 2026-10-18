@@ -2,7 +2,10 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
+#define WOW_COMPONENT_SSE2 1
 #include <emmintrin.h>
+#endif
 #include <new>
 #include <typeinfo>
 #if defined(_MSC_VER)
@@ -102,7 +105,11 @@ static HPROPCONTEXT s_threadPropContext;
 int32_t CCharacterComponent::s_bComponentCompression;
 
 // STATIC: 0x00B6B4E8
+#if defined(__APPLE__)
+std::atomic<int32_t> CCharacterComponent::s_bComponentThread{0};
+#else
 int32_t CCharacterComponent::s_bComponentThread;
+#endif
 
 // STATIC: 0x00B6B4EC
 static char* s_pathEnd2;
@@ -258,6 +265,7 @@ void* CCharacterComponent::LoadItemComponentTexture(const ItemDisplayInfoRec* di
 
 // VERIFY: c2d32b47 manual
 // OFFSET: 0x004E7030
+#if defined(WOW_COMPONENT_SSE2)
 static void CompressBlockSSE(const uint8_t* src, uint32_t stride, uint32_t* out) {
     const __m128i zero = _mm_setzero_si128();
     const __m128 scale = _mm_set1_ps(1.0f / 255.0f);
@@ -378,6 +386,8 @@ static void CompressBlockSSE(const uint8_t* src, uint32_t stride, uint32_t* out)
     out[0] = color0 | (color1 << 16);
     out[1] = indices;
 }
+
+#endif
 
 // VERIFY: 4cd9c152 manual
 // OFFSET: 0x004E7650
@@ -1542,6 +1552,7 @@ static void CompressBlock(const uint8_t* src, uint32_t stride, uint8_t* out) {
 static void ComputeMipLevels(MipBits* src, MipBits* dst) {
     int32_t size = s_textureSize;
 
+#if defined(WOW_COMPONENT_SSE2)
     if ((OsGetProcessorFeatures() & 0x14) == 0x14) {
         for (uint32_t level = 0; level < CCharacterComponent::s_mipLevels; level++, size >>= 1) {
             if (size < 4) {
@@ -1564,7 +1575,9 @@ static void ComputeMipLevels(MipBits* src, MipBits* dst) {
                 in += 3 * stride;
             }
         }
-    } else {
+    } else
+#endif
+    {
         for (uint32_t level = 0; level < CCharacterComponent::s_mipLevels; level++, size >>= 1) {
             if (size < 4) {
                 CompressBlock(reinterpret_cast<const uint8_t*>(src->m_mip[CCharacterComponent::s_mipLevels - 2]), 16, reinterpret_cast<uint8_t*>(dst->m_mip[level]));
@@ -4138,14 +4151,13 @@ inline CharacterSection::~CharacterSection() {
 
 // INLINED
 inline CharacterBaseVariation::~CharacterBaseVariation() {
-    void** texture = this->m_texture;
-
-    for (int32_t i = 0; i < 7; i++) {
-        if (texture[i]) {
-            TextureCacheDestroyTexture(texture[i]);
+    // The original loop also visits already-cleared neighboring members. Only
+    // these three entries belong to this variation (including on LP64).
+    for (void*& texture : this->m_texture) {
+        if (texture) {
+            TextureCacheDestroyTexture(texture);
         }
-
-        texture[i] = nullptr;
+        texture = nullptr;
     }
 }
 
@@ -4153,7 +4165,7 @@ inline CharacterBaseVariation::~CharacterBaseVariation() {
 // OFFSET: 0x004EFBE0
 CCharacterComponent::CCharacterComponent() {
     memset(this->m_baseVariation, 0, sizeof(this->m_baseVariation));
-    this->m_flags |= 0x7;
+    this->m_flags = 0x7;
     this->m_dirtySections = 0xFFFFFFFF;
     this->m_request = nullptr;
     this->m_baseSkinTexture = nullptr;
@@ -4944,7 +4956,7 @@ CComponentRequest* CCharacterComponent::AllocComponentRequest() {
     }
 
     request->m_link.Unlink();
-    request->m_flags = (request->m_flags & ~0x3) | 0x1;
+    request->m_flags = 0x1;
     request->m_mipBits = nullptr;
     request->m_layerCount = 0;
 
@@ -5009,8 +5021,8 @@ uint32_t STORMAPI CCharacterComponent::ThreadProc(void* param) {
             if (!(request->m_flags & 0x1)) {
                 s_finishedListCritSect.Enter();
                 s_finishedList.LinkToTail(request);
-                s_finishedListCritSect.Leave();
                 request->m_flags |= 0x2;
+                s_finishedListCritSect.Leave();
                 continue;
             }
 
@@ -5028,8 +5040,8 @@ uint32_t STORMAPI CCharacterComponent::ThreadProc(void* param) {
             CCharacterComponent::ProcessComponentRequest(request);
             s_finishedListCritSect.Enter();
             s_finishedList.LinkToTail(request);
-            s_finishedListCritSect.Leave();
             request->m_flags |= 0x2;
+            s_finishedListCritSect.Leave();
             OsSleep(1);
         }
 
@@ -5114,8 +5126,9 @@ bool CCharacterComponent::RenderPrep(int32_t wait) {
 // OFFSET: 0x004F16C0
 void CCharacterComponent::FreeComponent(CCharacterComponent* component) {
     uint32_t* heap = s_componentHeap;
+    const uint32_t heapIndex = component->m_heapIndex;
     component->~CCharacterComponent();
-    ObjectFree(*heap, component->m_heapIndex);
+    ObjectFree(*heap, heapIndex);
 }
 
 // VERIFY: 6daa984b auto
@@ -5209,7 +5222,12 @@ int32_t CCharacterComponent::Update(const void* data, void* param) {
 // VERIFY: fa1ec921 manual
 // OFFSET: 0x004F1A20
 bool CCharacterComponent::Initialize(EGxTexFormat format, uint32_t mipLevels, int32_t useThread, int32_t useCompression) {
+#if defined(__APPLE__)
+    static uint32_t heap = ObjectAllocAddHeap(sizeof(CCharacterComponent), 32, "CCharacterComponent", true);
+    s_componentHeap = &heap;
+#else
     s_componentHeap = new (__FILE__, __LINE__) uint32_t(ObjectAllocAddHeap(sizeof(CCharacterComponent), 32, "CCharacterComponent", true));
+#endif
     s_pathEnd = s_path;
     s_pathEnd2 = s_path2;
 
@@ -5272,7 +5290,12 @@ bool CCharacterComponent::Initialize(EGxTexFormat format, uint32_t mipLevels, in
             CCharacterComponent::s_gxFormat = GxTex_Dxt1;
         }
 
-        CCharacterComponent::ThreadInitialize();
+        if (!CCharacterComponent::ThreadInitialize()) {
+            CCharacterComponent::s_bComponentThread = 0;
+            CCharacterComponent::DestroyComponentFreeLists();
+            CCharacterComponent::Destroy();
+            return false;
+        }
     } else {
         for (int32_t section = 0; section < NUM_COMPONENT_SECTIONS; section++) {
             CCharacterComponent::s_requestFunc[section] = nullptr;
@@ -5304,6 +5327,9 @@ void CCharacterComponent::ThreadDestroy() {
     CCharacterComponent::s_bComponentThread = 0;
     s_threadBeginEvent.Set();
     s_thread.Wait(0xFFFFFFFF);
+#if defined(__APPLE__)
+    s_thread.Close();
+#endif
 
     for (CComponentRequest* request = s_requestList.Head(); request;) {
         CComponentRequest* next = s_requestList.Next(request);
@@ -5421,9 +5447,12 @@ bool CCharacterComponent::Destroy() {
 
     if (CCharacterComponent::s_characterFacialHairStylesList) {
         SMemFree(CCharacterComponent::s_characterFacialHairStylesList, __FILE__, __LINE__, 0);
+        CCharacterComponent::s_characterFacialHairStylesList = nullptr;
     }
 
+#if !defined(__APPLE__)
     delete s_componentHeap;
+#endif
     s_componentHeap = nullptr;
     CGPlayer_C::s_displayId = 0;
     EventUnregisterEx(EVENT_ID_POLL, &CCharacterComponent::Update, nullptr, 0xFFFFFFFF);

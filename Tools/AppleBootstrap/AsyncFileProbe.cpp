@@ -62,7 +62,8 @@ struct Read {
         if (read.cleanupOnFailure) { AsyncFileReadDestroyObject(read.object); read.object = nullptr; }
     }
 };
-int32_t Initialize(const void*, void*) { AsyncFileReadInitialize(0, 20); TextureInitialize(); return 1; }
+HPROPCONTEXT resourceContext = nullptr;
+int32_t Initialize(const void*, void*) { resourceContext = PropGetSelectedContext(); AsyncFileReadInitialize(0, 20); TextureInitialize(); return 1; }
 int32_t Destroy(const void*, void*) { TextureDestroy(); AsyncFileReadDestroy(); return 1; }
 }
 
@@ -73,6 +74,7 @@ void CheckGameAsyncFiles() {
         EventCreateContextEx(1, Initialize, Destroy, 1, 0);
         EventProcessPending();
         CheckGameCubeTextures();
+        PropSelectContext(resourceContext);
         CheckGameModels();
         CheckGameTerrain();
         CheckGameWmoRoots();

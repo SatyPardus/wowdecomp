@@ -79,20 +79,11 @@ WowClientDB<Cfg_ConfigsRec> g_cfg_ConfigsDB;
 // STATIC: 0x00AD32E4
 WowClientDB<CharBaseInfoRec> g_charBaseInfoDB;
 
-// STATIC: 0x00AD3308
-WowClientDB<CharHairGeosetsRec> g_charHairGeosetsDB;
-
-// STATIC: 0x00AD332C
-WowClientDB<CharSectionsRec> g_charSectionsDB;
-
 // STATIC: 0x00AD3350
 WowClientDB<CharStartOutfitRec> g_charStartOutfitDB;
 
 // STATIC: 0x00AD3374
 WowClientDB<CharTitlesRec> g_charTitlesDB;
-
-// STATIC: 0x00AD3398
-WowClientDB<CharacterFacialHairStylesRec> g_characterFacialHairStylesDB;
 
 // STATIC: 0x00AD33BC
 WowClientDB<ChatChannelsRec> g_chatChannelsDB;
@@ -102,9 +93,6 @@ WowClientDB<ChatProfanityRec> g_chatProfanityDB;
 
 // STATIC: 0x00AD3404
 WowClientDB<ChrClassesRec> g_chrClassesDB;
-
-// STATIC: 0x00AD3428
-WowClientDB<ChrRacesRec> g_chrRacesDB;
 
 // STATIC: 0x00AD344C
 WowClientDB<CinematicCameraRec> g_cinematicCameraDB;
@@ -271,9 +259,6 @@ WowClientDB<gtRegenHPPerSptRec> g_gtRegenHPPerSptDB;
 // STATIC: 0x00AD3C98
 WowClientDB<gtRegenMPPerSptRec> g_gtRegenMPPerSptDB;
 
-// STATIC: 0x00AD3CBC
-WowClientDB<HelmetGeosetVisDataRec> g_helmetGeosetVisDataDB;
-
 // STATIC: 0x00AD3CE0
 WowClientDB<HolidayDescriptionsRec> g_holidayDescriptionsDB;
 
@@ -294,9 +279,6 @@ WowClientDB<ItemClassRec> g_itemClassDB;
 
 // STATIC: 0x00AD3DB8
 WowClientDB<ItemCondExtCostsRec> g_itemCondExtCostsDB;
-
-// STATIC: 0x00AD3DDC
-WowClientDB_RLE<ItemDisplayInfoRec> g_itemDisplayInfoDB;
 
 // STATIC: 0x00AD3E00
 WowClientDB<ItemExtendedCostRec> g_itemExtendedCostDB;
@@ -327,12 +309,6 @@ WowClientDB<ItemSubClassMaskRec> g_itemSubClassMaskDB;
 
 // STATIC: 0x00AD3F44
 WowClientDB<ItemSubClassRec> g_itemSubClassDB;
-
-// STATIC: 0x00AD3F68
-WowClientDB<ItemVisualEffectsRec> g_itemVisualEffectsDB;
-
-// STATIC: 0x00AD3F8C
-WowClientDB<ItemVisualsRec> g_itemVisualsDB;
 
 // STATIC: 0x00AD3FB0
 WowClientDB<LanguageWordsRec> g_languageWordsDB;

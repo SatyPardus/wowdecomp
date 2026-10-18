@@ -3,6 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(__APPLE__)
+#include <atomic>
+#endif
 #include "Engine/Source/BLPFile/Types.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Services/Types.h"
@@ -53,7 +56,13 @@ class CComponentMipBits {
 
 class CComponentRequest {
     public:
+#if defined(__APPLE__)
+    // Completion publishes the worker-owned mip data; cancellation races with
+    // that publication and must preserve the other flag bit.
+    std::atomic<uint32_t> m_flags{0};
+#else
     /* 0000 */ uint32_t m_flags;
+#endif
     /* 0004 */ EGxTexFormat m_format;
     /* 0008 */ CComponentMipBits* m_mipBits;
     /* 000C */ void* m_baseTextures [10];
@@ -76,7 +85,11 @@ class CCharacterComponent {
     static void (CCharacterComponent::*m_itemFunc[NUM_COMPONENT_SECTIONS])(ITEM_SLOT, const ItemDisplayInfoRec*, bool);
     static void (CCharacterComponent::*m_prepFunc[NUM_COMPONENT_SECTIONS])();
     static int32_t s_bComponentCompression;
+#if defined(__APPLE__)
+    static std::atomic<int32_t> s_bComponentThread;
+#else
     static int32_t s_bComponentThread;
+#endif
     static int32_t s_bInRenderPrep;
     static uint32_t* s_characterFacialHairStylesList;
     static st_race* s_chrVarArray;

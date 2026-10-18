@@ -391,6 +391,16 @@ and font preview. Model/skin/texture loading is asynchronous; the game Event upd
 drives animation time. The default is CreatureDisplayInfo 165 (timber wolf), playing
 its original walk animation. Set `WOW_CREATURE_DISPLAY` to another positive DBC ID,
 or `WOW_MODEL` to an explicit archive path without creature appearance replacement.
+`WOW_CHARACTER=1:0` selects a human male through the original character component,
+including asynchronous skin/face/hair composition and the configured compression.
+The syntax is `race:sex[:skin:face:hairStyle:hairColor:facialHair:chestDisplay]`,
+with omitted appearance fields defaulting to zero and validated by the original
+creation rules; sex is 0 or 1. For example, `WOW_CHARACTER=1:1:0:0:0:0:0:220`
+shows a human female wearing the real chest display 220. This scene selection is
+exclusive with the other scene environment options. It is a character preview,
+not a player session or a replacement for the unfinished Glue/character UI.
+The arm64 compressor currently uses the original scalar DXT1 implementation;
+equivalence with the original x86 SIMD compressor remains to be established.
 These options are mutually exclusive. Character composition is not integrated;
 an unsupported shader reports its name and stops rendering.
 `WOW_MODEL='Spells\Fireball_Missile_Low.m2'` exercises original particle emission

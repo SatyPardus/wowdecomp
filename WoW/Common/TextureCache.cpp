@@ -293,8 +293,7 @@ CACHEENTRY::CACHEENTRY() {
 static CACHEENTRY* TextureCacheAllocEntry() {
     if (!s_entryHeap) {
 #if defined(__APPLE__)
-        static uint32_t heap;
-        heap = ObjectAllocAddHeap(sizeof(CACHEENTRY), 1024, "TCACHEENTRY", true);
+        static uint32_t heap = ObjectAllocAddHeap(sizeof(CACHEENTRY), 1024, "TCACHEENTRY", true);
         s_entryHeap = &heap;
 #else
         s_entryHeap = new (__FILE__, __LINE__) uint32_t(ObjectAllocAddHeap(sizeof(CACHEENTRY), 1024, "TCACHEENTRY", true));

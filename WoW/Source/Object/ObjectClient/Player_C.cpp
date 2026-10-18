@@ -194,9 +194,6 @@ static const UIErrors s_taxiReplyErrors[13] = {
     ERR_TAXINOTSTANDING,
 };
 
-// STATIC: 0x00B6B87C
-uint32_t CGPlayer_C::s_displayId;
-
 // STATIC: 0x00C9D328
 static int32_t s_areaTriggerEnd;
 

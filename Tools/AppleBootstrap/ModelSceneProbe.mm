@@ -25,6 +25,7 @@
 #include <stdexcept>
 
 void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPassDescriptor* pass);
+void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass);
 
 namespace {
 void CheckEmptySkeleton(CM2Scene* scene) {
@@ -116,6 +117,7 @@ void CheckGameModels() {
     pass.colorAttachments[0].texture = target; pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
     pass.depthAttachment.texture = depth; pass.depthAttachment.loadAction = MTLLoadActionClear; pass.depthAttachment.clearDepth = 1;
+    CheckGameCharacters(device, pass);
     device.BeginFrame(pass);
     struct EndFrame { CGxDeviceMetal& device; ~EndFrame() { if (device.FrameCommand()) device.ScenePresent(); } } endFrame{device};
     GxXformSetViewport(0, 1, 0, 1, 0, 1);

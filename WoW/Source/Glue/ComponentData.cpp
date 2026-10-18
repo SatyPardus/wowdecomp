@@ -3,7 +3,7 @@
 // VERIFY: 84ef6cc9 auto
 // OFFSET: 0x004DFDA0
 ComponentData::ComponentData() {
-    this->m_flags &= ~0x3u;
+    this->m_flags = 0;
     this->m_preferences.m_raceID = 0;
     this->m_preferences.m_sexID = 0;
     this->m_preferences.m_classId = 0;

@@ -270,8 +270,9 @@ public:
         NSString* terrain = NSProcessInfo.processInfo.environment[@"WOW_TERRAIN"];
         NSString* wmo = NSProcessInfo.processInfo.environment[@"WOW_WMO"];
         NSString* world = NSProcessInfo.processInfo.environment[@"WOW_WORLD"];
+        NSString* character = NSProcessInfo.processInfo.environment[@"WOW_CHARACTER"];
         if (world && !_world) {
-            if (wmo || terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
+            if (character || wmo || terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
                 throw std::runtime_error("WOW_WORLD cannot be combined with other scene selections");
             _world = std::make_unique<WorldPreview>(world.UTF8String);
 #if TARGET_OS_OSX
@@ -285,13 +286,13 @@ public:
             }
         }
         if (wmo && !_wmo) {
-            if (terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
+            if (character || terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
                 throw std::runtime_error("WOW_WMO cannot be combined with other scene selections");
             _wmo = std::make_unique<WmoPreview>(wmo.UTF8String);
         }
         if (terrain && !_terrain) {
-            if (NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
-                throw std::runtime_error("WOW_TERRAIN cannot be combined with WOW_MODEL or WOW_CREATURE_DISPLAY");
+            if (character || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
+                throw std::runtime_error("WOW_TERRAIN cannot be combined with other scene selections");
             _terrain = std::make_unique<TerrainPreview>(terrain.UTF8String, true);
             NSString* time = NSProcessInfo.processInfo.environment[@"WOW_TIME_MINUTES"];
             if (time) {
@@ -304,7 +305,8 @@ public:
         if (!world && !terrain && !wmo && !_model) {
             NSString* name = NSProcessInfo.processInfo.environment[@"WOW_MODEL"];
             NSString* display = NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"];
-            uint32_t displayID = name ? 0 : 165; // Original timber wolf display.
+            if (character && (name || display)) throw std::runtime_error("WOW_CHARACTER cannot be combined with WOW_MODEL or WOW_CREATURE_DISPLAY");
+            uint32_t displayID = (name || character) ? 0 : 165; // Original timber wolf display.
             if (display) {
                 NSScanner* scanner = [NSScanner scannerWithString:display];
                 unsigned long long value = 0;
@@ -312,7 +314,7 @@ public:
                     throw std::runtime_error("WOW_CREATURE_DISPLAY must be a positive DBC ID and cannot be combined with WOW_MODEL");
                 displayID = uint32_t(value);
             }
-            _model = std::make_unique<ModelPreview>(name.UTF8String, displayID);
+            _model = std::make_unique<ModelPreview>(name.UTF8String, displayID, character.UTF8String);
         }
         _device->BeginFrame(pass, drawable);
         GxXformSetViewport(0, 1, 0, 1, 0, 1);

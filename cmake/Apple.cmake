@@ -19,6 +19,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SRgn.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SUni.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/FontPath.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/PathExtension.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Diagnostics.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Sync.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/soprintf.cpp
@@ -209,6 +210,22 @@ add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance
 target_link_libraries(CreatureAppearance PUBLIC Model2)
 add_library(CharacterTextureCache STATIC WoW/Common/TextureCache.cpp)
 target_link_libraries(CharacterTextureCache PUBLIC AppleGameResources)
+add_library(CharacterAppearance STATIC
+    WoW/Source/Glue/ComponentData.cpp
+    WoW/Common/ComponentCore/CharacterComponent.cpp
+    WoW/Common/ComponentCore/CharacterComponent_CVar.cpp
+    WoW/Common/ComponentCore/ComponentUtils.cpp
+    WoW/Common/ComponentCore/PlayerComponentState.cpp
+    WoW/Source/DB/DBClient/CharacterAppearance.cpp
+    WoW/Source/DB/Rec/CharHairGeosetsRec.cpp
+    WoW/Source/DB/Rec/CharSectionsRec.cpp
+    WoW/Source/DB/Rec/CharacterFacialHairStylesRec.cpp
+    WoW/Source/DB/Rec/ChrRacesRec.cpp
+    WoW/Source/DB/Rec/HelmetGeosetVisDataRec.cpp
+    WoW/Source/DB/Rec/ItemDisplayInfoRec.cpp
+    WoW/Source/DB/Rec/ItemVisualEffectsRec.cpp
+    WoW/Source/DB/Rec/ItemVisualsRec.cpp)
+target_link_libraries(CharacterAppearance PUBLIC CharacterTextureCache CreatureAppearance Model2)
 
 add_subdirectory(Engine/Source/FrameScript)
 target_link_libraries(FrameScript PUBLIC AppleGameResources lua)
@@ -252,7 +269,7 @@ add_subdirectory(WoW/Source/Net)
 add_subdirectory(WoW/Source/Glue)
 add_subdirectory(WoW/Source/WowSvcs)
 target_link_libraries(Net PUBLIC ClientWorldSupport)
-target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin)
+target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin CharacterAppearance)
 target_link_libraries(WowSvcs PUBLIC Net AppleGameLogin Glue)
 target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/RealmConnection.cpp)
 add_library(AppleSessionServices STATIC
@@ -341,9 +358,11 @@ target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 add_library(AppleWorldProbe STATIC Tools/AppleBootstrap/WmoProbe.cpp)
 target_link_libraries(AppleWorldProbe PUBLIC WorldClient AppleMetal)
 target_link_libraries(AppleMetalProbeCore PUBLIC AppleUIComponents AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWorldProbe AppleWmoView)
+target_sources(AppleMetalProbeCore PRIVATE Tools/AppleBootstrap/CharacterSceneProbe.mm)
+target_link_libraries(AppleMetalProbeCore PUBLIC CharacterAppearance)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/NativeView.mm Tools/AppleBootstrap/ModelPreview.cpp Tools/AppleBootstrap/WorldPreview.cpp)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
-target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
+target_link_libraries(AppleMetalView PUBLIC CharacterAppearance AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp Tools/AppleBootstrap/LiquidDataProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore AppleLoginProbeCore AppleSessionProbeCore AppleRealmProbeCore)
