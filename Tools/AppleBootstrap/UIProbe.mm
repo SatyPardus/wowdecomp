@@ -10,6 +10,7 @@
 #include "WoW/Source/Ui/CGCooldown.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Base/Prop.h"
@@ -105,6 +106,7 @@ public:
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (!self.active) return;
+    if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return;
     try {
         if (!self.displayChecked && NSProcessInfo.processInfo.environment[@"WOW_DISPLAY_CHECK"]) {
             if (!_displayProbe) _displayProbe = std::make_unique<NativeDisplayProbe>(*renderDevice, view);
@@ -190,7 +192,8 @@ int main(int argc, char** argv) {
             view.paused = YES; window.contentView = view;
             view.autoResizeDrawable = NO; view.drawableSize = CGSizeMake(600, 300);
             OsGuiSetGxWindow((__bridge void*)view);
-            CVar::Initialize("/private/tmp/wow-ui-probe.wtf");
+            NSString* config = [NSTemporaryDirectory() stringByAppendingPathComponent:[@"wow-ui-" stringByAppendingString:NSUUID.UUID.UUIDString]];
+            CVar::Initialize(config.fileSystemRepresentation);
             ConsoleDeviceInitialize("WoW native UI", false, false);
             std::unique_ptr<CGxDevice, void (*)(CGxDevice*)> owner(g_theGxDevicePtr, [](CGxDevice*) { ConsoleDeviceDestroy(); });
             Require(owner && owner->DeviceWindow() == (__bridge void*)view, "Cannot create UI device on its native host");
@@ -301,7 +304,7 @@ int main(int argc, char** argv) {
                     delegate.movie = movie.get();
                     delegate.frameLimit = [NSProcessInfo.processInfo.environment[@"WOW_UI_FRAMES"] integerValue];
                     NSApp.delegate = delegate; window.delegate = delegate; view.delegate = delegate;
-                    view.device = device.GPU().device; view.framebufferOnly = NO; view.autoResizeDrawable = YES;
+                    view.device = device.GPU().device; view.framebufferOnly = NO;
                     view.depthStencilPixelFormat = MTLPixelFormatDepth32Float; view.clearDepth = 1;
                     view.clearColor = MTLClearColorMake(.08, .09, .12, 1);
                     window.title = @"WoW — original Glue UI components";
@@ -322,6 +325,7 @@ int main(int argc, char** argv) {
             PropSelectContext(nullptr); EventDestroy(); PropDestroy();
             owner.reset();
             CVar::Destroy(); ConsoleCommandDestroy(); CStringManager::DestroyManager(); CVar::s_configFile = nullptr;
+            [NSFileManager.defaultManager removeItemAtPath:config error:nil];
             Require(!OsGuiGetWindow(0), "Destroyed Gx device retained its still-live native view binding");
             std::puts("Original CSimpleTop/edit box: native Unicode and composition, layout, rendering and teardown passed");
             }

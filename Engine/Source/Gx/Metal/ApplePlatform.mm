@@ -31,6 +31,36 @@ bool GxMetal::GetHostFormat(CGxFormat& format) {
     return true;
 }
 
+bool GxMetal::PrepareHostDrawable(void* nativeView) {
+#if TARGET_OS_OSX
+    if (!NSThread.isMainThread) throw std::runtime_error("Native drawable sizing requires the host thread");
+    MTKView* view = (__bridge MTKView*)nativeView;
+    if (![view isKindOfClass:MTKView.class] || !view.window) return false;
+    const NSRect backing = [view convertRectToBacking:view.bounds];
+    if (backing.size.width <= 0 || backing.size.height <= 0) return false;
+    // MTKView automatic resizing can replace a Retina drawable with the point
+    // size on the next event-loop pass, even though preferredDrawableSize and
+    // the layer's contentsScale report native pixels. Own this conversion at
+    // the frame boundary, before either color or depth attachments are acquired.
+    view.autoResizeDrawable = NO;
+    if (backing.size.width > 0 && backing.size.height > 0 &&
+        !CGSizeEqualToSize(view.drawableSize, backing.size)) {
+        [view releaseDrawables];
+        view.drawableSize = backing.size;
+    }
+    // MTKView may already have cached a drawable during window activation.
+    // Setting the size does not invalidate that one on every macOS version.
+    auto drawable = view.currentDrawable;
+    if (drawable && (drawable.texture.width != size_t(view.drawableSize.width) ||
+                     drawable.texture.height != size_t(view.drawableSize.height))) {
+        [view releaseDrawables]; return false;
+    }
+#else
+    (void)nativeView;
+#endif
+    return true;
+}
+
 bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     // AppKit/UIKit mutations and drawable acquisition share the host thread.
     if (!NSThread.isMainThread) return false;
@@ -64,10 +94,7 @@ bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     ((CAMetalLayer*)view.layer).displaySyncEnabled = format.m_vsync != 0;
 #endif
     view.drawableSize = CGSizeMake(format.m_size.x, format.m_size.y);
-#if TARGET_OS_OSX
-    // Future interactive window resizing follows the screen's backing scale.
-    view.autoResizeDrawable = YES;
-#endif
+    // macOS hosts apply interactive resizing at the next frame boundary.
     view.delegate = delegate;
     OsInputSetDrawableSize(format.m_size.x, format.m_size.y);
     OsQueuePut(OS_INPUT_SIZE, format.m_size.x, format.m_size.y, 0, 0);

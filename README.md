@@ -292,6 +292,12 @@ the full sequence. World rendering, these inputs and normal shutdown have passed
 Mac ASan/UBSan and Metal validation in a 900-frame local session. Full combat,
 area transitions and sustained play are still being integrated and verified.
 
+macOS host frames explicitly track the window's native backing pixels before
+acquiring Metal attachments, including Retina scaling and interactive resizing.
+The original login now renders at the requested 1024x768 pixels on a 2x display;
+window resizing, color/depth readback, input coordinates and original display
+restart/rollback pass the native UI check under ASan/UBSan and Metal validation.
+
 The native `FFXNetherBlur`/`FFXNetherCombine` paths preserve the original noisy
 four-tap RGBA blur, fixed UV bias, two-pass intermediate surface, tint and fade.
 `WOW_METAL_CHECK=ffx` focuses the existing Metal probe on post-processing

@@ -25,6 +25,7 @@
 #include "Engine/Source/Frame/CSimpleEditBox.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Os/Gui.h"
@@ -186,6 +187,7 @@ int32_t Destroy(const void* data, void* param) {
 bool AcquireSynchronousFrame(CGxDeviceMetal& gpu, void* owner) {
     MTKView* view = (__bridge MTKView*)owner;
     if (!view || view.paused || !view.window) return false;
+    if (!GxMetal::PrepareHostDrawable(owner)) return false;
     // MTKView normally retains one drawable for its draw callback. Original
     // map loading may present several times before that callback returns.
     [view releaseDrawables];
@@ -290,8 +292,13 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (!self.active) return;
+    if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return;
     auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
     if (!pass || !drawable) return;
+    if (!self.frames) std::fprintf(stderr,"Native display: bounds %.0fx%.0f, backing %.0fx%.0f, window scale %.1f, layer scale %.1f, drawable %.0fx%.0f, texture %lux%lu, format %dx%d\n",
+        view.bounds.size.width,view.bounds.size.height,[view convertRectToBacking:view.bounds].size.width,[view convertRectToBacking:view.bounds].size.height,
+        view.window.backingScaleFactor,view.layer.contentsScale,view.drawableSize.width,view.drawableSize.height,
+        (unsigned long)drawable.texture.width,(unsigned long)drawable.texture.height,device->m_format.m_size.x,device->m_format.m_size.y);
     try {
         device->BeginFrame(pass, drawable);
         const bool running = EventProcessPending();

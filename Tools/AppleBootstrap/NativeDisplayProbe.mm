@@ -1,6 +1,7 @@
 #include "NativeDisplayProbe.h"
 #include "NativeGuiProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Os/Gui.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
@@ -22,7 +23,7 @@ struct NativeDisplayProbe::Impl {
     BOOL automatic;
     CBoundingBox viewport;
     unsigned phase = 0;
-    C2iVector sizes[3];
+    C2iVector sizes[4];
     Impl(CGxDeviceMetal& d, MTKView* v) : device(d), view(v), original(d.m_format), automatic(v.autoResizeDrawable), viewport(d.m_viewport) {
         original.m_size = {int32_t(view.drawableSize.width), int32_t(view.drawableSize.height)};
         sizes[0] = {320, 180}; sizes[1] = {641, 359}; sizes[2] = original.m_size;
@@ -69,6 +70,7 @@ NativeDisplayProbe::~NativeDisplayProbe() = default;
 bool NativeDisplayProbe::Step() { return m->Step(); }
 bool NativeDisplayProbe::Impl::Step() {
     Require(!device.FrameCommand(), "Native format check requires an idle host");
+    if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return false;
     device.XformSetViewport(0, 1, 0, 1, 0, 1);
     if (!phase) {
         CheckNativeGui((__bridge void*)view); Request(sizes[phase++]);
@@ -91,7 +93,7 @@ bool NativeDisplayProbe::Impl::Step() {
 #endif
         tagRECT bounds{}; OsGetDefaultWindowRect(&bounds);
         Require(bounds.right == size.x && bounds.bottom == size.y, "Native input retained the previous pixel bounds");
-        const auto accepted = device.m_format;
+        auto accepted = device.m_format;
         auto reject = [&](const CGxFormat& invalid) {
             Require(!device.DeviceSetFormat(invalid), "Unsupported native presentation was accepted");
             Require(device.m_format.m_size.x == accepted.m_size.x && device.m_format.m_size.y == accepted.m_size.y &&
@@ -119,6 +121,8 @@ bool NativeDisplayProbe::Impl::Step() {
             pass.depthAttachment.texture.width == size.x && pass.depthAttachment.texture.height == size.y,
             "Native drawable/depth attachments did not rebuild at the new size");
         device.BeginFrame(pass, drawable);
+        // Interactive resizing publishes its actual format with the new frame.
+        accepted = device.m_format;
         invalid = accepted; invalid.m_size = {123, 77}; reject(invalid);
         device.SceneClear(3, CImVector(31, 73, 149, 255));
         CiRect rect(0, 0, size.y, size.x); TSGrowableArray<CImVector> pixels;
@@ -151,6 +155,16 @@ bool NativeDisplayProbe::Impl::Step() {
 #endif
     }
     if (phase < 3) { if (!ConsoleDeviceExists()) Request(sizes[phase]); ++phase; return false; }
+#if TARGET_OS_OSX
+    if (phase == 3) {
+        // Exercise a native window resize across the event loop, rather than
+        // only checking the explicit DeviceSetFormat value immediately.
+        [view.window setContentSize:NSMakeSize(367, 209)];
+        const auto backing = [view convertRectToBacking:view.bounds];
+        sizes[3] = {int32_t(backing.size.width), int32_t(backing.size.height)};
+        ++phase; return false;
+    }
+#endif
     std::fprintf(stderr, "Native display: real drawable/depth resize, odd pixel dimensions, full-surface GPU readback, input bounds, presentation rejection and active-frame/thread safety passed; original ConsoleDevice restart %s\n", ConsoleDeviceExists() ? "passed (deferred latest request and last-good rollback)" : "not active");
     return true;
 }

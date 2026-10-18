@@ -11,6 +11,7 @@
 #include "Tools/AppleBootstrap/MoviePlayback.h"
 #include "Tools/AppleBootstrap/NativeDisplayProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Base/Coordinate.h"
@@ -286,11 +287,13 @@ public:
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
     OsInputSetDrawableSize(uint32_t(size.width), uint32_t(size.height));
     OsQueuePut(OS_INPUT_SIZE, int32_t(size.width), int32_t(size.height), 0, 0);
-    if (_active) { [view draw]; }
+    // The active display loop draws the new size. Do not recursively render
+    // while the host is preparing this frame's drawable and input bounds.
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (!_active) { return; }
     try {
+        if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return;
         if (!_displayChecked && NSProcessInfo.processInfo.environment[@"WOW_DISPLAY_CHECK"]) {
             if (!_displayProbe) _displayProbe = std::make_unique<NativeDisplayProbe>(*_device, view);
             if (_displayProbe->Step()) { _displayChecked = YES; _displayProbe.reset(); }
