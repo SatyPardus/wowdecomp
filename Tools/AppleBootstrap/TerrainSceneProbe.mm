@@ -18,7 +18,8 @@ void CheckOriginalAreaLoad() {
     const auto flags = CMap::header.m_flags;
     struct Restore { decltype(specular) value; decltype(flags) flags; ~Restore() { CMap::enableSpecularTerrain = value; CMap::header.m_flags = flags; } } restore{specular, flags};
     CMap::enableSpecularTerrain = 1;
-    for (const char* name : {"World\\Maps\\Azeroth\\Azeroth_32_48.adt", "World\\Maps\\Northrend\\Northrend_32_32.adt"}) {
+    for (const char* name : {"World\\Maps\\Azeroth\\Azeroth_32_48.adt", "World\\Maps\\Northrend\\Northrend_32_32.adt",
+                             "World\\Maps\\Northrend\\Northrend_32_21.adt"}) {
         CMapArea area;
         struct Purge { CMapArea& area; ~Purge() { area.Purge(); } } purge{area};
         area.Load(name);
@@ -68,15 +69,19 @@ void CheckGameTerrain() {
     pass.depthAttachment.texture = [device.GPU().device newTextureWithDescriptor:descriptor];
     pass.depthAttachment.loadAction = MTLLoadActionClear;
     pass.depthAttachment.clearDepth = 1;
-    for (const char *name : {"Azeroth:32:48", "Northrend:32:32", "Expansion01:19:31", "Expansion01:28:37"}) {
+    struct Fixture { const char* name; unsigned liquids, environmentChunks; };
+    for (const auto fixture : {Fixture{"Azeroth:32:48", 42, 0}, Fixture{"Northrend:32:32", 256, 0},
+                               Fixture{"Expansion01:19:31", 208, 0}, Fixture{"Expansion01:28:37", 31, 0},
+                               Fixture{"Northrend:32:21", 0, 51}}) {
+        const char* name = fixture.name;
         TerrainPreview terrain(name);
         if (!terrain.Ready(true) || terrain.ChunkCount() != 256)
             throw std::runtime_error("Real terrain surface did not become ready");
-        if (terrain.LiquidLayerCount() != (name[0] == 'A' ? 42 : name[0] == 'N' ? 256 : std::strstr(name, "19:31") ? 208 : 31))
-            throw std::runtime_error("Terrain liquid layers omitted");
-        TSGrowableArray<CImVector> first;
+        if (terrain.LiquidLayerCount() != fixture.liquids || terrain.EnvironmentChunkCount() != fixture.environmentChunks)
+            throw std::runtime_error("Terrain liquid or environment layers omitted");
+        TSGrowableArray<CImVector> first, previous;
         unsigned changed = 0;
-        for (unsigned frame = 0; frame < 6; ++frame) {
+        for (unsigned frame = 0; frame < (fixture.liquids ? 6u : 4u); ++frame) {
             device.BeginFrame(pass);
             struct End {
                 CGxDeviceMetal &device;
@@ -86,10 +91,12 @@ void CheckGameTerrain() {
                 }
             } end{device};
             const auto before = device.EncodingStats();
-            if (!terrain.Draw(0, 256, 256, true, frame >= 2))
+            const bool liquidOnly = fixture.liquids && frame >= 2;
+            const float elapsed = !fixture.liquids && frame == 2 ? 1.25f : 0;
+            if (!terrain.Draw(elapsed, 256, 256, true, liquidOnly))
                 throw std::runtime_error("Ready terrain failed to draw");
             const auto after = device.EncodingStats();
-            if (after.geometryDraws - before.geometryDraws != (frame >= 2 ? 0 : 256) + terrain.LiquidBatchCount())
+            if (after.geometryDraws - before.geometryDraws != (liquidOnly ? 0 : 256) + terrain.LiquidBatchCount())
                 throw std::runtime_error("Terrain surface omitted chunks");
             if (after.renderPasses - before.renderPasses != 1)
                 throw std::runtime_error("Resident terrain split its render pass");
@@ -106,15 +113,21 @@ void CheckGameTerrain() {
                         sample = &pixels[i];
                     varied += pixels[i].r != sample->r || pixels[i].g != sample->g || pixels[i].b != sample->b;
                 }
-            if (covered < (frame >= 2 ? 50 : 10000) || varied < covered / 2)
+            if (covered < (liquidOnly ? 50 : 10000) || varied < covered / 2)
                 throw std::runtime_error("Real terrain coverage or material variation missing");
-            if (frame == 2) {
+            if (frame == (fixture.liquids ? 2u : 0u)) {
                 first.SetCount(pixels.Count());
                 std::memcpy(first.m_data, pixels.m_data, pixels.Count() * sizeof(CImVector));
             }
-            if (frame > 2) {
+            if (frame > (fixture.liquids ? 2u : 1u)) {
                 for (unsigned i = 0; i < pixels.Count(); ++i)
                     changed += std::memcmp(&pixels[i], &first[i], sizeof(CImVector)) != 0;
+            }
+            if (!fixture.liquids) {
+                if ((frame & 1) && std::memcmp(previous.m_data, pixels.m_data, pixels.Count() * sizeof(CImVector)))
+                    throw std::runtime_error("Stationary terrain cube material changed between frames");
+                previous.SetCount(pixels.Count());
+                std::memcpy(previous.m_data, pixels.m_data, pixels.Count() * sizeof(CImVector));
             }
             if (frame && after.bufferUploadPasses != before.bufferUploadPasses)
                 throw std::runtime_error("Resident terrain/liquid geometry reuploaded");
@@ -123,10 +136,10 @@ void CheckGameTerrain() {
                          static_cast<unsigned long long>(after.renderPasses - before.renderPasses),
                          static_cast<unsigned long long>(after.bufferUploadPasses-before.bufferUploadPasses));
             device.ScenePresent();
-            if (frame >= 2 && frame < 5)
+            if (fixture.liquids && frame >= 2 && frame < 5)
                 OsSleep(250);
         }
         if (!changed)
-            throw std::runtime_error("Terrain liquid animation did not change visible pixels");
+            throw std::runtime_error("Terrain liquid animation or camera rotation did not change visible pixels");
     }
 }

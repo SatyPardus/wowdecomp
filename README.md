@@ -432,8 +432,13 @@ The native host can now draw a complete authored ADT surface with
 This selection is mutually exclusive with the model/creature variables. It uses
 the original Services texture lifecycle and specular `_s.blp` selection, all
 material layers, WDT-selected vertex colors, hole indices and packed/RGBA blend
-maps. UV animation and per-layer lighting flags are preserved; cube-reflection
-materials fail explicitly. The preview supplies an orbiting camera and explicit
+maps. UV animation and per-layer lighting flags are preserved. Authored base-layer
+cube reflections use the original view-transpose constants and shader selection;
+`WOW_TERRAIN=Northrend:32:21` renders Crystalsong Forest with 51 reflective chunks
+among 256 surface draws in one resident pass. Two resource lifetimes and stationary
+frames are verified by GPU readback; camera rotation changes the output without
+geometry reuploads. Mac ASan/UBSan, Metal validation, both iOS builds, and visible
+120-frame runs on Mac and iOS simulator pass. The preview supplies an orbiting camera and explicit
 lighting/fog; automatic World DayNight and WMO/doodad placement are not integrated.
 MH2O and MCLQ liquids now use original CChunkLiquid vertices/triangle strips, adjacent 2x2
 chunk batching, depth coordinates, original material/settings banks and animated

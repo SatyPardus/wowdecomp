@@ -63,8 +63,10 @@ TerrainPreview::TerrainPreview(const std::string& selection) {
         std::vector<bool> needed(m_textures.size());
         for (const auto& chunk : m_surface.chunks) {
             if (chunk.layers.empty()) throw std::runtime_error("Terrain preview requires authored material layers in every surface chunk");
-            for (const auto& layer : chunk.layers) {
-                if (layer.flags & 0x400) throw std::runtime_error("Terrain cube reflection is not implemented");
+            for (size_t i = 0; i < chunk.layers.size(); ++i) {
+                const auto& layer = chunk.layers[i];
+                // Original Terrain programs expose a cube only in sampler 0.
+                if (i && (layer.flags & 0x400)) throw std::runtime_error("Terrain cube layer must be the base material");
                 needed[layer.textureID] = true;
             }
         }
@@ -97,9 +99,11 @@ TerrainPreview::TerrainPreview(const std::string& selection) {
             chunk.batch = {GxPrim_Triangles, uint32_t(indices.size()), count, uint16_t(i*145), uint16_t(i*145+144)};
             indices.insert(indices.end(), chunkIndices.begin(), chunkIndices.begin()+count); m_triangles += count/3;
             const auto layers = uint32_t(source.layers.size());
-            chunk.vertexPermutation = 16*(layers-1) + 8 + ((Word(wdt, 20) & 2) ? 4 : 0);
+            const bool environment = (source.layers[0].flags & 0x400) != 0;
+            m_environmentChunks += environment;
+            chunk.vertexPermutation = 16*(layers-1) + 8 + ((Word(wdt, 20) & 2) ? 4 : 0) + (environment ? 2 : 0);
             bool mixedLighting = false; for (const auto& layer : source.layers) mixedLighting |= (layer.flags & 0x80) != 0;
-            chunk.pixelPermutation = 2*(layers-1) + (m_surface.bigAlpha ? 8 : 0) + (mixedLighting ? 16 : 0);
+            chunk.pixelPermutation = 2*(layers-1) + (m_surface.bigAlpha ? 8 : 0) + (mixedLighting ? 16 : 0) + environment;
             chunk.blend = Terrain::CreateBlendTexture(m_surface, i, false, true);
             const auto format = chunk.blend.rgba.empty() ? GxTex_Argb4444 : GxTex_Argb8888;
             chunk.texture = TextureCreate(chunk.blend.side, chunk.blend.side, format, format, CGxTexFlags(GxTex_Linear),
@@ -121,8 +125,8 @@ TerrainPreview::TerrainPreview(const std::string& selection) {
         GxBufData(m_vertices, vertices.data(), uint32_t(vertices.size()*sizeof(vertices[0])), 0);
         GxBufData(m_indices, indices.data(), uint32_t(indices.size()*sizeof(indices[0])), 0);
         m_liquid = std::make_unique<TerrainLiquidPreview>(adt, m_surface, x, y, m_radius, map);
-        std::fprintf(stderr, "Terrain surface %s: %zu chunks, %u triangles, %zu materials, %s alpha, specular textures enabled\n",
-            selection.c_str(), m_chunks.size(), m_triangles, size_t(std::count(needed.begin(), needed.end(), true)), m_surface.bigAlpha ? "8-bit" : "4-bit");
+        std::fprintf(stderr, "Terrain surface %s: %zu chunks (%u cube reflection), %u triangles, %zu materials, %s alpha, specular textures enabled\n",
+            selection.c_str(), m_chunks.size(), m_environmentChunks, m_triangles, size_t(std::count(needed.begin(), needed.end(), true)), m_surface.bigAlpha ? "8-bit" : "4-bit");
     } catch (...) { Shutdown(); throw; }
 }
 TerrainPreview::~TerrainPreview() { Shutdown(); }
@@ -168,6 +172,10 @@ bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height,
     projection.a0 = 0.95f/m_radius; projection.b1 = 0.95f/m_radius; projection.c2 = 1/(4*m_radius); projection.d2 = 0;
     if (aspect > 1) projection.a0 /= aspect; else projection.b1 *= aspect;
     std::memcpy(c.data(), &view, 64); std::memcpy(c.data()+4, &projection, 64);
+    // Original InitializeVertexShaderConstants rotates reflected view-space
+    // directions by the transposed view before its x/z/y cube-coordinate swizzle.
+    const auto environmentRotation = view.Transpose();
+    std::memcpy(c.data()+8, &environmentRotation, 64);
     const auto sun = TransformDirection(C3Vector(-0.3f, -0.4f, 0.8660254f), view);
     c[24] = {sun.x, sun.y, sun.z, 1}; c[25] = {0.3f, 0.3f, 0.35f, 1}; c[26] = {0.7f, 0.65f, 0.6f, 1}; c[27] = {0.35f, 0.35f, 0.3f, 20};
     // Explicit preview atmosphere, not a substitute for World DayNight data.

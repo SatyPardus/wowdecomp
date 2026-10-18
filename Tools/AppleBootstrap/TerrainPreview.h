@@ -26,6 +26,7 @@ public:
     size_t LiquidBatchCount() const;
     size_t ChunkCount() const { return m_chunks.size(); }
     uint32_t TriangleCount() const { return m_triangles; }
+    uint32_t EnvironmentChunkCount() const { return m_environmentChunks; }
 private:
     struct Chunk {
         Terrain::BlendTexture blend;
@@ -46,4 +47,5 @@ private:
     float m_radius = 1, m_rotation = 0;
     std::array<C2Vector, 8> m_texMotion{};
     uint32_t m_triangles = 0;
+    uint32_t m_environmentChunks = 0;
 };
