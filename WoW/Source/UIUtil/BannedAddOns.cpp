@@ -5,6 +5,9 @@
 #include "Engine/Source/Storm/Source/MD5.h"
 #include "WoW/Source/Client.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#if defined(__APPLE__)
+#include "WoW/Source/DB/DBClient/DBCache.h"
+#endif
 
 // STATIC: 0x00A1D648
 static const uint8_t s_emptyMd5[16] = { 0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, 0x98, 0xEC, 0xF8, 0x42, 0x7E };
@@ -54,6 +57,12 @@ static HOSFILE OpenCacheFile(const char* directory, const char* name, int32_t wr
     char path[260];
 
     if (directory) {
+#if defined(__APPLE__)
+        if (SStrLen(directory) + 1 + SStrLen(name) >= sizeof(path)) {
+            DebugLog("AddOn cache file path is too long\n");
+            return OS_INVALID_FILE;
+        }
+#endif
         SStrCopy(path, directory, sizeof(path));
 
         if (write && !OsDirectoryExists(path)) {
@@ -96,13 +105,26 @@ static int32_t DeleteCacheFile(const char* directory, const char* name) {
 // VERIFY: f9298e8e auto
 // OFFSET: 0x005F36D0
 static bool ReadCacheRecord(HOSFILE file, BannedAddOnCache* record, uint32_t* bytes) {
+#if defined(__APPLE__)
+    // A successful native file read can be short at EOF. Only clean EOF or a
+    // complete record may reach LoadCache's publish step.
+    static_assert(sizeof(BannedAddOnCache) == 44);
+    return file != OS_INVALID_FILE && OsReadFile(file, record, sizeof(*record), bytes) &&
+        (*bytes == 0 || *bytes == sizeof(*record));
+#else
     return file != OS_INVALID_FILE && OsReadFile(file, &record->m_id, sizeof(record->m_id), bytes) && OsReadFile(file, record->m_nameMd5, sizeof(record->m_nameMd5), bytes) && OsReadFile(file, record->m_versionMd5, sizeof(record->m_versionMd5), bytes) && OsReadFile(file, &record->m_lastModified, sizeof(record->m_lastModified), bytes) && OsReadFile(file, &record->m_flags, sizeof(record->m_flags), bytes);
+#endif
 }
 
 // VERIFY: 3f13756e auto
 // OFFSET: 0x005F3750
 static bool WriteCacheRecord(HOSFILE file, const BannedAddOnCache* record, uint32_t* bytes) {
+#if defined(__APPLE__)
+    static_assert(sizeof(BannedAddOnCache) == 44);
+    return file != OS_INVALID_FILE && OsWriteFile(file, record, sizeof(*record), bytes) && *bytes == sizeof(*record);
+#else
     return file != OS_INVALID_FILE && OsWriteFile(file, &record->m_id, sizeof(record->m_id), bytes) && OsWriteFile(file, record->m_nameMd5, sizeof(record->m_nameMd5), bytes) && OsWriteFile(file, record->m_versionMd5, sizeof(record->m_versionMd5), bytes) && OsWriteFile(file, &record->m_lastModified, sizeof(record->m_lastModified), bytes) && OsWriteFile(file, &record->m_flags, sizeof(record->m_flags), bytes);
+#endif
 }
 
 // VERIFY: 064159a5 manual
@@ -110,11 +132,15 @@ static bool WriteCacheRecord(HOSFILE file, const BannedAddOnCache* record, uint3
 static int32_t SaveCache() {
     char directory[260];
 
+#if defined(__APPLE__)
+    if (!GetCacheDirectory(directory)) return 0;
+#else
     if (CheckDataFilesExist()) {
         SStrPrintf(directory, sizeof(directory), "Cache/%s/%s", "WDB", s_localeCode);
     } else {
         SStrCopy(directory, "WDB", sizeof(directory));
     }
+#endif
 
     HOSFILE file = OpenCacheFile(directory, "baddons.wcf", 1);
 
@@ -280,6 +306,10 @@ static void LoadDatabase() {
 // VERIFY: f8889ed5 manual
 // OFFSET: 0x005F4660
 static int32_t LoadCache() {
+#if defined(__APPLE__)
+    char path[260];
+    if (!GetCacheFilePath(path, sizeof(path), "baddons.wcf")) return 0;
+#else
     char directory[260];
 
     if (CheckDataFilesExist()) {
@@ -292,6 +322,7 @@ static int32_t LoadCache() {
     SStrCopy(path, directory, sizeof(path));
     SStrPack(path, "\\", sizeof(path));
     SStrPack(path, "baddons.wcf", sizeof(path));
+#endif
 
     HOSFILE file = OsCreateFile(path, OS_GENERIC_READ, 0, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
 

@@ -165,7 +165,9 @@ void CheckSignature() {
     std::fprintf(stderr, "Original addon signature: independent RSA/SHA1 fixture, seven stream boundaries and modified/truncated rejection passed\n");
 }
 
+void CheckClientCache();
 void CheckGameRealm() {
+    CheckClientCache();
     CheckSignature();
     PropInitialize(); EventInitialize(1, 0);
     struct Context { ~Context() { EventDestroy(); PropDestroy(); NetClient::SetDisconnectHandler(nullptr); } } context;

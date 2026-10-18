@@ -103,7 +103,8 @@ bool DBCacheIsNullKey(int32_t key);
 bool DBCacheIsNullKey(uint64_t key);
 bool DBCacheIsNullKey(const CWardenKey& key);
 uint32_t DBCacheHashKey(const CWardenKey& key);
-void GetCacheDirectory(char* path);
+bool GetCacheDirectory(char* path);
+bool GetCacheFilePath(char* path, size_t capacity, const char* name);
 
 // INLINED
 inline uint32_t DBCacheHashKey(int32_t key) {
@@ -151,11 +152,8 @@ void DBCache<T, TKey, THashKey>::Load() {
         return;
     }
 
-    char cacheDirectory[260];
-    GetCacheDirectory(cacheDirectory);
-
     char path[260];
-    SStrPrintf(path, sizeof(path), "%s/%s", cacheDirectory, this->m_fileName);
+    if (!GetCacheFilePath(path, sizeof(path), this->m_fileName)) return;
 
     HOSFILE file = OsCreateFile(path, OS_GENERIC_READ, 1, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
 
@@ -420,11 +418,8 @@ void DBCache<T, TKey, THashKey>::Save() {
         return;
     }
 
-    char cacheDirectory[260];
-    GetCacheDirectory(cacheDirectory);
-
     char path[260];
-    SStrPrintf(path, sizeof(path), "%s/%s", cacheDirectory, this->m_fileName);
+    if (!GetCacheFilePath(path, sizeof(path), this->m_fileName)) return;
 
     HOSFILE file = OsCreateFile(path, OS_GENERIC_WRITE, 1, OS_CREATE_ALWAYS, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
 

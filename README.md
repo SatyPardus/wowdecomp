@@ -187,9 +187,16 @@ boundaries and rejects modified payloads, markers, signatures and truncation;
 its key is confined to the probe. Existing asset keys and policy are preserved.
 The resource check also loads the original BannedAddOns DBC byte for byte.
 ClientData selects and restores the cache locale alongside the DBC locale;
-native installation detection uses the selected Data root. Writable cache-root
-integration, full AddOns/UI startup and real executable version checks remain
-pending. Warden cache serialization is shared; native execution of Windows
+native installation detection uses the selected Data root. Native WDB and addon
+policy caches use the system Caches directory under `wowdecomp/WDB/<locale>`;
+`WOW_CACHE_ROOT` can select another absolute writable root outside the read-only
+Data directory. The original record formats, temporary-record policy and server
+version invalidation are retained. Invalid or overlong paths fail instead of
+falling back to the working directory. The cache probe saves and reloads original
+records in an isolated temporary root, compares bytes, checks language isolation
+and version invalidation, and rejects truncated addon policy records.
+Full AddOns/UI startup and real executable version checks remain pending.
+Warden cache serialization is shared; native execution of Windows
 Warden modules is not implemented.
 
 The shared Event scheduler now has a nonblocking native-host step. Mac/iOS

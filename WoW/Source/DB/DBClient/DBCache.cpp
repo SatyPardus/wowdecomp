@@ -95,7 +95,8 @@ uint32_t CWardenKey::Hash() const {
 
 // VERIFY: 8655bf5d auto
 // OFFSET: 0x00667EF0
-void GetCacheDirectory(char* path) {
+#if !defined(__APPLE__)
+bool GetCacheDirectory(char* path) {
     if (CheckDataFilesExist()) {
         SStrPrintf(path, 260, "Cache/%s/%s", "WDB", s_localeCode);
         OsCreateDirectory(path, 1);
@@ -103,4 +104,17 @@ void GetCacheDirectory(char* path) {
         SStrCopy(path, "WDB", 260);
         OsCreateDirectory(path, 1);
     }
+    return true;
+}
+#endif
+
+bool GetCacheFilePath(char* path, size_t capacity, const char* name) {
+    char directory[260];
+    if (!GetCacheDirectory(directory)) return false;
+    if (SStrLen(directory) + 1 + SStrLen(name) >= capacity) {
+        DebugLog("Cache file path is too long: %s/%s\n", directory, name);
+        return false;
+    }
+    SStrPrintf(path, capacity, "%s/%s", directory, name);
+    return true;
 }

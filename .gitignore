@@ -437,6 +437,7 @@ CMakeUserPresets.json
 # Local game data and runtime output
 /Data/
 /Cache/
+/WDB/
 /WTF/
 /Logs/
 /Screenshots/
