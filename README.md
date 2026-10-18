@@ -960,6 +960,12 @@ The external Battle.net authentication component is still unavailable; this does
 not establish Battle.net login or replace its security checks.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
+The original `Wow.ini` profile reader now runs through SFile on Apple, retaining
+case-insensitive section/key lookup, repeated and quoted multi-values, original
+whitespace and EOF behavior. Native path trimming handles UTF-8 and empty paths;
+zero-size outputs fail without writing, and profile files are limited to 4 MiB
+before allocation. Mac sanitizer and simulator checks cover locale fields,
+FourCC values, failed-read retry/append and repeated create/destroy lifetimes.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

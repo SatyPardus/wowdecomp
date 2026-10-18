@@ -59,6 +59,7 @@ void CheckM2Resources(const ClientData& client, std::ostream& report);
 void CheckNativeProcesses(const std::string& scratchDirectory);
 void CheckBattlenetCore();
 void CheckFileDownloads(const std::string& scratchDirectory);
+void CheckProfiles(const std::string& scratchDirectory);
 void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
 void CheckGameNetwork();
@@ -705,6 +706,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckNativeProcesses(scratchDirectory);
         CheckBattlenetCore();
         CheckFileDownloads(scratchDirectory);
+        CheckProfiles(scratchDirectory);
         {
             char executable[4096], directory[4096];
             const uint32_t length = GetExecutablePathUTF8(executable, sizeof(executable));

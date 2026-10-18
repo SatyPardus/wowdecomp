@@ -1,7 +1,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#if defined(__APPLE__)
+#include <cerrno>
+#include <vector>
+#else
 #include <mbstring.h>
+#endif
 #include <new>
 #include "Engine/Source/Services/Profile.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -10,6 +15,13 @@
 // VERIFY: c051543c auto
 // OFFSET: 0x004BBCB0
 static void StrTrimTrailingSpace(char* str) {
+#if defined(__APPLE__)
+    // Native paths are UTF-8. Trim the original ASCII whitespace without
+    // interpreting continuation bytes as a Windows multibyte code page.
+    size_t length = SStrLen(str);
+    while (length && std::strchr(" \t\r\n\v\f", str[length - 1])) --length;
+    str[length] = '\0';
+#else
     char* ptr = str + SStrLen(str) - 1;
 
     if (ptr >= str) {
@@ -19,12 +31,17 @@ static void StrTrimTrailingSpace(char* str) {
 
         ptr[1] = '\0';
     }
+#endif
 }
 
 // VERIFY: 74491526 manual
 // OFFSET: 0x004BBD00
 int32_t ProfileInternal::PrfStrToInt(const char* str) {
+#if defined(__APPLE__)
+    uint32_t result = 0;
+#else
     int32_t result = 0;
+#endif
 
     if (*str != '\'') {
         return SStrToInt(str);
@@ -143,6 +160,9 @@ void* ProfileCreate() {
 // VERIFY: 4d0d24db manual
 // OFFSET: 0x004BD320
 int32_t ProfileGetValue(void* profile, const char* section, const char* key, int32_t* value, uint32_t index) {
+#if defined(__APPLE__)
+    if (!profile) { SErrSetLastError(STORM_ERROR_INVALID_PARAMETER); return 0; }
+#endif
     if (!section) {
         DebugValidate("section");
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
@@ -189,6 +209,9 @@ int32_t ProfileGetValue(void* profile, const char* section, const char* key, int
 // VERIFY: 477a2fb3 manual
 // OFFSET: 0x004BD3B0
 int32_t ProfileGetValue(void* profile, const char* section, const char* key, char* buffer, uint32_t bufferSize, uint32_t index) {
+#if defined(__APPLE__)
+    if (!profile || !bufferSize) { SErrSetLastError(STORM_ERROR_INVALID_PARAMETER); return 0; }
+#endif
     if (!section) {
         DebugValidate("section");
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
@@ -312,6 +335,12 @@ void ProfileInternal::TokenizeStringValues(PROFILE* profile, const char* section
 // VERIFY: f8f127cf manual
 // OFFSET: 0x004BD600
 int32_t ProfileInternal::IReadBuffer(PROFILE* profile, const void* data, uint32_t size) {
+#if defined(__APPLE__)
+    if (!profile || (!data && size) || size > 4 * 1024 * 1024) {
+        errno = size > 4 * 1024 * 1024 ? EFBIG : EINVAL;
+        SErrSetLastError(STORM_ERROR_INVALID_PARAMETER); return 0;
+    }
+#endif
     STRINGBLOCK* block = STRINGBLOCK::AllocBlock(size + 1);
     char* text = block->Data();
     memcpy(text, data, size);
@@ -397,10 +426,28 @@ int32_t ProfileInternal::IReadBuffer(PROFILE* profile, const void* data, uint32_
 // VERIFY: 1b2c8e3e auto
 // OFFSET: 0x004BD7C0
 int32_t ProfileInternal::IReadFile(PROFILE* profile, const char* path) {
+#if defined(__APPLE__)
+    if (!profile || !path || SStrLen(path) >= 260) { errno = EINVAL; return 0; }
+#endif
     char name[260];
     SStrCopy(name, path, sizeof(name));
     StrTrimTrailingSpace(name);
 
+#if defined(__APPLE__)
+    if (!*name) { errno = EINVAL; return 0; }
+    SFileImpl* file = nullptr;
+    if (!SFile::OpenEx(nullptr, name, 0, &file)) return 0;
+    struct Close { SFileImpl* file; ~Close() { SFileCloseFile(file); } } close{file};
+    uint32_t high = 0;
+    const uint32_t bytes = SFileGetFileSize(file, &high);
+    // Bound allocation before reading; preserve SFile's archive/loose override
+    // order and parse the original bytes using the shared profile parser.
+    if (high || bytes > 4 * 1024 * 1024) { errno = EFBIG; return 0; }
+    std::vector<char> buffer(size_t(bytes) + 1);
+    uint32_t read = 0;
+    if (bytes && (!SFileReadFile(file, buffer.data(), bytes, &read, nullptr, 0) || read != bytes)) return 0;
+    return IReadBuffer(profile, buffer.data(), bytes);
+#else
     uint32_t bytes = 0;
     void* buffer = nullptr;
 
@@ -412,6 +459,7 @@ int32_t ProfileInternal::IReadFile(PROFILE* profile, const char* path) {
     SFile::Unload(buffer);
 
     return result;
+#endif
 }
 
 // VERIFY: 23301000 auto

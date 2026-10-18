@@ -135,6 +135,7 @@ target_link_libraries(ConsoleBase PUBLIC AppleArchives)
 add_subdirectory(Engine/Source/Event)
 target_link_libraries(Event PUBLIC AppleArchives Tempest)
 add_library(AppleGameResources STATIC
+    Engine/Source/Services/Profile.cpp
     WoW/Source/WowServices/Apple/ClientSettings.mm
     WoW/Source/ClientRandom.cpp
     Engine/Source/Base/Status.cpp
@@ -456,6 +457,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/MovieProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProcessProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/BattlenetProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/FileDownloadProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProfileProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames AppleKnowledgeBase)
