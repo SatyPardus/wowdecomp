@@ -207,7 +207,20 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && effect != FragmentEffect::FixedUnlit && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
+    if (effect == FragmentEffect::Desaturate) {
+        const bool alpha = state.alphaRef != 0;
+        auto& fragment = m_desaturateFragment[alpha][decodePacked];
+        if (!fragment) {
+            auto constants = [MTLFunctionConstantValues new];
+            [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+            [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+            NSError* error = nil;
+            fragment = [m_library newFunctionWithName:@"desaturateFragment" constantValues:constants error:&error];
+            if (!fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Desaturate specialization failed");
+        }
+        descriptor.fragmentFunction = fragment;
+    }
+    if (decodePacked && effect != FragmentEffect::Desaturate && effect != FragmentEffect::FixedUnlit && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;

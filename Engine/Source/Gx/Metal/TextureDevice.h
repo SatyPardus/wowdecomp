@@ -283,6 +283,7 @@ private:
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
+    id<MTLFunction> m_desaturateFragment[2][2]{};
     id<MTLFunction> m_geometryVertex[2][4];
     id<MTLFunction> m_filterVertex, m_filterFragment[2][2];
     id<MTLFunction> m_glowVertex, m_glowFragment[2];

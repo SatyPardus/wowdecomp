@@ -2,6 +2,7 @@
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Gx/Gx.h"
 #include <cstring>
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <stdexcept>
@@ -112,6 +113,35 @@ void CheckGxDevice() {
         std::memcpy(result.data(), pixels.Ptr(), result.size() * 4);
         return result;
     };
+    // Original Desaturate BLS dots the texture RGB before applying vertex alpha;
+    // it deliberately does not tint RGB with the vertex color.
+    CGxShader* desaturate = nullptr;
+    device.ShaderCreate(&desaturate, GxSh_Pixel, "Shaders\\Pixel", "Desaturate", 1);
+    GxRsSet(GxRs_PixelShader, desaturate);
+    const int32_t oldAlpha = device.m_appRenderStates[GxRs_AlphaRef].m_value.m_data.u[0];
+    for (const auto color : {0xFFFF0000u, 0xFF00FF00u, 0xFF0000FFu, 0xFF8143BEu}) {
+        for (auto& value : pixels.values) value = color;
+        CiRect changed(0, 0, 2, 2); GxTexUpdate(texture, changed, 0);
+        const int gray = std::lround(0.299f * ((color >> 16) & 255) + 0.587f * ((color >> 8) & 255) + 0.114f * (color & 255));
+        for (int alphaRef : {0, 127, 128}) {
+            GxRsSet(GxRs_AlphaRef, alphaRef);
+            for (uint32_t tint : {0x7FFFFFFFu, 0x7F000000u, 0x7FFF0000u}) {
+                device.BeginFrame(pass); draw(1, 0, tint);
+                const auto output = read();
+                for (const auto value : output) {
+                    if (alphaRef == 128) Require(value == 0xFF000000u, "Desaturate alpha rejection changed");
+                    else Require((value >> 24) == 127 && std::abs(int(value & 255) - gray) <= 1 &&
+                        std::abs(int((value >> 8) & 255) - gray) <= 1 && std::abs(int((value >> 16) & 255) - gray) <= 1,
+                        "Desaturate luminance, vertex tint or alpha boundary changed");
+                }
+            }
+        }
+    }
+    GxRsSet(GxRs_AlphaRef, oldAlpha);
+    GxRsSet(GxRs_PixelShader, pixel); device.ShaderDestroy(desaturate);
+    for (auto& value : pixels.values) value = 0xFFFFFFFFu;
+    CiRect restored(0, 0, 2, 2); GxTexUpdate(texture, restored, 0);
+    std::puts("Desaturate: 36 original shader luminance/tint/alpha checks passed");
     // Batch private vertex/index uploads, including a repeated entry. A later
     // update must remain ordered after the first draw without a CPU/GPU wait.
     auto *preparedPool =

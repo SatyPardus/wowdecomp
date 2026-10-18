@@ -50,3 +50,12 @@ GxMetal::UITransform GxMetal::UIShader::VertexTransform(const float* registers, 
     // Game upload supplies four dot-product rows, not a Tempest row-vector matrix.
     return {rows.Transpose(), permutation == 1};
 }
+
+void GxMetal::UIShader::ValidateDesaturate(const std::vector<uint8_t>& pixel) {
+    const auto ps = GxReadShaderBinary(pixel, 1024 * 1024);
+    if (ps.size() != 1 || ps[0].metadata0 != 0xA00 || ps[0].metadata1 != 0x200 || ps[0].metadata2 != 1 || ps[0].metadata3)
+        throw std::runtime_error("Unsupported Desaturate BLS layout");
+    const auto code = Fingerprint(ps[0].code);
+    if (code != "baa7de4149d0c7eaf626d201a5476295" && code != "6064371e3176bad8aa6a4fcbe87f2e03")
+        throw std::runtime_error("Desaturate shader in current Data has no verified native implementation");
+}

@@ -32,7 +32,7 @@ void GxMetal::TextureDevice::DrawFixedUnlit(id<MTLCommandBuffer> command, MTLRen
 }
 void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
-    Require(geometry.effect == FragmentEffect::Unlit, "Unlit draw received a different native effect");
+    Require(geometry.effect == FragmentEffect::Unlit || geometry.effect == FragmentEffect::Desaturate, "UI draw received a different native effect");
     DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state}, encoder);
 }
 void GxMetal::TextureDevice::DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,

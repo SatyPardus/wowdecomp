@@ -1,4 +1,6 @@
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Tempest/CRect.h"
 #include "Engine/Source/Os/Input.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include <TargetConditionals.h>
@@ -60,6 +62,28 @@ void OsInputGetMousePosition(int32_t* x, int32_t* y) {
 #else
     throw std::runtime_error("iOS pointer input is not connected to Gx");
 #endif
+}
+
+void CGxDeviceMetal::CapsWindowSizeInScreenCoords(CRect& rect) {
+    // UI pixel rounding uses the host drawable, independent of an offscreen
+    // render target. Headless GPU clients have a virtual screen at the origin.
+    rect = m_defWindowRect;
+#if TARGET_OS_OSX
+    NSView* view = (__bridge NSView*)DeviceWindow();
+    if (!view.window) return;
+    const NSRect screenRect = [view.window convertRectToScreen:[view convertRect:view.bounds toView:nil]];
+    const CGFloat scale = view.window.backingScaleFactor;
+    rect.minX = NSMinX(screenRect) * scale;
+    rect.minY = (NSScreen.screens.firstObject.frame.size.height - NSMaxY(screenRect)) * scale;
+#else
+    UIView* view = (__bridge UIView*)DeviceWindow();
+    if (!view.window) return;
+    const CGRect screenRect = [view convertRect:view.bounds toCoordinateSpace:view.window.screen.coordinateSpace];
+    rect.minX = screenRect.origin.x * view.contentScaleFactor;
+    rect.minY = screenRect.origin.y * view.contentScaleFactor;
+#endif
+    rect.maxX = rect.minX + m_defWindowRect.maxX - m_defWindowRect.minX;
+    rect.maxY = rect.minY + m_defWindowRect.maxY - m_defWindowRect.minY;
 }
 
 static OS_MOUSE_MODE current = OS_MOUSE_MODE_NORMAL;

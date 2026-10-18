@@ -88,6 +88,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
     if (GxMetal::IsWmoEffect(effect)) return target == GxSh_Vertex ? GxMetal::WmoVertexFamily(wmoVertex) : GxMetal::WmoPixelFamily(effect);
     switch (effect) {
         case GxMetal::FragmentEffect::FixedUnlit: return "FixedUnlit";
+        case GxMetal::FragmentEffect::Desaturate: return "Desaturate";
         case GxMetal::FragmentEffect::DetailDoodad: return "DetailDoodad";
         case GxMetal::FragmentEffect::WaterRipple: return "WaterRipples";
         case GxMetal::FragmentEffect::ShadowMap: return target == GxSh_Vertex ? "ShadowMap" : "ShadowMapSL";
@@ -483,7 +484,6 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
 void CGxDeviceMetal::DeviceDestroy() { Require(!m->command, "End the Metal frame before destroying its host"); Drain(); m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy(); }
 void* CGxDeviceMetal::DeviceWindow() { return m->window; }
 void CGxDeviceMetal::CapsWindowSize(CRect& rect) { rect = m_curWindowRect; }
-void CGxDeviceMetal::CapsWindowSizeInScreenCoords(CRect&) { Unsupported("screen-space host window bounds"); }
 int32_t CGxDeviceMetal::DeviceWM(EGxWM, uintptr_t, uintptr_t) { Unsupported("window message dispatch"); }
 void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable) {
     Require(m_context && !m->command && pass.colorAttachments[0].texture, "Invalid Metal frame lifecycle");
@@ -912,12 +912,13 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     const bool liquid = GxMetal::IsLiquidEffect(effect);
     const bool terrain = GxMetal::IsTerrainEffect(effect);
     const bool model = GxMetal::IsModelEffect(effect);
+    if (target == GxSh_Pixel && SStrCmpI(name, "Desaturate", STORM_MAX_STR) == 0) effect = Effect::Desaturate;
     const char* family = ShaderFamily(effect, target, vertexEffect, wmoVertex);
     if (SStrCmpI(name, family, STORM_MAX_STR) != 0) {
         throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
     }
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (ripple ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? GxMetal::TerrainPermutationCount(target, effect) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
+        count == (ripple || effect == Effect::Desaturate ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? GxMetal::TerrainPermutationCount(target, effect) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
         (terrain || model || wmo || liquid || shadow || detail || ripple || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
@@ -935,7 +936,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     }
     // Validate the mounted assets before adding any live shader objects.
     std::shared_ptr<GxMetal::UIShader> ui;
-    if (ripple) { LoadWaterRippleShader(target); }
+    if (effect == Effect::Desaturate) { GxMetal::UIShader::ValidateDesaturate(ReadShader("Shaders\\Pixel\\ps_3_0\\Desaturate.bls")); }
+    else if (ripple) { LoadWaterRippleShader(target); }
     else if (detail) { LoadDetailDoodadShader(target); }
     else if (shadow) { LoadShadowMapShader(target); }
     else if (liquid) { LoadLiquidShader(target, effect); }
@@ -972,7 +974,8 @@ void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const ch
     Require(shader && m->shaders.count(shader) && path && name && SStrCmpI(name, ShaderFamily(m->shaders.at(shader).effect, EGxShTarget(shader->m_target), m->shaders.at(shader).vertexEffect, m->shaders.at(shader).wmoVertex), STORM_MAX_STR) == 0 &&
         SStrCmpI(path, shader->m_target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0, "Unsupported native shader reload");
     auto& native = m->shaders.at(shader);
-    if (native.effect == GxMetal::FragmentEffect::WaterRipple) { LoadWaterRippleShader(EGxShTarget(shader->m_target)); }
+    if (native.effect == GxMetal::FragmentEffect::Desaturate) { GxMetal::UIShader::ValidateDesaturate(ReadShader("Shaders\\Pixel\\ps_3_0\\Desaturate.bls")); }
+    else if (native.effect == GxMetal::FragmentEffect::WaterRipple) { LoadWaterRippleShader(EGxShTarget(shader->m_target)); }
     else if (native.effect == GxMetal::FragmentEffect::DetailDoodad) { LoadDetailDoodadShader(EGxShTarget(shader->m_target)); }
     else if (native.effect == GxMetal::FragmentEffect::ShadowMap) { LoadShadowMapShader(EGxShTarget(shader->m_target)); }
     else if (GxMetal::IsLiquidEffect(native.effect)) { LoadLiquidShader(EGxShTarget(shader->m_target), native.effect); }
@@ -1003,7 +1006,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool shadow = effect == GxMetal::FragmentEffect::ShadowMap;
     const bool ripple = effect == GxMetal::FragmentEffect::WaterRipple;
     const bool detail = effect == GxMetal::FragmentEffect::DetailDoodad;
-    const bool postProcess = !fixed && !ripple && !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
+    const bool postProcess = !fixed && !ripple && !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit && effect != GxMetal::FragmentEffect::Desaturate;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
     unsigned fixedInputs = 0;

@@ -15,6 +15,7 @@ struct UITransform {
 class UIShader {
 public:
     static UIShader FromBls(const std::vector<uint8_t>& vertex, const std::vector<uint8_t>& pixel);
+    static void ValidateDesaturate(const std::vector<uint8_t>& pixel);
     UITransform VertexTransform(const float* constantRegisters, uint32_t registerCount, uint32_t permutation) const;
     uint32_t VertexMajorVersion() const { return m_vertexMajor; }
     uint32_t PixelMajorVersion() const { return m_pixelMajor; }

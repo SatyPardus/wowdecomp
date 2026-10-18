@@ -65,6 +65,17 @@ fragment float4 textureQuadFragment(QuadVertex v [[stage_in]], texture2d<float> 
     return color;
 }
 
+fragment float4 desaturateFragment(QuadVertex v [[stage_in]], texture2d<float> colorTexture [[texture(0)]],
+    sampler colorSampler [[sampler(0)]], constant QuadParameters& p [[buffer(0)]]) {
+    const float4 texel = decoded(colorTexture.sample(colorSampler, v.uv), p.decodeScale[0]);
+    // Original Desaturate ps_2_0/3_0: luminance precedes vertex color and only
+    // vertex alpha participates. Colored disabled buttons must stay gray.
+    const float gray = dot(texel.rgb, float3(0.299f, 0.587f, 0.114f));
+    const float4 color(gray, gray, gray, texel.a * v.color.a);
+    if (alphaTest && color.a < p.alphaRef) discard_fragment();
+    return color;
+}
+
 struct Filter4Vertex {
     float3 position [[attribute(0)]]; float4 color [[attribute(1)]];
     float2 uv0 [[attribute(2)]]; float2 uv1 [[attribute(3)]];
