@@ -207,11 +207,16 @@ void CGxDeviceVulkan::Draw(CGxBatch* batch, int32_t count) {
     d.misc[3] = static_cast<float>(alphaOp0);
     this->ITexTransforms(d);
 
-    // The register files of a translated draw. Pixel row 15, which no shipped pixel shader reads,
-    // carries the fixed-function fog colour and enable for the generated companion stages: the
-    // engine's GxRs_FogColor is a D3DCOLOR (0xAARRGGBB), GxRs_Fog under the fog master enable.
+    // The register files of a translated draw. Pixel rows 14 and 15, which no shipped pixel shader
+    // reads, carry the fixed-function fog for the generated companion stages and Ff.frag: row 14
+    // the linear fog's start and end, row 15 the colour and enable (the engine's GxRs_FogColor is a
+    // D3DCOLOR, 0xAARRGGBB; GxRs_Fog under the fog master enable).
     float pixelRows[pipelines::kPixelRows * 4];
     memcpy(pixelRows, this->m_pixelRegs, sizeof(pixelRows));
+    pixelRows[14 * 4 + 0] = this->m_appRenderStates[GxRs_FogStart].m_value.m_data.f[0];
+    pixelRows[14 * 4 + 1] = this->m_appRenderStates[GxRs_FogEnd].m_value.m_data.f[0];
+    pixelRows[14 * 4 + 2] = 0.0f;
+    pixelRows[14 * 4 + 3] = 0.0f;
     const uint32_t fogColour = this->m_appRenderStates[GxRs_FogColor].m_value.m_data.u[0];
     const bool fogOn = this->m_appRenderStates[GxRs_Fog].m_value.m_data.i[0] != 0 && (this->m_appMasterEnables & (1 << GxMasterEnable_Fog)) != 0;
     pixelRows[15 * 4 + 0] = ((fogColour >> 16) & 0xFF) / 255.0f;
