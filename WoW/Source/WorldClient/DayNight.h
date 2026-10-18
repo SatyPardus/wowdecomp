@@ -24,6 +24,7 @@ class CTexture;
 class CGxQuery;
 class C44Matrix;
 class CPortalView;
+class CMapObjDef;
 namespace DayNight { struct DNPlanet; }
 class LightRec;
 
@@ -298,6 +299,15 @@ struct SMOFog {
 };
 
 namespace DayNight {
+    // Query results are borrowed for this call. A null volume denotes outdoors.
+    struct CameraFog {
+        const SMOFog* volume = nullptr;
+        CMapObjDef* mapObjDef = nullptr;
+        uint8_t found = 0;
+        TSGrowableArray<uint32_t>* groups = nullptr;
+        float distance = 0;
+    };
+    void UpdateFog(const CameraFog& camera, int32_t liquidStatus);
     void ApplyFogSettings(const SMOFog::Fog* fog);
 }
 

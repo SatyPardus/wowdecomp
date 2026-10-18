@@ -175,6 +175,66 @@ void CheckSky(DayNight::DNOverrideSky& sky, bool expectAnimation) {
         ++frame;
     }
 }
+void CheckFogInputs() {
+    auto& info = *DayNight::GetInfo();
+    Require(!DayNight::GetFogOverride(), "Unexpected fog override in isolated world check");
+    DayNight::SetFogMode(0);
+    info.m_farClip = 600;
+    info.m_bands.m_fogEnd = 1000;
+    info.m_bands.m_fogStartMul = 0.2f;
+    info.m_bands.m_fogRate = 4;
+    info.m_bands.m_skyColors[5] = CImVector(0, 0, 0, 255);
+    DayNight::UpdateFog({}, 0);
+    Require(info.m_fog.m_end == 600 && info.m_fog.m_start == 120 && info.m_fog.m_density == 4 &&
+                !std::memcmp(&info.m_fog, &info.m_fogInterior, sizeof(DNFogInfo)),
+            "Outdoor fog clipping or interior fallback changed");
+    SMOFog volume{};
+    volume.m_fog = {100, 0.5f, CImVector(200, 200, 200, 255)};
+    volume.m_underwaterFog = {70, 0.25f, CImVector(40, 40, 40, 255)};
+    TSGrowableArray<uint32_t> groups;
+    groups.SetCount(1);
+    groups[0] = 7;
+    DayNight::CameraFog camera{&volume, nullptr, 1, &groups, 0};
+    for (float distance : {-1.0f, 0.0f, 12.5f, 25.0f, 50.0f}) {
+        camera.distance = distance;
+        DayNight::UpdateFog(camera, 0);
+        const float blend = distance <= 0 ? 0 : distance >= 25 ? 1 : 0.5f;
+        const unsigned color = blend == 0 ? 0 : blend == 1 ? 200 : 100;
+        Require(std::abs(info.m_fog.m_end - (600 - 500 * blend)) < 0.0001f &&
+                    std::abs(info.m_fog.m_start - (120 - 70 * blend)) < 0.0001f &&
+                    std::abs(info.m_fog.m_density - (4 - 3 * blend)) < 0.0001f &&
+                    info.m_fog.m_color.r == 0 && info.m_fogInterior.m_color.r == color &&
+                    std::abs(info.m_interiorFogBlend - blend) < 0.000001f,
+                "WMO portal fog blend, boundary or original byte interpolation changed");
+    }
+    camera.distance = 50;
+    for (int32_t i = 0; i < g_liquidTypeDB.m_numRecords; ++i) {
+        const auto* liquid = g_liquidTypeDB.GetRecordByIndex(i);
+        for (uint32_t flags : {0u, 0x10u, 0x100u, 0x110u}) {
+            volume.m_flags = flags;
+            DayNight::UpdateFog(camera, liquid->m_id);
+            const bool applies = (!(liquid->m_flags & 0x20) || (flags & 0x100)) && (!(liquid->m_flags & 0x100) || (flags & 0x10));
+            Require(info.m_fog.m_end == (applies ? 70 : 600) && info.m_fog.m_start == (applies ? 17.5f : 120) &&
+                        info.m_fog.m_density == (applies ? 1 : 4) && info.m_fogInterior.m_color.r == (applies ? 40 : 0) &&
+                        info.m_fog.m_color.r == (applies && (liquid->m_flags & 0x40) ? 40 : 0),
+                    "Original liquid/WMO underwater fog flag selection changed");
+        }
+    }
+    DayNight::SetFogMode(1);
+    DayNight::UpdateFog({}, g_liquidTypeDB.GetRecordByIndex(0)->m_id);
+    Require(info.m_fog.m_density == 8 && info.m_fogInterior.m_density == 8, "Underwater fog mode density changed");
+    DayNight::SetFogMode(0);
+    DayNight::SetOverrideFog(0.5f, 80, CImVector(60, 60, 60, 255), 0);
+    DayNight::UpdateFog({}, 0);
+    const bool overrideOK = info.m_fog.m_end == 80 && info.m_fog.m_start == 40 && info.m_fog.m_color.r == 60;
+    DayNight::ClearOverrideFog();
+    Require(overrideOK, "Original fog override was not applied");
+    DayNight::UpdateFog({}, 0);
+    Require(info.m_fog.m_end == 600 && info.m_fog.m_start == 120 && info.m_fog.m_density == 4,
+            "Clearing fog override did not restore authored atmosphere");
+    std::fprintf(stderr, "DayNight fog: outdoor bounds, WMO portal blend, %d liquid types, density mode and override restore passed\n",
+                 g_liquidTypeDB.m_numRecords);
+}
 } // namespace
 
 void CheckDayNightData() {
@@ -302,6 +362,9 @@ void CheckDayNightMap(unsigned cycle) {
         for (float day : {0.0f, 0.25f, 0.5f, 0.75f, 0.999f}) {
             info.m_dayProgression = day;
             DayNight::UpdateLighting();
+            DayNight::UpdateFog({}, 0);
+            Require(std::isfinite(info.m_fog.m_end) && info.m_fog.m_end <= info.m_farClip && info.m_fog.m_start < info.m_fog.m_end,
+                    "Authored outdoor fog range is invalid");
             Require(std::isfinite(info.m_bands.m_fogEnd) && info.m_bands.m_fogEnd >= 10 && std::isfinite(info.m_light1.m_dir.z) &&
                         info.m_light1.m_diffuse.a == 255,
                     "Original DayNight light output is invalid");
@@ -317,4 +380,5 @@ void CheckDayNightMap(unsigned cycle) {
         std::fprintf(stderr, "DayNight map %d cycle %u: %u area lights, five time samples at light %d, %u authored sky models loaded\n",
                      map, cycle, DayNight::g_areaLights.Count(), skyLight, skies);
     }
+    CheckFogInputs();
 }

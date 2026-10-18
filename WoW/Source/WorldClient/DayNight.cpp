@@ -2114,9 +2114,9 @@ void DayNight::DoAreaLights(CurrentLight* light, int32_t underwater) {
     }
 }
 
-// VERIFY: 729edd43 manual
-// OFFSET: 0x007F16F0
-void DayNight::UpdateFog() {
+namespace DayNight {
+namespace {
+void InitializeFog() {
     DNInfo& info = DayNight::g_dnInfo;
     float end = info.m_farClip;
 
@@ -2139,19 +2139,12 @@ void DayNight::UpdateFog() {
         info.m_fog.m_start = end * info.m_bands.m_fogStartMul;
         info.m_fog.m_density = info.m_bands.m_fogRate;
     }
+}
 
-    SMOFog fog;
-    CMapObjDef* mapObjDef;
-    uint8_t found;
-    TSGrowableArray<uint32_t>* ids;
-    float distance;
-    bool inside = World::QueryCameraFog(&fog, &mapObjDef, &found, &ids, &distance) == 1;
-
-    if (!inside) {
-        distance = 0.0f;
-    }
-
-    int32_t liquidStatus = World::SceneCamLiquidStatus(nullptr);
+void FinishFog(const CameraFog& camera, int32_t liquidStatus) {
+    DNInfo& info = g_dnInfo;
+    const bool inside = camera.volume != nullptr;
+    const float distance = inside ? camera.distance : 0.0f;
     float density;
 
     if (inside) {
@@ -2163,17 +2156,17 @@ void DayNight::UpdateFog() {
             int32_t flags = liquid->m_flags;
             underwater = 1;
 
-            if ((flags & 0x20) && !(fog.m_flags & 0x100)) {
+            if ((flags & 0x20) && !(camera.volume->m_flags & 0x100)) {
                 underwater = 0;
             }
 
-            if (((flags & 0x100) && !(fog.m_flags & 0x10)) || !underwater) {
+            if (((flags & 0x100) && !(camera.volume->m_flags & 0x10)) || !underwater) {
                 apply = false;
             }
         }
 
         if (apply) {
-            DayNight::ApplyFogSettings(underwater ? &fog.m_underwaterFog : &fog.m_fog);
+            DayNight::ApplyFogSettings(underwater ? &camera.volume->m_underwaterFog : &camera.volume->m_fog);
 
             if (underwater && liquid && (liquid->m_flags & 0x40)) {
                 info.m_fog.m_end = info.m_fogGroup.m_end;
@@ -2190,14 +2183,14 @@ void DayNight::UpdateFog() {
 
         density = info.m_fog.m_density;
 
-        if (found) {
-            info.m_interiorMapObjDef = mapObjDef;
+        if (camera.found) {
+            info.m_interiorMapObjDef = camera.mapObjDef;
 
-            if (ids != &info.m_interiorGroups) {
-                info.m_interiorGroups.Set(ids->m_count, ids->m_data);
+            if (camera.groups != &info.m_interiorGroups) {
+                info.m_interiorGroups.Set(camera.groups->m_count, camera.groups->m_data);
             }
 
-            info.m_interiorGroups.m_chunk = ids->m_chunk;
+            info.m_interiorGroups.m_chunk = camera.groups->m_chunk;
         }
     } else {
         density = info.m_fog.m_density;
@@ -2217,11 +2210,13 @@ void DayNight::UpdateFog() {
 
     float interiorDensity;
 
-    if (inside && found) {
+    if (inside && camera.found) {
         info.m_fogInterior.m_end = info.m_fog.m_end + (info.m_fogGroup.m_end - info.m_fog.m_end) * blend;
         info.m_fogInterior.m_start = info.m_fog.m_start + (info.m_fogGroup.m_start - info.m_fog.m_start) * blend;
         info.m_fogInterior.m_density = density + (info.m_fogGroup.m_density - density) * blend;
         info.m_fogInterior.m_color = DayNight::InterpColor(info.m_fog.m_color, info.m_fogGroup.m_color, blend);
+        // Original 0x007F19CB copies the ranges/density back to outdoor fog,
+        // but keeps the blended color only in the interior fog record.
         info.m_fog.m_end = info.m_fogInterior.m_end;
         info.m_fog.m_start = info.m_fogInterior.m_start;
         density = info.m_fogInterior.m_density;
@@ -2262,6 +2257,25 @@ void DayNight::UpdateFog() {
             DayNight::s_lightFlags &= ~1;
         }
     }
+}
+} // namespace
+} // namespace DayNight
+
+// VERIFY: 729edd43 manual
+// OFFSET: 0x007F16F0
+void DayNight::UpdateFog() {
+    InitializeFog();
+    SMOFog volume;
+    CameraFog camera;
+    if (World::QueryCameraFog(&volume, &camera.mapObjDef, &camera.found, &camera.groups, &camera.distance) == 1) {
+        camera.volume = &volume;
+    }
+    FinishFog(camera, World::SceneCamLiquidStatus(nullptr));
+}
+
+void DayNight::UpdateFog(const CameraFog& camera, int32_t liquidStatus) {
+    InitializeFog();
+    FinishFog(camera, liquidStatus);
 }
 
 // VERIFY: cb3314a8 manual

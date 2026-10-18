@@ -447,9 +447,15 @@ wrapping clock delta, preserving future starts, reverse playback and integer
 precision; unsigned float conversion previously triggered UB for these skies.
 The model cache follows the application's teardown order before a new world
 starts, since world destruction also frees shader effects. Complete procedural
-sky/cloud/planet rendering, world fog and terrain DayNight binding remain pending.
+sky/cloud/planet rendering, world camera fog queries and terrain DayNight binding remain pending.
 Mac ASan/UBSan and Metal validation, both iOS target builds, and simulator GPU
 checks followed by 120 visible terrain frames pass.
+Fog calculation now also accepts explicit camera-volume query results; the
+original world entry retains its player/WMO query and evaluation order. Outdoor
+distance limits, portal blends, all 26 liquid types with WMO flags, density mode,
+and override restoration pass on Mac ASan/UBSan and iOS simulator. The original
+executable confirms that portal blending keeps the blended color in the interior
+record while updating the outdoor ranges/density; that distinction is preserved.
 The native host can now draw a complete authored ADT surface with
 `WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
 This selection is mutually exclusive with the model/creature variables. It uses
