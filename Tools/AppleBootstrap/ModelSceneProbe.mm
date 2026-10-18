@@ -304,51 +304,80 @@ void CheckGameModels() {
             // bindings with the same generated R32F map and all three modes.
             CheckGameDetailDoodads(scene, device, pass);
         }
-    }
-    CheckGameDetailDoodads(scene, device, pass);
-    struct LayeredPose { uint32_t displayID, sequenceID, elapsed; };
-    // The motorcycle's dual-UV effect is authored only in its death sequence:
-    // color alpha stays zero through 500 ms, then rises to one at 1000 ms.
-    for (const auto pose : {LayeredPose{110, 4, 137}, LayeredPose{25870, 4, 137}, LayeredPose{25870, 1, 1137}}) {
-        const auto displayID = pose.displayID;
-        auto* layeredScene = M2CreateScene();
-        if (!layeredScene) throw std::runtime_error("Layered model scene creation failed");
-        Release releaseLayered{layeredScene};
-        auto* appearance = g_creatureDisplayInfoDB.GetRecord(displayID);
-        auto* appearanceModel = appearance ? g_creatureModelDataDB.GetRecord(appearance->m_modelID) : nullptr;
-        if (!appearanceModel) throw std::runtime_error("Layered model appearance is missing");
-        auto* layeredModel = layeredScene->CreateModel(appearanceModel->m_modelName, 0);
-        if (!layeredModel) throw std::runtime_error("Layered model creation failed");
-        CCharacterComponent::ApplyMonsterGeosets(layeredModel, appearance);
-        CCharacterComponent::ReplaceMonsterSkin(layeredModel, appearance, appearanceModel);
-        layeredModel->SetBoneSequence(0xFFFFFFFF, pose.sequenceID, 0xFFFFFFFF, 0, 1.0f, 0, 1);
-        if (!layeredModel->IsLoaded(1, 0) || !layeredModel->IsDrawable(1, 0)) throw std::runtime_error("Layered model resources did not load");
-        const auto& bounds = layeredModel->m_shared->m_data->m_bounds;
-        C44Matrix world(1); world.RotateAroundX(-0.65f); world.Scale(0.8f / bounds.m_radius);
-        world.Translate((bounds.m_extent.b + bounds.m_extent.t) * -0.5f);
-        layeredModel->SetWorldTransform(world); layeredModel->m_lightingCallback = visible->m_lightingCallback;
-        layeredModel->m_fFlags |= 0x10008; layeredModel->SetAnimating(1);
-        layeredScene->AdvanceTime(pose.elapsed); layeredScene->Animate(C3Vector(0, 0, 0));
-        unsigned reflectedBatches = 0, reflectedMaterials = 0, dualUVBatches = 0, combinedBatches = 0;
-        for (unsigned i = 0; i < layeredScene->m_elements.Count(); ++i) {
-            const auto& element = layeredScene->m_elements[i];
-            if (element.m_type > 2 || !element.m_batch || element.m_batch->m_textureCount != 2) continue;
-            ++reflectedBatches;
-            dualUVBatches += !(element.m_batch->m_shader & 0x8000) && !(element.m_batch->m_shader & 8);
-            combinedBatches += (element.m_batch->m_shader & 0x8000) != 0;
-            reflectedMaterials |= 1u << layeredModel->m_shared->m_data->m_materials[element.m_batch->m_materialIndex].m_blendMode;
+        CShadowCache::s_shadowMode=SHADOW_LOWEST;
+        CheckGameDetailDoodads(scene, device, pass);
+        struct LayeredPose { uint32_t displayID, sequenceID, elapsed; };
+        // The motorcycle's dual-UV effect is authored only in its death sequence:
+        // color alpha stays zero through 500 ms, then rises to one at 1000 ms.
+        for (const auto pose : {LayeredPose{110, 4, 137}, LayeredPose{25870, 4, 137}, LayeredPose{25870, 1, 1137}}) {
+            CShadowCache::s_shadowMode=SHADOW_LOWEST;
+            const auto displayID = pose.displayID;
+            auto* layeredScene = M2CreateScene();
+            if (!layeredScene) throw std::runtime_error("Layered model scene creation failed");
+            Release releaseLayered{layeredScene};
+            auto* appearance = g_creatureDisplayInfoDB.GetRecord(displayID);
+            auto* appearanceModel = appearance ? g_creatureModelDataDB.GetRecord(appearance->m_modelID) : nullptr;
+            if (!appearanceModel) throw std::runtime_error("Layered model appearance is missing");
+            auto* layeredModel = layeredScene->CreateModel(appearanceModel->m_modelName, 0);
+            if (!layeredModel) throw std::runtime_error("Layered model creation failed");
+            CCharacterComponent::ApplyMonsterGeosets(layeredModel, appearance);
+            CCharacterComponent::ReplaceMonsterSkin(layeredModel, appearance, appearanceModel);
+            layeredModel->SetBoneSequence(0xFFFFFFFF, pose.sequenceID, 0xFFFFFFFF, 0, 1.0f, 0, 1);
+            if (!layeredModel->IsLoaded(1, 0) || !layeredModel->IsDrawable(1, 0)) throw std::runtime_error("Layered model resources did not load");
+            const auto& bounds = layeredModel->m_shared->m_data->m_bounds;
+            C44Matrix world(1); world.RotateAroundX(-0.65f); world.Scale(0.8f / bounds.m_radius);
+            world.Translate((bounds.m_extent.b + bounds.m_extent.t) * -0.5f);
+            layeredModel->SetWorldTransform(world); layeredModel->m_lightingCallback = visible->m_lightingCallback;
+            layeredModel->m_fFlags |= 0x10008; layeredModel->SetAnimating(1);
+            layeredScene->AdvanceTime(pose.elapsed); layeredScene->Animate(C3Vector(0, 0, 0));
+            unsigned reflectedBatches = 0, reflectedMaterials = 0, dualUVBatches = 0, combinedBatches = 0;
+            for (unsigned i = 0; i < layeredScene->m_elements.Count(); ++i) {
+                const auto& element = layeredScene->m_elements[i];
+                if (element.m_type > 2 || !element.m_batch || element.m_batch->m_textureCount != 2) continue;
+                ++reflectedBatches;
+                dualUVBatches += !(element.m_batch->m_shader & 0x8000) && !(element.m_batch->m_shader & 8);
+                combinedBatches += (element.m_batch->m_shader & 0x8000) != 0;
+                reflectedMaterials |= 1u << layeredModel->m_shared->m_data->m_materials[element.m_batch->m_materialIndex].m_blendMode;
+            }
+            device.BeginFrame(pass);
+            layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
+            TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect, image);
+            unsigned pixels = 0;
+            for (unsigned i = 0; i < image.Count(); ++i) pixels += image[i].r || image[i].g || image[i].b;
+            std::fprintf(stderr, "M2 display %u sequence %u: %u dual-texture batches (%u authored UV pairs, %u combined layers), %u visible pixels\n",
+                displayID, pose.sequenceID, reflectedBatches, dualUVBatches, combinedBatches, pixels);
+            if (pixels < (pose.sequenceID == 1 ? 16u : 256u) || (displayID == 110 ? reflectedBatches != 3 || reflectedMaterials != 3
+                : dualUVBatches != (pose.sequenceID == 1 ? 1u : 0u) || combinedBatches != 2))
+                throw std::runtime_error("Original layered model materials did not reach Metal drawing");
+            device.ScenePresent();
+            if(displayID==25870) for(EShadowMode mode:{SHADOW_LOWEST,SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
+                CShadowCache::s_shadowMode=mode;
+                const uint32_t expectedShadow=CShadowCache::s_shadowValues[mode];
+                device.BeginFrame(pass); layeredModel->m_fFlags|=0x10008; layeredModel->SetAnimating(1);
+                // Keep the original particle draw request and freeze elapsed
+                // time while only the shadow-quality selection changes.
+                layeredScene->AdvanceTime(0); layeredScene->Animate(C3Vector(0,0,0));
+                unsigned receivers=0,combinedReceivers=0;
+                for(unsigned i=0;i<layeredScene->m_elements.Count();++i) {
+                    const auto& element=layeredScene->m_elements[i];
+                    if(element.m_type>2 || element.m_model!=layeredModel || !element.m_batch || element.m_batch->m_textureCount!=2 || element.m_shadowValue!=expectedShadow) continue;
+                    ++receivers; combinedReceivers+=(element.m_batch->m_shader&0x8000)!=0;
+                }
+                if(expectedShadow && (receivers<2 || combinedReceivers!=2))
+                    throw std::runtime_error("Original motorcycle did not select its combined-material shadow receivers");
+                layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
+                TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received);
+                unsigned darker=0;
+                for(unsigned i=0;i<received.Count();++i) {
+                    if(received[i].a!=image[i].a) throw std::runtime_error("Motorcycle alpha mismatch mode "+std::to_string(expectedShadow)+" pixel "+std::to_string(i)+" got "+std::to_string(received[i].a)+" expected "+std::to_string(image[i].a));
+                    darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(image[i].r)+image[i].g+image[i].b;
+                }
+                if(expectedShadow && !darker) throw std::runtime_error("Generated R32F shadow did not reach the original motorcycle materials");
+                std::fprintf(stderr,"Original motorcycle sequence %u shadow mode %u: %u dual-texture receivers (%u combined), %u darker pixels, unchanged alpha coverage\n",
+                    pose.sequenceID,expectedShadow,receivers,combinedReceivers,darker);
+                device.ScenePresent();
+            }
         }
-        device.BeginFrame(pass);
-        layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
-        TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect, image);
-        unsigned pixels = 0;
-        for (unsigned i = 0; i < image.Count(); ++i) pixels += image[i].r || image[i].g || image[i].b;
-        std::fprintf(stderr, "M2 display %u sequence %u: %u dual-texture batches (%u authored UV pairs, %u combined layers), %u visible pixels\n",
-            displayID, pose.sequenceID, reflectedBatches, dualUVBatches, combinedBatches, pixels);
-        if (pixels < (pose.sequenceID == 1 ? 16u : 256u) || (displayID == 110 ? reflectedBatches != 3 || reflectedMaterials != 3
-            : dualUVBatches != (pose.sequenceID == 1 ? 1u : 0u) || combinedBatches != 2))
-            throw std::runtime_error("Original layered model materials did not reach Metal drawing");
-        device.ScenePresent();
     }
     {
         // Exercise authored projected batches through CM2SceneRender. The

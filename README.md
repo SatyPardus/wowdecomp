@@ -612,12 +612,21 @@ take the minimum after dynamic distance fading, then apply normal fading.
 These rules differ from the terrain receiver. `Diffuse_T1_Env` also supports its
 60 shadow vertex variants with `Combiners_Opaque_AddAlpha` receivers. Its reflection
 coordinates remain independent; reflection RGB is weighted by its own alpha and
-added after the shadowed base, before fog. The numeric fixture checks 19,710
-independent outputs including both vertex families, skinning, sampling/band
-transitions, fade order, independent reflection and shader alpha boundaries. The original wolf scene generates its R32F map from
+added after the shadowed base, before fog. `Diffuse_T1_T2` adds its 60 shadow
+vertex variants; `Combiners_Mod_Mod`, `Combiners_Opaque_Mod2x`,
+`Combiners_Opaque_Mod2xNA_Alpha` and `Combiners_Mod_Mod2x` retain their independent
+UV matrices, layer multiplication, base-alpha interpolation and distinct alpha
+operators for all three R32F modes. The numeric fixture checks 45,990 independent
+outputs including all three vertex families, skinning, sampling/band transitions,
+fade order, layered color, independent reflection and shader alpha boundaries. The original wolf scene generates its R32F map from
 both opaque/cutout batches, selects both receiver materials through the original
 scene/cache code, and produces 125/130/130 darker pixels in the three modes with
 unchanged alpha coverage across two resource lifetimes on Mac and iOS simulator.
+The original motorcycle's walking and death poses select three shadow-receiving
+dual-texture batches, including two combined materials. All three modes darken
+43/48 pixels respectively while preserving alpha coverage, with the original
+particles included and time frozen for each comparison. Two resource lifetimes
+also verify disabling and selecting each shadow mode.
 Numeric and scene checks pass with Metal validation (Mac also under
 ASan/UBSan); the Mac application and both iOS client targets build. These checks
 use explicit shadow/light inputs; they do not establish full world shadow behavior

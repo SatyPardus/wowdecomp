@@ -19,7 +19,7 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
 }
 bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect, FragmentEffect effect) {
     if (target == GxSh_Vertex)
-        return permutation < (vertexEffect == ModelVertexEffect::Diffuse || vertexEffect == ModelVertexEffect::DiffuseEnvironment ? 90u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
+        return permutation < (vertexEffect == ModelVertexEffect::Diffuse || vertexEffect == ModelVertexEffect::DiffuseEnvironment || vertexEffect == ModelVertexEffect::DiffuseDualUV ? 90u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
     return permutation < 16 && ((permutation & 3) == 0 ||
         (ModelShadowMaterial(effect) && (permutation & 4) == 0));
 }
@@ -373,6 +373,91 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         "8ebba96931c1072b46a9c6aeb0b2c26f",
         "edaba469f2df9db576f0e43724b68006",
     };
+    // Independent authored UV transforms with the same R32F receiver equations.
+    static const char* dualUVShadowVertex[] = {
+        "d25b81b7a7b7e6e06a5f2c6a13aee499",
+        "17496a0c9421bace85f51f6292bc5133",
+        "d25b81b7a7b7e6e06a5f2c6a13aee499",
+        "dad39638de276944e49c485b712be430",
+        "d25b81b7a7b7e6e06a5f2c6a13aee499",
+        "a4eb6c1260fdae36c7b09d412700a70d",
+        "d25b81b7a7b7e6e06a5f2c6a13aee499",
+        "ea4aceeb8c0b221334b0ca53e0ba2e26",
+        "d25b81b7a7b7e6e06a5f2c6a13aee499",
+        "9f7dad6c5c51792f9b9aaeec46f5d443",
+        "b0d8abb0405d5d67cf94b69bc84c45df",
+        "db980a5ce7c4e275b6fd9ad531cf500c",
+        "b0d8abb0405d5d67cf94b69bc84c45df",
+        "2c2c2228386300f8684f774048e1c520",
+        "b0d8abb0405d5d67cf94b69bc84c45df",
+        "8accdce3a2d95057ff1217aebbfa9bc7",
+        "b0d8abb0405d5d67cf94b69bc84c45df",
+        "77041c632fd864e346f5cfba6d73c63a",
+        "b0d8abb0405d5d67cf94b69bc84c45df",
+        "c62304ef4366175f8ca9cd28aaba40b9",
+        "1772cdd7599c199e245915a5139293f8",
+        "0d433e82d51886403a0406c0c23ef144",
+        "1772cdd7599c199e245915a5139293f8",
+        "4fbd70f329e2991d5c28183fd680ba93",
+        "1772cdd7599c199e245915a5139293f8",
+        "20bd2c1f8af5d559524cf989e414ff79",
+        "1772cdd7599c199e245915a5139293f8",
+        "223a75ac105518f5f24505a5645fb017",
+        "1772cdd7599c199e245915a5139293f8",
+        "7e504c37306f3fab5cc3d5affb6ad554",
+        "fae64007e80d7220cdb5c47eff2923e7",
+        "77ba19cf75499745364edd005e55d6b2",
+        "fae64007e80d7220cdb5c47eff2923e7",
+        "8f84e8fe18b9fe9a83fc75cd70c5e553",
+        "fae64007e80d7220cdb5c47eff2923e7",
+        "f1170f08a12d5feedad35e262fe0f8a7",
+        "fae64007e80d7220cdb5c47eff2923e7",
+        "32db24c1bc4d1d6722c83607dde20a18",
+        "fae64007e80d7220cdb5c47eff2923e7",
+        "7fb8193869f4f5388944953c5afa7cfb",
+        "a083abe8fdce25c45b0cdcb858c7859d",
+        "8a084efe750261ddf02be8a3a6e2e2b8",
+        "a083abe8fdce25c45b0cdcb858c7859d",
+        "31ab2bae5f1ddb1da73cd078d2e0bb06",
+        "a083abe8fdce25c45b0cdcb858c7859d",
+        "21445ecbb04c895f84331f597be43bdf",
+        "a083abe8fdce25c45b0cdcb858c7859d",
+        "33e011c2a4739ec9ff9ab09528db5695",
+        "a083abe8fdce25c45b0cdcb858c7859d",
+        "915d50357f75ef07aadcc01d039f7c2d",
+        "9aae897ba869a0a45ffb869fd36337c2",
+        "159c4260fee45e7208b557d4d6261d87",
+        "9aae897ba869a0a45ffb869fd36337c2",
+        "57b6f938b8a72cd7ae09069d2a26f124",
+        "9aae897ba869a0a45ffb869fd36337c2",
+        "d28b78411b8e05abd5070660886685fc",
+        "9aae897ba869a0a45ffb869fd36337c2",
+        "db5d39e154863d6816be3428f963a0e4",
+        "9aae897ba869a0a45ffb869fd36337c2",
+        "2d7540d7b59c8d2201228fcc089b00a6",
+    };
+    static const char* dualUVShadowPixel[4][3][2] = {
+        { // Combiners_Mod_Mod
+            {"287093f7886ed21eae741f4771a58578", "05203ec7059260140fdf30767c2cb63f"},
+            {"e11f6341cb227acda892988e349bcec0", "b1a2f32bf753a4a532816bc21566ce95"},
+            {"2584f03754723a01bbaadc7fa878fd45", "15e9d16f28d85f68137957e5b92f1993"},
+        },
+        { // Combiners_Opaque_Mod2x
+            {"4a3f4b3485f5bd1396d300155bdd5142", "d1ea3fd1a177bfd54f826d6de405bdb6"},
+            {"fb4d2ec2ad2142cf729e3f51a5584980", "e8877ebee238b764679cf69cb9958ee5"},
+            {"cb53654faac76b00adbcbf14798aeab6", "ab51e329d59ece1e8b50af1bfec9eab0"},
+        },
+        { // Combiners_Opaque_Mod2xNA_Alpha
+            {"c67166b08492becda74b517b46f263aa", "7fa508142017daa9cdfec2b16763d505"},
+            {"f5b845248e4976d654b3e094ac123812", "f1cd065242782fcf02b8291f5887cb70"},
+            {"905fd84a4d9a1881fdbd87f3021494cf", "0bf865731b80e501562176890333054e"},
+        },
+        { // Combiners_Mod_Mod2x
+            {"780f26e044184ee7c917cfa929c13e65", "37ad4afc7854da078fc4f787fcf3dabc"},
+            {"c48a2f0e2be1efee23af32a4dfe397cf", "014b6a2744e71c0e799524958da39964"},
+            {"8caa894044ffc9b8e8abddaec3596ffa", "0726c4db61a0d7fdc57db4030574bae6"},
+        },
+    };
     static const char* pixel[][2] = {
         {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"},
         {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"},
@@ -397,11 +482,46 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         const char hex[] = "0123456789abcdef";
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
-        const char* expected = target == GxSh_Vertex ?
-            (i >= 30 && vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentShadowVertex[i-30] : i >= 60 ? bandedShadowVertex[i-60] : i >= 30 ? dynamicShadowVertex[i-30] : vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
-            ((i & 3) && effect == FragmentEffect::ModelOpaqueAddAlpha ? environmentShadowPixel[(i & 3)-1][i >> 3] : (i & 3) >= 2 ? bandedShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][(i & 3)-2][i >> 3] : (i & 3) ? dynamicShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3] :
-                pixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3]);
-        if (fingerprint != expected) {
+        const char* expected = nullptr;
+        if (target == GxSh_Vertex) {
+            if (i >= 30) {
+                switch (vertexEffect) {
+                    case ModelVertexEffect::DiffuseEnvironment: expected = environmentShadowVertex[i-30]; break;
+                    case ModelVertexEffect::DiffuseDualUV: expected = dualUVShadowVertex[i-30]; break;
+                    case ModelVertexEffect::Diffuse: expected = i >= 60 ? bandedShadowVertex[i-60] : dynamicShadowVertex[i-30]; break;
+                    default: break;
+                }
+            } else {
+                switch (vertexEffect) {
+                    case ModelVertexEffect::Diffuse: expected = vertex[i]; break;
+                    case ModelVertexEffect::DiffuseEnvironment: expected = environmentVertex[i]; break;
+                    case ModelVertexEffect::DiffuseDualUV: expected = dualUVVertex[i]; break;
+                    case ModelVertexEffect::DiffuseReflection: expected = reflectionVertex[i]; break;
+                    case ModelVertexEffect::DiffuseProjected: expected = projectedVertex[i]; break;
+                    case ModelVertexEffect::ColorProjected: expected = projectedColor[i]; break;
+                    default: expected = coloredVertex[unsigned(vertexEffect)-1][i]; break;
+                }
+            }
+        } else if (const unsigned mode = i & 3) {
+            const unsigned alphaTest = i >> 3;
+            switch (effect) {
+                case FragmentEffect::ModelOpaque:
+                case FragmentEffect::ModelMod: {
+                    const unsigned material = unsigned(effect)-unsigned(FragmentEffect::ModelOpaque);
+                    expected = mode >= 2 ? bandedShadowPixel[material][mode-2][alphaTest] : dynamicShadowPixel[material][alphaTest];
+                    break;
+                }
+                case FragmentEffect::ModelOpaqueAddAlpha: expected = environmentShadowPixel[mode-1][alphaTest]; break;
+                case FragmentEffect::ModelModMod: expected = dualUVShadowPixel[0][mode-1][alphaTest]; break;
+                case FragmentEffect::ModelOpaqueMod2x: expected = dualUVShadowPixel[1][mode-1][alphaTest]; break;
+                case FragmentEffect::ModelOpaqueMod2xNAAlpha: expected = dualUVShadowPixel[2][mode-1][alphaTest]; break;
+                case FragmentEffect::ModelModMod2x: expected = dualUVShadowPixel[3][mode-1][alphaTest]; break;
+                default: break;
+            }
+        } else {
+            expected = pixel[unsigned(effect)-unsigned(FragmentEffect::ModelOpaque)][i >> 3];
+        }
+        if (!expected || fingerprint != expected) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");
         }
     }
