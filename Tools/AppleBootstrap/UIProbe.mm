@@ -1,4 +1,5 @@
 #include "NativeView.h"
+#include "WorldPreview.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -38,6 +39,22 @@ void Step() {
     EventProcessPending(); PropSelectContext(context);
 }
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+class BackgroundWorld {
+    WorldPreview world;
+    HLAYER layer = nullptr;
+public:
+    explicit BackgroundWorld(const char* selection) : world(selection) {
+        world.EnableInput([] { return CSimpleEditBox::s_currentFocus == nullptr; });
+        ScrnLayerCreate(nullptr, 0.0f, 4, this, [](void* owner, const RECTF*, const RECTF*, float elapsed) {
+            CRect drawable; g_theGxDevicePtr->CapsWindowSize(drawable);
+            static_cast<BackgroundWorld*>(owner)->world.Draw(elapsed, uint32_t(drawable.maxX - drawable.minX), uint32_t(drawable.maxY - drawable.minY));
+        }, &layer);
+        // The original top layer otherwise occludes lower Scrn layers. This
+        // component host leaves it transparent over the original world viewer.
+        ScrnLayerSetFlags(CSimpleTop::s_instance->m_screenLayer, 5);
+    }
+    ~BackgroundWorld() { if (layer) HandleClose(reinterpret_cast<HOBJECT>(layer)); }
+};
 }
 @interface OriginalUIPreview : NSObject <MTKViewDelegate, NSWindowDelegate, NSApplicationDelegate>
 @property(nonatomic, weak) WowNativeView* view;
@@ -83,7 +100,31 @@ void Require(bool value, const char* message) { if (!value) throw std::runtime_e
         PropSelectContext(context);
         if (renderDevice->FrameCommand()) renderDevice->ScenePresent();
         [self.view.inputContext invalidateCharacterCoordinates];
-        if (++self.frames == 120) NSLog(@"Original Scrn/Glue UI: 120 visible frames presented");
+        if (++self.frames == 120) {
+            NSLog(@"Original Scrn/Glue UI: 120 visible frames presented");
+            if (NSString* path = NSProcessInfo.processInfo.environment[@"WOW_UI_CAPTURE"]) {
+                MTLRenderPassDescriptor* readPass = [pass copy];
+                readPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
+                readPass.depthAttachment.loadAction = MTLLoadActionLoad;
+                renderDevice->BeginFrame(readPass);
+                const uint32_t width = uint32_t(drawable.texture.width), height = uint32_t(drawable.texture.height);
+                CiRect rect(0, 0, height, width); TSGrowableArray<CImVector> pixels;
+                GxReadPixels(rect, pixels);
+                TSGrowableArray<float> depth; renderDevice->DeviceReadDepths(rect, depth);
+                size_t scenePixels = 0;
+                for (uint32_t i = 0; i < depth.Count(); ++i) if (depth[i] > 0 && depth[i] < .94f) ++scenePixels;
+                std::printf("Combined Scrn readback: %zu main-scene depth pixels\n", scenePixels);
+                FILE* file = std::fopen(path.fileSystemRepresentation, "wb");
+                Require(file, "Cannot write UI GPU capture");
+                std::fprintf(file, "P6\n%u %u\n255\n", width, height);
+                for (uint32_t i = 0; i < pixels.Count(); ++i) {
+                    const uint8_t rgb[] = {pixels[i].r, pixels[i].g, pixels[i].b}; std::fwrite(rgb, 1, 3, file);
+                }
+                const int result = std::fclose(file); renderDevice->ScenePresent();
+                Require(result == 0, "Cannot finish UI GPU capture");
+                if (NSProcessInfo.processInfo.environment[@"WOW_WORLD"]) Require(scenePixels > 1000, "World did not reach the original Scrn composition");
+            }
+        }
         if (self.frameLimit && self.frames >= self.frameLimit) [self stop:nil];
     } catch (const std::exception& error) {
         self.error = [NSString stringWithUTF8String:error.what()];
@@ -137,7 +178,7 @@ int main(int argc, char** argv) {
                 }
                 const char* xml = R"(<Ui><Button name="AppleOriginalButton" inherits="GluePanelButtonTemplate" text="Metal UI">
                     <Size><AbsDimension x="180" y="40"/></Size><Anchors><Anchor point="CENTER"><Offset><AbsDimension x="0" y="60"/></Offset></Anchor></Anchors>
-                    <Scripts><OnClick>self.clicks = (self.clicks or 0) + 1; self:SetText("Clicked")</OnClick></Scripts>
+                    <Scripts><OnClick>self.clicks = (self.clicks or 0) + 1; self:SetText("Clicked"); AppleOriginalEdit:ClearFocus()</OnClick></Scripts>
                     </Button></Ui>)";
                 auto* tree = XMLTree_Load(xml, uint32_t(std::strlen(xml)));
                 Require(tree, "Cannot parse UI instance XML");
@@ -147,6 +188,7 @@ int main(int argc, char** argv) {
                 Require(button, "Cannot instantiate original button template");
                 auto* memory = CSimpleEditBox::s_allocator.GetData(1, __FILE__, __LINE__);
                 auto* edit = new (memory) CSimpleEditBox(nullptr);
+                edit->SetName("AppleOriginalEdit");
                 edit->SetWidth(0.65f); edit->SetHeight(0.08f); edit->SetPoint(FRAMEPOINT_CENTER, top.get(), FRAMEPOINT_CENTER, 0, 0, 1);
                 auto* localizedFont = CSimpleFont::GetFont("EditBoxFont_Large", 0);
                 Require(localizedFont, "Original Glue edit-box font is missing");
@@ -196,11 +238,14 @@ int main(int argc, char** argv) {
                 std::printf("Original UI readback: %zu visible pixels, %zu red button pixels\n", visible, colored);
                 Require(colored > 100, "Original Glue button texture did not reach the GPU");
                 if (cycle == 1 && argc == 3) {
+                    std::unique_ptr<BackgroundWorld> world;
+                    if (NSString* selection = NSProcessInfo.processInfo.environment[@"WOW_WORLD"]) world = std::make_unique<BackgroundWorld>(selection.UTF8String);
                     __attribute__((objc_precise_lifetime)) OriginalUIPreview* delegate = [OriginalUIPreview new];
                     delegate.view = view;
                     delegate.frameLimit = [NSProcessInfo.processInfo.environment[@"WOW_UI_FRAMES"] integerValue];
                     NSApp.delegate = delegate; window.delegate = delegate; view.delegate = delegate;
                     view.device = device.GPU().device; view.framebufferOnly = NO; view.autoResizeDrawable = YES;
+                    view.depthStencilPixelFormat = MTLPixelFormatDepth32Float; view.clearDepth = 1;
                     view.clearColor = MTLClearColorMake(.08, .09, .12, 1);
                     window.title = @"WoW — original Glue UI components";
                     [window setContentSize:NSMakeSize(900, 600)];

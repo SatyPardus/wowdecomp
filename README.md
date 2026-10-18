@@ -156,7 +156,11 @@ CSimpleTop layout, Services textures and Scrn painting. Its original edit box
 accepts native Unicode/composition and supplies the AppKit candidate rectangle.
 Without `--preview`, it checks two full lifecycles, native button hit testing,
 composition replacement, caret movement and GPU output. `WOW_UI_FRAMES=120`
-closes the visible check after 120 frames. This is an integration entry point;
+closes the visible check after 120 frames. Set `WOW_WORLD=Azeroth:-9465:64:85`
+to compose the original world below the UI through Scrn. The viewer's movement
+and right-drag are suspended while the edit box has keyboard focus; clicking
+the button clears that focus. `WOW_UI_CAPTURE=/absolute/path/frame.ppm` reads
+the composed GPU frame at frame 120. This is an integration entry point;
 full Glue/game UI, name-cache declension, movie playback and login remain pending.
 Clipboard has native UTF-8 platform bindings; these checks do not access the
 user's clipboard. UI Desaturate uses the original BLS luminance and alpha rules.

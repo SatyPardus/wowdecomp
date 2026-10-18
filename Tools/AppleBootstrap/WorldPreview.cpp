@@ -82,15 +82,18 @@ void WorldPreview::Shutdown() {
     CShaderEffectManager::DestroyAllEffects();
     if (m_blob) { ModelBlobDestroy(); m_blob = false; }
 }
-void WorldPreview::EnableInput() {
+void WorldPreview::EnableInput(bool (*allowed)()) {
     if (m_inputContext) return;
     if (!EventGetCurrentContext()) throw std::logic_error("World viewer input requires its Event context");
     m_inputContext = PropGetSelectedContext();
+    m_inputAllowed = allowed;
     EventRegisterEx(EVENT_ID_MOUSEDOWN, MouseDown, this, 0);
     EventRegisterEx(EVENT_ID_MOUSEMOVE_RELATIVE, MouseMove, this, 0);
     EventRegisterEx(EVENT_ID_KEYDOWN, KeyDown, this, 0);
 }
-int32_t WorldPreview::MouseDown(const void* data, void*) {
+int32_t WorldPreview::MouseDown(const void* data, void* owner) {
+    const auto& self = *static_cast<WorldPreview*>(owner);
+    if (self.m_inputAllowed && !self.m_inputAllowed()) return 1;
     if (static_cast<const EVENT_DATA_MOUSE*>(data)->m_button == MOUSE_BUTTON_RIGHT)
         EventSetMouseMode(MOUSE_MODE_RELATIVE, MOUSE_BUTTON_RIGHT);
     return 1;
@@ -98,6 +101,7 @@ int32_t WorldPreview::MouseDown(const void* data, void*) {
 int32_t WorldPreview::MouseMove(const void* data, void* owner) {
     const auto& event = *static_cast<const EVENT_DATA_MOUSE*>(data);
     auto& self = *static_cast<WorldPreview*>(owner);
+    if (self.m_inputAllowed && !self.m_inputAllowed()) return 1;
     if (event.m_mode != MOUSE_MODE_RELATIVE || !(event.m_buttonState & MOUSE_BUTTON_RIGHT)) return 1;
     const C3Vector forward = self.m_camera.Forward();
     const float scale = 2.0f / self.m_viewHeight;
@@ -110,11 +114,13 @@ int32_t WorldPreview::KeyDown(const void* data, void* owner) {
     const auto key = static_cast<const EVENT_DATA_KEY*>(data)->m_key;
     auto& self = *static_cast<WorldPreview*>(owner);
     if (key == KEY_ESCAPE) EventSetMouseMode(MOUSE_MODE_NORMAL, 0);
+    if (self.m_inputAllowed && !self.m_inputAllowed()) return 1;
     if (key == KEY_HOME) { self.m_camera.m_position = self.m_initialPosition; self.m_camera.SetFacing(self.m_initialFacing); }
     return 1;
 }
 void WorldPreview::MoveCamera(float elapsedSeconds) {
     if (!m_inputContext) return;
+    if (m_inputAllowed && !m_inputAllowed()) return;
     if (PropGetSelectedContext() != m_inputContext) throw std::logic_error("Interactive world draw requires its Event context");
     // Use the screen-right basis from GxuXformCreateLookAtSgCompat. The
     // camera's stored second row has the opposite handedness.

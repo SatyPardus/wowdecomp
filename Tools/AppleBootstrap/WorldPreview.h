@@ -13,7 +13,7 @@ public:
     WorldPreview(const WorldPreview&) = delete;
     WorldPreview& operator=(const WorldPreview&) = delete;
     void SetTime(float minutes);
-    void EnableInput(); // Viewer navigation through the original Event context.
+    void EnableInput(bool (*allowed)() = nullptr); // Optional UI focus gate.
     bool Draw(float elapsedSeconds, uint32_t width, uint32_t height);
 private:
     void Shutdown();
@@ -22,6 +22,7 @@ private:
     static int32_t MouseMove(const void*, void*);
     static int32_t KeyDown(const void*, void*);
     HPROPCONTEXT m_inputContext = nullptr;
+    bool (*m_inputAllowed)() = nullptr;
     C3Vector m_initialPosition, m_initialFacing;
     float m_viewHeight = 600;
     std::string m_map;
