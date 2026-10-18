@@ -89,7 +89,7 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
@@ -99,13 +99,16 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         SupportsTerrainPermutation(GxSh_Vertex, terrain->vertexPermutation) && SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
         TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation)),
         "Unsupported native terrain permutation or mismatched layer count");
+    Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
     // Leave eight bits for effect families; a growing material set must not
     // collide with the independent sampler/vertex specialization flags.
     const uint64_t key = uint64_t(state.blend) | (uint64_t(state.alphaRef != 0) << 4) | (uint64_t(state.colorWrite) << 5) |
         (uint64_t(format) << 9) | (uint64_t(depthAttachment) << 13) | (uint64_t(screenAtDepth) << 14) |
         (uint64_t(effect) << 15) | (uint64_t(signedWave) << 23) | (uint64_t(decodePacked) << 24) |
         (uint64_t(modelPermutation) << 25) | (uint64_t(shaderAlphaTest) << 30) | (uint64_t(vertexEffect) << 31) |
-        (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42);
+        (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42) |
+        (uint64_t(wmo ? unsigned(wmo->vertexEffect) : 0) << 47) | (uint64_t(wmo ? wmo->permutation % 10 : 0) << 50) |
+        (uint64_t(wmo && wmo->shaderAlphaTest) << 54);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -178,7 +181,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && !IsModelEffect(effect) && effect != FragmentEffect::Terrain) {
+    if (decodePacked && !IsModelEffect(effect) && !IsWmoEffect(effect) && effect != FragmentEffect::Terrain) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -274,6 +277,42 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             layout.attributes[i].offset = GxVertexAttribOffset(format, attributes[i]);
             layout.attributes[i].format = i == 2 ? MTLVertexFormatUChar4Normalized_BGRA : MTLVertexFormatFloat3;
         }
+        layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
+    }
+    if (IsWmoEffect(effect)) {
+        const uint32_t permutation = wmo->permutation % 10, family = unsigned(wmo->vertexEffect);
+        const uint32_t material = unsigned(effect) - unsigned(FragmentEffect::WmoDiffuse);
+        const bool composite = wmo->vertexEffect == WmoVertexEffect::Composite;
+        const bool normal = (permutation & 1) || WmoEnvironment(wmo->vertexEffect) || composite;
+        Require(family < 7 && !screenAtDepth && GxVertexHasAttrib(format, GxVA_Color0) && GxVertexHasAttrib(format, GxVA_TexCoord0) &&
+            (!normal || GxVertexHasAttrib(format, GxVA_Normal)) &&
+            (!composite || (GxVertexHasAttrib(format, GxVA_Color1) && GxVertexHasAttrib(format, GxVA_TexCoord1))) &&
+            (WmoTextureCount(effect) == 1 || (effect == FragmentEffect::WmoComposite ? composite : WmoEnvironment(wmo->vertexEffect))),
+            "Unsupported WMO vertex layout or shader pairing");
+        auto& vertex = m_wmoVertex[family][permutation];
+        auto& fragment = m_wmoFragment[material][wmo->shaderAlphaTest][state.alphaRef != 0][decodePacked];
+        const bool alpha = state.alphaRef != 0;
+        auto constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&permutation type:MTLDataTypeUInt atIndex:14];
+        [constants setConstantValue:&family type:MTLDataTypeUInt atIndex:15];
+        [constants setConstantValue:&material type:MTLDataTypeUInt atIndex:16];
+        [constants setConstantValue:&wmo->shaderAlphaTest type:MTLDataTypeBool atIndex:17];
+        NSError* error = nil;
+        if (!vertex) vertex = [m_library newFunctionWithName:composite ? @"wmoCompositeVertex" : normal ? @"wmoLitVertex" : @"wmoVertex" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:@"wmoFragment" constantValues:constants error:&error];
+        if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "WMO specialization failed");
+        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        auto attribute = [&](unsigned index, EGxVertexAttrib gx, MTLVertexFormat type) {
+            layout.attributes[index].bufferIndex = 1; layout.attributes[index].offset = GxVertexAttribOffset(format, gx); layout.attributes[index].format = type;
+        };
+        attribute(0, GxVA_Position, MTLVertexFormatFloat3);
+        if (normal) attribute(1, GxVA_Normal, MTLVertexFormatFloat3);
+        attribute(2, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
+        attribute(3, GxVA_TexCoord0, MTLVertexFormatFloat2);
+        if (composite) { attribute(4, GxVA_Color1, MTLVertexFormatUChar4Normalized_BGRA); attribute(5, GxVA_TexCoord1, MTLVertexFormatFloat2); }
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     auto attachment = descriptor.colorAttachments[0];

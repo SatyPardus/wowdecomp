@@ -1,6 +1,7 @@
 #include "Tools/AppleBootstrap/MetalView.h"
 #include "Tools/AppleBootstrap/ModelPreview.h"
 #include "Tools/AppleBootstrap/TerrainPreview.h"
+#include "Tools/AppleBootstrap/WmoPreview.h"
 #include "Tools/AppleBootstrap/GameAudioPreview.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -130,6 +131,7 @@ public:
     std::unique_ptr<GameTexture> _image;
     std::unique_ptr<ModelPreview> _model;
     std::unique_ptr<TerrainPreview> _terrain;
+    std::unique_ptr<WmoPreview> _wmo;
     CGxBuf* _vertices;
     CGxBuf* _indices;
     CGxShader* _vertexShaders[2];
@@ -217,12 +219,18 @@ public:
         if (_audio) _audio->Stats(); // Surface asynchronous stream/output failures.
         auto* texture = _image->Get();
         NSString* terrain = NSProcessInfo.processInfo.environment[@"WOW_TERRAIN"];
+        NSString* wmo = NSProcessInfo.processInfo.environment[@"WOW_WMO"];
+        if (wmo && !_wmo) {
+            if (terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
+                throw std::runtime_error("WOW_WMO cannot be combined with other scene selections");
+            _wmo = std::make_unique<WmoPreview>(wmo.UTF8String);
+        }
         if (terrain && !_terrain) {
             if (NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
                 throw std::runtime_error("WOW_TERRAIN cannot be combined with WOW_MODEL or WOW_CREATURE_DISPLAY");
             _terrain = std::make_unique<TerrainPreview>(terrain.UTF8String);
         }
-        if (!terrain && !_model) {
+        if (!terrain && !wmo && !_model) {
             NSString* name = NSProcessInfo.processInfo.environment[@"WOW_MODEL"];
             NSString* display = NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"];
             uint32_t displayID = name ? 0 : 165; // Original timber wolf display.
@@ -251,13 +259,13 @@ public:
             GxPrimVertexPtr(_vertices, GxVBF_PCT); _device->PrimIndexPtr(_indices);
             CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1);
         }
-        const bool sceneReady = _terrain ? _terrain->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) :
+        const bool sceneReady = _wmo ? _wmo->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) : _terrain ? _terrain->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) :
             _model->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         if (!_text) { _text = std::make_unique<GameText>(); }
         _text->Draw(uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         GxScenePresent();
         if (texture && sceneReady && ++_presentedFrames == 120) {
-            NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate and %@ rendered", _terrain ? @"original ADT terrain surface" : @"original M2 scene");
+            NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate and %@ rendered", _wmo ? @"original WMO group" : _terrain ? @"original ADT terrain surface" : @"original M2 scene");
             if (_audio) {
                 const auto stats = _audio->Stats();
                 NSLog(@"Original SESound archive stream: %llu frames, %llu nonzero samples, playing=%d", stats.frames, stats.nonzeroSamples, _audio->IsPlaying());

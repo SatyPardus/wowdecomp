@@ -265,8 +265,25 @@ storage. Fifteen actual groups (including twelve liquid grids) preserve authored
 geometry/batches, the original vertex-color correction, liquid heights and tile
 flags. Async and synchronous reads, failed group reads/retry and cancellation pass
 with macOS ASan/UBSan and Metal validation and in the iOS simulator; both iOS
-targets build. Native WMO shaders, world placement/rendering and liquid rendering
-remain to be connected.
+targets build.
+
+Seven classic/unified WMO vertex families and seven pixel families now have
+native Metal implementations: baked/dynamic color, zero to four local lights,
+direct reflection coordinates, composite layers, fog and shader/state alpha
+tests. The 210 vertex and 28 pixel permutations without shadows retain the
+mounted SM3 program semantics, checked with 390 independent GPU reference draws.
+The original `MapObjU.wfx` selects materials, and original `CMapObj::UnifiedRender`
+uploads geometry and submits the material states and transition passes.
+`WOW_WMO='World\wmo\Northrend\Dalaran\ND_Dalaran.wmo'` selects a root's group zero;
+append `:groupIndex` for another group. This is mutually exclusive with terrain
+and model selections. Altar, Stormwind and Dalaran groups produce 10, 5 and 30
+original draws respectively, including Dalaran's nine two-pass transition batches.
+Each uses one resident render pass and reproduces static pixels after recreation.
+macOS ASan/UBSan and Metal validation pass; both iOS targets build. Mac and iOS
+present 120 WMO frames alongside the original archive audio stream; the simulator
+repeats both after foreground resource/device recreation. The preview
+supplies explicit camera/light/fog inputs. Full world placement, portal traversal,
+doodads, WMO shadows and liquid rendering remain to be connected.
 Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against

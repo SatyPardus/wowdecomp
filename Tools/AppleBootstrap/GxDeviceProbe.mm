@@ -13,6 +13,7 @@ void CheckGameEvents();
 void CheckGameAsyncFiles();
 void CheckModelShaders(CGxDeviceMetal& device);
 void CheckTerrainShaders(CGxDeviceMetal& device);
+void CheckWmoShaders(CGxDeviceMetal& device);
 void CheckGxFont(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
 void CheckPackedTextureFormats(CGxDeviceMetal& device);
@@ -250,6 +251,7 @@ void CheckGxDevice() {
     CheckGxFFXEffect(device);
     CheckModelShaders(device);
     CheckTerrainShaders(device);
+    CheckWmoShaders(device);
     CheckGameEvents();
     CheckGameAsyncFiles();
     device.DeviceDestroy();
