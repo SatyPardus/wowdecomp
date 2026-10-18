@@ -1016,6 +1016,13 @@ inputs and thread/lifetime boundaries. `WOW_DISPLAY_CHECK=1` also checks this
 binding during live Mac/iOS drawable resizing. UIKit synchronous prompts return
 the original failure/cancel result with `ENOTSUP`: asynchronous startup prompt
 continuations remain unimplemented and are never treated as user acceptance.
+The original `PatchFiles` enumerator and quicksort now compile on Apple. Patch
+directories follow the configured SFile base/Data paths instead of process CWD,
+resolve locale directory casing and preserve full combined filenames. Both
+original enumeration modes retain their passes and ordering. Mac sanitizer and
+iOS checks cover long paths, case/locale and parent-directory patterns; all
+seven real patch archives match the existing mount order and priorities. This
+does not replace full client startup or add trial/remote patch downloads.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

@@ -60,6 +60,8 @@ void CheckNativeProcesses(const std::string& scratchDirectory);
 void CheckBattlenetCore();
 void CheckFileDownloads(const std::string& scratchDirectory);
 void CheckProfiles(const std::string& scratchDirectory);
+void CheckPatchFiles(const std::string& scratchDirectory);
+void CheckMountedPatchFiles(const ClientData& client);
 void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
 void CheckGameNetwork();
@@ -713,6 +715,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckBattlenetCore();
         CheckFileDownloads(scratchDirectory);
         CheckProfiles(scratchDirectory);
+        CheckPatchFiles(scratchDirectory);
         {
             char executable[4096], directory[4096];
             const uint32_t length = GetExecutablePathUTF8(executable, sizeof(executable));
@@ -895,6 +898,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         }
         out << "Inspected " << archives.size() << " archives read-only.\n";
         ClientData client(dataRoot, locale);
+        CheckMountedPatchFiles(client);
         SFile::Initialize();
         SFile::EnableDirectAccess(0);
         out << "Client archive layout: " << client.Mounts().size() << " mounts, locale " << client.Locale() << '\n';

@@ -45,6 +45,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataStore.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Base.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/FileCache.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Sort.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CRTRandom.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CmdLine.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/DynamicString.cpp
@@ -88,6 +89,7 @@ add_library(AppleArchives STATIC
     Engine/Source/Storm/Source/SEvt.cpp
     WoW/Source/ClientLocale.cpp
     WoW/Source/WowServices/ClientData.cpp
+    WoW/Source/WowServices/PatchFiles.cpp
     Engine/Source/BlizzardCore/SFile2-Core.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQGlobals.cpp
@@ -472,6 +474,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/FileDownloadProbe.cpp
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProfileProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/DiagnosticsProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/StormRuntimeProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/PatchFilesProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 set_target_properties(AppleProbeCore PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
