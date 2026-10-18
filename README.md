@@ -159,6 +159,12 @@ read/write/replacement, 64-bit sizes, directory and hidden/read-only attributes,
 glob enumeration, copy/move and cleanup. Its directory attributes use the bits
 expected by CVar/AddOns callers; unsupported attribute flags fail explicitly.
 Windows cross-process sharing restrictions remain unsupported on Apple.
+`SCreateProcess` can launch native macOS helpers with the original command-line
+quoting, an optional worker completion callback, and child reaping even without
+a callback. Only standard descriptors are inherited. PATH lookup uses direct
+native spawn; invalid executables are never retried as shell commands. There is
+no Win32 GUI input-idle handshake. iOS reports `ENOTSUP`, including Simulator.
+This does not provide native replacements for Launcher.exe or WowError.exe.
 
 The original `WowConnection` framing, directional header/opcode encryption,
 send queues, stream callbacks and worker dispatch now run over native Apple

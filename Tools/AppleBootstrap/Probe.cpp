@@ -53,6 +53,7 @@
 #include "Engine/Source/lua-5.1/src/lmemPool.h"
 
 void CheckM2Resources(const ClientData& client, std::ostream& report);
+void CheckNativeProcesses(const std::string& scratchDirectory);
 void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
 void CheckGameNetwork();
@@ -696,6 +697,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckKnowledgeBaseDownloads();
         CheckCommandLine(scratchDirectory);
         CheckVersionInfo(scratchDirectory);
+        CheckNativeProcesses(scratchDirectory);
         const int32_t previousRace = StreamingGetRace();
         for (int32_t race : {-1, 1, 4, 11}) {
             StreamingSetRace(race);

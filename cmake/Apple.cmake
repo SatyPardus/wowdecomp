@@ -22,6 +22,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/PathExtension.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Diagnostics.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Sync.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/SProcess.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/soprintf.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Lock/Apple/Lock.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/Apple/Thread.cpp
@@ -422,6 +423,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CharacterNameProbe.cp
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/URLDownloadProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CommandLineProbe.cpp Tools/AppleBootstrap/VersionInfoProbe.mm)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/MovieProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProcessProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames AppleKnowledgeBase)

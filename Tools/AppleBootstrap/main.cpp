@@ -2,8 +2,11 @@
 #include <cstring>
 #include <filesystem>
 #include "Tools/AppleBootstrap/Probe.h"
+int RunProcessProbeChild(int argc, char** argv);
 
 int main(int argc, char** argv) {
+    const int child = RunProcessProbeChild(argc, argv);
+    if (child >= 0) return child;
     if ((argc != 3 && argc != 5) || strcmp(argv[1], "--data-root") != 0 || (argc == 5 && strcmp(argv[3], "--locale") != 0)) {
         fprintf(stderr, "Usage: AppleCoreProbe --data-root /path/to/client335a/Data [--locale zhCN]\n");
         return 2;
