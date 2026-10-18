@@ -393,6 +393,8 @@ target_link_libraries(AppleRealmProbeCore PUBLIC AppleGameLogin AppleSessionServ
 if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(AppleRealmProbe Tools/AppleBootstrap/realm_main.cpp)
     target_link_libraries(AppleRealmProbe PRIVATE AppleRealmProbeCore)
+    add_executable(AppleRealmClient Tools/AppleBootstrap/realm_client_main.cpp)
+    target_link_libraries(AppleRealmClient PRIVATE AppleGameLogin AppleSessionServices AppleMetal)
 endif ()
 add_library(AppleSessionProbeCore STATIC Tools/AppleBootstrap/SessionProbe.cpp)
 target_link_libraries(AppleSessionProbeCore PUBLIC Net)

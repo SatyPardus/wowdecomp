@@ -225,6 +225,27 @@ exchange and cache-version invalidation, two character records with equipment
 and race restrictions, selected-character login, failure/logout replies, rejected
 authentication and truncated character lists. This checks protocol behavior;
 it does not create a playable player or connect to an external realm.
+
+`AppleRealmClient` is a separate macOS command-line entry for a local AzerothCore
+server. It performs real SRP authentication, realm selection, encrypted world
+authentication and character enumeration using the original client code and
+the mounted game's AddOn metadata, then disconnects. Run it interactively:
+
+```sh
+cmake --build --preset macos-arm64 --target AppleRealmClient
+build/macos-arm64/bin/AppleRealmClient --local-unchecked /path/to/client335a/Data
+```
+
+Account and password are read from standard input; terminal password echo is
+disabled. Credentials are not saved. The explicit development option connects
+only to `127.0.0.1:3724` and an online realm advertised at `127.0.0.1`. It requires
+the server's existing `StrictVersionCheck=0` setting: executable verification is
+not performed, while SRP proofs and world-session authentication remain required.
+It does not change server settings or substitute for the pending native client
+verification policy. A real local session has authenticated and enumerated an
+existing character under Mac ASan/UBSan. This entry has no login UI or world
+entry and does not create/delete characters.
+
 The original AddOns/cache implementations and Storm CRC/RSA/SHA1 signature stream
 are linked. An independent synthetic signature fixture checks seven streaming
 boundaries and rejects modified payloads, markers, signatures and truncation;
