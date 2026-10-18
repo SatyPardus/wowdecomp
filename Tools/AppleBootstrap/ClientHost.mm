@@ -61,6 +61,7 @@ bool checkWorldCasting, worldCastingDone;
 bool checkWorldShadows, worldShadowsDone;
 bool checkWorldReentry, worldReentryDone;
 bool checkWorldNPC, worldNPCDone;
+bool browseMerchant;
 bool appBundle;
 uint32_t synchronousFrames;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
@@ -319,7 +320,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             worldReentryDone = CheckNativeWorldReentry(self.view);
         if (checkWorldNPC && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
             (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone))
-            worldNPCDone = CheckNativeWorldNPC(self.view);
+            worldNPCDone = CheckNativeWorldNPC(self.view, browseMerchant);
         if (device->FrameCommand()) device->ScenePresent();
         [view.inputContext invalidateCharacterCoordinates];
         if (pendingLogin && self.frames == 2) {
@@ -382,13 +383,14 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-casting")) checkWorldCasting = true;
         else if (!std::strcmp(argv[argument], "--check-world-shadows")) checkWorldShadows = true;
         else if (!std::strcmp(argv[argument], "--check-world-npc")) checkWorldNPC = true;
+        else if (!std::strcmp(argv[argument], "--check-world-merchant")) checkWorldNPC = browseMerchant = true;
         else if (!std::strcmp(argv[argument], "--check-world-reentry")) checkWorldReentry = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
     if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldReentry || checkWorldNPC) && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-reentry] [--check-world-npc] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-reentry] [--check-world-npc] [--check-world-merchant] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {

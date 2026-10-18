@@ -361,6 +361,12 @@ and visible GossipFrame. It leaves the dialog open and selects no option. A
 validation, including normal shutdown. Gossip option iteration uses the actual
 array boundary instead of relying on the original executable's adjacent globals.
 
+`--check-world-merchant` extends that check by selecting a free, uncoded vendor
+option through its original Lua/UI button and waiting for server items and their
+details. It leaves the merchant open, buys/sells nothing and checks that money
+is unchanged. Innkeeper Allison's 28-item list and the 1,000-frame session pass
+Mac ASan/UBSan and Metal validation.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;

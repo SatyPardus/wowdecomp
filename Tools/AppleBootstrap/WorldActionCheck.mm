@@ -2,6 +2,7 @@
 #include "NativeView.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
+#include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
 #include "Engine/Source/Services/Texture.h"
@@ -16,6 +17,7 @@
 #include "WoW/Source/Ui/ActionBarFrame.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/GossipInfo.h"
+#include "WoW/Source/Ui/MerchantFrame.h"
 #include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/Ui/UIBindings.h"
 #import <Carbon/Carbon.h>
@@ -199,11 +201,13 @@ bool CheckNativeWorldShadows() {
     return false;
 }
 
-bool CheckNativeWorldNPC(WowNativeView* view) {
+bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant) {
     static unsigned phase,readyFrames;
     static WOWGUID target;
+    static uint32_t coins;
+    static NSPoint optionPoint;
     static std::chrono::steady_clock::time_point started;
-    if(phase==4) return true;
+    if(phase==7 || (phase==4 && !browseMerchant)) return true;
     auto* player=ClntObjMgrGetActivePlayerObj();
     if(!CGGameUI::s_inWorld || !player) { Require(!phase,"World left during native NPC check"); return false; }
     if(!phase && ++readyFrames<120) return false;
@@ -250,9 +254,50 @@ bool CheckNativeWorldNPC(WowNativeView* view) {
         if(CGGossipInfo::m_gossip==target && CGGossipInfo::m_gossipOptionsCount && CGGossipInfo::m_gossipText[0] && frame->m_isVisible) {
             Require(CGGameUI::m_lockedTarget==target,"Native NPC click did not select the original target");
             std::fprintf(stderr,"Native NPC: original target, server gossip text and %u options displayed; no option selected\n",CGGossipInfo::m_gossipOptionsCount);
-            next(); return true;
+            next(); return !browseMerchant;
         }
         Require(elapsed<8,"Native NPC right click did not display the original server gossip");
+    } else if(phase==4 && elapsed>=.3) {
+        unsigned option=0;
+        for(unsigned i=0;i<32;++i) {
+            const auto& candidate=CGGossipInfo::m_options[i];
+            if(candidate.m_index>=0 && candidate.m_type==1 && !candidate.m_coded && !candidate.m_boxMoney && !candidate.m_boxText) { option=i+1; break; }
+        }
+        Require(option,"NPC check requires a free, uncoded vendor gossip option");
+        CSimpleFrame* button=nullptr;
+        auto* lua=FrameScript_GetContext();
+        for(unsigned i=1;i<=32;++i) {
+            char name[40]; std::snprintf(name,sizeof(name),"GossipTitleButton%u",i);
+            auto* candidate=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name,CSimpleFrame::GetObjectType()));
+            if(!candidate || !candidate->m_isVisible || candidate->m_id!=option) continue;
+            lua_rawgeti(lua,LUA_REGISTRYINDEX,candidate->GetLuaObjectRef()); lua_getfield(lua,-1,"type");
+            const char* type=lua_tostring(lua,-1); const bool gossip=type && !std::strcmp(type,"Gossip"); lua_pop(lua,2);
+            if(gossip) { button=candidate; break; }
+        }
+        Require(button,"Original vendor gossip button is not visible");
+        CRect rect; Require(button->GetRect(&rect),"Vendor gossip button has no rectangle");
+        float x,y; DDCToNDC((rect.minX+rect.maxX)*.5f,(rect.minY+rect.maxY)*.5f,&x,&y);
+        Require(x>0 && x<1 && y>0 && y<1,"Vendor gossip button is outside the view");
+        optionPoint=[view convertPoint:NSMakePoint(x*view.bounds.size.width,(view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        coins=player->GetCoinage();
+        for(auto type:{NSEventTypeMouseMoved,NSEventTypeLeftMouseDown}) {
+            NSEvent* event=[NSEvent mouseEventWithType:type location:optionPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+                windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+            if(type==NSEventTypeMouseMoved) [view mouseMoved:event]; else [view mouseDown:event];
+        }
+        next();
+    } else if(phase==5 && elapsed>=.05) {
+        [view mouseUp:[NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:optionPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0]];
+        next();
+    } else if(phase==6) {
+        auto* merchant=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("MerchantFrame",CSimpleFrame::GetObjectType()));
+        if(CGMerchantInfo::m_merchant==target && CGMerchantInfo::m_numMerchantItems>0 && !CGMerchantInfo::m_pendingItemStats && merchant && merchant->m_isVisible) {
+            Require(player->GetCoinage()==coins,"Browsing the merchant changed the player's money");
+            std::fprintf(stderr,"Native NPC: vendor gossip selected through original UI; %d server items loaded, merchant visible, money unchanged\n",CGMerchantInfo::m_numMerchantItems);
+            next(); return true;
+        }
+        Require(elapsed<12,"Original merchant list did not finish loading");
     }
     return false;
 }
