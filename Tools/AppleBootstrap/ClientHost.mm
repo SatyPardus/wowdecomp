@@ -8,6 +8,13 @@
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
+#include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "WoW/Source/Ui/GameUI.h"
+#include "WoW/Source/Ui/UIBindings.h"
+#include "WoW/Source/Ui/WorldFrame.h"
+#include "WoW/Source/UIUtil/Camera.h"
+#import <Carbon/Carbon.h>
 #include "Engine/Source/Base/Base.h"
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/Base/Coordinate.h"
@@ -31,6 +38,8 @@
 #include <execinfo.h>
 #include <memory>
 #include <stdexcept>
+#include <chrono>
+#include <cmath>
 
 extern HEVENTCONTEXT g_clientEventContext;
 void LoadMopaqFileSigningData(const char* locale);
@@ -44,8 +53,94 @@ bool initialized;
 std::unique_ptr<NativeLoginInput> pendingLogin;
 std::string enterCharacter;
 bool entryQueued;
+bool checkWorldInput, worldInputDone;
 uint32_t synchronousFrames;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+// Explicit local development option: exercise the native input boundary and
+// original bindings/movement, never set player coordinates or camera state.
+void CheckWorldInput(WowNativeView* view) {
+    static unsigned readyFrames, phase;
+    static std::chrono::steady_clock::time_point started;
+    static C3Vector start, jumpStart;
+    static float facing, distance;
+    if (worldInputDone) return;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) {
+        Require(!phase, "World left during native input check"); return;
+    }
+    if (!phase && ++readyFrames < 120) return;
+    auto* camera = CGWorldFrame::GetActiveCamera();
+    Require(camera != nullptr, "World input check has no camera");
+    auto key = [&](unsigned short code, NSString* text, bool down) {
+        NSEvent* event = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp
+            location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:code];
+        if (down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto wheel = [&](int delta) {
+        CGEventRef event = CGEventCreateScrollWheelEvent(nullptr,kCGScrollEventUnitLine,1,delta);
+        Require(event != nullptr,"Cannot create native wheel check event");
+        // A synthesized NSEvent has no window. For direct view delivery, make
+        // locationInWindow contain this view's center in window coordinates.
+        const NSPoint point=[view convertPoint:NSMakePoint(NSMidX(view.bounds),NSMidY(view.bounds)) toView:nil];
+        // Original UI wheel hit-testing uses the last mouse-move position.
+        [view mouseMoved:[NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil
+            eventNumber:0 clickCount:0 pressure:0]];
+        CGEventSetLocation(event,CGPointMake(point.x,NSMaxY(NSScreen.screens.firstObject.frame)-point.y));
+        NSEvent* native=[NSEvent eventWithCGEvent:event];
+        Require(NSPointInRect([view convertPoint:native.locationInWindow fromView:nil],view.bounds),"Synthetic wheel missed the native game view");
+        [view scrollWheel:native]; CFRelease(event);
+    };
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now-started).count();
+    auto next = [&] { ++phase; started=now; };
+    if (!phase) {
+        auto* bindings=CGUIBindings::s_bindings;
+        Require(bindings != nullptr,"Native input check requires original loaded bindings");
+        for (const auto& pair : {std::pair{"W","MOVEFORWARD"}, {"S","MOVEBACKWARD"}, {"LEFT","TURNLEFT"},
+            {"RIGHT","TURNRIGHT"}, {"MOUSEWHEELUP","CAMERAZOOMIN"}, {"MOUSEWHEELDOWN","CAMERAZOOMOUT"}, {"SPACE","JUMP"}}) {
+            const char* action=bindings->GetCommandAction(BINDING_MODE_ACTIVE,pair.first,1);
+            Require(action && !std::strcmp(action,pair.second),"Native input check keys do not match current character bindings");
+        }
+        start=player->GetPosition(); key(kVK_ANSI_W,@"w",true); next();
+    }
+    else if (phase==1 && elapsed>=0.4) { key(kVK_ANSI_W,@"w",false); next(); }
+    else if (phase==2 && elapsed>=0.2) {
+        const auto position=player->GetPosition();
+        const float moved=std::hypot(position.x-start.x,position.y-start.y);
+        std::fprintf(stderr,"Native world input: forward moved %.3f units\n",moved);
+        Require(moved>0.3f && moved<15.0f,"Native W did not move the player as expected");
+        key(kVK_ANSI_S,@"s",true); next();
+    } else if (phase==3 && elapsed>=0.6) { key(kVK_ANSI_S,@"s",false); next(); }
+    else if (phase==4 && elapsed>=0.3) { facing=player->GetFacing(); key(kVK_LeftArrow,@"\uF702",true); next(); }
+    else if (phase==5 && elapsed>=0.2) { key(kVK_LeftArrow,@"\uF702",false); next(); }
+    else if (phase==6 && elapsed>=0.3) {
+        const float turned=std::remainder(player->GetFacing()-facing,6.283185307f);
+        std::fprintf(stderr,"Native world input: turn changed facing %.3f radians\n",turned);
+        Require(std::fabs(turned)>0.05f && std::fabs(turned)<2,"Native left arrow did not turn the player as expected");
+        key(kVK_RightArrow,@"\uF703",true); next();
+    } else if (phase==7 && elapsed>=0.2) { key(kVK_RightArrow,@"\uF703",false); next(); }
+    else if (phase==8 && elapsed>=0.3) { distance=camera->m_smoothDistance.m_target; wheel(1); next(); }
+    else if (phase==9 && elapsed>=0.6) {
+        std::fprintf(stderr,"Native world input: camera target distance %.3f -> %.3f\n",distance,camera->m_smoothDistance.m_target);
+        Require(distance-camera->m_smoothDistance.m_target>0.5f && distance-camera->m_smoothDistance.m_target<2.0f,"Native wheel did not zoom in by the original step");
+        wheel(-1); next();
+    } else if (phase==10 && elapsed>=0.6) {
+        Require(std::fabs(camera->m_smoothDistance.m_target-distance)<0.2f,"Native zoom-out did not restore the camera target");
+        jumpStart=player->GetPosition(); key(kVK_Space,@" ",true); next();
+    }
+    else if (phase==11 && elapsed>=0.05) { key(kVK_Space,@" ",false); next(); }
+    else if (phase==12 && elapsed>=0.2) {
+        const float risen=player->GetPosition().z-jumpStart.z;
+        std::fprintf(stderr,"Native world input: jump rose %.3f units\n",risen);
+        Require(risen>0.1f,"Native space did not start a jump"); next();
+    } else if (phase==13 && elapsed>=1.5) {
+        Require(std::fabs(player->GetPosition().z-jumpStart.z)<1.0f,"Player did not land after native jump");
+        worldInputDone=true;
+        std::fputs("Native world input: movement, turn, camera wheel and jump/landing passed through original bindings\n",stderr);
+    }
+}
 [[noreturn]] void Fatal(const char* message) {
     // Original initialization and packet dispatch are not exception-safe.
     // Do not unwind partially registered game objects through their full
@@ -164,6 +259,7 @@ void SelectRuntime(const std::filesystem::path& data, const std::filesystem::pat
         device->BeginFrame(pass, drawable);
         const bool running = EventProcessPending();
         PropSelectContext(context);
+        if (checkWorldInput) CheckWorldInput(self.view);
         if (device->FrameCommand()) device->ScenePresent();
         [view.inputContext invalidateCharacterCoordinates];
         if (pendingLogin && self.frames == 2) {
@@ -181,8 +277,9 @@ void SelectRuntime(const std::filesystem::path& data, const std::filesystem::pat
                 entryQueued = true; EventSetTimer(0, EnterSelectedCharacter, nullptr);
             }
         }
-        if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; Glue screen: %s\n", CGlueMgr::m_currentScreen);
+        if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; in world: %u; Glue screen: %s\n", CGGameUI::s_inWorld, CGlueMgr::m_currentScreen);
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
+            if (self.frameLimit) Require(!checkWorldInput || worldInputDone,"Frame limit reached before native world input check completed");
             if (NSString* file = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"]) {
                 MTLRenderPassDescriptor* readPass = [pass copy];
                 readPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
@@ -215,12 +312,13 @@ int main(int argc, char** argv) {
     while (argument < argc && !std::strncmp(argv[argument], "--", 2)) {
         if (!std::strcmp(argv[argument], "--local-unchecked")) local = true;
         else if (!std::strcmp(argv[argument], "--login-stdin")) loginInput = true;
+        else if (!std::strcmp(argv[argument], "--check-world-input")) checkWorldInput = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
-    if (argc - argument != 2 || ((loginInput || !enterCharacter.empty()) && !local)) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    if (argc - argument != 2 || ((loginInput || !enterCharacter.empty()) && !local) || (checkWorldInput && enterCharacter.empty())) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {

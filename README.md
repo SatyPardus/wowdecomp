@@ -230,9 +230,11 @@ it does not create a playable player or connect to an external realm.
 GlueXML login interface, Event loop and shutdown. It mounts the original Data,
 loads the authenticated file-signature manifest and preserves GlueXML signature
 checks. The original Glue login has authenticated to local AzerothCore, selected the
-realm, loaded an existing character with its equipment/background, and rendered
-the character-selection screen. World entry is still being integrated. Native
-executable challenge verification remains unavailable.
+realm and entered an existing character's world. The original player/equipment,
+Stormwind scene, indoor minimap, chat, quest tracker and action bars now render.
+Movement, turning, camera wheel zoom and jumping/landing have run through native
+AppKit events and the character's original bindings. Complete gameplay/rendering
+coverage and native executable challenge verification remain unfinished.
 
 ```sh
 cmake --build --preset macos-arm64 --target AppleClient
@@ -268,16 +270,24 @@ Mac ASan/UBSan and Metal validation.
 
 `--enter-world CHARACTER` additionally requests original world entry once that
 exact character is selected and ready. It requires `--local-unchecked` and does
-not change the selected character. This is a development path: map loading now
-acquires subsequent native drawables for the original synchronous progress
-paints, but unsupported world operations still report failure explicitly.
+not change the selected character. Map loading acquires subsequent native
+drawables for the original synchronous progress paints. Unsupported world
+operations still report failure explicitly.
+
+`--check-world-input` with `--enter-world` is an explicit local development check
+that briefly moves the character, turns it, zooms the camera and jumps through
+native events. It first checks the existing W/S, arrow, wheel and Space bindings;
+it does not remap them or set player coordinates. Allow at least 900 frames for
+the full sequence. World rendering, these inputs and normal shutdown have passed
+Mac ASan/UBSan and Metal validation in a 900-frame local session. Full combat,
+area transitions and sustained play are still being integrated and verified.
 
 The native `FFXNetherBlur`/`FFXNetherCombine` paths preserve the original noisy
 four-tap RGBA blur, fixed UV bias, two-pass intermediate surface, tint and fade.
 `WOW_METAL_CHECK=ffx` focuses the existing Metal probe on post-processing
 equations and original game passes. These checks pass on Mac with ASan/UBSan
 and Metal validation and on the iOS simulator; the device target builds too.
-This does not establish Windows GPU equivalence or complete world entry.
+This does not establish Windows GPU equivalence or complete gameplay coverage.
 
 `FFXPropagateFog` and `FFXFogCombine` now preserve four-tap RGBA propagation,
 alpha decay, component-wise density/minimum saturation and fog-alpha composition.
