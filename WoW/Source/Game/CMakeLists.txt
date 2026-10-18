@@ -9,6 +9,12 @@ add_library(Game STATIC
     ${PRIVATE_SOURCES}
 )
 
+if (APPLE)
+    # Shared callback destructors only; Apple intentionally excludes voice chat,
+    # its network/codec libraries and microphone capture.
+    target_sources(Game PRIVATE ${CMAKE_SOURCE_DIR}/Engine/Source/ComSat/ComSatCallbacks.cpp)
+endif ()
+
 target_include_directories(Game
     PUBLIC
         ${CMAKE_SOURCE_DIR}

@@ -20,6 +20,10 @@ CVar* s_cvarEnableMicrophone;
 // VERIFY: ed2e7fbe manual
 // OFFSET: 0x007DC770
 bool EnableMicrophoneHandler(CVar* var, const char* oldValue, const char* value, void* arg) {
+#if defined(__APPLE__)
+    // Reject attempts to enable an intentionally unavailable feature.
+    return SStrToInt(value) == 0;
+#else
     if (!s_cvarEnableVoiceChat) {
         return true;
     }
@@ -41,6 +45,7 @@ bool EnableMicrophoneHandler(CVar* var, const char* oldValue, const char* value,
     }
 
     return true;
+#endif
 }
 
 // VERIFY: 02faa7c5 auto
@@ -137,6 +142,10 @@ bool SelfMuteHandler(CVar* var, const char* oldValue, const char* value, void* a
 // VERIFY: 041fa9fd manual
 // OFFSET: 0x007DFEA0
 bool EnableVoiceChatHandler(CVar* var, const char* oldValue, const char* value, void* arg) {
+#if defined(__APPLE__)
+    // Reject attempts to enable an intentionally unavailable feature.
+    return SStrToInt(value) == 0;
+#else
     bool wasEnabled = oldValue && SStrToInt(oldValue);
     bool enabled = SStrToInt(value) != 0;
     bool microphoneEnabled = s_cvarEnableMicrophone && s_cvarEnableMicrophone->m_intValue;
@@ -181,6 +190,7 @@ bool EnableVoiceChatHandler(CVar* var, const char* oldValue, const char* value, 
     }
 
     return true;
+#endif
 }
 
 bool OutboundChatVolumeHandler(CVar* var, const char* oldValue, const char* value, void* arg) {

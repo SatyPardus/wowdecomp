@@ -150,7 +150,11 @@ void SI2::RegisterSoundEngineCVars() {
     CVar::Register("InboundChatVolume", "The volume of all other chat you hear (0.0 - 1.0)", 0, "1.0", InboundChatVolumeHandler, 5, false, nullptr, false);
     CVar::Register("VoiceChatMode", "Push to talk(0) or voice activation(1)", 0, "0", VoiceChatModeHandler, 5, false, nullptr, false);
     CVar::Register("VoiceActivationSensitivity", "Sensitivity of the microphone (0.0 - 1.0)", 0, "0.4", VoiceActivationSensitivityHandler, 5, false, nullptr, false);
+#if defined(__APPLE__)
+    CVar::Register("EnableMicrophone", "Enables the microphone so you can speak.", 0, "0", EnableMicrophoneHandler, 5, false, nullptr, false);
+#else
     CVar::Register("EnableMicrophone", "Enables the microphone so you can speak.", 0, "1", EnableMicrophoneHandler, 5, false, nullptr, false);
+#endif
     CVar::Register("EnableVoiceChat", "Enables the voice chat feature.", 0, "0", EnableVoiceChatHandler, 5, false, nullptr, false);
     CVar::Register("VoiceChatSelfMute", "Turn off your ability to talk.", 0, "0", SelfMuteHandler, 5, false, nullptr, false);
     CVar::Register("PushToTalkButton", "String representation of the Push-To-Talk button.", 0, "`", PushToTalkButtonHandler, 5, false, nullptr, false);

@@ -950,7 +950,7 @@ Achievement tooltip links retain their 64-bit GUID through a portable scan.
 The original `Magic`, `WoWCommon`, `ObjectMgrClient` and `Minigame` libraries
 also compile for all three targets, retaining spell logic/visual dispatch and
 object-create/mirror messages. A combined Glue/client link still has missing
-platform, Battle.net, voice, external LCD and verification/scan dependencies.
+platform, Battle.net, external LCD and verification/scan dependencies.
 The original Battle.net shared protocol, callback/argument layer, module manager
 and login class now compile for Apple. Module loading uses native `.dylib` images
 and named exports with balanced ownership; Windows ordinal exports fail explicitly.
@@ -1023,30 +1023,15 @@ original enumeration modes retain their passes and ordering. Mac sanitizer and
 iOS checks cover long paths, case/locale and parent-directory patterns; all
 seven real patch archives match the existing mount order and priorities. This
 does not replace full client startup or add trial/remote patch downloads.
-The original ComSat network/session ownership, MD5/HMAC and bit packing now run
-over nonblocking native UDP. Darwin socket addresses are converted explicitly
-while game objects retain the original Windows address representation. Local
-loopback checks on Mac ASan/UBSan and iOS cover exact signed packet bytes,
-64-bit talkers, mixed packet sizes, ten-packet dispatch batches, invalid/truncated
-input, shared endpoints and repeated destruction. The receive-capacity reset,
-extra packet consumption and exact-byte bit cursor/spill defects were confirmed
-in the original 3.3.5a binary too; their corrections preserve the protocol format
-but intentionally differ from those original defects. Checks wait for actual
-UDP batches before asserting a deterministic dispatch budget.
-The shared IPMR voice codec also runs on arm64, retaining its codebooks, filters,
-variable-length frames, threshold/hangover and nearest/even PCM conversion.
-Original filter history is now one contiguous buffer, as confirmed against the
-3.3.5a stack layout; the reconstructed separate arrays caused invalid reads.
-Bitstream bounds and the five-subframe PCM budget reject malformed/truncated
-packets without publishing partial output or corrupting decoder history.
-Mac arm64 and x86 ASan/UBSan and iOS simulator checks cover synthetic signals,
-independent channels, reset/destruction and a shared x86 packet/PCM fixture.
-Decoding the same 60 x86 packets produced 48,000 identical samples on arm64.
-Encoding is not bit-identical: native scalar inverse square root can change
-pitch choices relative to SSE's estimate. This comparison uses the reconstructed
-x86 codec, not captured Windows-client audio; original-client voice quality and
-interoperability still need validation. Capture/playback integration and the
-full voice interface remain pending. Checks never record microphone input.
+Voice communication and microphone recording are intentionally excluded from
+Apple targets. The original UI reports voice chat unavailable, attempts to enable
+voice/microphone CVars are rejected, and startup creates no ComSat interface or
+worker. Earlier isolated ComSat network/codec sources remain in the repository,
+but are no longer built, linked or exercised by the Apple apps and core probe.
+Windows voice behavior is unchanged. Game sound, music and movie playback remain
+in scope; Apple native frameworks may decode audio and pure video without
+reproducing the original decoder internals or bit-identical samples. Resource
+compatibility, timing, volume, looping, A/V sync and lifecycle remain required.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

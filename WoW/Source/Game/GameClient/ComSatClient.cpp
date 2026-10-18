@@ -153,7 +153,12 @@ static TSGrowableArray<ComSatEvent> s_comSatEvents;
 static WOWGUID s_localPlayer;
 
 // STATIC: 0x00D37D18
+#if defined(__APPLE__)
+// Voice communication and recording are outside the Apple client's scope.
+int32_t s_comsatDisabledByClient = 1;
+#else
 int32_t s_comsatDisabledByClient;
+#endif
 
 // STATIC: 0x00D37D5C
 SCritSect s_comsatDeviceLock;
@@ -413,6 +418,9 @@ static void ProcessComSatCallbacks() {
 // VERIFY: 870a6cad auto
 // OFFSET: 0x007DF900
 void ComSatClient_Shutdown() {
+#if defined(__APPLE__)
+    s_comsatDisabledByClient = 1;
+#else
     if (ComSatThread::s_threadRunning) {
         ComSatThread::s_threadRunning = 0;
         ComSatThread::s_threadShutdownEvent.Set();
@@ -433,6 +441,7 @@ void ComSatClient_Shutdown() {
 
     ResetVoiceVolumeState();
     SI2::VoiceChat_DestroyChatSystem();
+#endif
 }
 
 // VERIFY: 9c9c6262 auto
@@ -1641,6 +1650,9 @@ void ComSatClientCallback::NotifyDeviceError(uint8_t localTalker) {
 // VERIFY: e3ca2f75 manual
 // OFFSET: 0x007DF9A0
 void ComSatThread::Init() {
+#if defined(__APPLE__)
+    s_comsatDisabledByClient = 1;
+#else
     s_pushToTalkKey = -1;
     s_pushToTalkMouseButton = 0;
 
@@ -1681,11 +1693,15 @@ void ComSatThread::Init() {
     ComSatThread::s_comsat->DebugSetSequenceDelay(2);
     ComSatThread::s_comsat->DebugSetSoundOutputDelay(0, 150);
     s_voiceChatWasEnabled = 0;
+#endif
 }
 
 // VERIFY: 38899865 auto
 // OFFSET: 0x007DFAF0
 void ComSatClient_Init() {
+#if defined(__APPLE__)
+    s_comsatDisabledByClient = 1;
+#else
     s_comsatDisabledByClient = 0;
     s_cvarStartTalkingDelay = CVar::Lookup("StartTalkingDelay");
     s_cvarStartTalkingTime = CVar::Lookup("StartTalkingTime");
@@ -1767,4 +1783,5 @@ void ComSatClient_Init() {
     msg.Finalize();
     ClientServices::Send2(&msg);
     s_localPlayer = ClntObjMgrGetActivePlayer();
+#endif
 }
