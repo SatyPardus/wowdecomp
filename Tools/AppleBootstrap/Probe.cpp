@@ -18,6 +18,7 @@
 #include "Tools/AppleBootstrap/Probe.h"
 #include "Tools/AppleBootstrap/AudioProbe.h"
 #include "Engine/Source/Os/OsFile.h"
+#include "Engine/Source/Os/OsLibrary.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
@@ -690,6 +691,21 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckURLDownloads();
         CheckKnowledgeBaseDownloads();
         CheckCommandLine(scratchDirectory);
+        struct Library {
+            void* module = OsLoadLibrary("/usr/lib/libSystem.B.dylib");
+            ~Library() { OsFreeLibrary(module); }
+        } library, secondLibrary;
+        Require(library.module && secondLibrary.module, "Cannot load native system library");
+        using ProcessId = int (*)();
+        auto processId = reinterpret_cast<ProcessId>(OsGetLibraryEntryPoint(library.module, "getpid"));
+        Require(processId && processId() == getpid(), "Native library symbol invocation failed");
+        OsFreeLibrary(library.module); library.module = nullptr;
+        processId = reinterpret_cast<ProcessId>(OsGetLibraryEntryPoint(secondLibrary.module, "getpid"));
+        Require(processId && processId() == getpid() && !OsGetLibraryEntryPoint(secondLibrary.module, "wow_missing_export") &&
+            !OsGetLibraryEntryPoint(secondLibrary.module, reinterpret_cast<const char*>(3)) &&
+            !OsGetLibraryEntryPoint(nullptr, "getpid") && !OsGetLibraryEntryPoint(secondLibrary.module, nullptr) &&
+            !OsLoadLibrary(nullptr) && !OsLoadLibrary("") && !OsLoadLibrary("wow_missing_native_library.dylib"),
+            "Native library ownership or unsupported export handling changed");
         CheckGameLogin();
         CheckGameSession();
         CheckGameRealm();

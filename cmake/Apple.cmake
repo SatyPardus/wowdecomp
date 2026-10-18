@@ -59,6 +59,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsFile.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsLibrary.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsMemory.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/System.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/SReg.cpp
