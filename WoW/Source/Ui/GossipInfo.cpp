@@ -4,7 +4,11 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/QuestFrame.h"
 #include "WoW/Source/Ui/Types.h"
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"

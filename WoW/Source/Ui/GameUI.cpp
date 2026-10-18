@@ -147,7 +147,11 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/AccountData.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/FriendList.h"
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/DB/Rec/WeatherRec.h"
 #include "WoW/Source/Object/CMoveSpline.h"

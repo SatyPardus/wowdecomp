@@ -21,7 +21,11 @@
 #include "WoW/Source/Game/GameClient/NameCache.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "Engine/Source/Os/TimeManager.h"
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "Engine/Source/FrameXML/LoadXML.h"

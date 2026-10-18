@@ -32,7 +32,11 @@
 #include "WoW/Source/Object/Object.h"
 #include "WoW/Source/Object/Player.h"
 #include "Engine/Source/Os/TimeManager.h"
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 
 // STATIC: 0x00AD0340
 static TSList<CalendarPendingInvite, TSGetLink<CalendarPendingInvite> > s_pendingInvites;

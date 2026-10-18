@@ -8,7 +8,11 @@
 #include "WoW/Source/Ui/MODIFIEDCLICK.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
 #include "Engine/Source/FrameXML/LoadXML.h"
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 47beb07e auto

@@ -1,6 +1,7 @@
 #include "WorldFrame.h"
 #include "Engine/Source/Base/ConvertUTF.h"
 #include <cstring>
+#include <cmath>
 #include <typeinfo>
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Base/Status.h"
@@ -1004,7 +1005,7 @@ int32_t CGWorldFrame::HitTest(const C3Vector& start, const C3Vector& end, uint32
     int32_t hitWorld = World::Intersect(start, point, &hitPoint, &t, worldFlags, nullptr) != 0;
 
     if (hitWorld) {
-        if (t < -0.001f || t > 1.001f || !_finite(t)) {
+        if (t < -0.001f || t > 1.001f || !std::isfinite(t)) {
             DebugLog("CWorld::Intersect() returned a bogus value for terrDist: %f", static_cast<double>(t));
         }
 
@@ -1022,7 +1023,7 @@ int32_t CGWorldFrame::HitTest(const C3Vector& start, const C3Vector& end, uint32
         model.m_guid = this->FindClosestModel(start, point, flags, &objectDistance);
 
         if (model) {
-            if (objectDistance < -0.001f || !_finite(objectDistance)) {
+            if (objectDistance < -0.001f || !std::isfinite(objectDistance)) {
                 DebugLog("CGWorldFrame::FindClosestModel() returned a bogus value for objDist: %f", static_cast<double>(objectDistance));
             }
 
@@ -1039,7 +1040,7 @@ int32_t CGWorldFrame::HitTest(const C3Vector& start, const C3Vector& end, uint32
         t = 1.0f;
 
         if (World::Intersect(start, point, &hitPoint, &t, 0x100151, nullptr)) {
-            if (t < -0.001f || t > 1.001f || !_finite(t)) {
+            if (t < -0.001f || t > 1.001f || !std::isfinite(t)) {
                 DebugLog("CWorld::Intersect() returned a bogus value for terrDist: %f", static_cast<double>(t));
             }
 
@@ -1197,7 +1198,7 @@ CGWorldFrame::CGWorldFrame(CSimpleFrame* parent) : CSimpleFrame(parent) {
 // VERIFY: 74e81b7f auto
 // OFFSET: 0x0050F3F0
 CSimpleFrame* CGWorldFrame::Create(CSimpleFrame* parent) {
-    void* data = CGWorldFrame::s_worldFrameHeap.GetData(0, typeid(CGWorldFrame).raw_name(), SLOG_OBJECT);
+    void* data = CGWorldFrame::s_worldFrameHeap.GetData(0, StormTypeName(typeid(CGWorldFrame)), SLOG_OBJECT);
     return data ? new (data) CGWorldFrame(parent) : nullptr;
 }
 

@@ -13,7 +13,11 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/AccountData.h"
 #include <cstdlib>
 #include <cstring>
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Os/OsFile.h"

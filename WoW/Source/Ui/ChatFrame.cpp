@@ -2,7 +2,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Base/ConvertUTF.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"

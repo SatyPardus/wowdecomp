@@ -2,7 +2,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include <new>
 #include <typeinfo>
 #include "WoW/Source/Ui/UIBindings.h"

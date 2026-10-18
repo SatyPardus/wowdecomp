@@ -49,7 +49,11 @@
 #include "WoW/Source/Object/ObjectClient/Vehicle_C.h"
 #include "WoW/Source/Object/ObjectClient/VehiclePassenger_C.h"
 #include <ctime>
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "WoW/Source/Ui/PartyFrame.h"
 #include "WoW/Source/Ui/RaidInfo.h"
 #include "WoW/Source/Game/GameClient/NameCache.h"
@@ -197,7 +201,7 @@ static const uint32_t s_outdoorZoomTiles[6] = { 14, 12, 10, 8, 6, 4 };
 static const float s_indoorZoomRadius[6] = { 150.0f, 120.0f, 90.0f, 60.0f, 40.0f, 25.0f };
 
 // STATIC: 0x00AF4E48
-static int32_t s_mapId = -1;
+static int32_t s_minimapMapId = -1;
 
 // STATIC: 0x00AF4E4C
 static int32_t s_outdoorZoom = 3;
@@ -403,7 +407,7 @@ int32_t CGMinimapFrame::GetObjectType() {
 // VERIFY: 185b6554 auto
 // OFFSET: 0x00514230
 CSimpleFrame* CGMinimapFrame::Create(CSimpleFrame* parent) {
-    void* data = CGMinimapFrame::s_minimapHeap.GetData(0, typeid(CGMinimapFrame).raw_name(), SLOG_OBJECT);
+    void* data = CGMinimapFrame::s_minimapHeap.GetData(0, StormTypeName(typeid(CGMinimapFrame)), SLOG_OBJECT);
     return data ? new (data) CGMinimapFrame(parent) : nullptr;
 }
 
@@ -533,7 +537,7 @@ CGMinimapFrame::CGMinimapFrame(CSimpleFrame* parent) : CSimpleFrame(parent) {
 
     this->m_blipFrameLevel = this->m_level + 3;
 
-    void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleTexture::s_allocator.GetData(0, StormTypeName(typeid(CSimpleTexture)), SLOG_OBJECT);
     CSimpleTexture* texture = data ? new (data) CSimpleTexture(this, 2, 1) : nullptr;
     this->m_playerTexture = texture;
     texture->SetPoint(FRAMEPOINT_CENTER, this, FRAMEPOINT_CENTER, 0.001f, 0.001f, 1);
@@ -741,7 +745,7 @@ float MinimapGetViewRadius() {
 // VERIFY: 10a7b5c4 manual
 // OFFSET: 0x007F44A0
 void UpdatePointsOfInterest() {
-    if (s_mapId == -1) {
+    if (s_minimapMapId == -1) {
         return;
     }
 
@@ -866,7 +870,7 @@ void DisplayQuestPoint(float x, float y, int32_t importance, const char* name) {
     s_dynamicPOIs[0].m_pos[0] = x;
     s_dynamicPOIs[0].m_pos[1] = y;
     s_dynamicPOIs[0].m_flags = 0;
-    s_dynamicPOIs[0].m_continentID = s_mapId;
+    s_dynamicPOIs[0].m_continentID = s_minimapMapId;
     s_dynamicPOIs[0].m_icon[0] = 6;
     s_dynamicPOIs[0].m_importance = importance;
     SStrCopy(s_dynamicPOINames[0], name, sizeof(s_dynamicPOINames[0]));
@@ -880,7 +884,7 @@ void MinimapSetDynamicPOI(int32_t index, int32_t flags, float x, float y, int32_
     s_dynamicPOIs[index].m_flags = flags;
     s_dynamicPOIs[index].m_pos[0] = x;
     s_dynamicPOIs[index].m_icon[0] = icon;
-    s_dynamicPOIs[index].m_continentID = s_mapId;
+    s_dynamicPOIs[index].m_continentID = s_minimapMapId;
     s_dynamicPOIs[index].m_pos[1] = y;
     s_dynamicPOIs[index].m_importance = importance;
     SStrCopy(s_dynamicPOINames[index], name, sizeof(s_dynamicPOINames[index]));
@@ -906,7 +910,7 @@ void MinimapSetCorpsePOI(float x, float y) {
     s_dynamicPOIs[2].m_pos[0] = x;
     s_dynamicPOIs[2].m_pos[1] = y;
     s_dynamicPOIs[2].m_flags = 2;
-    s_dynamicPOIs[2].m_continentID = s_mapId;
+    s_dynamicPOIs[2].m_continentID = s_minimapMapId;
     s_dynamicPOIs[2].m_icon[0] = 8;
     s_dynamicPOIs[2].m_importance = -1;
     SStrCopy(s_dynamicPOINames[2], name, sizeof(s_dynamicPOINames[2]));
@@ -921,7 +925,7 @@ void MinimapSetSpiritHealerPOI(float x, float y) {
     s_dynamicPOIs[3].m_pos[0] = x;
     s_dynamicPOIs[3].m_pos[1] = y;
     s_dynamicPOIs[3].m_flags = 2;
-    s_dynamicPOIs[3].m_continentID = s_mapId;
+    s_dynamicPOIs[3].m_continentID = s_minimapMapId;
     s_dynamicPOIs[3].m_icon[0] = 8;
     s_dynamicPOIs[3].m_importance = -1;
     SStrCopy(s_dynamicPOINames[3], name, sizeof(s_dynamicPOINames[3]));
@@ -982,7 +986,7 @@ void MinimapShutdown() {
     s_playerPosition.y = FLT_MAX;
     s_tileMaxY = -1;
     s_tileMinY = -1;
-    s_mapId = -1;
+    s_minimapMapId = -1;
     s_tileMaxX = -1;
     s_tileMinX = -1;
     s_mapObjId = 0;
@@ -1215,10 +1219,10 @@ static void MinimapWorldToTileCoords(const C3Vector* position, int32_t* tile) {
 // OFFSET: 0x007F5240
 static int32_t MinimapBuildSource(const int32_t* tile, char* path, uint32_t size) {
     *path = 0;
-    MapRec* map = g_mapDB.GetRecord(s_mapId);
+    MapRec* map = g_mapDB.GetRecord(s_minimapMapId);
 
     if (!map || !*map->m_directory) {
-        SysMsgPrintf(STATUS_ERROR, 2, "NOCONTINENTNAME|%d", s_mapId);
+        SysMsgPrintf(STATUS_ERROR, 2, "NOCONTINENTNAME|%d", s_minimapMapId);
         return 0;
     }
 
@@ -1299,9 +1303,9 @@ static void SetupTextureHandles(const int32_t* tile, int32_t reset, MINIMAPTILE*
 // VERIFY: db65bbd1 manual
 // OFFSET: 0x007F5930
 static int32_t MinimapUpdatePosition(int32_t mapId, const C3Vector* position, C2Vector* center, float* scale, MINIMAPTILE* tiles) {
-    int32_t mapChanged = mapId != s_mapId;
+    int32_t mapChanged = mapId != s_minimapMapId;
     s_playerPosition = *position;
-    s_mapId = mapId;
+    s_minimapMapId = mapId;
     UpdatePointsOfInterest();
 
     C3Vector maxPosition(position->x + s_halfTile.x, position->y + s_halfTile.y, 0.0f);
@@ -1497,13 +1501,13 @@ int32_t MinimapUpdate(CMapEntity* entity, int32_t mapId, const C3Vector* positio
     C3Vector delta(0.0f, 0.0f, 0.0f);
     int32_t inside;
 
-    if (s_playerPosition.x != position->x || s_playerPosition.y != position->y || mapId != s_mapId) {
+    if (s_playerPosition.x != position->x || s_playerPosition.y != position->y || mapId != s_minimapMapId) {
         result = true;
         delta.x = position->x - s_playerPosition.x;
         delta.y = position->y - s_playerPosition.y;
         delta.z = position->z - s_playerPosition.z;
         s_playerPosition = *position;
-        s_mapId = mapId;
+        s_minimapMapId = mapId;
 
         WMOAreaTableRec* groupRec = nullptr;
         WMOAreaTableRec* rootRec = nullptr;

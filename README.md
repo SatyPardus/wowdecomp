@@ -906,6 +906,10 @@ component host: `GetTime`, `GetGameTime`, `ConsoleExec`, the three original
 file-access-denied functions and `GetAccountExpansionLevel`. Their implementations
 are shared unchanged with Windows. Account expansion still comes from the real
 ClientServices connection; the component viewer does not establish a login.
+The shared in-world `Ui` module now compiles as an arm64 static library on all
+three Apple targets. The optional Windows Logitech LCD backend is excluded.
+This compile coverage includes the original game UI and scripts; it does not
+establish full client startup or runtime coverage of those interfaces.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

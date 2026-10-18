@@ -61,7 +61,7 @@ CSimpleFrame* CGDressUpModelFrame::Create(CSimpleFrame* parent) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    void* data = CGDressUpModelFrame::s_dressUpModelHeap.GetData(0, typeid(CGDressUpModelFrame).raw_name(), SLOG_OBJECT);
+    void* data = CGDressUpModelFrame::s_dressUpModelHeap.GetData(0, StormTypeName(typeid(CGDressUpModelFrame)), SLOG_OBJECT);
     return data ? new (data) CGDressUpModelFrame(parent) : nullptr;
 }
 

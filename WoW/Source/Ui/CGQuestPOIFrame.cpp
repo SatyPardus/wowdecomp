@@ -61,7 +61,7 @@ CSimpleFrame* CGQuestPOIFrame::Create(CSimpleFrame* parent) {
         SErrDisplayAppFatalMessage("", "", 0);
     }
 
-    void* data = CGQuestPOIFrame::s_questPOIHeap.GetData(0, typeid(CGQuestPOIFrame).raw_name(), SLOG_OBJECT);
+    void* data = CGQuestPOIFrame::s_questPOIHeap.GetData(0, StormTypeName(typeid(CGQuestPOIFrame)), SLOG_OBJECT);
     return data ? new (data) CGQuestPOIFrame(parent) : nullptr;
 }
 

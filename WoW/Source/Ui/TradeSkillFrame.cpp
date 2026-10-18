@@ -3,7 +3,11 @@
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include <cstdlib>
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"

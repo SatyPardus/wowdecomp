@@ -901,7 +901,7 @@ void CGWorldMap::CreateMiniArrowFrame(CSimpleFrame* parent) {
     }
 
     if (!CGWorldMap::m_playerMiniArrowFrame) {
-        void* data = CSimpleModel::s_allocator.GetData(0, typeid(CSimpleModel).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleModel::s_allocator.GetData(0, StormTypeName(typeid(CSimpleModel)), SLOG_OBJECT);
         CGWorldMap::m_playerMiniArrowFrame = data ? new (data) CSimpleModel(parent) : nullptr;
         CGWorldMap::m_playerMiniArrowFrame->SetModel("Interface\\Minimap\\MinimapArrow.mdx");
         CGWorldMap::m_playerMiniArrowFrame->m_modelScale = NDCToDDCHeight(1.0f) * 1.1111112f;
@@ -913,7 +913,7 @@ void CGWorldMap::CreateMiniArrowFrame(CSimpleFrame* parent) {
     }
 
     if (!CGWorldMap::m_playerMiniArrowEffectFrame) {
-        void* data = CSimpleModel::s_allocator.GetData(0, typeid(CSimpleModel).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleModel::s_allocator.GetData(0, StormTypeName(typeid(CSimpleModel)), SLOG_OBJECT);
         CGWorldMap::m_playerMiniArrowEffectFrame = data ? new (data) CSimpleModel(parent) : nullptr;
         CGWorldMap::m_playerMiniArrowEffectFrame->SetModel("Interface\\Minimap\\MinimapArrow.mdx");
         CGWorldMap::m_playerMiniArrowEffectFrame->m_modelScale = NDCToDDCHeight(1.0f) * 1.1111112f;
@@ -1227,7 +1227,7 @@ void CGWorldMap::CreateArrowFrame(CSimpleFrame* parent) {
     }
 
     if (!CGWorldMap::m_playerArrowFrame) {
-        void* data = CSimpleModel::s_allocator.GetData(0, typeid(CSimpleModel).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleModel::s_allocator.GetData(0, StormTypeName(typeid(CSimpleModel)), SLOG_OBJECT);
         CGWorldMap::m_playerArrowFrame = data ? new (data) CSimpleModel(parent) : nullptr;
         CGWorldMap::m_playerArrowFrame->SetModel("Interface\\Minimap\\MinimapArrow.mdx");
         CGWorldMap::m_playerArrowFrame->m_modelScale = NDCToDDCHeight(1.0f) * 1.6666666f;
@@ -1239,7 +1239,7 @@ void CGWorldMap::CreateArrowFrame(CSimpleFrame* parent) {
     }
 
     if (!CGWorldMap::m_playerArrowEffectFrame) {
-        void* data = CSimpleModel::s_allocator.GetData(0, typeid(CSimpleModel).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleModel::s_allocator.GetData(0, StormTypeName(typeid(CSimpleModel)), SLOG_OBJECT);
         CGWorldMap::m_playerArrowEffectFrame = data ? new (data) CSimpleModel(parent) : nullptr;
         CGWorldMap::m_playerArrowEffectFrame->SetModel("Interface\\Minimap\\MinimapArrow.mdx");
         CGWorldMap::m_playerArrowEffectFrame->m_modelScale = NDCToDDCHeight(1.0f) * 1.6666666f;

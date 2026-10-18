@@ -343,6 +343,8 @@ add_library(AppleSessionServices STATIC
     WoW/Source/DB/DBClient/DBCacheInstances.cpp)
 target_link_libraries(AppleSessionServices PUBLIC Net Frame AppleGameLogin)
 target_link_libraries(WowSvcs PUBLIC AppleSessionServices)
+add_subdirectory(WoW/Source/Ui)
+target_link_libraries(Ui PUBLIC Frame WorldClient AppleSystemScripts AppleKnowledgeBase AppleVideoOptions AppleConsole AppleSessionServices)
 add_library(AppleRealmProbeCore STATIC Tools/AppleBootstrap/RealmProbe.cpp Tools/AppleBootstrap/CacheProbe.cpp Tools/AppleBootstrap/AccountDataProbe.cpp)
 target_link_libraries(AppleRealmProbeCore PUBLIC AppleGameLogin AppleSessionServices AppleMetal)
 if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
