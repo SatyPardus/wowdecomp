@@ -188,6 +188,7 @@ struct ModelFragmentOutput {
     float depth [[depth(any), function_constant(modelDepthOffset)]];
 };
 fragment ModelFragmentOutput modelDiffuseFragment(ModelVaryings v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
+    uint sample [[sample_id, function_constant(sampleDepthOffset)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
     constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]],
@@ -235,6 +236,6 @@ fragment ModelFragmentOutput modelDiffuseFragment(ModelVaryings v [[stage_in]], 
     ModelFragmentOutput result{float4(fma(float3(v.fog), shaded, p.fogColorAlphaRef.rgb), alpha)};
     // Preserve the normalized D3D9 offset after clipping and viewport mapping.
     // The disabled specialization has no fragment-depth output.
-    if (modelDepthOffset) result.depth = saturate(v.position.z + p.depthOffset);
+    if (modelDepthOffset) result.depth = biasedSampleDepth(v.position.z, p.depthOffset, sampleDepthOffset ? sample : 0);
     return result;
 }

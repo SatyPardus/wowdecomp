@@ -30,6 +30,7 @@ void CheckGxFont(CGxDeviceMetal& device);
 void CheckOriginalUI(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
 void CheckGxQueries(CGxDeviceMetal& device);
+void CheckMultisample(CGxDeviceMetal& device);
 void CheckPackedTextureFormats(CGxDeviceMetal& device);
 
 namespace {
@@ -72,6 +73,7 @@ void CheckGxDevice(const char* focus) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (focus && !std::strcmp(focus, "msaa")) { CheckMultisample(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "queries")) { CheckGxQueries(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "atlas")) { CheckGameTextureAtlases(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "fixed")) { CheckFixedUnlit(device); CheckWaterRippleShaders(device); device.DeviceDestroy(); return; }

@@ -299,7 +299,7 @@ private:
     id<MTLTexture> UploadFaces(const BLP::Image* faces, size_t count, bool forceExpansion);
     id<MTLLibrary> m_library;
     id<MTLFunction> m_rippleVertex;
-    id<MTLFunction> m_rippleFragment[2][2][2]{};
+    id<MTLFunction> m_rippleFragment[2][2][3]{};
     id<MTLFunction> m_detailVertex[2][3]{};
     id<MTLFunction> m_detailFragment[2][2][4]{};
     id<MTLFunction> m_shadowVertex[3][2]{};
@@ -312,7 +312,7 @@ private:
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
     id<MTLFunction> m_modelVertex[8][90][2]{};
-    id<MTLFunction> m_modelFragment[13][2][2][2][4][2]{};
+    id<MTLFunction> m_modelFragment[13][2][2][2][4][3]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
@@ -326,10 +326,10 @@ private:
     id<MTLFunction> m_glowVertex, m_glowFragment[2];
     id<MTLFunction> m_waveVertex, m_waveFragment[2][2];
     id<MTLFunction> m_clearVertex, m_clearFragment;
-    id<MTLRenderPipelineState> m_clearPipelines[2][2][2]{};
+    std::unordered_map<uint32_t, id<MTLRenderPipelineState>> m_clearPipelines;
     id<MTLDepthStencilState> m_clearDepth[2]{};
     // Independent fields avoid collisions as material families and variants grow.
-    using PipelineKey = std::array<uint32_t, 10>;
+    using PipelineKey = std::array<uint32_t, 11>;
     struct PipelineHash {
         size_t operator()(const PipelineKey& key) const {
             size_t result = 0;
@@ -341,7 +341,8 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, const GeometryDraw& geometry,
-        bool depthAttachment = false, bool decodePacked = false, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm);
+        bool depthAttachment = false, bool decodePacked = false, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm,
+        uint32_t sampleCount = 1);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 9>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 9>&, id<MTLRenderCommandEncoder>);

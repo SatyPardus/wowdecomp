@@ -198,6 +198,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
             if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
+                if (!std::strcmp(selection, "msaa")) {
+                    CheckGxDevice(selection);
+                    report = "Native MSAA capability and supported paths checked; per-device coverage and skipped paths are listed above.\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "queries")) {
                     CheckGxDevice(selection);
                     report = "Metal occlusion query capability and supported-device counts/lifetimes checked.\n";

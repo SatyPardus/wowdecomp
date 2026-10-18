@@ -149,8 +149,12 @@ Image Read(CGxDeviceMetal& device, FFX::Tex& texture) {
     return image;
 }
 void Compare(const Image& actual, const Image& expected, unsigned tolerance) {
+    static unsigned comparison = 0; ++comparison;
     for (unsigned y = 0; y < expected.height; ++y) { for (unsigned x = 0; x < expected.width; ++x) {
         for (unsigned c = 0; c < 4; ++c) {
+            if (unsigned(std::abs(int(actual.pixels[y * actual.width + x][c]) - expected.pixels[y * expected.width + x][c])) > tolerance)
+                std::fprintf(stderr,"FFX comparison %u at %u,%u channel %u: %u expected %u\n",comparison,x,y,c,
+                    actual.pixels[y*actual.width+x][c],expected.pixels[y*expected.width+x][c]);
             Require(unsigned(std::abs(int(actual.pixels[y * actual.width + x][c]) - expected.pixels[y * expected.width + x][c])) <= tolerance,
                 "Original FFX pass output differs from D3D9 sampling equations");
         }
@@ -325,10 +329,19 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
             const double amount = fade > 0 ? 1-fade/3 : 1, density = 0.73*amount, minimum = 0.1*amount;
             const double gray = (173+63+102)*0.33333298563957214;
             Image reference{32,32,std::vector<Pixel>(1024)};
-            for (auto& pixel : reference.pixels) {
+            std::vector<MTLSamplePosition> samples(device.m_format.m_multisampleCount, MTLSamplePositionMake(.5f,.5f));
+            if (samples.size()>1 && device.m_appRenderStates[GxRs_Multisample].m_value.m_data.i[0])
+                [device.GPU().device getDefaultSamplePositions:samples.data() count:samples.size()];
+            for (unsigned y=0;y<32;++y) for (unsigned x=0;x<32;++x) {
+                auto& pixel=reference.pixels[y*32+x];
+                // The original persistent grid starts on the D3D pixel center.
+                // Its half-pixel Metal translation leaves partial sample
+                // coverage along the top/left edges, over the black clear.
+                unsigned covered=0;
+                for (auto p:samples) covered += (x || p.x>=.5f) && (y || p.y>=.5f);
                 for (unsigned c=0;c<3;++c) {
                     const double base = (scene.pixels[0][c]*(1-density)+gray*density)*(1-minimum)+255*minimum;
-                    pixel[c] = std::lround(base*(1-85/255.0)+cloud.pixels[0][c]*85/255.0);
+                    pixel[c] = std::lround((base*(1-85/255.0)+cloud.pixels[0][c]*85/255.0)*covered/samples.size());
                 }
                 pixel[3]=255;
             }

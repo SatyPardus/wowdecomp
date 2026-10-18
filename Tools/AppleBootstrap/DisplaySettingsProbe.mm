@@ -96,7 +96,7 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
         Require(!std::strcmp(CVar::Lookup("gxApi")->m_stringValue.m_str, "Metal"), "Unavailable API was accepted");
         Set("maxFPS", "2"); Set("maxFPSBk", "0");
         Require(GxGetMaxFPS() == 8 && GxGetMaxFPSBk() == 0, "Original frame-limit CVar rules changed");
-        for (const auto& setting : {std::pair{"gxDepthBits", "24"}, {"gxColorBits", "16"}, {"gxMultisample", "4"}, {"gxStereoEnabled", "1"}}) {
+        for (const auto& setting : {std::pair{"gxDepthBits", "24"}, {"gxColorBits", "16"}, {"gxMultisample", "3"}, {"gxStereoEnabled", "1"}}) {
             SetGxCVars(active); Set("gxStereoEnabled", "0");
             Set(setting.first, setting.second); UpdateGxCVars();
             Require(!device.DeviceSetFormat(s_requestedFormat), "Unsupported native framebuffer format was silently substituted");
@@ -115,6 +115,12 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
             std::snprintf(expectedResolution, sizeof(expectedResolution), "%dx%d", desktop.m_size.x, desktop.m_size.y);
             lua_pushstring(lua, expectedResolution); lua_setglobal(lua, "expectedResolution");
             lua_pushnumber(lua, desktop.m_refreshRate); lua_setglobal(lua, "expectedRefresh");
+            TSGrowableArray<CGxFormat> formats; CGxDevice::AdapterFormats(GxApi_Metal, formats);
+            lua_newtable(lua);
+            for (uint32_t i=0;i<formats.Count();++i) {
+                lua_pushnumber(lua,formats[i].m_multisampleCount); lua_rawseti(lua,-2,i+1);
+            }
+            lua_setglobal(lua,"expectedSamples");
             run("local t={[1e100]='large',[-1e100]='small',[math.huge]='inf',[-math.huge]='negative inf', "
                 "[2147483647]='max',[2147483648]='above',[-2147483648]='min',[-2147483649]='below'}; "
                 "for i=1,4096 do t[i]=i end; collectgarbage('collect'); "
@@ -123,13 +129,14 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
                 "assert(not pcall(function() t[0/0]='invalid' end) and t[0/0] == nil)");
             run("local r={GetScreenResolutions()}; assert(#r == 1 and r[1] == expectedResolution); "
                 "local hz={GetRefreshRates(1)}; assert(#hz == 1 and hz[1] == expectedRefresh); "
-                "local f={GetMultisampleFormats()}; assert(#f == 3 and f[1] == 24 and f[2] == 32 and f[3] == 1); "
+                "local f={GetMultisampleFormats()}; assert(#f == 3*#expectedSamples); "
+                "for i,n in ipairs(expectedSamples) do assert(f[3*i-2]==24 and f[3*i-1]==32 and f[3*i]==n); SetMultisampleFormat(i); end; SetMultisampleFormat(1); "
                 "assert(GetCurrentMultisampleFormat() == 1 and not IsStereoVideoAvailable()); "
                 "assert(select('#', GetVideoCaps()) == 7 and IsPlayerResolutionAvailable()); "
                 "for _,i in ipairs({0,-1,2,1e100,math.huge,-math.huge,0/0}) do "
-                    "assert(not pcall(SetScreenResolution,i)); assert(not pcall(SetMultisampleFormat,i)); "
+                    "assert(not pcall(SetScreenResolution,i)); if i~=2 then assert(not pcall(SetMultisampleFormat,i)); end; "
                     "assert(select('#',GetRefreshRates(i)) == 0); "
-                "end; SetMultisampleFormat(1.75); SetScreenResolution(1.75)");
+                "end; assert(not pcall(SetMultisampleFormat,#expectedSamples+1)); SetMultisampleFormat(1.75); SetScreenResolution(1.75)");
             Require(s_requestedFormat.m_size.x == desktop.m_size.x && s_requestedFormat.m_size.y == desktop.m_size.y,
                 "Original Lua resolution selection did not update pending display settings");
             UpdateGxCVars();
@@ -148,7 +155,7 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
                 run("assert(select('#', GetMultisampleFormats()) == 0 and GetCurrentMultisampleFormat() == 0); "
                     "assert(not pcall(SetMultisampleFormat, 1))");
                 SetGxCVars(active);
-                run("local f={GetMultisampleFormats()}; assert(#f == 3 and f[1] == 24 and f[2] == 32 and f[3] == 1)");
+                run("local f={GetMultisampleFormats()}; assert(#f == 3*#expectedSamples and f[1] == 24 and f[2] == 32 and f[3] == 1)");
             }
             CGVideoOptions::UnregisterScriptFunctions();
             run("assert(GetScreenResolutions == nil and GetMultisampleFormats == nil and GetVideoCaps == nil)");

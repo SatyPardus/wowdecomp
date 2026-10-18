@@ -1,5 +1,13 @@
 #include <metal_stdlib>
 using namespace metal;
+// D3D normalized polygon offsets apply to each covered depth sample. Material
+// inputs stay at pixel centers; only the depth calculation runs per sample.
+constant bool sampleDepthOffset [[function_constant(40)]];
+inline float biasedSampleDepth(float depth, float offset, uint sample) {
+    if (sampleDepthOffset)
+        depth += dot(float2(dfdx(depth), dfdy(depth)), get_sample_position(sample) - .5f);
+    return saturate(depth + offset);
+}
 
 struct QuadParameters {
     float2 scale;

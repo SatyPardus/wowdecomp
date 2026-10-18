@@ -26,9 +26,10 @@ struct BiasedRipple {
     float depth [[depth(any)]];
 };
 fragment BiasedRipple waterRippleBiasedFragment(QuadVertex v [[stage_in]], constant WaterRippleParameters& p [[buffer(0)]],
+    uint sample [[sample_id, function_constant(sampleDepthOffset)]],
                                                 texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]]) {
     // D3D9 uses a normalized, constant depth offset. Metal's raster bias is
     // depth-format/primitive dependent. Apply the original offset after clipping
     // and viewport mapping; shifting vertices would also move the clip planes.
-    return {waterRippleColor(v, p, image, filtering), saturate(v.position.z + p.depthOffset)};
+    return {waterRippleColor(v, p, image, filtering), biasedSampleDepth(v.position.z, p.depthOffset, sampleDepthOffset ? sample : 0)};
 }

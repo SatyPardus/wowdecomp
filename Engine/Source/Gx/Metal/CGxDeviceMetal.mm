@@ -248,6 +248,7 @@ struct CGxDeviceMetal::Impl {
     MTLRenderPassDescriptor* pass;
     MTLRenderPassDescriptor* defaultPass;
     id<MTLTexture> targetDepth;
+    id<MTLTexture> multisampleColor, multisampleDepth, resolvedDepth;
     id<MTLDrawable> drawable;
     void* window = nullptr;
     bool scissorEnabled = false;
@@ -255,6 +256,59 @@ struct CGxDeviceMetal::Impl {
     std::array<StreamFrame, 3> streamFrames;
     size_t frameSlot = 0;
     StreamFrame& CurrentFrame() { return streamFrames[frameSlot]; }
+    MTLRenderPassDescriptor* DefaultPass(MTLRenderPassDescriptor* source, uint32_t samples) {
+        MTLRenderPassDescriptor* result = [source copy];
+        result.colorAttachments[0].storeAction = MTLStoreActionStore;
+        result.depthAttachment.storeAction = MTLStoreActionStore;
+        if (samples == 1) {
+            multisampleColor = multisampleDepth = resolvedDepth = nil;
+            return result;
+        }
+        const auto color = source.colorAttachments[0].texture;
+        Require(color.width <= ResourceBudget / 8 / samples / color.height, "MSAA attachments exceed memory budget");
+        auto allocate = [&](id<MTLTexture> texture, MTLPixelFormat format) -> id<MTLTexture> {
+            if (texture && texture.width == color.width && texture.height == color.height && texture.sampleCount == samples) return texture;
+            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:format width:color.width height:color.height mipmapped:NO];
+            descriptor.textureType = MTLTextureType2DMultisample; descriptor.sampleCount = samples;
+            descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+            texture = [gpu.device newTextureWithDescriptor:descriptor];
+            Require(texture != nil, "Cannot allocate Gx MSAA attachment");
+            return texture;
+        };
+        multisampleColor = allocate(multisampleColor, MTLPixelFormatBGRA8Unorm);
+        result.colorAttachments[0].texture = multisampleColor;
+        result.colorAttachments[0].resolveTexture = color;
+        // Retain per-sample values across uploads, offscreen passes, queries and
+        // synchronous readback. Resolving alone would discard that history.
+        result.colorAttachments[0].storeAction = MTLStoreActionStoreAndMultisampleResolve;
+        std::array<MTLSamplePosition,16> positions{};
+        [gpu.device getDefaultSamplePositions:positions.data() count:samples];
+        [result setSamplePositions:positions.data() count:samples];
+        if (source.depthAttachment.texture) {
+            multisampleDepth = allocate(multisampleDepth, MTLPixelFormatDepth32Float);
+            result.depthAttachment.texture = multisampleDepth;
+            // Gx can switch between normal MSAA and pixel-center rasterization.
+            // Store actual sample depths instead of a plane compressed using the
+            // old positions; the next pass may use a different sample pattern.
+            result.depthAttachment.storeActionOptions = MTLStoreActionOptionCustomSamplePositions;
+        } else multisampleDepth = resolvedDepth = nil;
+        return result;
+    }
+    void MultisampleState(bool enabled) {
+        const auto samples = pass.colorAttachments[0].texture.sampleCount;
+        if (samples == 1) return;
+        std::array<MTLSamplePosition,16> positions{};
+        [pass getSamplePositions:positions.data() count:samples];
+        const bool centered = positions[0].x == .5f && positions[0].y == .5f;
+        if (centered == !enabled) return;
+        EndRender();
+        // D3DRS_MULTISAMPLEANTIALIAS=FALSE evaluates coverage/depth at the
+        // pixel center and writes every covered sample, retaining old samples
+        // outside it. Duplicated programmable positions express this directly.
+        positions.fill(MTLSamplePositionMake(.5f, .5f));
+        if (enabled) [gpu.device getDefaultSamplePositions:positions.data() count:samples];
+        [pass setSamplePositions:positions.data() count:samples];
+    }
     static void ConsumedLoads(MTLRenderPassDescriptor* descriptor) {
         descriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
         descriptor.depthAttachment.loadAction = MTLLoadActionLoad;
@@ -329,6 +383,10 @@ struct CGxDeviceMetal::Impl {
     bool CopyColor(id<MTLTexture> source, const CiRect& sourceRect, id<MTLTexture> dest, uint32_t destLevel,
         const CiRect& destRect, bool linear) {
         Require(command && source && dest, "Gx surface copy requires an active frame and allocated textures");
+        if (source.sampleCount > 1 && source == defaultPass.colorAttachments[0].texture) {
+            EnsureLoads(defaultPass); EndRender();
+            source = defaultPass.colorAttachments[0].resolveTexture;
+        }
         Require((source.pixelFormat == MTLPixelFormatBGRA8Unorm || source.pixelFormat == MTLPixelFormatR32Float) && dest.pixelFormat == source.pixelFormat &&
             source.sampleCount == 1 && dest.sampleCount == 1 && !source.framebufferOnly && !dest.framebufferOnly,
             "Gx surface copy format, multisampling or framebuffer-only attachment is not supported");
@@ -384,6 +442,29 @@ struct CGxDeviceMetal::Impl {
         return true;
     }
     void ReadSurface(id<MTLTexture> surface, CiRect& rect, void* output) {
+        if (surface.sampleCount > 1) {
+            EnsurePass(); EndRender();
+            if (surface == pass.colorAttachments[0].texture) surface = pass.colorAttachments[0].resolveTexture;
+            else if (surface == pass.depthAttachment.texture) {
+                if (!resolvedDepth || resolvedDepth.width != surface.width || resolvedDepth.height != surface.height) {
+                    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                        width:surface.width height:surface.height mipmapped:NO];
+                    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+                    resolvedDepth = [gpu.device newTextureWithDescriptor:descriptor];
+                    Require(resolvedDepth != nil, "Cannot allocate MSAA depth readback surface");
+                }
+                // No game depth readback caller exists. Preserve sample zero for
+                // diagnostics; do not silently average unrelated surface depths.
+                MTLRenderPassDescriptor* resolve = [pass copy];
+                resolve.depthAttachment.resolveTexture = resolvedDepth;
+                resolve.depthAttachment.depthResolveFilter = MTLMultisampleDepthResolveFilterSample0;
+                resolve.depthAttachment.storeAction = MTLStoreActionStoreAndMultisampleResolve;
+                auto encoder = [command renderCommandEncoderWithDescriptor:resolve];
+                Require(encoder != nil, "Cannot resolve Gx MSAA depth");
+                [encoder endEncoding]; ++statistics.renderPasses;
+                surface = resolvedDepth;
+            }
+        }
         Require(command && surface && !surface.framebufferOnly && surface.sampleCount == 1,
             "Gx readback requires an active frame and a readable single-sample attachment");
         const size_t width = rect.maxX - rect.minX, height = rect.maxY - rect.minY;
@@ -563,7 +644,10 @@ int32_t CGxDeviceMetal::DeviceCreate(void* window, const CGxFormat& format) {
 int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
     if (m->window && !NSThread.isMainThread) return 0;
     if (m->command || format.m_size.x <= 0 || format.m_size.y <= 0 ||
-        uint32_t(format.m_size.x) > m_caps.m_texMaxSize[GxTex_2d] || uint32_t(format.m_size.y) > m_caps.m_texMaxSize[GxTex_2d] || format.m_multisampleCount != 1 ||
+        uint32_t(format.m_size.x) > m_caps.m_texMaxSize[GxTex_2d] || uint32_t(format.m_size.y) > m_caps.m_texMaxSize[GxTex_2d] ||
+        !format.m_multisampleCount || format.m_multisampleCount > 16 || ![m->gpu.device supportsTextureSampleCount:format.m_multisampleCount] ||
+        (format.m_multisampleCount > 1 && (!m->gpu.device.areProgrammableSamplePositionsSupported ||
+            uint64_t(format.m_size.x) * format.m_size.y > ResourceBudget / 8 / format.m_multisampleCount)) ||
         format.m_colorFormat != CGxFormat::Fmt_Argb8888 || format.m_depthFormat != CGxFormat::Fmt_Ds320 || format.m_stereoEnabled) { return 0; }
     // A host must apply the request before the game can publish it as active.
     // Headless clients own their attachments and have no native presentation.
@@ -584,6 +668,7 @@ void CGxDeviceMetal::DeviceDestroy() {
     Drain(); OsInputApplyWindowResizeLock(nullptr);
     if (m->window && OsGuiGetWindow(0) == m->window) OsGuiSetGxWindow(nullptr);
     m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy();
+    m->multisampleColor = m->multisampleDepth = m->resolvedDepth = nil;
 }
 void* CGxDeviceMetal::DeviceWindow() { return m->window; }
 void CGxDeviceMetal::CapsWindowSize(CRect& rect) { rect = m_curWindowRect; }
@@ -594,7 +679,9 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
         "Unsupported Metal frame attachment");
     Require(pass.colorAttachments[0].level == 0 && pass.colorAttachments[0].slice == 0 && pass.depthAttachment.level == 0 &&
         pass.depthAttachment.slice == 0, "Metal host frame must use base-level attachments");
-    Require(!pass.depthAttachment.texture || pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float, "Unsupported Metal frame depth");
+    Require(!pass.depthAttachment.texture || (pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float &&
+        pass.depthAttachment.texture.sampleCount == 1), "Unsupported Metal frame depth");
+    auto defaultPass = m->DefaultPass(pass, m_format.m_multisampleCount);
     const size_t slot = (m->frameSlot + 1) % m->streamFrames.size();
     auto& frame = m->streamFrames[slot];
     dispatch_semaphore_wait(frame.ready, DISPATCH_TIME_FOREVER);
@@ -603,9 +690,7 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     m->frameSlot = slot; frame.Reset();
     for (auto& entry : m->pools) entry.second.snapshots.clear();
     m->command.label = @"Gx game frame";
-    m->defaultPass = [pass copy]; m->drawable = drawable;
-    m->defaultPass.colorAttachments[0].storeAction = MTLStoreActionStore;
-    m->defaultPass.depthAttachment.storeAction = MTLStoreActionStore;
+    m->defaultPass = defaultPass; m->drawable = drawable;
     const bool resized = m_defWindowRect.maxX != pass.colorAttachments[0].texture.width || m_defWindowRect.maxY != pass.colorAttachments[0].texture.height;
     m_defWindowRect.minX = m_defWindowRect.minY = 0;
     m_defWindowRect.maxX = pass.colorAttachments[0].texture.width;
@@ -1546,6 +1631,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         Require(texture->m_format != GxTex_R32F || states[i].filter == GxTex_Nearest || states[i].filter == GxTex_NearestMipNearest ||
             m->gpu.device.supports32BitFloatFiltering, "This GPU cannot filter R32F textures with the requested sampler");
     }
+    m->MultisampleState(integer(GxRs_Multisample) != 0);
     const auto encoder = m->DrawEncoder();
     if (fixed) { m->gpu.DrawFixedUnlit(m->command, m->pass, textures, draw, states, encoder); }
     else if (ripple) { m->gpu.DrawWaterRipple(m->command, m->pass, textures[0], draw, states[0], encoder); }

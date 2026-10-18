@@ -100,11 +100,13 @@ struct BiasedFixedUnlit {
     float depth [[depth(any)]];
 };
 fragment BiasedFixedUnlit fixedUnlitBiasedFragment(FixedUnlitRaster v [[stage_in]], constant FixedUnlitFragmentParameters& p [[buffer(0)]],
+    uint sample [[sample_id, function_constant(sampleDepthOffset)]],
     texture2d<float> image0 [[texture(0), function_constant(fixedTexture0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
     texture2d<float> image1 [[texture(1), function_constant(fixedTexture1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
     texture2d<float> image2 [[texture(2), function_constant(fixedTexture2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
     texture2d<float> image3 [[texture(3), function_constant(fixedTexture3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]]) {
     // Keep the D3D9 normalized offset after clipping and viewport mapping.
     // Metal's raster bias depends on the depth format and primitive exponent.
-    return {fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3), saturate(v.position.z + p.depthOffset)};
+    return {fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3),
+        biasedSampleDepth(v.position.z, p.depthOffset, sampleDepthOffset ? sample : 0)};
 }

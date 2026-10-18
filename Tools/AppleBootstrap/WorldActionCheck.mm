@@ -4,6 +4,8 @@
 #include "Engine/Source/Frame/CSimpleFrame.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
+#include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
+#include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
 #include "Engine/Source/Services/Texture.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
@@ -204,6 +206,33 @@ bool CheckNativeWorldShadows() {
     Require(setting->Set(next, true, false, false, false), "Original shadow-quality callback rejected the requested mode");
     ++phase; frames = 0;
     return false;
+}
+
+bool CheckNativeWorldMultisample() {
+    static unsigned phase, frames;
+    static uint32_t original;
+    static constexpr uint32_t modes[] = {2,4,1,4};
+    if (phase == 6) return true;
+    if (!CGGameUI::s_inWorld || !ClntObjMgrGetActivePlayerObj()) {
+        Require(!phase,"World left during MSAA display check"); return false;
+    }
+    auto* setting=CVar::LookupRegistered("gxMultisample");
+    Require(setting,"Original multisample setting is missing");
+    if (++frames<120) return false;
+    if (!phase) original=setting->m_intValue;
+    else {
+        const uint32_t expected=phase==5 ? original:modes[phase-1];
+        Require(setting->m_intValue==expected && g_theGxDevicePtr->m_format.m_multisampleCount==expected &&
+            s_lastGoodFormat.m_multisampleCount==expected,"Original MSAA restart did not apply the selected sample count");
+        std::fprintf(stderr,"Native world MSAA: %ux, 120 rendered frames passed\n",expected);
+        if (phase==5) {
+            ++phase; std::fputs("Native world MSAA: 2x/4x/off/recreate and original setting restoration passed\n",stderr); return true;
+        }
+    }
+    const uint32_t next=phase==4 ? original:modes[phase];
+    Require(setting->Set(next,true,false,false,false),"Original MSAA setting rejected requested count");
+    Require(CCGxRestart(nullptr,nullptr),"Original multisample display restart failed");
+    ++phase; frames=0; return false;
 }
 
 bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant) {

@@ -149,7 +149,12 @@ int32_t CGxDevice::AdapterFormats(EGxApi api, TSGrowableArray<CGxFormat>& format
     formats.SetCount(0);
     CGxMonitorMode mode;
     if (api != GxApi_Metal || !AdapterDesktopMode(mode)) { return 0; }
-    formats.New(CGxFormat(true, mode.m_size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, mode.m_refreshRate, 1, true, false, false, true, 0));
+    id<MTLDevice> gpu = MTLCreateSystemDefaultDevice();
+    for (uint32_t samples : {1u, 2u, 4u, 8u, 16u}) {
+        if (![gpu supportsTextureSampleCount:samples] || (samples > 1 && !gpu.areProgrammableSamplePositionsSupported)) continue;
+        CGxFormat format(true, mode.m_size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, mode.m_refreshRate, 1, true, false, false, true, 0);
+        format.m_multisampleCount = samples; formats.New(format);
+    }
     return 1;
 }
 void OsInputGetMousePosition(int32_t* x, int32_t* y) {

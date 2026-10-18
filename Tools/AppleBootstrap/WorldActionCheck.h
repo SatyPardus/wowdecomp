@@ -7,6 +7,8 @@ bool CheckNativeWorldActions(WowNativeView* view);
 bool CheckNativeWorldCasting(WowNativeView* view);
 // Original live shadow-quality CVar, resource recreation and restoration.
 bool CheckNativeWorldShadows();
+// Original gxMultisample/gxRestart through live world frames and restoration.
+bool CheckNativeWorldMultisample();
 // Native picking and an existing nearby NPC's original server gossip dialog.
 bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant = false);
 // An already learned Teleport: Moonglade through the original spellbook entry.

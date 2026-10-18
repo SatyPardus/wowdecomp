@@ -349,6 +349,13 @@ It can precede `--check-world-reentry`; a 4,000-frame Mac ASan/UBSan and Metal r
 completed all modes, both world loads and normal shutdown in Stormwind.
 This exercises the original R32F path; hardware PCF remains incomplete.
 
+`--check-world-msaa` uses the original `gxMultisample` setting and deferred
+`gxRestart` to switch through 2x, 4x, off and 4x again, then restore the starting
+setting. Each mode renders 120 world frames; the check requires a device that
+supports both 2x and 4x. It changes display settings only. Feral's local world
+completed this sequence, 2,200 frames, a final capture and normal shutdown under
+Mac ASan/UBSan and Metal validation.
+
 `--check-world-reentry` additionally opens the original game menu, clicks Logout,
 waits for the server and character-selection screen, then clicks Enter World for
 the same selected character. It never forces a logout or resets game objects.
@@ -1158,8 +1165,30 @@ and consumes packed vertex buffers and 16-bit indexed/nonindexed batches directl
 It maps Tempest matrices, BGRA vertex colors, Gx depth comparisons/write control,
 culling and scissor rectangles. The preview uses immutable PCT vertices and an
 index buffer. This path currently uses BGRA8 color and Depth32Float attachments;
-it does not implement lighting, fog, skinning, triangle fans, MSAA or arbitrary
+it does not implement lighting, fog, skinning, triangle fans or arbitrary
 game shaders, and is not a D3D9 depth-precision or rasterization-equivalence result.
+
+The default framebuffer supports hardware MSAA counts advertised by Metal and
+the original video-options Lua/CVars (2x/4x on the tested M2 Pro). Gx owns private
+multisample color/depth attachments and preserves their samples across pass
+breaks, synchronous reads and frames. Color resolves feed presentation, copies,
+screenshots and the original FFX chain; offscreen game textures stay single
+sample as in D3D9. `GxRs_Multisample=0` switches coverage to duplicated pixel-center
+positions, preserving samples outside the draw. The depth store explicitly
+retains sample values when patterns change. Normalized polygon offsets use
+per-sample depth while material interpolation remains at pixel centers; diagnostic
+depth reads select sample zero. No alpha-to-coverage is substituted for alpha test.
+`WOW_METAL_CHECK=msaa` checks analytic coverage and sloped depth, disabled-AA,
+query counts where available, regional clears, frame preservation, 230 model
+depth-offset draws and the original copy/target/FFX paths. Fog-grid edge references
+include their partial MSAA coverage. Native sample patterns do not establish
+equivalence to every Windows D3D9 GPU, and sustained MSAA bandwidth/memory cost
+and physical iOS performance still need measurement.
+The tested iOS Simulator does not expose programmable sample positions, so its
+format list remains single-sample; it rejects MSAA explicitly. Its single-sample
+checks and subsequent 120-frame preview pass. Both iOS client targets build;
+MSAA execution on physical iPhone/iPad remains unverified.
+
 The first native programmable family is the original UI shader: texture times
 vertex color, four transform constant registers, and both regular and screen-at-depth
 vertex permutations. Preview startup reads the mounted `vs_3_0/UI.bls` and

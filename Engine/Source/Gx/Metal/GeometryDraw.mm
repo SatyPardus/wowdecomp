@@ -155,9 +155,10 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         Require(count <= availableVertices, "Gx vertex count exceeds buffer");
     }
     id<MTLTexture> target = pass.colorAttachments[0].texture;
-    Require(target && (target.pixelFormat == MTLPixelFormatBGRA8Unorm || target.pixelFormat == MTLPixelFormatR32Float) && target.sampleCount == 1, "Unsupported geometry color attachment");
+    Require(target && (target.pixelFormat == MTLPixelFormatBGRA8Unorm || target.pixelFormat == MTLPixelFormatR32Float), "Unsupported geometry color attachment");
     const bool hasDepth = pass.depthAttachment.texture != nil;
-    Require(!hasDepth || pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float, "Unsupported geometry depth attachment");
+    Require(!hasDepth || (pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float &&
+                         pass.depthAttachment.texture.sampleCount == target.sampleCount), "Unsupported geometry depth attachment");
     Require(hasDepth || (!geometry.depthTest && !geometry.depthWrite), "Gx depth state requires a depth attachment");
     Require(geometry.depthFunction < 4 && geometry.culling < 3, "Invalid Gx depth/culling state");
     if (geometry.scissorEnabled) {
@@ -175,7 +176,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     }
     bool decodePacked = false;
     for (unsigned i = 0; i < states.size(); ++i) if (inputMask & (1u << i)) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry, hasDepth, decodePacked, target.pixelFormat);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry, hasDepth, decodePacked, target.pixelFormat, uint32_t(target.sampleCount));
     std::array<id<MTLSamplerState>, 9> samplers{};
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");

@@ -90,9 +90,11 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     quad.format = GxVBF_PCT; Pipeline(state, quad);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, const GeometryDraw& geometry, bool depthAttachment, bool decodePacked, MTLPixelFormat colorFormat) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, const GeometryDraw& geometry, bool depthAttachment, bool decodePacked, MTLPixelFormat colorFormat, uint32_t sampleCount) {
     const auto format = geometry.format; const auto effect = geometry.effect;
     const bool screenAtDepth = geometry.screenAtDepth, signedWave = geometry.signedWave, depthOffset = geometry.depthOffset != 0;
+    const bool sampleDepthOffset = depthOffset && sampleCount > 1;
+    const unsigned depthMode = depthOffset ? (sampleDepthOffset ? 2 : 1) : 0;
     const auto* fixed = geometry.fixed;
     const auto* model = geometry.model; const auto* terrain = geometry.terrain; const auto* wmo = geometry.wmo;
     const auto* liquid = geometry.liquid; const auto* shadow = geometry.shadow; const auto* detail = geometry.detail;
@@ -138,7 +140,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
         fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : wmo ? wmo->shadowMode : detail ? detail->shadowMode : modelShadowMode,
-        fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) : terrain ? uint32_t(terrain->layerPass) : 0};
+        fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) : terrain ? uint32_t(terrain->layerPass) : 0, sampleCount};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -157,6 +159,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         return factor;
     };
     MTLRenderPipelineDescriptor* descriptor = [MTLRenderPipelineDescriptor new];
+    descriptor.rasterSampleCount = sampleCount;
     descriptor.label = [NSString stringWithFormat:@"WoW Gx blend %u mask %u alpha %d", state.blend, state.colorWrite, state.alphaRef != 0];
     descriptor.vertexFunction = m_vertex;
     if (format != GxVertexBufferFormats_Last) {
@@ -308,7 +311,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         auto constants = [MTLFunctionConstantValues new];
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
         [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
-        auto& fragment = m_rippleFragment[alpha][decodePacked][depthOffset];
+        [constants setConstantValue:&sampleDepthOffset type:MTLDataTypeBool atIndex:40];
+        auto& fragment = m_rippleFragment[alpha][decodePacked][depthMode];
         NSError* error = nil;
         if (!m_rippleVertex) m_rippleVertex = [m_library newFunctionWithName:@"waterRippleVertex"];
         if (!fragment) fragment = [m_library newFunctionWithName:depthOffset ? @"waterRippleBiasedFragment" : @"waterRippleFragment"
@@ -393,7 +397,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             "Unsupported native model vertex layout or permutation");
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation][modelClipping];
         const bool textureAlpha = effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA || effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x;
-        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][modelShadowMode][depthOffset];
+        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][modelShadowMode][depthMode];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -410,6 +414,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&modelShadowMode type:MTLDataTypeUInt atIndex:35];
         [constants setConstantValue:&modelClipping type:MTLDataTypeBool atIndex:38];
         [constants setConstantValue:&depthOffset type:MTLDataTypeBool atIndex:39];
+        [constants setConstantValue:&sampleDepthOffset type:MTLDataTypeBool atIndex:40];
         NSError* error = nil;
         NSString* vertexName = material ? (basePermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex") :
             normal ? @"modelColorLitVertex" : color ? @"modelColorVertex" : @"modelWhiteVertex";
@@ -559,6 +564,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&uv0 type:MTLDataTypeBool atIndex:31];
         [constants setConstantValue:&uv1 type:MTLDataTypeBool atIndex:32];
         [constants setConstantValue:&fixed->positionCoords type:MTLDataTypeUInt atIndex:34];
+        [constants setConstantValue:&sampleDepthOffset type:MTLDataTypeBool atIndex:40];
         NSError* error = nil;
         descriptor.vertexFunction = [m_library newFunctionWithName:@"fixedUnlitVertex" constantValues:constants error:&error];
         descriptor.fragmentFunction = [m_library newFunctionWithName:depthOffset ? @"fixedUnlitBiasedFragment" : @"fixedUnlitFragment" constantValues:constants error:&error];
@@ -764,7 +770,8 @@ void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDes
     const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport) {
     // Resolve/validate before opening an encoder so failures cannot leave a pass open.
     GeometryDraw quad; quad.format = GxVertexBufferFormats_Last;
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, quad, false, simd_any(state.decodeScale != simd_make_float4(1)), pass.colorAttachments[0].texture.pixelFormat);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, quad, false, simd_any(state.decodeScale != simd_make_float4(1)),
+        pass.colorAttachments[0].texture.pixelFormat, uint32_t(pass.colorAttachments[0].texture.sampleCount));
     id<MTLSamplerState> sampler = Sampler(state);
     Require(std::isfinite(state.blendFactor) && state.blendFactor >= 0 && state.blendFactor <= 1, "Invalid Gx blend factor");
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
@@ -789,15 +796,19 @@ void GxMetal::TextureDevice::ClearRegion(id<MTLCommandBuffer> command, MTLRender
     const MTLScissorRect& region, uint32_t mask, simd_float4 color, id<MTLRenderCommandEncoder> encoder) {
     const bool hasDepth = pass.depthAttachment.texture != nil, writeColor = (mask & 1) != 0, writeDepth = (mask & 2) != 0;
     auto target = pass.colorAttachments[0].texture;
-    Require(command && target && (target.pixelFormat == MTLPixelFormatBGRA8Unorm || target.pixelFormat == MTLPixelFormatR32Float) && target.sampleCount == 1 &&
-        (!hasDepth || pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float) && (!writeDepth || hasDepth),
+    Require(command && target && (target.pixelFormat == MTLPixelFormatBGRA8Unorm || target.pixelFormat == MTLPixelFormatR32Float) &&
+        (!hasDepth || (pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float &&
+                      pass.depthAttachment.texture.sampleCount == target.sampleCount)) && (!writeDepth || hasDepth),
         "Unsupported Metal regional clear attachments");
     Require(mask && mask <= 3 && region.width && region.height && region.x < target.width && region.y < target.height &&
         region.width <= target.width - region.x && region.height <= target.height - region.y, "Invalid Metal clear region");
-    auto& pipeline = m_clearPipelines[target.pixelFormat == MTLPixelFormatR32Float][hasDepth][writeColor];
+    const uint32_t key = uint32_t(target.pixelFormat == MTLPixelFormatR32Float) | (uint32_t(hasDepth) << 1) |
+        (uint32_t(writeColor) << 2) | (uint32_t(target.sampleCount) << 3);
+    auto& pipeline = m_clearPipelines[key];
     if (!pipeline) {
         auto descriptor = [MTLRenderPipelineDescriptor new];
         descriptor.label = @"Gx regional attachment clear";
+        descriptor.rasterSampleCount = target.sampleCount;
         descriptor.vertexFunction = m_clearVertex; descriptor.fragmentFunction = m_clearFragment;
         descriptor.colorAttachments[0].pixelFormat = target.pixelFormat;
         descriptor.colorAttachments[0].writeMask = writeColor ? MTLColorWriteMaskAll : MTLColorWriteMaskNone;

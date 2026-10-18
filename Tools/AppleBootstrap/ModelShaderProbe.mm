@@ -543,8 +543,10 @@ void CheckModelDepthOffset(CGxDeviceMetal& device) {
             v.m_normal={0,0,1}; v.m_texcoord[0]=v.m_texcoord[1]={.5f,.5f};
             const uint8_t weight[]={255,0,0,0}; std::memcpy(&v.m_weights,weight,4);
         }
-        if(primitive==GxPrim_Points) source[0].m_position={0,0,z};
-        if(primitive==GxPrim_Lines) { source[0].m_position={-.5f,0,z}; source[1].m_position={.5f,0,z}; }
+        // Center one-pixel primitives on a pixel so the material/depth check
+        // observes full coverage in both single-sample and MSAA attachments.
+        if(primitive==GxPrim_Points) source[0].m_position={1.0f/16,-1.0f/16,z};
+        if(primitive==GxPrim_Lines) { source[0].m_position={-.5f,-1.0f/16,z}; source[1].m_position={.5f,-1.0f/16,z}; }
         auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(M2Vertex),4);
         std::memcpy(device.BufLock(buffer),source.data(),sizeof(source)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PBNT2);
         GxRsSet(GxRs_PolygonOffset,offset); CGxBatch batch{primitive,0,primitive==GxPrim_Points ? 1u:primitive==GxPrim_Lines ? 2u:4u,0,0};
@@ -555,6 +557,8 @@ void CheckModelDepthOffset(CGxDeviceMetal& device) {
         device.DeviceReadPixels(rect,color); device.DeviceReadDepths(rect,depth); unsigned sample=8*16+8;
         if(primitive<GxPrim_Triangles) for(unsigned i=0;i<color.Count();++i) if(color[i].a) { sample=i; break; }
         Require(bool(color[sample].a)==visible,"Model depth offset changed expected depth/alpha rejection");
+        if (std::abs(depth[sample]-expectedDepth)>=1e-6f)
+            std::fprintf(stderr,"Model depth draw %u primitive %u pixel %u: %.9f expected %.9f\n",draws,unsigned(primitive),sample,depth[sample],expectedDepth);
         Require(std::abs(depth[sample]-expectedDepth)<1e-6f,"Model normalized depth offset mismatch");
         if(visible) Require(std::abs(int(color[sample].r)-(layered ? 16:64))<=1 && std::abs(int(color[sample].g)-(layered ? 64:128))<=1 &&
             std::abs(int(color[sample].b)-(layered ? 145:192))<=1 && std::abs(int(color[sample].a)-(layered ? 64:128))<=1,"Model depth offset changed material RGBA");
@@ -575,7 +579,12 @@ void CheckModelDepthOffset(CGxDeviceMetal& device) {
     GxRsSet(GxRs_DepthWrite,1); GxRsSet(GxRs_AlphaRef,128); draw(.5f,.05f,.45f);
     GxRsSet(GxRs_AlphaRef,129); draw(.5f,.05f,.5f,false); GxRsSet(GxRs_AlphaRef,0);
     GxRsSet(GxRs_DepthTest,0); pass.depthAttachment.clearDepth=1;
-    draw(.5f,.05f,.475f,true,GxPrim_TriangleStrip,true);
+    MTLSamplePosition firstSample = MTLSamplePositionMake(.5f,.5f);
+    if (device.m_format.m_multisampleCount > 1) {
+        std::vector<MTLSamplePosition> positions(device.m_format.m_multisampleCount);
+        [device.GPU().device getDefaultSamplePositions:positions.data() count:positions.size()]; firstSample=positions[0];
+    }
+    draw(.5f,.05f,.475f+(firstSample.x-.5f)*.8f/16,true,GxPrim_TriangleStrip,true);
     for(auto primitive:{GxPrim_Points,GxPrim_Lines}) draw(.5f,.25f,.5f,true,primitive);
     device.BeginFrame(pass); for(float offset:{0.0f,.25f,0.0f}) encode(.5f,offset); check(.5f,true); device.ScenePresent();
     std::fprintf(stderr,"Model depth offset: %u draws, four rigid/skinned vertex families, normalized sign/saturation, viewport, clip rejection, alpha/depth states, slopes, points/lines and same-frame restoration passed\n",draws);
