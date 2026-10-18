@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdint>
-#include <xmmintrin.h>
+#include "Engine/Source/ComSat/SPIRIT/SpiritFloat.h"
+#include "Engine/Source/ComSat/SPIRIT/SpiritStream.h"
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
 
 extern "C" {
@@ -28,13 +29,17 @@ const int32_t s_ipmrTableB23724[8] = {
 // VERIFY: 855e8083 manual
 // OFFSET: 0x00897370
 void SPIRIT_IP_MR_V3_PutBitsClear(int32_t value, SPIRIT_IPMR_STREAM* stream, int16_t count, int16_t skip) {
+    if (count < 0 || count > 32) throw Spirit::InvalidStream{};
+    if (!count) return;
     if (skip) {
         stream->m_bits += count;
         return;
     }
 
+    Spirit::RequireBits(stream, count);
+
     uint8_t* data = const_cast<uint8_t*>(stream->m_data);
-    int16_t index = static_cast<int16_t>(stream->m_bits) >> 3;
+    uint32_t index = stream->m_bits >> 3;
     int32_t shift = static_cast<int32_t>(stream->m_bits) % 8;
 
     if (!shift) {
@@ -64,6 +69,9 @@ void SPIRIT_IP_MR_V3_PutBitsClear(int32_t value, SPIRIT_IPMR_STREAM* stream, int
 // VERIFY: 7a8f786f manual
 // OFFSET: 0x00897440
 void SPIRIT_IP_MR_V3_CopyBits(SPIRIT_IPMR_STREAM* stream, const uint8_t* src, int16_t start, int16_t count) {
+    Spirit::RequireBits(stream, count);
+    if (!src || start < 0) throw Spirit::InvalidStream{};
+    if (!count) return;
     uint8_t* data = const_cast<uint8_t*>(stream->m_data);
     data[static_cast<int32_t>(stream->m_bits) >> 3] &= 0xFF >> (8 - static_cast<int32_t>(stream->m_bits) % 8);
     int32_t end = start + count;
@@ -337,7 +345,7 @@ void SPIRIT_IP_MR_V3_NAME_200(const float* src, int16_t* pcm, int16_t count) {
     int32_t blocks = count / 4;
 
     for (int32_t i = 0; i < blocks * 4; i++) {
-        int32_t value = _mm_cvtss_si32(_mm_set_ss(src[i]));
+        int32_t value = Spirit::RoundedPCM(src[i]);
 
         if (value > 32767) {
             value = 32767;

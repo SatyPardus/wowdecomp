@@ -1,18 +1,23 @@
 #include <cstdint>
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
+#include "Engine/Source/ComSat/SPIRIT/SpiritStream.h"
 
 extern "C" {
 
 // VERIFY: b01f7f01 manual
 // OFFSET: 0x00899830
 void SPIRIT_IP_MR_V3_PutBits(int32_t value, SPIRIT_IPMR_STREAM* stream, int16_t count, int16_t skip) {
+    if (count < 0 || count > 32) throw Spirit::InvalidStream{};
+    if (!count) return;
     if (skip) {
         stream->m_bits += count;
         return;
     }
 
+    Spirit::RequireBits(stream, count);
+
     uint8_t* data = const_cast<uint8_t*>(stream->m_data);
-    int16_t index = static_cast<int16_t>(stream->m_bits) >> 3;
+    uint32_t index = stream->m_bits >> 3;
     int32_t shift = static_cast<int32_t>(stream->m_bits) % 8;
     int16_t remaining = count;
     int16_t bits = 8 - shift < count ? static_cast<int16_t>(8 - shift) : count;

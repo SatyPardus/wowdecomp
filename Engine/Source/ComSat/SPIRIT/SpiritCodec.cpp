@@ -1,5 +1,6 @@
 #include <cstdint>
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
+#include "Engine/Source/ComSat/SPIRIT/SpiritStream.h"
 
 extern "C" {
 
@@ -49,7 +50,11 @@ int32_t SPIRIT_IP_MR_V3_1_Encode(void* state, const uint8_t* pcm, SPIRIT_IPMR_PA
     SPIRIT_IP_MR_V3_NAME_334(info->unk_0002, sizeof(info->unk_0002));
 
     SPIRIT_IPMR_STATE* codec = reinterpret_cast<SPIRIT_IPMR_STATE*>((reinterpret_cast<uintptr_t>(state) + 16) & ~static_cast<uintptr_t>(15));
-    return SPIRIT_IP_MR_V3_NAME_195(&codec->m_encoder, pcm, stream, params->unk_0000, 1, params->unk_0004, params->unk_0004, &params->unk_0006, info->unk_0002, info->unk_0010, &info->unk_0018, &info->unk_0000);
+    try {
+        return SPIRIT_IP_MR_V3_NAME_195(&codec->m_encoder, pcm, stream, params->unk_0000, 1, params->unk_0004, params->unk_0004, &params->unk_0006, info->unk_0002, info->unk_0010, &info->unk_0018, &info->unk_0000);
+    } catch (const Spirit::InvalidStream&) {
+        return 2;
+    }
 }
 
 // VERIFY: 23dc633b manual
@@ -62,7 +67,11 @@ int32_t SPIRIT_IP_MR_V3_1_Decode(void* state, uint8_t* pcm, SPIRIT_IPMR_PARAMS* 
     }
 
     SPIRIT_IPMR_STATE* codec = reinterpret_cast<SPIRIT_IPMR_STATE*>((reinterpret_cast<uintptr_t>(state) + 16) & ~static_cast<uintptr_t>(15));
-    return SPIRIT_IP_MR_V3_NAME_192(&codec->m_decoder, stream, pcm, 0, 0, params->unk_0000, 1, params->unk_0004, params->unk_0004, lost, &bits);
+    try {
+        return SPIRIT_IP_MR_V3_NAME_192(&codec->m_decoder, stream, pcm, 0, 0, params->unk_0000, 1, params->unk_0004, params->unk_0004, lost, &bits);
+    } catch (const Spirit::InvalidStream&) {
+        return 2;
+    }
 }
 
 // VERIFY: bcb46639 auto

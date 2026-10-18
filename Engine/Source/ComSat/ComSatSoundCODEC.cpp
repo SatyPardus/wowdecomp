@@ -4,6 +4,7 @@
 #include "Engine/Source/ComSat/ComSatSpirit.h"
 #include <cstring>
 #include <new>
+#include <array>
 
 // STATIC: 0x00A503A0
 const uint8_t ComSat::Sound::CODECIPMR6000::s_invalidPlayer = 0xFF;
@@ -67,7 +68,7 @@ ComSat::Sound::CODECIPMR6000::LocalPlayer::~LocalPlayer() {
 // OFFSET: 0x00886930
 bool ComSat::Sound::CODECIPMR6000::LocalPlayer::CompressRawData(const uint8_t* pcm, uint32_t size, uint8_t* data, uint32_t* bits, bool* voice) {
     uint8_t* encoder = this->m_encoder;
-    if (!encoder || size != 1600 || *bits < 960) {
+    if (!pcm || !data || !bits || !voice || size != 1600 || *bits < 960) {
         return false;
     }
     if (this->m_hangover > 0) {
@@ -81,12 +82,17 @@ bool ComSat::Sound::CODECIPMR6000::LocalPlayer::CompressRawData(const uint8_t* p
     }
     if (this->m_hangover <= 0) {
         *voice = false;
+        *bits = 0;
         return true;
     }
+    // The public API accepts bytes, including an unaligned capture buffer.
+    std::array<int16_t, 800> samples;
+    std::memcpy(samples.data(), pcm, sizeof(samples));
+    pcm = reinterpret_cast<const uint8_t*>(samples.data());
     SPIRIT_IPMR_STREAM stream;
     stream.m_data = data;
     stream.m_bits = 0;
-    stream.m_size = *bits >> 3;
+    stream.m_size = 120;
     SPIRIT_IPMR_INFO info;
     memset(&info, 0, sizeof(info));
     SPIRIT_IPMR_PARAMS params;
@@ -109,7 +115,7 @@ bool ComSat::Sound::CODECIPMR6000::LocalPlayer::CompressRawData(const uint8_t* p
 // VERIFY: 4909c6a3 manual
 // OFFSET: 0x00886A50
 bool ComSat::Sound::CODECIPMR6000::LocalPlayer::DecompressEncodedData(int32_t channel, const uint8_t* data, uint32_t bits, uint8_t* pcm, uint32_t* size) {
-    if (bits > 960 || *size < 1600) {
+    if (!data || !pcm || !size || bits < 360 || bits > 960 || *size < 1600) {
         return false;
     }
     if (channel < 0 || channel >= this->m_channelCount || !this->m_decoders || !this->m_decoders[channel]) {
@@ -127,16 +133,28 @@ bool ComSat::Sound::CODECIPMR6000::LocalPlayer::DecompressEncodedData(int32_t ch
     stream.m_size = bytes;
     params.unk_0006 = 1;
     stream.m_data = data;
-    int32_t result = 0;
-    while (bits - stream.m_bits >= 72) {
-        result = SPIRIT_IP_MR_V3_1_Decode(this->m_decoders[channel], pcm, &params, &stream, 0);
-        pcm += 320;
-        if (result) {
-            break;
+    auto* state = reinterpret_cast<SPIRIT_IPMR_STATE*>((reinterpret_cast<uintptr_t>(this->m_decoders[channel]) + 16) & ~uintptr_t(15));
+    const SPIRIT_IPMR_DECODER previous = state->m_decoder;
+    std::array<int16_t, 800> samples;
+    // One game frame is exactly five 20 ms codec frames, regardless of each
+    // variable bit length. Never decode a sixth frame into the 1600-byte PCM
+    // buffer, or publish uninitialized samples for a truncated frame.
+    for (uint32_t i = 0; i < 5; ++i) {
+        const uint32_t before = stream.m_bits;
+        if (before > bits || bits - before < 72 ||
+            SPIRIT_IP_MR_V3_1_Decode(this->m_decoders[channel], reinterpret_cast<uint8_t*>(samples.data() + i * 160), &params, &stream, 0) ||
+            stream.m_bits <= before || stream.m_bits > bits) {
+            state->m_decoder = previous;
+            return false;
         }
     }
+    if (stream.m_bits != bits) {
+        state->m_decoder = previous;
+        return false;
+    }
+    std::memcpy(pcm, samples.data(), sizeof(samples));
     *size = 1600;
-    return result == 0;
+    return true;
 }
 
 // VERIFY: 0560a550 auto

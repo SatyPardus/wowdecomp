@@ -72,8 +72,11 @@ void SPIRIT_IP_MR_V3_NAME_29(const float* a, const float* coeffs, float* h) {
 // VERIFY: 16a0ba4d manual
 // OFFSET: 0x0089D860
 void SPIRIT_IP_MR_V3_NAME_147(const float* target, const float* a, const float* weighted, float* out, float* synthesis, float* weighting) {
-    float saved[10];
-    float zero[40];
+    // The original stack block has ten history samples directly before the
+    // forty filtered samples (0x89d860). Keep that adjacency in one array.
+    float history[50];
+    float* saved = history;
+    float* zero = history + 10;
     float response[40];
     SPIRIT_IP_MR_V3_NAME_190(saved, synthesis);
     SPIRIT_IP_MR_V3_NAME_390(zero, a, synthesis);
@@ -88,8 +91,10 @@ void SPIRIT_IP_MR_V3_NAME_147(const float* target, const float* a, const float* 
 // VERIFY: 24685002 manual
 // OFFSET: 0x0089D9D0
 void SPIRIT_IP_MR_V3_NAME_146(const float* excitation, float* residual, const float* a, const float* weighted, float* out, SPIRIT_IPMR_TRACK* tracks, float* memory, int16_t count) {
-    float saved[10];
-    float synthesized[40];
+    // NAME_137 consumes x[-10..39]; the original saved history is its prefix.
+    float history[50];
+    float* saved = history;
+    float* synthesized = history + 10;
     SPIRIT_IP_MR_V3_NAME_137(excitation, residual, a);
     SPIRIT_IP_MR_V3_NAME_148(residual, synthesized, a, memory + 10, 0);
     SPIRIT_IP_MR_V3_NAME_190(saved, memory + 10);
@@ -110,8 +115,10 @@ void SPIRIT_IP_MR_V3_NAME_146(const float* excitation, float* residual, const fl
 // VERIFY: 915e965b manual
 // OFFSET: 0x0089DAC0
 void SPIRIT_IP_MR_V3_NAME_157(const float* excitation, const float* a, const float* weighted, float* synthesis, float* weighting, float* out) {
-    float saved[10];
-    float synthesized[40];
+    // NAME_137 consumes x[-10..39]; the original saved history is its prefix.
+    float history[50];
+    float* saved = history;
+    float* synthesized = history + 10;
     float response[40];
     SPIRIT_IP_MR_V3_NAME_190(saved, synthesis);
     SPIRIT_IP_MR_V3_NAME_148(excitation, synthesized, a, synthesis, 1);

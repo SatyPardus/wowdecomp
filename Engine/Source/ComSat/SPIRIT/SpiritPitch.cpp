@@ -1,6 +1,6 @@
 #include <cmath>
 #include <cstdint>
-#include <xmmintrin.h>
+#include "Engine/Source/ComSat/SPIRIT/SpiritFloat.h"
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
 
 extern "C" {
@@ -54,7 +54,7 @@ int16_t SPIRIT_IP_MR_V3_NAME_111(const float* x) {
     float normalized = 0.0f;
 
     if (0.0f < energy) {
-        normalized = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(energy))) * best;
+        normalized = Spirit::PitchInverseRoot(energy) * best;
     }
 
     float best2 = -3.4028235e38f;
@@ -76,7 +76,7 @@ int16_t SPIRIT_IP_MR_V3_NAME_111(const float* x) {
     energy = SPIRIT_IP_MR_V3_NAME_42(&x[-lag2], &x[-lag2], 80);
 
     if (0.0f < energy) {
-        best2 = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(energy))) * best2;
+        best2 = Spirit::PitchInverseRoot(energy) * best2;
 
         if (best2 > normalized * static_cast<double>(0.85f)) {
             normalized = best2;
@@ -103,7 +103,7 @@ int16_t SPIRIT_IP_MR_V3_NAME_111(const float* x) {
     energy = SPIRIT_IP_MR_V3_NAME_42(&x[-lag3], &x[-lag3], 80);
 
     if (0.0f < energy) {
-        float normalized3 = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(energy))) * best3;
+        float normalized3 = Spirit::PitchInverseRoot(energy) * best3;
 
         if (normalized3 > normalized * static_cast<double>(0.85f)) {
             return static_cast<int16_t>(lag3);
@@ -139,7 +139,7 @@ void SPIRIT_IP_MR_V3_PitchCorrelationFiltered(float* out, const float* excitatio
         }
 
         if (energy != 0.0f) {
-            cross = cross * _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(energy)));
+            cross = cross * Spirit::PitchInverseRoot(energy);
         }
 
         out[lag] = cross;
@@ -168,7 +168,7 @@ void SPIRIT_IP_MR_V3_PitchCorrelationNormalized(int16_t first, const float* exci
         if (energy == 0.0f) {
             out[lag] = cross;
         } else {
-            out[lag] = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(energy))) * cross;
+            out[lag] = Spirit::PitchInverseRoot(energy) * cross;
         }
 
         if (lag != last) {
@@ -365,8 +365,10 @@ void SPIRIT_IP_MR_V3_SearchClosedLoopPitch(int16_t open, int16_t* previous, SPIR
         }
     }
 
-    float buffer[40];
-    float* correlation = &buffer[-(low - 4)];
+    // Index by actual lag, including four interpolation taps at either end.
+    // The x86 stack-address trick formed a pointer before its array even when
+    // the later indexed accesses landed in storage; that is undefined C++.
+    float correlation[148];
 
     if (h) {
         SPIRIT_IP_MR_V3_PitchCorrelationFiltered(correlation, excitation, target, h, low - 4, high + 4);

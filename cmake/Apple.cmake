@@ -321,6 +321,12 @@ add_library(AppleComSatNetwork STATIC
     Engine/Source/ComSat/ComSatHash.cpp
     Engine/Source/ComSat/ComSatBitPacker.cpp)
 target_include_directories(AppleComSatNetwork PUBLIC ${CMAKE_SOURCE_DIR})
+file(GLOB APPLE_COMSAT_CODEC_SOURCES CONFIGURE_DEPENDS Engine/Source/ComSat/SPIRIT/*.cpp)
+add_library(AppleComSatCodec STATIC ${APPLE_COMSAT_CODEC_SOURCES}
+    Engine/Source/ComSat/ComSatSoundCODEC.cpp
+    Engine/Source/ComSat/ComSatSoundLevelCalculator.cpp)
+target_include_directories(AppleComSatCodec PUBLIC ${CMAKE_SOURCE_DIR})
+target_link_libraries(AppleComSatCodec PUBLIC AppleComSatNetwork)
 add_library(AppleVideoOptions STATIC WoW/Source/Ui/VideoOptions_Scripts.cpp WoW/Source/Ui/Screen.cpp)
 target_link_libraries(AppleVideoOptions PUBLIC Frame ConsoleBase Gx)
 add_library(AppleConsole STATIC WoW/Source/Console/ConsoleClient.cpp WoW/Source/Console/ConsoleClient_Console.cpp)
@@ -487,7 +493,8 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/DiagnosticsProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/StormRuntimeProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/PatchFilesProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ComSatProbe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC AppleComSatNetwork)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ComSatCodecProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC AppleComSatCodec)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 set_target_properties(AppleProbeCore PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)

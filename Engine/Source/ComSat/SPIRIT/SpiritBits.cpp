@@ -1,5 +1,6 @@
 #include <cstdint>
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
+#include "Engine/Source/ComSat/SPIRIT/SpiritStream.h"
 
 extern "C" {
 
@@ -60,8 +61,11 @@ const uint32_t s_ipmrTableB23628[33] = {
 // VERIFY: 0f7acabc manual
 // OFFSET: 0x008998E0
 int32_t SPIRIT_IP_MR_V3_GetBits(SPIRIT_IPMR_STREAM* stream, int16_t count) {
+    Spirit::RequireBits(stream, count);
+    if (count > 32) throw Spirit::InvalidStream{};
+    if (!count) return 0;
     int32_t result = 0;
-    int16_t index = static_cast<int16_t>(stream->m_bits) >> 3;
+    uint32_t index = stream->m_bits >> 3;
     int32_t shift = static_cast<int32_t>(stream->m_bits) % 8;
     int16_t remaining = count;
     int16_t bits = 8 - shift < count ? static_cast<int16_t>(8 - shift) : count;
@@ -71,7 +75,7 @@ int32_t SPIRIT_IP_MR_V3_GetBits(SPIRIT_IPMR_STREAM* stream, int16_t count) {
         uint32_t value = stream->m_data[index];
         stream->m_bits += bits;
         remaining -= bits;
-        result |= ((value >> shift) & ((1 << bits) - 1)) << position;
+        result |= ((value >> shift) & ((1u << bits) - 1)) << position;
 
         if (remaining <= 0) {
             break;

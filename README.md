@@ -1031,9 +1031,22 @@ loopback checks on Mac ASan/UBSan and iOS cover exact signed packet bytes,
 input, shared endpoints and repeated destruction. The receive-capacity reset,
 extra packet consumption and exact-byte bit cursor/spill defects were confirmed
 in the original 3.3.5a binary too; their corrections preserve the protocol format
-but intentionally differ from those original defects. This is network support;
-the voice codec, capture/playback integration and full voice interface remain
-pending. Checks use synthetic local packets and never record microphone input.
+but intentionally differ from those original defects. Checks wait for actual
+UDP batches before asserting a deterministic dispatch budget.
+The shared IPMR voice codec also runs on arm64, retaining its codebooks, filters,
+variable-length frames, threshold/hangover and nearest/even PCM conversion.
+Original filter history is now one contiguous buffer, as confirmed against the
+3.3.5a stack layout; the reconstructed separate arrays caused invalid reads.
+Bitstream bounds and the five-subframe PCM budget reject malformed/truncated
+packets without publishing partial output or corrupting decoder history.
+Mac arm64 and x86 ASan/UBSan and iOS simulator checks cover synthetic signals,
+independent channels, reset/destruction and a shared x86 packet/PCM fixture.
+Decoding the same 60 x86 packets produced 48,000 identical samples on arm64.
+Encoding is not bit-identical: native scalar inverse square root can change
+pitch choices relative to SSE's estimate. This comparison uses the reconstructed
+x86 codec, not captured Windows-client audio; original-client voice quality and
+interoperability still need validation. Capture/playback integration and the
+full voice interface remain pending. Checks never record microphone input.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth
