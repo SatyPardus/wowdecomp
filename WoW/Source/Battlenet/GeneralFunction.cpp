@@ -93,7 +93,11 @@ int64_t GeneralFunction::Arg::ToInt64() const {
             return value;
         }
         case TYPE_STRING:
+#if defined(__APPLE__)
+            return std::strtoll(this->m_string, nullptr, 0);
+#else
             return _strtoi64(this->m_string, nullptr, 0);
+#endif
         default:
             return 0;
     }
@@ -120,7 +124,11 @@ uint64_t GeneralFunction::Arg::ToUInt64() const {
             return value;
         }
         case TYPE_STRING:
+#if defined(__APPLE__)
+            return std::strtoull(this->m_string, nullptr, 0);
+#else
             return _strtoui64(this->m_string, nullptr, 0);
+#endif
         default:
             return 0;
     }

@@ -192,6 +192,8 @@ add_library(AppleGameNetwork STATIC
     WoW/Source/WowServices/WDataStore.cpp
     Engine/Source/Storm/Source/SArc4.cpp)
 target_link_libraries(AppleGameNetwork PUBLIC AppleGameResources)
+add_subdirectory(WoW/Source/Battlenet)
+target_link_libraries(Battlenet PUBLIC AppleFoundation)
 add_library(AppleGameLogin STATIC
     Engine/Source/Os/Apple/LoginPlatform.cpp
     Engine/Source/Storm/Source/SBig.cpp
@@ -200,8 +202,9 @@ add_library(AppleGameLogin STATIC
     WoW/Source/WowServices/SRP6_Random.cpp
     WoW/Source/WowServices/Grunt.cpp
     WoW/Source/WowServices/Login.cpp
-    WoW/Source/WowServices/GruntLogin.cpp)
-target_link_libraries(AppleGameLogin PUBLIC AppleGameNetwork "-framework Security")
+    WoW/Source/WowServices/GruntLogin.cpp
+    WoW/Source/WowServices/BattlenetLogin.cpp)
+target_link_libraries(AppleGameLogin PUBLIC AppleGameNetwork Battlenet "-framework Security")
 add_library(AppleLoginProbeCore STATIC Tools/AppleBootstrap/LoginProbe.cpp)
 target_link_libraries(AppleLoginProbeCore PUBLIC AppleGameLogin)
 add_library(AppleNetworkProbeCore STATIC Tools/AppleBootstrap/NetworkProbe.cpp)
@@ -448,6 +451,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/URLDownloadProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CommandLineProbe.cpp Tools/AppleBootstrap/VersionInfoProbe.mm)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/MovieProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProcessProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/BattlenetProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames AppleKnowledgeBase)

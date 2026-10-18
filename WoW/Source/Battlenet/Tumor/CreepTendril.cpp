@@ -1,6 +1,11 @@
 #include "WoW/Source/Battlenet/Tumor/CreepTendril.h"
 #include <cstring>
+#if defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#define _alloca alloca
+#endif
 #include <new>
 #include "Engine/Source/Storm/H/storm.h"
 

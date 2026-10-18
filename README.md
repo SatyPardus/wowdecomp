@@ -939,6 +939,13 @@ The original `Magic`, `WoWCommon`, `ObjectMgrClient` and `Minigame` libraries
 also compile for all three targets, retaining spell logic/visual dispatch and
 object-create/mirror messages. A combined Glue/client link still has missing
 platform, Battle.net, voice, external LCD and verification/scan dependencies.
+The original Battle.net shared protocol, callback/argument layer, module manager
+and login class now compile for Apple. Module loading uses native `.dylib` images
+and named exports with balanced ownership; Windows ordinal exports fail explicitly.
+Mac sanitizer and simulator checks exercise exact BSN bit/address bytes, native
+protocol field/array/UTF-8/optional adapters and 64-bit arguments/reference counts.
+The external Battle.net authentication component is still unavailable; this does
+not establish Battle.net login or replace its security checks.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 
