@@ -22,6 +22,11 @@ IOPosixFileUnit* IOPosixFileUnit::Open(const char* path, int flags) {
     if (descriptor == -1) {
         return nullptr;
     }
+    return AdoptDescriptor(descriptor);
+}
+
+IOPosixFileUnit* IOPosixFileUnit::AdoptDescriptor(int descriptor) {
+    if (descriptor < 0) { errno = EBADF; return nullptr; }
     bool ownsMemory;
     void* memory = IOUnitContainer::Alloc(nullptr, sizeof(IOPosixFileUnit), &ownsMemory);
     if (!memory) {

@@ -23,6 +23,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Diagnostics.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Sync.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/SProcess.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/IOFileUnit.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/IOUnit/IOFileUnit.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/soprintf.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Lock/Apple/Lock.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Thread/Apple/Thread.cpp
@@ -331,6 +333,7 @@ add_library(AppleSessionServices STATIC
     WoW/Source/WowServices/Apple/ClientCache.mm
     WoW/Source/WowSvcs/WowSvcsClient/AccountData.cpp
     WoW/Source/WowSvcs/WowSvcsClient/AccountData_CVar.cpp
+    WoW/Source/WowSvcs/WowSvcsClient/GruntFileDownload.cpp
     WoW/Source/Game/GameClient/WardenCache.cpp
     WoW/Source/Game/GameClient/NameCache.cpp
     WoW/Source/Game/GameClient/PetNameCache.cpp
@@ -452,6 +455,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CommandLineProbe.cpp 
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/MovieProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProcessProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/BattlenetProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/FileDownloadProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames AppleKnowledgeBase)

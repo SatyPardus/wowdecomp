@@ -9,6 +9,8 @@ class IOPosixFileUnit final : public IOUnit {
 public:
     static IOPosixFileUnit* OpenRead(const char* path);
     static IOPosixFileUnit* CreateWritable(const char* path);
+    // Takes ownership even when allocation fails; the caller must not close it.
+    static IOPosixFileUnit* AdoptDescriptor(int descriptor);
 
     uint32_t GetType() override;
     bool Read(void* buffer, int64_t offset, uint32_t count, uint32_t* bytesRead) override;

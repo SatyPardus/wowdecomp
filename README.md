@@ -174,6 +174,18 @@ native spawn; invalid executables are never retried as shell commands. There is
 no Win32 GUI input-idle handshake. iOS reports `ENOTSUP`, including Simulator.
 This does not provide native replacements for Launcher.exe or WowError.exe.
 
+The separate Storm file interface used by patch downloads now uses native
+positional IO, preserving creation/access modes, short/exact reads, logical
+resize, refcount cleanup and offsets beyond 4 GiB. Uncached and write-through
+requests use native flags; overlapped IO and Windows handles fail explicitly.
+Windows share-denial remains unsupported. The original Grunt file-download
+methods are shared unchanged with Windows in their own compilation unit.
+Mac sanitizer and iOS simulator checks cover stop/resume from a saved header,
+independent MD5 accept/reject, exact completed bytes, header removal/rename and
+cancellation in temporary storage. This does not run a patch executable or make
+the full updater available; the original download hash routine still has 32-bit
+range arithmetic even though its native IO backend supports larger offsets.
+
 The original `WowConnection` framing, directional header/opcode encryption,
 send queues, stream callbacks and worker dispatch now run over native Apple
 nonblocking IPv4 sockets and a waking `poll` loop. `AppleNetworkProbe` uses only

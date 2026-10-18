@@ -3,6 +3,7 @@ if (APPLE)
     # Native session services own these shared implementations.
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/AccountData(_CVar)?\\.cpp$")
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/ClientConnectionState\\.cpp$")
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/GruntFileDownload\\.cpp$")
 endif ()
 
 add_library(WowSvcs STATIC
