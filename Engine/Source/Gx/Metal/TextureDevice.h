@@ -25,7 +25,7 @@ struct FixedUnlitVertexParameters {
 };
 struct FixedUnlitFragmentParameters {
     simd_float4 fogColor, decodeScale[4];
-    float alphaRef, padding[3]{};
+    float alphaRef, depthOffset = 0, padding[2]{};
 };
 static_assert(sizeof(FixedUnlitVertexParameters) == 336 && sizeof(FixedUnlitFragmentParameters) == 96,
               "Native fixed-function constant layout");
@@ -215,7 +215,7 @@ struct GeometryDraw {
     FogEffectParameters fogEffect{};
     bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
-    float depthOffset = 0; // normalized post-raster depth offset (water ripples)
+    float depthOffset = 0; // normalized post-raster depth offset (fixed unlit / water ripples)
     bool depthTest = false, depthWrite = false;
     uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
     uint32_t culling = 0; // Gx: none, clockwise, counterclockwise

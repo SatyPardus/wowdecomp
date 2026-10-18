@@ -530,7 +530,7 @@ independence and clip boundaries. Original ripple/wake creation queries real
 Elwynn MH2O triangles and renders both original textures through the world batch
 routine, including growth, fading, expiry and recreation. Local projection
 matrices no longer read the unused UI camera. This is a focused world integration;
-unit-driven ripple spawning and polygon offset for other effects remain pending.
+unit-driven ripple spawning and polygon offset for programmable effects other than water ripples remain pending.
 
 Original `Model2.wfx` projected materials now use native view-space projection
 for both texture coordinates, with the authored ModMod/ModAdd color and alpha
@@ -930,9 +930,13 @@ The native fixed-function unlit path supports zero to four contiguous texture
 stages, all six original Gx RGB/alpha operations independently, per-stage
 saturation, UV set selection, affine/projective texture transforms, vertex or
 material color, linear vertex fog and independent alpha testing. It uses typed
-Metal constants and function specialization. Forty-seven numerical draws cover
-stage order, disabled cascades, all RGB/alpha pairs, transforms, fog interpolation
-and alpha boundaries on Mac and iOS simulator. SM3 terrain/model/world shaders
+Metal constants and function specialization. Polygon offset keeps the original
+normalized depth adjustment after clipping and viewport mapping, using a separate
+fragment-depth variant only when enabled. Seventy-six numerical draws cover stage
+order, disabled cascades, all RGB/alpha pairs, transforms, fog interpolation,
+alpha boundaries, signed offsets, depth write/compare, clamping, clip boundaries
+and consecutive state restoration. `WOW_METAL_CHECK=fixed` runs these checks and
+the existing water-ripple regression. SM3 terrain/model/world shaders
 keep their own fog even when the retained Gx fog-enable state is set, as required
 by the original profile. Lighting, generated fixed-function coordinates and
 mixed programmable/fixed-function pairs still fail explicitly.

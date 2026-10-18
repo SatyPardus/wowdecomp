@@ -19,8 +19,8 @@ struct FixedUnlitVertexParameters {
 };
 struct FixedUnlitFragmentParameters {
     float4 fogColor, decodeScale[4];
-    float alphaRef;
-    float padding[3];
+    float alphaRef, depthOffset;
+    float padding[2];
 };
 struct FixedUnlitVertex {
     float3 position [[attribute(0)]];
@@ -70,11 +70,11 @@ inline float4 fixedStage(uint stage, float4 texel, float4 current, float diffuse
     return saturate(float4(fixedOperation((fixedColorOps >> (stage * 3)) & 7, texel, current, diffuseAlpha).rgb,
                            fixedOperation((fixedAlphaOps >> (stage * 3)) & 7, texel, current, diffuseAlpha).a));
 }
-fragment float4 fixedUnlitFragment(FixedUnlitRaster v [[stage_in]], constant FixedUnlitFragmentParameters& p [[buffer(0)]],
-    texture2d<float> image0 [[texture(0), function_constant(fixedTexture0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
-    texture2d<float> image1 [[texture(1), function_constant(fixedTexture1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
-    texture2d<float> image2 [[texture(2), function_constant(fixedTexture2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
-    texture2d<float> image3 [[texture(3), function_constant(fixedTexture3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]]) {
+inline float4 fixedUnlitColor(FixedUnlitRaster v, constant FixedUnlitFragmentParameters& p,
+    texture2d<float> image0, sampler sampling0,
+    texture2d<float> image1, sampler sampling1,
+    texture2d<float> image2, sampler sampling2,
+    texture2d<float> image3, sampler sampling3) {
     float4 color = v.color;
     if (fixedTexture0) color = fixedStage(0, decoded(image0.sample(sampling0, v.uv0.xy / v.uv0.z), p.decodeScale[0]), color, v.color.a);
     if (fixedTexture1) color = fixedStage(1, decoded(image1.sample(sampling1, v.uv1.xy / v.uv1.z), p.decodeScale[1]), color, v.color.a);
@@ -83,4 +83,26 @@ fragment float4 fixedUnlitFragment(FixedUnlitRaster v [[stage_in]], constant Fix
     if (alphaTest && color.a < p.alphaRef) discard_fragment();
     if (fixedFog) color.rgb = mix(p.fogColor.rgb, color.rgb, v.fog);
     return color;
+}
+
+fragment float4 fixedUnlitFragment(FixedUnlitRaster v [[stage_in]], constant FixedUnlitFragmentParameters& p [[buffer(0)]],
+    texture2d<float> image0 [[texture(0), function_constant(fixedTexture0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
+    texture2d<float> image1 [[texture(1), function_constant(fixedTexture1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
+    texture2d<float> image2 [[texture(2), function_constant(fixedTexture2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
+    texture2d<float> image3 [[texture(3), function_constant(fixedTexture3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]]) {
+    return fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3);
+}
+
+struct BiasedFixedUnlit {
+    float4 color [[color(0)]];
+    float depth [[depth(any)]];
+};
+fragment BiasedFixedUnlit fixedUnlitBiasedFragment(FixedUnlitRaster v [[stage_in]], constant FixedUnlitFragmentParameters& p [[buffer(0)]],
+    texture2d<float> image0 [[texture(0), function_constant(fixedTexture0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
+    texture2d<float> image1 [[texture(1), function_constant(fixedTexture1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
+    texture2d<float> image2 [[texture(2), function_constant(fixedTexture2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
+    texture2d<float> image3 [[texture(3), function_constant(fixedTexture3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]]) {
+    // Keep the D3D9 normalized offset after clipping and viewport mapping.
+    // Metal's raster bias depends on the depth format and primitive exponent.
+    return {fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3), saturate(v.position.z + p.depthOffset)};
 }

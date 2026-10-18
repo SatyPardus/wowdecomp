@@ -545,7 +545,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&uv1 type:MTLDataTypeBool atIndex:32];
         NSError* error = nil;
         descriptor.vertexFunction = [m_library newFunctionWithName:@"fixedUnlitVertex" constantValues:constants error:&error];
-        descriptor.fragmentFunction = [m_library newFunctionWithName:@"fixedUnlitFragment" constantValues:constants error:&error];
+        descriptor.fragmentFunction = [m_library newFunctionWithName:depthOffset ? @"fixedUnlitBiasedFragment" : @"fixedUnlitFragment" constantValues:constants error:&error];
         if (!descriptor.vertexFunction || !descriptor.fragmentFunction)
             throw std::runtime_error(error.localizedDescription.UTF8String ?: "Unlit fixed-function specialization failed");
         if (uv1) {

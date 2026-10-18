@@ -1133,7 +1133,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         unsupportedState("Fixed-function fog is not implemented");
     if (integer(GxRs_ClipPlaneMask)) unsupportedState("User clip planes are not implemented");
     if (integer(GxRs_PointSprite)) unsupportedState("Point sprites are not implemented");
-    if (!ripple && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
+    if (!ripple && !fixed && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
         unsupportedState("Depth bias is not implemented");
     if (!MasterEnable(GxMasterEnable_PolygonFill)) unsupportedState("Wireframe is not implemented");
     Require(postProcess || (m_primVertexFormat < GxVertexBufferFormats_Last && GxVertexSize(m_primVertexFormat) == vertices->m_itemSize),
@@ -1157,6 +1157,11 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         draw.indices = indexBinding.buffer; draw.indexOffset = indexBinding.offset;
     }
     draw.format = netherBlur ? GxVBF_PCT : m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
+    if (fixed || ripple) {
+        const float offset = m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0];
+        Require(std::isfinite(offset), "Invalid normalized depth offset");
+        draw.depthOffset = batch->m_primType >= GxPrim_Triangles ? -offset : 0;
+    }
     if (fixed) {
         Require(!integer(GxRs_Lighting), "Lit fixed-function materials are not implemented");
         Require(inputs <= 4, "Unlit fixed-function texture stage limit exceeded");
@@ -1214,9 +1219,6 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         draw.clipFromModel = world.m_mtx[world.m_level] * view.m_mtx[view.m_level] * m_projNative;
     } else if (ripple) {
         std::memcpy(&draw.clipFromModel, s_shadowConstants[1].constants, sizeof(C44Matrix));
-        const float offset = m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0];
-        Require(std::isfinite(offset), "Invalid water-ripple depth offset");
-        draw.depthOffset = batch->m_primType >= GxPrim_Triangles ? -offset : 0;
     } else if (detail) {
         auto& native = detailParameters.emplace(); draw.detail = &native;
         native.pointLights = m->shaders.at(vertex).permutation == 3;

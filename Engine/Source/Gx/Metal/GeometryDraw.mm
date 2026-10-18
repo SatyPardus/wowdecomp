@@ -251,6 +251,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     if (geometry.fixed) {
         FixedUnlitFragmentParameters material = geometry.fixed->fragment;
         material.alphaRef = state.alphaRef / 255.0f;
+        material.depthOffset = geometry.depthOffset;
         for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
     } else if (geometry.effect == FragmentEffect::WaterRipple) {
