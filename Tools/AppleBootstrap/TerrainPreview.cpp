@@ -1,5 +1,9 @@
 #include "Tools/AppleBootstrap/TerrainPreview.h"
 #include "Tools/AppleBootstrap/TerrainLiquidPreview.h"
+#include "Tools/AppleBootstrap/DayNightPreview.h"
+#include "WoW/Source/WorldClient/DayNight__DNInfo.h"
+#include "Engine/Source/Model2/M2Light.h"
+#include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -37,7 +41,7 @@ void CloseTexture(CTexture*& texture) {
 }
 }
 
-TerrainPreview::TerrainPreview(const std::string& selection) {
+TerrainPreview::TerrainPreview(const std::string& selection, bool authoredLighting) {
     try {
         const auto a = selection.find(':'), b = selection.find(':', a == std::string::npos ? 0 : a+1);
         if (a == std::string::npos || b == std::string::npos || selection.find(':', b+1) != std::string::npos)
@@ -125,15 +129,21 @@ TerrainPreview::TerrainPreview(const std::string& selection) {
         GxBufData(m_vertices, vertices.data(), uint32_t(vertices.size()*sizeof(vertices[0])), 0);
         GxBufData(m_indices, indices.data(), uint32_t(indices.size()*sizeof(indices[0])), 0);
         m_liquid = std::make_unique<TerrainLiquidPreview>(adt, m_surface, x, y, m_radius, map);
+        if (authoredLighting) m_dayNight = std::make_unique<DayNightPreview>(map);
         std::fprintf(stderr, "Terrain surface %s: %zu chunks (%u cube reflection), %u triangles, %zu materials, %s alpha, specular textures enabled\n",
             selection.c_str(), m_chunks.size(), m_environmentChunks, m_triangles, size_t(std::count(needed.begin(), needed.end(), true)), m_surface.bigAlpha ? "8-bit" : "4-bit");
     } catch (...) { Shutdown(); throw; }
 }
 TerrainPreview::~TerrainPreview() { Shutdown(); }
+void TerrainPreview::SetTime(float minutes) {
+    if (!m_dayNight) throw std::logic_error("Terrain time requires authored DayNight lighting");
+    m_dayNight->SetTime(minutes);
+}
 size_t TerrainPreview::LiquidLayerCount() const { return m_liquid ? m_liquid->LayerCount() : 0; }
 size_t TerrainPreview::LiquidBatchCount() const { return m_liquid ? m_liquid->BatchCount() : 0; }
 void TerrainPreview::Shutdown() {
     m_liquid.reset();
+    m_dayNight.reset();
     auto& device = *g_theGxDevicePtr;
     for (auto& chunk : m_chunks) CloseTexture(chunk.texture);
     for (auto& texture : m_textures) CloseTexture(texture);
@@ -166,7 +176,10 @@ bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height,
     }
     std::array<std::array<float, 4>, 37> c{};
     C44Matrix view = C44Matrix::RotationAroundZ(-0.2f+m_rotation) * C44Matrix::RotationAroundX(2.5f);
-    view.Translate(m_center*-1.0f); view.d2 += 2*m_radius;
+    view.Translate(m_center*-1.0f);
+    // Keep the authored-lighting overview inside the map's real fog range.
+    // The camera remains outside the bounding sphere; fog data is unchanged.
+    view.d2 += (m_dayNight ? 1.1f : 2.0f)*m_radius;
     C44Matrix projection(1);
     const float aspect = (fullViewport ? float(width) : width*0.48f) / (fullViewport ? float(height) : height*0.72f);
     projection.a0 = 0.95f/m_radius; projection.b1 = 0.95f/m_radius; projection.c2 = 1/(4*m_radius); projection.d2 = 0;
@@ -180,7 +193,28 @@ bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height,
     c[24] = {sun.x, sun.y, sun.z, 1}; c[25] = {0.3f, 0.3f, 0.35f, 1}; c[26] = {0.7f, 0.65f, 0.6f, 1}; c[27] = {0.35f, 0.35f, 0.3f, 20};
     // Explicit preview atmosphere, not a substitute for World DayNight data.
     c[12] = {-1/(4*m_radius), 1.4f, 1, 0};
-    const float fog[] = {0.12f, 0.14f, 0.18f, 1}; GxShaderConstantsSet(GxSh_Pixel, 2, fog, 1);
+    std::array<float,4> fog{0.12f, 0.14f, 0.18f, 1};
+    if (m_dayNight) {
+        const auto camera = view.AffineInverse();
+        m_dayNight->Update(elapsedSeconds, m_center, C3Vector(camera.d0, camera.d1, camera.d2),
+                           C3Vector(view.a2, view.b2, view.c2), 4*m_radius);
+        const auto& info = *DayNight::GetInfo();
+        CM2Lighting lighting(C3Vector(0,0,0));
+        lighting.AddAmbient(C3Vector(info.m_light1.m_ambient));
+        lighting.AddDiffuse(C3Vector(info.m_light1.m_diffuse), info.m_light1.m_dir);
+        lighting.m_sunSpecular = C3Vector(info.m_bands.m_sunCloudColors[0]);
+        C3Vector direction, ambient, diffuse, specular;
+        lighting.GetSunLight(direction, ambient, diffuse, specular);
+        direction = TransformDirection(-direction, view);
+        c[24] = {direction.x,direction.y,direction.z,1};
+        c[25] = {ambient.x,ambient.y,ambient.z,1}; c[26] = {diffuse.x,diffuse.y,diffuse.z,1};
+        c[27] = {specular.x,specular.y,specular.z,20};
+        const float range = 1/(info.m_fog.m_end-info.m_fog.m_start);
+        c[12] = {-CShaderEffect::s_fogMul*range, info.m_fog.m_end*range, info.m_fog.m_density, 0};
+        const C3Vector color(info.m_fog.m_color); fog = {color.x,color.y,color.z,1};
+        if (m_liquid) m_liquid->UseDayNightLighting();
+    }
+    GxShaderConstantsSet(GxSh_Pixel, 2, fog.data(), 1);
     GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Culling, 0); GxRsSet(GxRs_DepthTest, 1); GxRsSet(GxRs_DepthWrite, 1); GxRsSet(GxRs_DepthFunc, 0);
     GxRsSet(GxRs_BlendingMode, GxBlend_Opaque); GxRsSet(GxRs_AlphaRef, 0); GxRsSet(GxRs_ColorWrite, 15);
     GxRsSet(GxRs_ScissorTest, 0); GxRsSet(GxRs_ClipPlaneMask, 0); GxRsSet(GxRs_PointSprite, 0); GxRsSet(GxRs_PolygonOffset, 0);

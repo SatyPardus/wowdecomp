@@ -7,21 +7,24 @@
 #include <memory>
 class CTexture;
 class TerrainLiquidPreview;
+class DayNightPreview;
 struct CGxBuf;
 struct CGxPool;
 class CGxShader;
 
 // A complete ADT surface, using shared original geometry/alpha generation and
 // Services texture ownership, plus original MH2O/MCLQ liquids. World objects and
-// day/night selection are not supplied; camera and lighting are explicit inputs.
+// placement are not supplied. Authored lighting uses the original DayNight core;
+// numeric probes can retain explicit lighting inputs.
 class TerrainPreview {
 public:
-    explicit TerrainPreview(const std::string& selection); // Map:tileX:tileY
+    explicit TerrainPreview(const std::string& selection, bool authoredLighting = false); // Map:tileX:tileY
     ~TerrainPreview();
     TerrainPreview(const TerrainPreview&) = delete;
     TerrainPreview& operator=(const TerrainPreview&) = delete;
     bool Ready(bool wait = false);
     bool Draw(float elapsedSeconds, uint32_t width, uint32_t height, bool fullViewport = false, bool liquidOnly = false);
+    void SetTime(float minutes);
     size_t LiquidLayerCount() const;
     size_t LiquidBatchCount() const;
     size_t ChunkCount() const { return m_chunks.size(); }
@@ -36,6 +39,7 @@ private:
         uint32_t vertexPermutation = 0, pixelPermutation = 0;
     };
     void Shutdown();
+    std::unique_ptr<DayNightPreview> m_dayNight;
     std::unique_ptr<TerrainLiquidPreview> m_liquid;
     Terrain::Surface m_surface;
     std::vector<Chunk> m_chunks;

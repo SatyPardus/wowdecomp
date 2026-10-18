@@ -1,4 +1,5 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "Tools/AppleBootstrap/TerrainPreview.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "Engine/Source/Model2/M2Model.h"
@@ -381,4 +382,69 @@ void CheckDayNightMap(unsigned cycle) {
                      map, cycle, DayNight::g_areaLights.Count(), skyLight, skies);
     }
     CheckFogInputs();
+}
+
+void CheckDayNightTerrain() {
+    auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:256 height:256 mipmapped:NO];
+    descriptor.usage = MTLTextureUsageRenderTarget;
+    descriptor.storageMode = MTLStorageModePrivate;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
+    descriptor.pixelFormat = MTLPixelFormatDepth32Float;
+    pass.depthAttachment.texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.depthAttachment.loadAction = MTLLoadActionClear;
+    pass.depthAttachment.clearDepth = 1;
+    for (unsigned cycle = 0; cycle < 2; ++cycle)
+        for (const char* selection : {"Azeroth:32:48", "Northrend:32:21"}) {
+            TerrainPreview terrain(selection, true);
+            Require(terrain.Ready(true), "Authored DayNight terrain did not load");
+            TSGrowableArray<CImVector> previous;
+            unsigned frame = 0;
+            for (float minutes : {0.0f, 720.0f, 720.0f}) {
+                terrain.SetTime(minutes);
+                device.BeginFrame(pass);
+                struct End {
+                    CGxDeviceMetal& device;
+                    ~End() {
+                        if (device.FrameCommand())
+                            device.ScenePresent();
+                    }
+                } end{device};
+                const auto before = device.EncodingStats();
+                Require(terrain.Draw(0, 256, 256, true), "Terrain DayNight drawing failed");
+                const auto after = device.EncodingStats();
+                TSGrowableArray<CImVector> pixels;
+                CiRect rect(0, 0, 256, 256);
+                device.DeviceReadPixels(rect, pixels);
+                unsigned covered = 0, changed = 0, varied = 0;
+                const CImVector* sample = nullptr;
+                for (unsigned i = 0; i < pixels.Count(); ++i) {
+                    covered += pixels[i].a != 0;
+                    if (pixels[i].a) {
+                        if (!sample) sample = &pixels[i];
+                        varied += pixels[i].r != sample->r || pixels[i].g != sample->g || pixels[i].b != sample->b;
+                    }
+                    if (frame)
+                        changed += std::memcmp(&previous[i], &pixels[i], sizeof(CImVector)) != 0;
+                }
+                Require(covered > 10000 && after.geometryDraws - before.geometryDraws == 256 + terrain.LiquidBatchCount(),
+                        "DayNight terrain omitted surface or liquid batches");
+                Require(frame != 1 || changed > 1024, "Authored daylight did not affect rendered terrain");
+                Require(varied > 1024, "DayNight overview obscured all terrain detail");
+                Require(frame != 2 || terrain.LiquidLayerCount() || !changed, "Stationary DayNight surface changed");
+                std::fprintf(stderr,
+                             "DayNight terrain %s cycle %u at %.0f minutes: %u covered / %u varied / %u changed pixels, %llu draws / %llu passes\n",
+                             selection, cycle, minutes, covered, varied, changed,
+                             static_cast<unsigned long long>(after.geometryDraws - before.geometryDraws),
+                             static_cast<unsigned long long>(after.renderPasses - before.renderPasses));
+                previous.SetCount(pixels.Count());
+                std::memcpy(previous.m_data, pixels.m_data, pixels.Count() * sizeof(CImVector));
+                device.ScenePresent();
+                AsyncFileReadWaitAll();
+                ++frame;
+            }
+        }
 }

@@ -13,11 +13,44 @@
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/Os/Input.h"
 #include "Engine/Source/Os/Apple/Input.h"
+#include "Engine/Source/ConsoleBase/ConsoleVar.h"
+#include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include <cstring>
 #include <memory>
 #include <stdexcept>
 
 namespace {
+class GameConfig {
+public:
+    GameConfig() {
+        if (CVar::m_initialized) throw std::logic_error("A game configuration already owns the native host");
+        NSError* error = nil;
+        NSURL* root = [NSFileManager.defaultManager URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask
+                                                  appropriateForURL:nil create:YES error:&error];
+        if (!root) throw std::runtime_error("Cannot locate writable application settings");
+        NSURL* file = [[root URLByAppendingPathComponent:@"wowdecomp" isDirectory:YES] URLByAppendingPathComponent:@"Config.wtf"];
+        CVar::Initialize(file.path.fileSystemRepresentation);
+        // Initialize has no load status. Before registering callbacks, repeat
+        // the SET-only load with its checked API so failures remain visible.
+        if ([NSFileManager.defaultManager fileExistsAtPath:file.path] && !CVar::Load(file.path.fileSystemRepresentation)) {
+            CVar::m_needsSave = false; // Do not overwrite an unreadable configuration with a partial load.
+            Shutdown();
+            throw std::runtime_error("Cannot load native Config.wtf");
+        }
+    }
+    ~GameConfig() { Shutdown(); }
+    void Save() {
+        if (!CVar::SaveAll()) NSLog(@"Cannot save native Config.wtf: %s", CVar::s_configFile);
+    }
+private:
+    static void Shutdown() {
+        CVar::Destroy();
+        ConsoleCommandDestroy();
+        CStringManager::DestroyManager();
+        CVar::s_configFile = nullptr;
+    }
+};
+
 class GameEvents {
     static GameEvents* s_current;
     void (*m_paint)(void*, float);
@@ -124,6 +157,7 @@ public:
 
 @implementation WowTextureRenderer {
     std::unique_ptr<CGxDeviceMetal> _device;
+    std::unique_ptr<GameConfig> _config;
     // Texture handles and fonts die before Services; Services dies before Gx.
     std::unique_ptr<GameEvents> _events;
     std::unique_ptr<GameAudioPreview> _audio;
@@ -166,6 +200,7 @@ public:
         view.framebufferOnly = NO; // Gx screenshot / framebuffer copy source.
         view.clearColor = MTLClearColorMake(0.12, 0.14, 0.18, 1);
         view.paused = YES; view.enableSetNeedsDisplay = NO; view.delegate = self;
+        _config = std::make_unique<GameConfig>();
         _events = std::make_unique<GameEvents>([](void* owner, float elapsed) {
             [(__bridge WowTextureRenderer*)owner renderGameFrame:elapsed];
         }, (__bridge void*)self);
@@ -189,6 +224,7 @@ public:
     OsQueuePut(OS_INPUT_FOCUS, 0, 0, 0, 0);
     EventProcessPending();
     _device->Drain();
+    if (_config) _config->Save();
 }
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
     OsInputSetDrawableSize(uint32_t(size.width), uint32_t(size.height));
@@ -228,7 +264,14 @@ public:
         if (terrain && !_terrain) {
             if (NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
                 throw std::runtime_error("WOW_TERRAIN cannot be combined with WOW_MODEL or WOW_CREATURE_DISPLAY");
-            _terrain = std::make_unique<TerrainPreview>(terrain.UTF8String);
+            _terrain = std::make_unique<TerrainPreview>(terrain.UTF8String, true);
+            NSString* time = NSProcessInfo.processInfo.environment[@"WOW_TIME_MINUTES"];
+            if (time) {
+                NSScanner* scanner = [NSScanner scannerWithString:time];
+                double minutes;
+                if (![scanner scanDouble:&minutes] || !scanner.isAtEnd) throw std::runtime_error("WOW_TIME_MINUTES must be a number");
+                _terrain->SetTime(float(minutes));
+            }
         }
         if (!terrain && !wmo && !_model) {
             NSString* name = NSProcessInfo.processInfo.environment[@"WOW_MODEL"];

@@ -17,6 +17,7 @@ class TerrainLiquidPreview {
     bool Ready(bool wait);
     void Prepare();
     void Draw(const C3Vector &camera);
+    void UseDayNightLighting();
     size_t LayerCount() const;
     size_t BatchCount() const;
 

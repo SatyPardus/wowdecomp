@@ -193,6 +193,11 @@ TerrainLiquidPreview::TerrainLiquidPreview(const std::vector<uint8_t> &adt, cons
                  m->chunks.size() - legacyLayers, legacyLayers, m->instances.size());
 }
 TerrainLiquidPreview::~TerrainLiquidPreview() = default;
+void TerrainLiquidPreview::UseDayNightLighting() {
+    const auto& info = *DayNight::GetInfo();
+    m->light.m_light.SetDirection(info.m_light1.m_dir);
+    m->light.m_light.m_specColor = C3Vector(info.m_bands.m_sunCloudColors[0]);
+}
 bool TerrainLiquidPreview::Ready(bool wait) {
     bool ready = true;
     for (auto *instance : m->instances)

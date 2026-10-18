@@ -447,7 +447,7 @@ wrapping clock delta, preserving future starts, reverse playback and integer
 precision; unsigned float conversion previously triggered UB for these skies.
 The model cache follows the application's teardown order before a new world
 starts, since world destruction also frees shader effects. Complete procedural
-sky/cloud/planet rendering, world camera fog queries and terrain DayNight binding remain pending.
+sky/cloud/planet rendering and world camera fog queries remain pending.
 Mac ASan/UBSan and Metal validation, both iOS target builds, and simulator GPU
 checks followed by 120 visible terrain frames pass.
 Fog calculation now also accepts explicit camera-volume query results; the
@@ -467,8 +467,22 @@ cube reflections use the original view-transpose constants and shader selection;
 among 256 surface draws in one resident pass. Two resource lifetimes and stationary
 frames are verified by GPU readback; camera rotation changes the output without
 geometry reuploads. Mac ASan/UBSan, Metal validation, both iOS builds, and visible
-120-frame runs on Mac and iOS simulator pass. The preview supplies an orbiting camera and explicit
-lighting/fog; automatic World DayNight and WMO/doodad placement are not integrated.
+120-frame runs on Mac and iOS simulator pass. The visible terrain host now uses the
+original DayNight map-light selection, color/float bands, sunlight, fog and water
+colors, referenced at the tile center. Its clock starts at noon and advances in
+real time; `WOW_TIME_MINUTES=0` selects midnight, `720` selects noon (range 0 to
+less than 1440). The overview camera moves closer to keep terrain detail inside
+the authored fog range, without changing fog parameters. Elwynn and Crystalsong
+night/noon outputs and stationary frames pass GPU readback through two resource
+lifetimes, retaining one resident render pass. Numeric shader/geometry probes
+keep their explicit lighting inputs. This remains an outdoor ADT overview:
+world zone/interior/submersion queries, WMO/doodad placement and the visible
+procedural sky are not integrated. The host owns the original CVar lifecycle and
+uses `wowdecomp/Config.wtf` under Application Support (the app container on iOS),
+separate from Data; pending settings save on suspension and teardown. Configuration
+read failures stop the host, and suspension-time save failures are logged. Mac
+ASan/UBSan and Metal validation, both iOS builds and simulator checks pass;
+both visible hosts present 120 frames, including simulator foreground recreation.
 MH2O and MCLQ liquids now use original CChunkLiquid vertices/triangle strips, adjacent 2x2
 chunk batching, depth coordinates, original material/settings banks and animated
 MPQ textures. Elwynn's 42 layers become 19 draws; Northrend's 256 ocean layers

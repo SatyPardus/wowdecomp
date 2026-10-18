@@ -20,6 +20,7 @@
 
 void CheckDayNightData();
 void CheckDayNightMap(unsigned cycle);
+void CheckDayNightTerrain();
 
 namespace {
 void Require(bool value, const char* message) {
@@ -120,6 +121,7 @@ void CheckGameWorldLifecycle() {
         // the next constructor must not touch the destroyed Weather instance.
         Require(weatherDensity->Set("2", true, false, false, false), "Weather configuration failed between world lifetimes");
     }
+    CheckDayNightTerrain();
     std::fprintf(
         stderr,
         "World lifecycle: original initialization/destruction twice, live/detached weather callbacks and portrait notifications passed\n");
