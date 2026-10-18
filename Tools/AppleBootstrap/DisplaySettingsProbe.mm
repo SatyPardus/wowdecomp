@@ -6,7 +6,13 @@
 #include "WoW/Source/ConsoleDevice/ConsoleDetect.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Hardware.h"
+#include "WoW/Source/Ui/VideoOptions.h"
+#include "WoW/Source/Ui/Screen.h"
+#include "Engine/Source/FrameScript/FrameScript.h"
+#include "Engine/Source/lua-5.1/src/lua.h"
+#include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <stdexcept>
@@ -70,7 +76,7 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
         // The host supplies its actual native attachments. Do not rewrite the
         // DBC's D24 choice or pretend that Metal currently implements it.
         s_defaults.m_format = &active;
-        s_requestedFormat = CGxFormat();
+        s_requestedFormat = active; s_requestedFormat.m_size = {0, 0};
         CVar::Initialize(config.c_str()); RegisterGxCVars(); UpdateGxCVars();
         Require(s_requestedFormat.m_colorFormat == CGxFormat::Fmt_Argb8888 &&
             s_requestedFormat.m_depthFormat == CGxFormat::Fmt_Ds320 &&
@@ -98,6 +104,58 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
                 "Rejected format mutated the active device");
         }
         Set("gxStereoEnabled", "0"); SetGxCVars(active);
+        {
+            FrameScript_Initialize(0); CGVideoOptions::RegisterScriptFunctions();
+            struct ScriptScope { ~ScriptScope() { CGVideoOptions::UnregisterScriptFunctions(); FrameScript_Destroy(); } } scriptScope;
+            auto* lua = FrameScript_GetContext();
+            auto run = [&](const char* code) {
+                if (luaL_dostring(lua, code)) throw std::runtime_error(lua_tostring(lua, -1));
+            };
+            char expectedResolution[64];
+            std::snprintf(expectedResolution, sizeof(expectedResolution), "%dx%d", desktop.m_size.x, desktop.m_size.y);
+            lua_pushstring(lua, expectedResolution); lua_setglobal(lua, "expectedResolution");
+            lua_pushnumber(lua, desktop.m_refreshRate); lua_setglobal(lua, "expectedRefresh");
+            run("local t={[1e100]='large',[-1e100]='small',[math.huge]='inf',[-math.huge]='negative inf', "
+                "[2147483647]='max',[2147483648]='above',[-2147483648]='min',[-2147483649]='below'}; "
+                "for i=1,4096 do t[i]=i end; collectgarbage('collect'); "
+                "assert(t[1e100]=='large' and t[-1e100]=='small' and t[math.huge]=='inf' and t[-math.huge]=='negative inf'); "
+                "assert(t[2147483647]=='max' and t[2147483648]=='above' and t[-2147483648]=='min' and t[-2147483649]=='below'); "
+                "assert(not pcall(function() t[0/0]='invalid' end) and t[0/0] == nil)");
+            run("local r={GetScreenResolutions()}; assert(#r == 1 and r[1] == expectedResolution); "
+                "local hz={GetRefreshRates(1)}; assert(#hz == 1 and hz[1] == expectedRefresh); "
+                "local f={GetMultisampleFormats()}; assert(#f == 3 and f[1] == 24 and f[2] == 32 and f[3] == 1); "
+                "assert(GetCurrentMultisampleFormat() == 1 and not IsStereoVideoAvailable()); "
+                "assert(select('#', GetVideoCaps()) == 7 and IsPlayerResolutionAvailable()); "
+                "for _,i in ipairs({0,-1,2,1e100,math.huge,-math.huge,0/0}) do "
+                    "assert(not pcall(SetScreenResolution,i)); assert(not pcall(SetMultisampleFormat,i)); "
+                    "assert(select('#',GetRefreshRates(i)) == 0); "
+                "end; SetMultisampleFormat(1.75); SetScreenResolution(1.75)");
+            Require(s_requestedFormat.m_size.x == desktop.m_size.x && s_requestedFormat.m_size.y == desktop.m_size.y,
+                "Original Lua resolution selection did not update pending display settings");
+            UpdateGxCVars();
+            run("assert(GetCurrentResolution() == 1)");
+            Require(std::abs(Screen::GetAspectRatio() - float(desktop.m_size.x) / desktop.m_size.y) < .00001f,
+                "Original screen aspect did not use selected resolution");
+            Set("widescreen", "0");
+            Require(Screen::GetAspectRatio() == 4.0f / 3.0f, "Original constrained screen aspect changed");
+            run("assert(GetScreenResolutions() == expectedResolution)");
+            Set("widescreen", "1"); Set("gxResolution", "29x17"); UpdateGxCVars(); Set("gxWindow", "0");
+            run("SetScreenResolution(1)");
+            Require(s_requestedFormat.m_size.x == desktop.m_size.x && s_requestedFormat.m_size.y == desktop.m_size.y,
+                "Native scene dimensions were rejected by the display CVar");
+            for (const auto& invalid : {std::pair{"gxDepthBits", "24"}, {"gxColorBits", "30"}}) {
+                SetGxCVars(active); Set(invalid.first, invalid.second); UpdateGxCVars();
+                run("assert(select('#', GetMultisampleFormats()) == 0 and GetCurrentMultisampleFormat() == 0); "
+                    "assert(not pcall(SetMultisampleFormat, 1))");
+                SetGxCVars(active);
+                run("local f={GetMultisampleFormats()}; assert(#f == 3 and f[1] == 24 and f[2] == 32 and f[3] == 1)");
+            }
+            CGVideoOptions::UnregisterScriptFunctions();
+            run("assert(GetScreenResolutions == nil and GetMultisampleFormats == nil and GetVideoCaps == nil)");
+            CGVideoOptions::RegisterScriptFunctions();
+            run("assert(GetCurrentMultisampleFormat() == 1 and GetScreenResolutions() == expectedResolution)");
+            std::puts("Original video options Lua: native modes/capabilities, selection, aspect, invalid indices, empty/rebuilt format lists and registration lifecycle passed");
+        }
         Require(device.DeviceSetFormat(s_requestedFormat), "Original display CVars could not round trip the native format");
         Set("gxResolution", "29x17"); UpdateGxCVars();
         Require(CVar::SaveAll(), "Native display configuration save failed");

@@ -432,7 +432,11 @@ static bool CVGxResolutionCallback(CVar* var, const char* oldValue, const char* 
     TSGrowableArray<C2iVector> resolutions;
     C2iVector resolution;
 
+#if defined(__APPLE__)
+    { // Native scene dimensions include portrait iOS; no invented display modes.
+#else
     if (s_cvWidescreen->m_intValue) {
+#endif
         TSGrowableArray<CGxMonitorMode> modes;
         GxAdapterMonitorModes(modes);
 
@@ -441,13 +445,18 @@ static bool CVGxResolutionCallback(CVar* var, const char* oldValue, const char* 
         for (uint32_t i = 0; i < modes.Count(); i++) {
             const C2iVector& size = modes[i].m_size;
 
+#if defined(__APPLE__)
+            if (size.x > 0 && size.y > 0 && (size.x != last.x || size.y != last.y)) {
+#else
             if (static_cast<float>(size.x) / size.y >= 1.248f && size.x >= 640 && size.y >= 480 && (size.x != last.x || size.y != last.y)) {
+#endif
                 last = size;
                 resolutions.New(last);
             }
         }
     }
 
+#if !defined(__APPLE__)
     if (!resolutions.Count()) {
         resolution.x = 640;
         resolution.y = 480;
@@ -471,6 +480,7 @@ static bool CVGxResolutionCallback(CVar* var, const char* oldValue, const char* 
         resolution.y = 1200;
         resolutions.New(resolution);
     }
+#endif
 
     uint32_t i;
 

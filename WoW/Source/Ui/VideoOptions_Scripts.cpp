@@ -2,7 +2,12 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#if defined(__APPLE__)
+#include <alloca.h>
+#include <cmath>
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/Base/CmdLine.h"
 #include "Engine/Source/Base/Types.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -23,9 +28,9 @@
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
 
-int32_t Script_SetScreenResolution(lua_State* L);
-int32_t Script_SetupFullscreenScale(lua_State* L);
-int32_t Script_SetMultisampleFormat(lua_State* L);
+static int32_t Script_SetScreenResolution(lua_State* L);
+static int32_t Script_SetupFullscreenScale(lua_State* L);
+static int32_t Script_SetMultisampleFormat(lua_State* L);
 
 // STATIC: 0x00A0C7C0
 static const int32_t s_formatBits[CGxFormat::Formats_Last] = { 16, 24, 24, 30, 16, 24, 24, 32 };
@@ -170,6 +175,18 @@ static int32_t Script_IsStereoVideoAvailable(lua_State* L) {
 // VERIFY: 8b3f6200 manual
 // OFFSET: 0x0054F050
 static void SetupFormats() {
+#if defined(__APPLE__)
+    // Native scene dimensions can change across host rebuilds/display moves.
+    // Report available native surfaces, including portrait iOS scenes, instead
+    // of inventing the Windows fallback display modes or caching an old screen.
+    s_resolutions.SetCount(0);
+    TSGrowableArray<CGxMonitorMode> modes;
+    GxAdapterMonitorModes(modes);
+    for (uint32_t i = 0; i < modes.Count(); ++i) {
+        const auto& size = modes[i].m_size;
+        if (size.x > 0 && size.y > 0) s_resolutions.New(size);
+    }
+#else
     if (s_resolutions.Count()) {
         return;
     }
@@ -214,14 +231,21 @@ static void SetupFormats() {
     resolution.x = 1600;
     resolution.y = 1200;
     s_resolutions.New(resolution);
+#endif
 }
 
 // VERIFY: 9112f98e manual
 // OFFSET: 0x0054F1B0
 static void SetupMultisampleFormats() {
+#if defined(__APPLE__)
+    // Filter against the current API/color/depth CVars every time. Native
+    // unavailable combinations must not retain a previous format's choices.
+    s_multisampleFormats.SetCount(0);
+#else
     if (s_multisampleFormats.Count()) {
         return;
     }
+#endif
 
     EGxApi api = GxDefaultApi();
     CVar* gxApi = CVar::Lookup("gxApi");
@@ -330,9 +354,24 @@ static int32_t Script_GetCurrentResolution(lua_State* L) {
         }
     }
 
-    lua_pushnumber(L, 1.0);
+    lua_pushnumber(L,
+#if defined(__APPLE__)
+        s_resolutions.Count() ? 1.0 : 0.0
+#else
+        1.0
+#endif
+    );
     return 1;
 }
+
+#if defined(__APPLE__)
+static bool NativeFormatIndex(lua_State* L, uint32_t count, uint32_t& index) {
+    const double value = lua_isnumber(L, 1) ? lua_tonumber(L, 1) : 1.0;
+    if (!std::isfinite(value) || value < 1.0 || value >= double(count) + 1.0) return false;
+    index = uint32_t(value) - 1; // Preserve the original truncation for valid fractional inputs.
+    return index < count;
+}
+#endif
 
 // VERIFY: 75e0cfd3 manual
 // OFFSET: 0x0054F690
@@ -341,10 +380,14 @@ static int32_t Script_GetRefreshRates(lua_State* L) {
 
     uint32_t index = 0;
 
+#if defined(__APPLE__)
+    if (!NativeFormatIndex(L, s_resolutions.Count(), index)) return 0;
+#else
     if (lua_isnumber(L, 1)) {
         uint32_t count = s_resolutions.Count();
         index = count < static_cast<uint32_t>(lua_tonumber(L, 1)) - 1 ? s_resolutions.Count() : static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
     }
+#endif
 
     if (index >= s_resolutions.Count()) {
         return 0;
@@ -429,7 +472,13 @@ static int32_t Script_GetCurrentMultisampleFormat(lua_State* L) {
         }
     }
 
-    lua_pushnumber(L, 1.0);
+    lua_pushnumber(L,
+#if defined(__APPLE__)
+        s_multisampleFormats.Count() ? 1.0 : 0.0
+#else
+        1.0
+#endif
+    );
     return 1;
 }
 
@@ -473,10 +522,14 @@ static int32_t Script_SetScreenResolution(lua_State* L) {
 
     uint32_t index = 0;
 
+#if defined(__APPLE__)
+    if (!NativeFormatIndex(L, s_resolutions.Count(), index)) return luaL_error(L, "Invalid screen resolution index");
+#else
     if (lua_isnumber(L, 1)) {
         uint32_t count = s_resolutions.Count();
         index = count < static_cast<uint32_t>(lua_tonumber(L, 1)) - 1 ? s_resolutions.Count() : static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
     }
+#endif
 
     CVar* gxResolution = CVar::Lookup("gxResolution");
 
@@ -503,10 +556,14 @@ static int32_t Script_SetMultisampleFormat(lua_State* L) {
 
     uint32_t index = 0;
 
+#if defined(__APPLE__)
+    if (!NativeFormatIndex(L, s_multisampleFormats.Count(), index)) return luaL_error(L, "Invalid multisample format index");
+#else
     if (lua_isnumber(L, 1)) {
         uint32_t count = s_multisampleFormats.Count();
         index = count < static_cast<uint32_t>(lua_tonumber(L, 1)) - 1 ? s_multisampleFormats.Count() : static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
     }
+#endif
 
     CVar* colorBits = CVar::Lookup("gxColorBits");
     CVar* depthBits = CVar::Lookup("gxDepthBits");
@@ -559,6 +616,9 @@ void CGVideoOptions::RegisterScriptFunctions() {
 // VERIFY: d9c16912 auto
 // OFFSET: 0x0054EC30
 void CGVideoOptions::UnregisterScriptFunctions() {
+#if defined(__APPLE__)
+    s_resolutions.Clear(); s_multisampleFormats.Clear();
+#endif
     for (uint32_t i = 0; i < sizeof(s_scriptFunctions) / sizeof(s_scriptFunctions[0]); i++) {
         FrameScript_UnregisterFunction(s_scriptFunctions[i].m_name);
     }

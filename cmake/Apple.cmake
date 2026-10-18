@@ -292,6 +292,8 @@ target_link_libraries(WorldTerrain PUBLIC Tempest)
 target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain WorldSupport SoundInterface LiquidSystem ClientWorldSupport)
 
 add_subdirectory(WoW/Source/Net)
+add_library(AppleVideoOptions STATIC WoW/Source/Ui/VideoOptions_Scripts.cpp WoW/Source/Ui/Screen.cpp)
+target_link_libraries(AppleVideoOptions PUBLIC Frame ConsoleBase Gx)
 add_library(AppleKnowledgeBase STATIC
     WoW/Source/Ui/KnowledgeBase.cpp WoW/Source/Ui/KnowledgeBaseApple.cpp
     WoW/Source/Ui/CKBArticle.cpp WoW/Source/Ui/CKBQuery.cpp WoW/Source/Ui/CKBIterator.cpp
@@ -301,7 +303,7 @@ target_link_libraries(AppleKnowledgeBase PUBLIC FrameXML FrameScript CharacterNa
 add_subdirectory(WoW/Source/Glue)
 add_subdirectory(WoW/Source/WowSvcs)
 target_link_libraries(Net PUBLIC ClientWorldSupport)
-target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin CharacterAppearance CharacterNames AppleKnowledgeBase)
+target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin CharacterAppearance CharacterNames AppleKnowledgeBase AppleVideoOptions)
 target_link_libraries(WowSvcs PUBLIC Net AppleGameLogin Glue)
 target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/RealmConnection.cpp)
 add_library(AppleSessionServices STATIC
@@ -393,7 +395,7 @@ add_library(AppleMetalProbeCore STATIC Tools/AppleBootstrap/MetalProbe.mm Tools/
 target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 add_library(AppleWorldProbe STATIC Tools/AppleBootstrap/WmoProbe.cpp)
 target_link_libraries(AppleWorldProbe PUBLIC WorldClient AppleMetal)
-target_link_libraries(AppleMetalProbeCore PUBLIC AppleUIComponents AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWorldProbe AppleWmoView)
+target_link_libraries(AppleMetalProbeCore PUBLIC AppleUIComponents AppleVideoOptions AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWorldProbe AppleWmoView)
 target_sources(AppleMetalProbeCore PRIVATE Tools/AppleBootstrap/CharacterSceneProbe.mm)
 target_link_libraries(AppleMetalProbeCore PUBLIC CharacterAppearance)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/NativeView.mm Tools/AppleBootstrap/ModelPreview.cpp Tools/AppleBootstrap/WorldPreview.cpp)

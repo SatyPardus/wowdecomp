@@ -19,6 +19,9 @@
 */
 
 #include <math.h>
+#if defined(__APPLE__)
+#include <limits.h>
+#endif
 #include <string.h>
 
 #define ltable_c
@@ -125,6 +128,12 @@ static int arrayindex (const TValue *key) {
   if (ttisnumber(key)) {
     lua_Number n = nvalue(key);
     int k;
+#if defined(__APPLE__)
+    // Only integer array candidates need this fast conversion. Larger Lua
+    // numbers (including infinity) remain valid hash keys, without a C cast
+    // outside int's representable range. NaN is rejected by luaH_set.
+    if (!(n >= INT_MIN && n <= INT_MAX)) return -1;
+#endif
     lua_number2int(k, n);
     if (luai_numeq(cast_num(k), n))
       return k;
@@ -472,7 +481,11 @@ static TValue *newkey (lua_State *L, Table *t, const TValue *key) {
 // OFFSET: 0x0085C3A0
 const TValue *luaH_getnum (Table *t, int key) {
   /* (1 <= key && key <= t->sizearray) */
+#if defined(__APPLE__)
+  if (cast(unsigned int, key) - 1u < cast(unsigned int, t->sizearray))
+#else
   if (cast(unsigned int, key-1) < cast(unsigned int, t->sizearray))
+#endif
     return &t->array[key-1];
   else {
     lua_Number nk = cast_num(key);
@@ -515,9 +528,15 @@ const TValue *luaH_get (Table *t, const TValue *key) {
     case LUA_TNUMBER: {
       int k;
       lua_Number n = nvalue(key);
+#if defined(__APPLE__)
+      if (n >= INT_MIN && n <= INT_MAX) {
+#endif
       lua_number2int(k, n);
       if (luai_numeq(cast_num(k), nvalue(key))) /* index is int? */
         return luaH_getnum(t, k);  /* use specialized version */
+#if defined(__APPLE__)
+      }
+#endif
       /* else go through */
     }
     default: {
