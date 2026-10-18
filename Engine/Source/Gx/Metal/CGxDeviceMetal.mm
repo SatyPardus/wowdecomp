@@ -810,6 +810,45 @@ void CGxDeviceMetal::DeviceSetBaseMipLevel(uint32_t level) {
     if (m_context) { NotifyOnTextureRecreation(); }
     CGxDevice::DeviceSetBaseMipLevel(level);
 }
+void CGxDeviceMetal::EnsureRenderTarget(CGxTex* texture) {
+    Require(texture != nullptr, "Missing Gx texture");
+    uint32_t width, height, base, end;
+    ITexWHDStartEnd(texture, width, height, base, end);
+    width = std::max(width, 1u); height = std::max(height, 1u);
+    auto& storage = m->textures[texture];
+    Require((texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F) && !texture->m_flags.m_generateMipMaps,
+        "Unsupported Gx render target format or mip generation");
+    const bool recreate = texture->m_needsCreation || !storage.gpu || !storage.renderTarget || storage.base != base ||
+        storage.gpu.mipmapLevelCount != end - base;
+    if (recreate) {
+        size_t total = 0;
+        for (uint32_t mip = 0; mip < end - base; ++mip) { total += size_t(std::max(1u, width >> mip)) * std::max(1u, height >> mip) * 4; }
+        Require(total <= ResourceBudget, "Gx render target exceeds memory budget");
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:texture->m_format == GxTex_R32F ? MTLPixelFormatR32Float : MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
+        descriptor.mipmapLevelCount = end - base;
+        descriptor.storageMode = MTLStorageModePrivate;
+        descriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+        if (texture->m_format == GxTex_R32F) descriptor.usage |= MTLTextureUsagePixelFormatView;
+        id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
+        Require(replacement != nil, "Cannot allocate Gx color render target");
+        replacement.label = @"Gx color render target";
+        storage.gpu = replacement;
+        storage.base = base;
+        storage.renderTarget = true;
+        storage.images.clear();
+        storage.sampled = nil;
+        if (texture->m_format == GxTex_R32F) {
+            // D3D9 defines absent format channels as one. Keep the render
+            // attachment unswizzled and give sampling an immutable view.
+            const auto swizzle = MTLTextureSwizzleChannelsMake(MTLTextureSwizzleRed, MTLTextureSwizzleOne, MTLTextureSwizzleOne, MTLTextureSwizzleOne);
+            storage.sampled = [replacement newTextureViewWithPixelFormat:MTLPixelFormatR32Float textureType:MTLTextureType2D
+                levels:NSMakeRange(0, end - base) slices:NSMakeRange(0, 1) swizzle:swizzle];
+            Require(storage.sampled != nil, "Cannot create R32F sampling view");
+        }
+    }
+    texture->m_apiSpecificData = &storage;
+    texture->m_needsCreation = texture->m_needsFlagUpdate = 0;
+}
 void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     Require(texture != nullptr, "Missing Gx texture");
     uint32_t width, height, base, end;
@@ -817,38 +856,23 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     width = std::max(width, 1u); height = std::max(height, 1u);
     auto& storage = m->textures[texture];
     if (texture->m_flags.m_renderTarget) {
-        Require((texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F) && !texture->m_flags.m_generateMipMaps,
-            "Unsupported Gx render target format or mip generation");
-        const bool recreate = texture->m_needsCreation || !storage.gpu || !storage.renderTarget || storage.base != base ||
-            storage.gpu.mipmapLevelCount != end - base;
-        if (recreate) {
-            size_t total = 0;
-            for (uint32_t mip = 0; mip < end - base; ++mip) { total += size_t(std::max(1u, width >> mip)) * std::max(1u, height >> mip) * 4; }
-            Require(total <= ResourceBudget, "Gx render target exceeds memory budget");
-            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:texture->m_format == GxTex_R32F ? MTLPixelFormatR32Float : MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
-            descriptor.mipmapLevelCount = end - base;
-            descriptor.storageMode = MTLStorageModePrivate;
-            descriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-            if (texture->m_format == GxTex_R32F) descriptor.usage |= MTLTextureUsagePixelFormatView;
-            id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
-            Require(replacement != nil, "Cannot allocate Gx color render target");
-            replacement.label = @"Gx color render target";
-            storage.gpu = replacement;
-            storage.base = base;
-            storage.renderTarget = true;
-            storage.images.clear();
-            storage.sampled = nil;
-            if (texture->m_format == GxTex_R32F) {
-                // D3D9 defines absent format channels as one. Keep the render
-                // attachment unswizzled and give sampling an immutable view.
-                const auto swizzle = MTLTextureSwizzleChannelsMake(MTLTextureSwizzleRed, MTLTextureSwizzleOne, MTLTextureSwizzleOne, MTLTextureSwizzleOne);
-                storage.sampled = [replacement newTextureViewWithPixelFormat:MTLPixelFormatR32Float textureType:MTLTextureType2D
-                    levels:NSMakeRange(0, end - base) slices:NSMakeRange(0, 1) swizzle:swizzle];
-                Require(storage.sampled != nil, "Cannot create R32F sampling view");
+        EnsureRenderTarget(texture);
+        if (!texture->m_needsUpdate) return;
+        // Original RTT producers draw from Latch; binding the writable target
+        // only allocates storage, so the producer may bind itself recursively.
+        if (texture->m_userFunc) {
+            uint32_t stride = 0; const void* pixels = nullptr;
+            texture->m_userFunc(GxTex_Lock, texture->m_width, texture->m_height, 0, 0, texture->m_userArg, stride, pixels);
+            struct Unlock {
+                CGxTex* texture;
+                ~Unlock() { uint32_t stride = 0; const void* pixels = nullptr; texture->m_userFunc(GxTex_Unlock, texture->m_width, texture->m_height, 0, 0, texture->m_userArg, stride, pixels); }
+            } unlock{texture};
+            for (uint32_t mip = base; mip < end; ++mip) {
+                stride = 0; pixels = nullptr;
+                texture->m_userFunc(GxTex_Latch, width, height, 0, mip, texture->m_userArg, stride, pixels);
+                width = std::max(1u, width >> 1); height = std::max(1u, height >> 1);
             }
         }
-        texture->m_apiSpecificData = &storage;
-        texture->m_needsCreation = texture->m_needsFlagUpdate = 0;
         CGxDevice::ITexMarkAsUpdated(texture);
         return;
     }
@@ -1499,7 +1523,7 @@ void CGxDeviceMetal::ApplyRenderTarget() {
         if (m->command) { m->pass = m->defaultPass; }
         return;
     }
-    ITexMarkAsUpdated(texture);
+    EnsureRenderTarget(texture);
     id<MTLTexture> color = m->textures.at(texture).gpu;
     // D3D9 reuses a scratch depth surface while it is large enough. Preserve
     // that lifetime, including depth values when switching to a smaller target.
@@ -1530,7 +1554,7 @@ void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, ui
     Require(!texture || (texture->m_flags.m_renderTarget && (texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F)), "Invalid Gx color render target");
     auto& target = m_textureTarget[buffer];
     if (target.m_texture == texture && target.m_plane == plane) { return; }
-    if (texture) { ITexMarkAsUpdated(texture); }
+    if (texture) { EnsureRenderTarget(texture); }
     if (m->command) { m->EnsurePass(); m->EndRender(); }
     CGxDevice::DeviceSetRenderTarget(buffer, texture, plane);
     ApplyRenderTarget();
@@ -1546,7 +1570,8 @@ void CGxDeviceMetal::DeviceCopyTex(CGxTex* source, uint32_t sourcePlane, CGxTex*
                 dest->m_flags.m_renderTarget && (source->m_format == GxTex_Argb8888 || source->m_format == GxTex_R32F) &&
                 dest->m_format == source->m_format,
             "Unsupported Gx texture copy format, target or plane");
-    ITexMarkAsUpdated(source); ITexMarkAsUpdated(dest);
+    if (source->m_flags.m_renderTarget) EnsureRenderTarget(source); else ITexMarkAsUpdated(source);
+    EnsureRenderTarget(dest);
     id<MTLTexture> src = m->textures.at(source).gpu, dst = m->textures.at(dest).gpu;
     Require(m->CopyColor(src, SurfaceRect(src, 0), dst, 0, SurfaceRect(dst, 0), false), "Invalid Gx texture copy");
 }
@@ -1554,7 +1579,7 @@ int32_t CGxDeviceMetal::TexCopy(CGxTex* dest, const C2iVector& destPos, const C2
     if (!m_context) { return 0; }
     EnsureFrame();
     Require(m->command && dest && dest->m_flags.m_renderTarget && plane == 0, "Unsupported Gx framebuffer copy target, plane or lifecycle");
-    ITexMarkAsUpdated(dest);
+    EnsureRenderTarget(dest);
     id<MTLTexture> src = m->defaultPass.colorAttachments[0].texture, dst = m->textures.at(dest).gpu;
     if (level >= dst.mipmapLevelCount || size.x <= 0 || size.y <= 0 || sourcePos.x < 0 || sourcePos.y < 0 || destPos.x < 0 || destPos.y < 0) { return 0; }
     const auto extent = SurfaceRect(dst, level);
@@ -1567,7 +1592,7 @@ int32_t CGxDeviceMetal::TexStretch(CGxTex* dest, const CiRect* destRect, const C
     if (!m_context) { return 0; }
     EnsureFrame();
     Require(m->command && dest && dest->m_flags.m_renderTarget && face == 0, "Unsupported Gx stretch target, face or lifecycle");
-    ITexMarkAsUpdated(dest);
+    EnsureRenderTarget(dest);
     id<MTLTexture> src = m->defaultPass.colorAttachments[0].texture, dst = m->textures.at(dest).gpu;
     if (level >= dst.mipmapLevelCount) { return 0; }
     const CiRect s = sourceRect ? *sourceRect : SurfaceRect(src, 0), d = destRect ? *destRect : SurfaceRect(dst, level);

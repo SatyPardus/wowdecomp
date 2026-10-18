@@ -86,6 +86,7 @@ private:
     void EnsureFrame();
     bool ApplyHostFormat(CGxFormat& format);
     void ApplyRenderTarget();
+    void EnsureRenderTarget(CGxTex* texture);
     MTLViewport Viewport() const;
     MTLScissorRect Scissor() const;
     struct Impl;

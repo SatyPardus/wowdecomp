@@ -75,7 +75,7 @@ void CheckGxDevice(const char* focus) {
     if (focus && !std::strcmp(focus, "ffx")) { CheckGxFFXPasses(device); CheckGxFFXEffect(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ui")) { CheckOriginalUI(device); device.DeviceDestroy(); return; }
     CheckDisplaySettings(device);
-    if (focus) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }
+    if (focus && std::strcmp(focus, "render-target")) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }
     auto& gpu = device.GPU();
     CGxShader* vertex[2]{}; CGxShader* pixel = nullptr;
     device.ShaderCreate(vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
@@ -89,6 +89,11 @@ void CheckGxDevice(const char* focus) {
     GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Opaque));
     // Exercise the formerly overflowing signed difference in IRsSync.
     device.IRsSync(1);
+    if (focus && !std::strcmp(focus, "render-target")) {
+        CheckGxRenderTargets(device);
+        device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
+        device.DeviceDestroy(); return;
+    }
     Pixels pixels;
     CGxTex* texture = nullptr;
     CGxTexFlags flags(GxTex_Nearest);

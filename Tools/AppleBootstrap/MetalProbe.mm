@@ -198,6 +198,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
             if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
+                if (!std::strcmp(selection, "render-target")) {
+                    CheckGxDevice(selection);
+                    report = "Original render-target producers, copies, clears and recreation passed (focused run).\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "atlas")) {
                     CheckGxDevice(selection);
                     report = "Original Services icon atlas creation, updates and recreation passed (focused run).\n";

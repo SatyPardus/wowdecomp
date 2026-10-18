@@ -64,6 +64,70 @@ void Draw(CGxDeviceMetal& device, CGxTex* texture, uint32_t color, float z) {
     C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex, 0, &identity.a0, 4);
     CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3}; GxDraw(&batch, 0);
 }
+struct TargetProducer {
+    CGxDeviceMetal* device;
+    CGxTex* target = nullptr;
+    CGxTex* white;
+    unsigned locks = 0, latches = 0, unlocks = 0, invalidations = 0;
+    bool fail = false;
+};
+void ProduceTarget(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t face, uint32_t level,
+    void* arg, uint32_t&, const void*&) {
+    auto& p = *static_cast<TargetProducer*>(arg);
+    if (command == GxTex_3) { ++p.invalidations; return; }
+    if (command == GxTex_Lock) { ++p.locks; return; }
+    if (command == GxTex_Unlock) { ++p.unlocks; return; }
+    Require(command == GxTex_Latch && width == 8 && height == 8 && face == 0 && level == 0,
+        "Render target producer callback dimensions changed");
+    ++p.latches;
+    if (p.fail) throw std::runtime_error("Intentional render target producer failure");
+    CGxTex* saved = nullptr; p.device->DeviceGetRenderTarget(GxBuffers_Color, saved);
+    float x0,x1,y0,y1,z0,z1; GxXformViewport(x0,x1,y0,y1,z0,z1);
+    p.device->RsPush();
+    GxRenderTargetSet(GxBuffers_Color, p.target, 0);
+    GxXformSetViewport(0,1,0,1,0,1); p.device->SceneClear(1,CImVector(0,255,0,255));
+    GxXformSetViewport(0,0.5f,0,1,0,1);
+    Draw(*p.device,p.white,p.latches & 1 ? 0xFFFF0000 : 0xFF0000FF,0);
+    GxRenderTargetSet(GxBuffers_Color,saved,0);
+    GxXformSetViewport(x0,x1,y0,y1,z0,z1);
+    p.device->RsPop();
+}
+void CheckTargetProducer(CGxDeviceMetal& device, CGxTex* white) {
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(1,1,0,1);
+    TargetProducer p{&device,nullptr,white};
+    CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget=1;
+    Require(device.TexCreate(GxTex_2d,8,8,0,GxTex_Argb8888,GxTex_Argb8888,flags,&p,ProduceTarget,"RTT producer",p.target), "Cannot create producer target");
+    device.BeginFrame(pass); GxXformSetViewport(0,1,0,1,0,1);
+    GxRsSet(GxRs_DepthTest,0); GxRsSet(GxRs_DepthWrite,0); GxRsSet(GxRs_ScissorTest,0);
+    GxRenderTargetSet(GxBuffers_Color,p.target,0); GxRenderTargetSet(GxBuffers_Color,nullptr,0);
+    Require(p.latches==0,"Writable target binding unexpectedly ran its producer");
+    Require(device.TexCopy(p.target,{0,0},{0,0},{8,8},0,0) && p.latches==0,"Framebuffer copy unexpectedly ran its destination producer");
+    for (unsigned generation=1;generation<=4;++generation) {
+        device.SceneClear(1,CImVector(0,255,255,255));
+        GxRsSet(GxRs_Texture0,white);
+        if (generation==2) GxTexUpdate(p.target,0,0,0,0,0);
+        if (generation==3) { device.DeviceSetBaseMipLevel(0); Require(p.invalidations==1,"Producer invalidation was not delivered"); }
+        if (generation==4) {
+            GxTexUpdate(p.target,0,0,0,0,0); p.fail=true;
+            bool rejected=false; try { device.ITexMarkAsUpdated(p.target); } catch (const std::runtime_error&) { rejected=true; }
+            Require(rejected && p.target->m_needsUpdate && p.unlocks==p.locks,"Failed producer did not remain retryable or unlock");
+            p.fail=false;
+        }
+        GxRsSet(GxRs_Texture0,p.target);
+        Require(p.latches==generation+(generation==4) && p.unlocks==p.locks,"Producer callback lifecycle or repeated binding changed");
+        Solid(Read(device,16,16),0xFFFFFF00,"Producer changed the default surface");
+        Draw(device,p.target,0xFFFFFFFF,0);
+        const auto pixels=Read(device,16,16);
+        for (unsigned y=0;y<16;++y) for (unsigned x=0;x<16;++x)
+            Require(pixels[y*16+x]==(x<8 ? (p.latches & 1 ? 0xFFFF0000 : 0xFF0000FF) : 0xFF00FF00),"Callback rendering was not sampled correctly");
+    }
+    GxRsSet(GxRs_Texture0,static_cast<CGxTex*>(nullptr)); GxTexDestroy(p.target); GxScenePresent();
+}
 void CheckRecreation(CGxDeviceMetal& device) {
     RecreationScope scope(device);
     RecreationData data;
@@ -364,6 +428,7 @@ void CheckGxRenderTargets(CGxDeviceMetal& device) {
     CheckCopies(device, pass, large);
     CheckClears(device, large, white);
     CheckRecreation(device);
+    CheckTargetProducer(device, white);
     GxTexDestroy(large); GxTexDestroy(white);
 }
 
