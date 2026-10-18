@@ -59,6 +59,7 @@ void CheckGameModels() {
     CShaderEffect::InitShaderSystem(1, 0);
     struct Shutdown { bool cache = false; ~Shutdown() { if (cache) M2Destroy(); CShaderEffectManager::DestroyAllEffects(); } } shutdown;
     CShaderEffectManager::AddEffectFile("Model2.wfx");
+    CShaderEffectManager::AddEffectFile("ShadowMap.wfx");
     CShaderEffectManager::AddEffectFile("Particle.wfx");
     for (const char* effect : {"Particle", "Particle_Unlit", "Projected_ModMod", "Projected_ModAdd",
                                "Projected_ModMod_Unlit", "Projected_ModAdd_Unlit"})
@@ -165,6 +166,39 @@ void CheckGameModels() {
     if (changedPixels < 16) throw std::runtime_error("Animated wolf pose did not reach Metal drawing");
     std::fprintf(stderr, "M2 native wolf scene: %u covered pixels, %u changed by original walk animation\n", covered, changedPixels);
     device.ScenePresent();
+    {
+        auto* effect = CShaderEffectManager::GetEffect("ShadowMapRenderSL");
+        if (!effect) throw std::runtime_error("Original shadow-map effect is missing");
+        const unsigned capacity = visible->m_shared->m_skinData->m_batches.m_count;
+        std::vector<CModelBatch> opaqueStorage(capacity), cutoutStorage(capacity);
+        CModelBatchList opaque{opaqueStorage.data(), 0, capacity}, cutout{cutoutStorage.data(), 0, capacity};
+        visible->GatherModelBatchesShadowMap(opaque, cutout);
+        if (!opaque.m_count || !cutout.m_count) throw std::runtime_error("Wolf shadow gather omitted opaque or cutout batches");
+        device.RsPush();
+        struct RestoreState { CGxDeviceMetal& device; ~RestoreState() { device.RsPop(); } } restoreState{device};
+        struct DepthTarget { CGxDeviceMetal& device; CGxTex* texture = nullptr; ~DepthTarget() { device.TexDestroy(texture); } } shadowTarget{device};
+        CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget = 1;
+        device.TexCreate(GxTex_2d, 128, 128, 0, GxTex_R32F, GxTex_R32F, flags, nullptr, nullptr, "Original wolf shadow depth", shadowTarget.texture);
+        device.BeginFrame(pass); device.DeviceSetRenderTarget(GxBuffers_Color, shadowTarget.texture, 0);
+        device.SceneClear(3, CImVector(255,255,255,255));
+        effect->SetCurrent(); CShaderEffect::SetTexMtx_Identity(0); CShaderEffect::UpdateProjMatrix();
+        const float lightFromView[] = {1,0,0,0, 0,1,0,0, 0,0,1,0.4f};
+        const float depthScale[] = {0,0,0,0.5f};
+        device.ShaderConstantsSet(GxSh_Vertex, 14, lightFromView, 3);
+        device.ShaderConstantsSet(GxSh_Pixel, 0, depthScale, 1);
+        const auto before = device.EncodingStats();
+        CM2Model::RenderModelBatchesShadowMap(opaque, cutout);
+        TSGrowableArray<float> shadow; device.ReadFloatColor(rect, shadow);
+        unsigned covered = 0, positive = 0;
+        for (unsigned i = 0; i < shadow.Count(); ++i) { covered += shadow[i] != 1.0f; positive += shadow[i] > 0 && shadow[i] < 1.0f; }
+        const auto draws = device.EncodingStats().geometryDraws - before.geometryDraws;
+        std::fprintf(stderr, "Original wolf R32F shadow generator: %u opaque + %u cutout batches, %llu draws, %u covered / %u positive-depth pixels\n",
+            opaque.m_count, cutout.m_count, static_cast<unsigned long long>(draws), covered, positive);
+        if (draws != opaque.m_count + cutout.m_count || covered < 256 || positive < 128)
+            throw std::runtime_error("Original shadow batches did not generate a visible depth map");
+        device.DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0);
+        device.ScenePresent();
+    }
     struct LayeredPose { uint32_t displayID, sequenceID, elapsed; };
     // The motorcycle's dual-UV effect is authored only in its death sequence:
     // color alpha stays zero through 500 ms, then rises to one at 1000 ms.

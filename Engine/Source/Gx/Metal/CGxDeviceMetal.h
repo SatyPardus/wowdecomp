@@ -50,6 +50,8 @@ public:
     void IShaderReload(CGxShader*, const char*, const char*) override;
     void IShaderCreate(CGxShader* shader) override;
     void DeviceReadPixels(CiRect&, TSGrowableArray<CImVector>&) override;
+    // Native diagnostic/readback entry for an R32F color attachment.
+    void ReadFloatColor(CiRect&, TSGrowableArray<float>&);
     void DeviceReadDepths(CiRect&, TSGrowableArray<float>&) override;
     void DeviceTakeScreenShot() override;
     void DeviceSetRenderTarget(EGxBuffer, CGxTex*, uint32_t) override;

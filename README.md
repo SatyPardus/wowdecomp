@@ -215,6 +215,15 @@ boundaries. The original motorcycle (display 25870) draws two combined material
 batches; its dual-UV death effect is exercised at 1137 ms, following the authored
 color-alpha track instead of forcing visibility.
 
+Native `ShadowMap` / `ShadowMapSL` generation preserves rigid, single-bone and
+four-weight transforms, separate light-view transforms, linear depth and alpha
+cutouts. All 90 vertex and 16 pixel handles are validated against the mounted
+original shader data. R32F targets preserve full float depth, exact copies,
+regional clears and D3D9 absent-channel sampling values; unsupported float
+filtering and blending fail explicitly. The original wolf shadow gather/draw
+path exercises both opaque and cutout batches. Shadow receivers, complete world
+shadow queries and PCF depth textures are still incomplete.
+
 Original `Model2.wfx` projected materials now use native view-space projection
 for both texture coordinates, with the authored ModMod/ModAdd color and alpha
 rules. Forty additional vertex permutations cover rigid and skinned lit
@@ -242,7 +251,7 @@ materials.
 
 The shared `WorldClient` static library now builds for all three Apple targets.
 The original world-parameter and startup entry points now link on macOS; startup
-currently stops explicitly at the unimplemented `ShadowMap` effect.
+currently stops explicitly at the unimplemented `DetailDoodad` effect.
 Apple Storm settings use the app-owned `org.wowdecomp.client` Core Foundation
 preferences domain, preserving user/system lookup flags and 32-bit values.
 The normal game CVars continue to use their configured WTF file.

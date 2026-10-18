@@ -202,6 +202,7 @@ int32_t CShadowCache::ValidateShadowMode(EShadowMode mode) {
         case SHADOW_LOW:
         case SHADOW_MEDIUM:
             switch (g_theGxDevicePtr->DeviceApi()) {
+                case GxApi_Metal:
                 case GxApi_D3d9:
                 case GxApi_D3d9Ex:
                     if (vertexTarget != 1 && vertexTarget != 2 && vertexTarget != 3) {
@@ -233,6 +234,7 @@ int32_t CShadowCache::ValidateShadowMode(EShadowMode mode) {
         case SHADOW_HIGH:
         case SHADOW_VERY_HIGH:
             switch (g_theGxDevicePtr->DeviceApi()) {
+                case GxApi_Metal:
                 case GxApi_D3d9:
                 case GxApi_D3d9Ex:
                     if (vertexTarget != 3 || pixelTarget != 4) {

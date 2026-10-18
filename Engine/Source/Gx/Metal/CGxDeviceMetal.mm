@@ -57,7 +57,7 @@ struct Pool {
     bool streaming = false;
     std::unordered_map<uint64_t, BufferBinding> snapshots;
 };
-struct Texture { BLP::Image image; id<MTLTexture> gpu; uint32_t base = 0; bool renderTarget = false; };
+struct Texture { BLP::Image image; id<MTLTexture> gpu, sampled; uint32_t base = 0; bool renderTarget = false; };
 struct Shader { std::shared_ptr<GxMetal::UIShader> ui; uint32_t permutation; GxMetal::FragmentEffect effect; GxMetal::ModelVertexEffect vertexEffect = GxMetal::ModelVertexEffect::Diffuse; GxMetal::WmoVertexEffect wmoVertex = GxMetal::WmoVertexEffect::Diffuse; };
 std::vector<uint8_t> ReadShader(const char* path, bool optional = false) {
     SFileImpl* file = nullptr;
@@ -82,6 +82,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
     if (GxMetal::IsLiquidEffect(effect)) return GxMetal::LiquidShaderFamily(effect, target);
     if (GxMetal::IsWmoEffect(effect)) return target == GxSh_Vertex ? GxMetal::WmoVertexFamily(wmoVertex) : GxMetal::WmoPixelFamily(effect);
     switch (effect) {
+        case GxMetal::FragmentEffect::ShadowMap: return target == GxSh_Vertex ? "ShadowMap" : "ShadowMapSL";
         case GxMetal::FragmentEffect::Terrain: return target == GxSh_Vertex ? "Terrain" : "Terrain1";
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
@@ -115,6 +116,12 @@ void LoadModelShader(EGxShTarget target, GxMetal::FragmentEffect effect, GxMetal
     const auto path = std::string(target == GxSh_Vertex ? "Shaders\\Vertex\\vs_3_0\\" : "Shaders\\Pixel\\ps_3_0\\") +
         ShaderFamily(effect, target, vertexEffect) + ".bls";
     GxMetal::ValidateModelShader(ReadShader(path.c_str()), target, effect, vertexEffect);
+}
+
+void LoadShadowMapShader(EGxShTarget target) {
+    const auto path = std::string(target == GxSh_Vertex ? "Shaders\\Vertex\\vs_3_0\\" : "Shaders\\Pixel\\ps_3_0\\") +
+        ShaderFamily(GxMetal::FragmentEffect::ShadowMap, target) + ".bls";
+    GxMetal::ValidateShadowMapShader(ReadShader(path.c_str()), target);
 }
 
 void LoadTerrainShader(EGxShTarget target) {
@@ -219,7 +226,7 @@ struct CGxDeviceMetal::Impl {
     bool CopyColor(id<MTLTexture> source, const CiRect& sourceRect, id<MTLTexture> dest, uint32_t destLevel,
         const CiRect& destRect, bool linear) {
         Require(command && source && dest, "Gx surface copy requires an active frame and allocated textures");
-        Require(source.pixelFormat == MTLPixelFormatBGRA8Unorm && dest.pixelFormat == MTLPixelFormatBGRA8Unorm &&
+        Require((source.pixelFormat == MTLPixelFormatBGRA8Unorm || source.pixelFormat == MTLPixelFormatR32Float) && dest.pixelFormat == source.pixelFormat &&
             source.sampleCount == 1 && dest.sampleCount == 1 && !source.framebufferOnly && !dest.framebufferOnly,
             "Gx surface copy format, multisampling or framebuffer-only attachment is not supported");
         // D3D9 StretchRect rejects a stretch within the same surface. Do not
@@ -233,7 +240,7 @@ struct CGxDeviceMetal::Impl {
         EndRender();
         if (sw == dw && sh == dh) {
             // Equal-sized rectangles land on the same texel centers even for
-            // LINEAR. A blit preserves all four UNORM8 channels exactly.
+            // LINEAR. A blit preserves the UNORM8 channels or R32F bits.
             id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
             Require(encoder != nil, "Cannot encode Gx texture copy");
             [encoder copyFromTexture:source sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(sourceRect.minX, sourceRect.minY, 0)
@@ -242,6 +249,7 @@ struct CGxDeviceMetal::Impl {
             [encoder endEncoding];
             return true;
         }
+        Require(source.pixelFormat != MTLPixelFormatR32Float || !linear || gpu.device.supports32BitFloatFiltering, "This GPU cannot linearly filter R32F copies");
         Require((dest.usage & MTLTextureUsageRenderTarget) != 0, "Gx stretched copy requires a renderable destination");
         if (!(source.usage & MTLTextureUsageShaderRead)) {
             // Some hosts provide a blit-readable but not sampleable attachment.
@@ -384,7 +392,7 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     for (auto format : {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_texFmt[GxTex_Argb4444] = 1;
     for (auto format : {GxTex_Argb1555, GxTex_Rgb565}) { m_caps.m_texFmt[format] = 1; }
-    m_caps.m_rttFormat[GxTex_Argb8888] = 1;
+    m_caps.m_rttFormat[GxTex_Argb8888] = m_caps.m_rttFormat[GxTex_R32F] = 1;
     m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
     m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
     m_caps.m_texNonPow2 = 1;
@@ -646,7 +654,7 @@ int32_t CGxDeviceMetal::TexCreate(EGxTexTarget target, uint32_t width, uint32_t 
         "Unsupported Gx texture target or extent");
     Require(!flags.m_generateMipMaps, "Gx automatic mip generation is not implemented");
     if (flags.m_renderTarget) {
-        Require(format == GxTex_Argb8888, "Gx render target format is not implemented");
+        Require(format == GxTex_Argb8888 || format == GxTex_R32F, "Gx render target format is not implemented");
     } else {
         Require(SupportedConversion(format, dataFormat) && callback, "Unsupported Gx texture conversion or missing callback");
         Require(!Packed16(format) || m_caps.m_texFmt[format], "Device cannot preserve packed Gx texture filtering precision");
@@ -692,7 +700,7 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     width = std::max(width, 1u); height = std::max(height, 1u);
     auto& storage = m->textures[texture];
     if (texture->m_flags.m_renderTarget) {
-        Require(texture->m_format == GxTex_Argb8888 && !texture->m_flags.m_generateMipMaps,
+        Require((texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F) && !texture->m_flags.m_generateMipMaps,
             "Unsupported Gx render target format or mip generation");
         const bool recreate = texture->m_needsCreation || !storage.gpu || !storage.renderTarget || storage.base != base ||
             storage.gpu.mipmapLevelCount != end - base;
@@ -700,14 +708,24 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
             size_t total = 0;
             for (uint32_t mip = 0; mip < end - base; ++mip) { total += size_t(std::max(1u, width >> mip)) * std::max(1u, height >> mip) * 4; }
             Require(total <= ResourceBudget, "Gx render target exceeds memory budget");
-            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
+            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:texture->m_format == GxTex_R32F ? MTLPixelFormatR32Float : MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
             descriptor.mipmapLevelCount = end - base;
             descriptor.storageMode = MTLStorageModePrivate;
             descriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+            if (texture->m_format == GxTex_R32F) descriptor.usage |= MTLTextureUsagePixelFormatView;
             id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
             Require(replacement != nil, "Cannot allocate Gx color render target");
             replacement.label = @"Gx color render target";
             storage.gpu = replacement; storage.base = base; storage.renderTarget = true; storage.image = {};
+            storage.sampled = nil;
+            if (texture->m_format == GxTex_R32F) {
+                // D3D9 defines absent format channels as one. Keep the render
+                // attachment unswizzled and give sampling an immutable view.
+                const auto swizzle = MTLTextureSwizzleChannelsMake(MTLTextureSwizzleRed, MTLTextureSwizzleOne, MTLTextureSwizzleOne, MTLTextureSwizzleOne);
+                storage.sampled = [replacement newTextureViewWithPixelFormat:MTLPixelFormatR32Float textureType:MTLTextureType2D
+                    levels:NSMakeRange(0, end - base) slices:NSMakeRange(0, 1) swizzle:swizzle];
+                Require(storage.sampled != nil, "Cannot create R32F sampling view");
+            }
         }
         texture->m_apiSpecificData = &storage;
         texture->m_needsCreation = texture->m_needsFlagUpdate = 0;
@@ -803,6 +821,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     for (auto candidate : {Effect::LiquidWater, Effect::LiquidWaterNoSpec, Effect::LiquidMagma})
         if (SStrCmpI(name, GxMetal::LiquidShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::Terrain, target), STORM_MAX_STR) == 0) effect = Effect::Terrain;
+    if (SStrCmpI(name, ShaderFamily(Effect::ShadowMap, target), STORM_MAX_STR) == 0) effect = Effect::ShadowMap;
+    const bool shadow = effect == Effect::ShadowMap;
     const bool wmo = GxMetal::IsWmoEffect(effect);
     const bool liquid = GxMetal::IsLiquidEffect(effect);
     const bool terrain = effect == Effect::Terrain;
@@ -812,8 +832,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
         throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
     }
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? (target == GxSh_Vertex ? 128u : 32u) : (model || wmo) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
-        (terrain || model || wmo || liquid || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
+        count == (liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? (target == GxSh_Vertex ? 128u : 32u) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
+        (terrain || model || wmo || liquid || shadow || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
     bool cached = true;
@@ -830,7 +850,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     }
     // Validate the mounted assets before adding any live shader objects.
     std::shared_ptr<GxMetal::UIShader> ui;
-    if (liquid) { LoadLiquidShader(target, effect); }
+    if (shadow) { LoadShadowMapShader(target); }
+    else if (liquid) { LoadLiquidShader(target, effect); }
     else if (wmo) { LoadWmoShader(target, wmoVertex, effect); }
     else if (terrain) { LoadTerrainShader(target); }
     else if (model) { LoadModelShader(target, effect, vertexEffect); }
@@ -864,7 +885,8 @@ void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const ch
     Require(shader && m->shaders.count(shader) && path && name && SStrCmpI(name, ShaderFamily(m->shaders.at(shader).effect, EGxShTarget(shader->m_target), m->shaders.at(shader).vertexEffect, m->shaders.at(shader).wmoVertex), STORM_MAX_STR) == 0 &&
         SStrCmpI(path, shader->m_target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0, "Unsupported native shader reload");
     auto& native = m->shaders.at(shader);
-    if (GxMetal::IsLiquidEffect(native.effect)) { LoadLiquidShader(EGxShTarget(shader->m_target), native.effect); }
+    if (native.effect == GxMetal::FragmentEffect::ShadowMap) { LoadShadowMapShader(EGxShTarget(shader->m_target)); }
+    else if (GxMetal::IsLiquidEffect(native.effect)) { LoadLiquidShader(EGxShTarget(shader->m_target), native.effect); }
     else if (GxMetal::IsWmoEffect(native.effect)) { LoadWmoShader(EGxShTarget(shader->m_target), native.wmoVertex, native.effect); }
     else if (native.effect == GxMetal::FragmentEffect::Terrain) { LoadTerrainShader(EGxShTarget(shader->m_target)); }
     else if (GxMetal::IsModelEffect(native.effect)) { LoadModelShader(EGxShTarget(shader->m_target), native.effect, native.vertexEffect); }
@@ -888,12 +910,13 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool wmo = GxMetal::IsWmoEffect(effect);
     const bool liquid = GxMetal::IsLiquidEffect(effect);
     const bool terrain = effect == GxMetal::FragmentEffect::Terrain;
-    const bool postProcess = !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
+    const bool shadow = effect == GxMetal::FragmentEffect::ShadowMap;
+    const bool postProcess = !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
-    const unsigned inputs = liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, m->shaders.at(pixel).permutation) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
+    const unsigned inputs = shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, m->shaders.at(pixel).permutation) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
     Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
-        (liquid ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui)),
+        ((liquid || shadow) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui)),
         "Unsupported native Gx vertex/pixel shader combination");
     if (model && (!GxMetal::SupportsModelPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation, m->shaders.at(vertex).vertexEffect) ||
         !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation))) {
@@ -942,6 +965,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         batch->m_count <= vertices->m_itemCount, "Gx draw exceeds its logical buffer range");
     GxMetal::GeometryDraw draw;
     std::optional<GxMetal::ModelDrawParameters> modelParameters;
+    std::optional<GxMetal::ShadowMapDrawParameters> shadowParameters;
     std::optional<GxMetal::TerrainDrawParameters> terrainParameters;
     std::optional<GxMetal::WmoDrawParameters> wmoParameters;
     std::optional<GxMetal::LiquidDrawParameters> liquidParameters;
@@ -955,6 +979,31 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     if (postProcess) {
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
         draw.clipFromModel = world.m_mtx[world.m_level] * view.m_mtx[view.m_level] * m_projNative;
+    } else if (shadow) {
+        auto& native = shadowParameters.emplace(); draw.shadow = &native;
+        native.skinning = GxMetal::ShadowMapSkinning(m->shaders.at(vertex).permutation);
+        native.cutout = inputs != 0;
+        const float* constants = s_shadowConstants[1].constants;
+        auto vector = [&](unsigned index) { simd_float4 value; std::memcpy(&value, constants + index * 4, sizeof(value)); return value; };
+        simd_float4x4 rows; std::memcpy(&rows, constants + 8, sizeof(rows)); native.vertex.projection = simd_transpose(rows);
+        native.vertex.lightFromView = {vector(14), vector(15), vector(16)};
+        native.vertex.uv[0] = vector(6); native.vertex.uv[1] = vector(7);
+        native.fragment.depthScale = s_shadowConstants[0].constants[3];
+        native.fragment.alphaRef = s_shadowConstants[0].constants[11];
+        if (native.skinning) {
+            Require(draw.format == GxVBF_PBNT2, "Shadow-map skinning requires the packed bone vertex layout");
+            const auto& storage = m->Storage(vertices->m_pool);
+            const auto offset = GxVertexAttribOffset(draw.format, GxVA_BlendIndices);
+            const size_t first = indexed ? batch->m_minIndex : 0, last = indexed ? batch->m_maxIndex : batch->m_count - 1;
+            for (size_t i = first; i <= last; ++i) {
+                const uint8_t* indices = storage.shadow.data() + vertices->m_index + i * vertices->m_itemSize + offset;
+                for (unsigned j = 0; j < (native.skinning == 2 ? 4u : 1u); ++j) {
+                    Require(indices[j] < native.bones.size(), "Shadow-map bone index exceeds the native palette");
+                    native.boneCount = std::max(native.boneCount, uint32_t(indices[j]) + 1);
+                }
+            }
+        }
+        std::memcpy(native.bones.data(), constants + 31 * 4, native.boneCount * sizeof(GxMetal::ModelAffine));
     } else if (liquid) {
         auto& native = liquidParameters.emplace(); draw.liquid = &native;
         native.lightCount = m->shaders.at(vertex).permutation;
@@ -1062,15 +1111,18 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
         Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");
         ITexMarkAsUpdated(texture);
-        textures[i] = m->textures.at(texture).gpu;
+        textures[i] = m->textures.at(texture).sampled ?: m->textures.at(texture).gpu;
         states[i] = state;
         states[i].decodeScale = m->gpu.DecodeScale(m->textures.at(texture).image.format);
         states[i].filter = EGxTexFilter(texture->m_flags.m_filter);
         states[i].wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); states[i].wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
+        Require(texture->m_format != GxTex_R32F || states[i].filter == GxTex_Nearest || states[i].filter == GxTex_NearestMipNearest ||
+            m->gpu.device.supports32BitFloatFiltering, "This GPU cannot filter R32F textures with the requested sampler");
     }
     const auto encoder = m->Render();
-    if (model) { m->gpu.DrawModel(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
+    if (shadow) { m->gpu.DrawShadowMap(m->command, m->pass, textures[0], draw, inputs ? states[0] : state, encoder); }
+    else if (model) { m->gpu.DrawModel(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (terrain) { m->gpu.DrawTerrain(m->command, m->pass, textures, draw, states, encoder); }
@@ -1100,7 +1152,7 @@ void CGxDeviceMetal::XformSetProjection(const C44Matrix& matrix) {
 
 // Fail at the actual call site rather than inherit the base class's empty operations.
 void CGxDeviceMetal::DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>& pixels) {
-    Require(m->command != nil, "Pixel readback requires an active Gx frame");
+    Require(m->command && m->pass.colorAttachments[0].texture.pixelFormat == MTLPixelFormatBGRA8Unorm, "Pixel readback requires a BGRA8 Gx frame");
     ClampRectToWindow(rect);
     const size_t width = std::max<int64_t>(0, int64_t(rect.maxX) - rect.minX), height = std::max<int64_t>(0, int64_t(rect.maxY) - rect.minY);
     Require(!height || width <= ResourceBudget / 4 / height, "Pixel readback exceeds memory budget");
@@ -1111,6 +1163,14 @@ void CGxDeviceMetal::DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>& 
     // current game callers request origin zero. That discrepancy still needs
     // original Windows verification, not an assumed visual-equivalence claim.
     m->ReadSurface(m->pass.colorAttachments[0].texture, rect, pixels.Ptr());
+}
+void CGxDeviceMetal::ReadFloatColor(CiRect& rect, TSGrowableArray<float>& pixels) {
+    Require(m->command && m->pass.colorAttachments[0].texture.pixelFormat == MTLPixelFormatR32Float, "Float color readback requires an R32F attachment");
+    ClampRectToWindow(rect);
+    const size_t width = std::max<int64_t>(0, int64_t(rect.maxX) - rect.minX), height = std::max<int64_t>(0, int64_t(rect.maxY) - rect.minY);
+    Require(!height || width <= ResourceBudget / 4 / height, "Float color readback exceeds memory budget");
+    pixels.SetCount(uint32_t(width * height));
+    if (width && height) m->ReadSurface(m->pass.colorAttachments[0].texture, rect, pixels.Ptr());
 }
 void CGxDeviceMetal::DeviceReadDepths(CiRect& rect, TSGrowableArray<float>& depths) {
     Require(m->command && m->pass.depthAttachment.texture, "Depth readback requires a Gx depth attachment");
@@ -1159,7 +1219,7 @@ void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, ui
     if (!m_context) { return; }
     Require((buffer == GxBuffers_Color || buffer == GxBuffers_Depth) && plane == 0, "Unsupported Gx target buffer or plane");
     Require(buffer == GxBuffers_Color || !texture, "Gx explicit depth texture targets are not implemented");
-    Require(!texture || (texture->m_flags.m_renderTarget && texture->m_format == GxTex_Argb8888), "Invalid Gx color render target");
+    Require(!texture || (texture->m_flags.m_renderTarget && (texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F)), "Invalid Gx color render target");
     auto& target = m_textureTarget[buffer];
     if (target.m_texture == texture && target.m_plane == plane) { return; }
     if (texture) { ITexMarkAsUpdated(texture); }
@@ -1174,8 +1234,8 @@ void CGxDeviceMetal::DeviceRestoreDepthSurface() { Unsupported("restore depth su
 void CGxDeviceMetal::DeviceResolveDepthBuffer(CGxTex*) { Unsupported("resolve depth"); }
 void CGxDeviceMetal::DeviceCopyTex(CGxTex* source, uint32_t sourcePlane, CGxTex* dest, uint32_t destPlane) {
     if (!m_context || !source || !dest) { return; }
-    Require(sourcePlane == 0 && destPlane == 0 && dest->m_flags.m_renderTarget && source->m_format == GxTex_Argb8888 &&
-        dest->m_format == GxTex_Argb8888, "Unsupported Gx texture copy format, target or plane");
+    Require(sourcePlane == 0 && destPlane == 0 && dest->m_flags.m_renderTarget && (source->m_format == GxTex_Argb8888 || source->m_format == GxTex_R32F) &&
+        dest->m_format == source->m_format, "Unsupported Gx texture copy format, target or plane");
     ITexMarkAsUpdated(source); ITexMarkAsUpdated(dest);
     id<MTLTexture> src = m->textures.at(source).gpu, dst = m->textures.at(dest).gpu;
     Require(m->CopyColor(src, SurfaceRect(src, 0), dst, 0, SurfaceRect(dst, 0), false), "Invalid Gx texture copy");

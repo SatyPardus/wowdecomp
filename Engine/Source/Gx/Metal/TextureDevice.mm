@@ -89,9 +89,11 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid, const ShadowMapDrawParameters* shadow, MTLPixelFormat colorFormat) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
+    Require(colorFormat == MTLPixelFormatBGRA8Unorm || colorFormat == MTLPixelFormatR32Float, "Unsupported pipeline color format");
+    Require(colorFormat != MTLPixelFormatR32Float || state.blend < GxBlend_Alpha, "R32F blending is not implemented");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     Require(!IsModelEffect(effect) || SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect),
         "Unsupported native model vertex permutation");
@@ -101,6 +103,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         "Unsupported native terrain permutation or mismatched layer count");
     Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
     Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)), "Unsupported native liquid permutation");
+    Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
     // Leave eight bits for effect families; a growing material set must not
     // collide with the independent sampler/vertex specialization flags.
     const uint64_t key = uint64_t(state.blend) | (uint64_t(state.alphaRef != 0) << 4) | (uint64_t(state.colorWrite) << 5) |
@@ -109,7 +112,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         (uint64_t(modelPermutation) << 25) | (uint64_t(shaderAlphaTest) << 30) | (uint64_t(vertexEffect) << 31) |
         (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42) |
         (uint64_t(wmo ? unsigned(wmo->vertexEffect) : 0) << 47) | (uint64_t(wmo ? wmo->permutation % 10 : 0) << 50) |
-        (uint64_t(wmo && wmo->shaderAlphaTest) << 54) | (uint64_t(liquid ? liquid->lightCount : 0) << 55);
+        (uint64_t(wmo && wmo->shaderAlphaTest) << 54) | (uint64_t(liquid ? liquid->lightCount : 0) << 55) |
+        (uint64_t(shadow ? shadow->skinning : 0) << 57) | (uint64_t(shadow && shadow->cutout) << 59) | (uint64_t(colorFormat == MTLPixelFormatR32Float) << 60);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -182,7 +186,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
+    if (decodePacked && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -199,6 +203,36 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             if (!fragment) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Packed texture specialization failed"); }
         }
         descriptor.fragmentFunction = fragment;
+    }
+    if (effect == FragmentEffect::ShadowMap) {
+        Require(!screenAtDepth && (!shadow->cutout || GxVertexHasAttrib(format, GxVA_TexCoord0)) &&
+            (!shadow->skinning || format == GxVBF_PBNT2), "Unsupported shadow-map vertex layout");
+        const bool alpha = state.alphaRef != 0;
+        auto constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&shadow->skinning type:MTLDataTypeUInt atIndex:21];
+        [constants setConstantValue:&shadow->cutout type:MTLDataTypeBool atIndex:22];
+        auto& vertex = m_shadowVertex[shadow->skinning][shadow->cutout];
+        auto& fragment = m_shadowFragment[shadow->cutout][alpha][decodePacked];
+        NSError* error = nil;
+        if (!vertex) vertex = [m_library newFunctionWithName:shadow->skinning ? @"shadowMapSkinVertex" : @"shadowMapRigidVertex" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:@"shadowMapFragment" constantValues:constants error:&error];
+        if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Shadow-map specialization failed");
+        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        auto attribute = [&](unsigned index, EGxVertexAttrib gx, MTLVertexFormat type) {
+            layout.attributes[index].bufferIndex = 1;
+            layout.attributes[index].offset = GxVertexAttribOffset(format, gx);
+            layout.attributes[index].format = type;
+        };
+        attribute(0, GxVA_Position, MTLVertexFormatFloat3);
+        if (shadow->cutout) attribute(2, GxVA_TexCoord0, MTLVertexFormatFloat2);
+        if (shadow->skinning) {
+            attribute(3, GxVA_BlendWeight, MTLVertexFormatUChar4Normalized);
+            attribute(4, GxVA_BlendIndices, MTLVertexFormatUChar4);
+        }
+        layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     if (IsModelEffect(effect)) {
         const bool material = UsesModelMaterial(vertexEffect);
@@ -349,7 +383,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     auto attachment = descriptor.colorAttachments[0];
-    attachment.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    attachment.pixelFormat = colorFormat;
     attachment.blendingEnabled = state.blend >= GxBlend_Alpha;
     attachment.sourceRGBBlendFactor = source[state.blend];
     attachment.destinationRGBBlendFactor = destination[state.blend];
@@ -496,7 +530,7 @@ id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forc
 void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport) {
     // Resolve/validate before opening an encoder so failures cannot leave a pass open.
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, GxVertexBufferFormats_Last, false, false, FragmentEffect::Unlit, false, simd_any(state.decodeScale != simd_make_float4(1)));
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, GxVertexBufferFormats_Last, false, false, FragmentEffect::Unlit, false, simd_any(state.decodeScale != simd_make_float4(1)), 0, false, ModelVertexEffect::Diffuse, nullptr, nullptr, nullptr, nullptr, pass.colorAttachments[0].texture.pixelFormat);
     id<MTLSamplerState> sampler = Sampler(state);
     Require(std::isfinite(state.blendFactor) && state.blendFactor >= 0 && state.blendFactor <= 1, "Invalid Gx blend factor");
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
@@ -521,17 +555,17 @@ void GxMetal::TextureDevice::ClearRegion(id<MTLCommandBuffer> command, MTLRender
     const MTLScissorRect& region, uint32_t mask, simd_float4 color, id<MTLRenderCommandEncoder> encoder) {
     const bool hasDepth = pass.depthAttachment.texture != nil, writeColor = (mask & 1) != 0, writeDepth = (mask & 2) != 0;
     auto target = pass.colorAttachments[0].texture;
-    Require(command && target && target.pixelFormat == MTLPixelFormatBGRA8Unorm && target.sampleCount == 1 &&
+    Require(command && target && (target.pixelFormat == MTLPixelFormatBGRA8Unorm || target.pixelFormat == MTLPixelFormatR32Float) && target.sampleCount == 1 &&
         (!hasDepth || pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float) && (!writeDepth || hasDepth),
         "Unsupported Metal regional clear attachments");
     Require(mask && mask <= 3 && region.width && region.height && region.x < target.width && region.y < target.height &&
         region.width <= target.width - region.x && region.height <= target.height - region.y, "Invalid Metal clear region");
-    auto& pipeline = m_clearPipelines[hasDepth][writeColor];
+    auto& pipeline = m_clearPipelines[target.pixelFormat == MTLPixelFormatR32Float][hasDepth][writeColor];
     if (!pipeline) {
         auto descriptor = [MTLRenderPipelineDescriptor new];
         descriptor.label = @"Gx regional attachment clear";
         descriptor.vertexFunction = m_clearVertex; descriptor.fragmentFunction = m_clearFragment;
-        descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+        descriptor.colorAttachments[0].pixelFormat = target.pixelFormat;
         descriptor.colorAttachments[0].writeMask = writeColor ? MTLColorWriteMaskAll : MTLColorWriteMaskNone;
         if (hasDepth) { descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float; }
         NSError* error = nil;

@@ -9,7 +9,6 @@ constant uint modelLayerOperation [[function_constant(10)]];
 constant bool modelDualUV [[function_constant(11)]];
 constant bool modelProjected [[function_constant(20)]];
 enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha };
-struct ModelAffine { float4 x, y, z; };
 struct ModelVertexParameters {
     float4x4 projection;
     float4 uv[4];
@@ -85,26 +84,9 @@ vertex ModelRaster modelRigidVertex(ModelVertex v [[stage_in]], constant ModelVe
     constant ModelAffine* palette [[buffer(2)]]) {
     return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), palette[0], p);
 }
-inline ModelAffine modelSkinTransform(float4 weights, uint4 bones, constant ModelAffine* palette) {
-    ModelAffine transform = palette[bones.x];
-    if (modelPermutation >= 20) {
-        // Match the original's y,x,z,w weighted-matrix association; do not
-        // normalize weights or blend already-normalized vertex normals.
-        transform.x = fma(palette[bones.x].x, weights.x, palette[bones.y].x * weights.y);
-        transform.y = fma(palette[bones.x].y, weights.x, palette[bones.y].y * weights.y);
-        transform.z = fma(palette[bones.x].z, weights.x, palette[bones.y].z * weights.y);
-        transform.x = fma(palette[bones.z].x, weights.z, transform.x);
-        transform.y = fma(palette[bones.z].y, weights.z, transform.y);
-        transform.z = fma(palette[bones.z].z, weights.z, transform.z);
-        transform.x = fma(palette[bones.w].x, weights.w, transform.x);
-        transform.y = fma(palette[bones.w].y, weights.w, transform.y);
-        transform.z = fma(palette[bones.w].z, weights.w, transform.z);
-    }
-    return transform;
-}
 vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
     constant ModelAffine* palette [[buffer(2)]]) {
-    const auto transform = modelSkinTransform(v.weights, v.bones, palette);
+    const auto transform = skinTransform(v.weights, v.bones, palette, modelPermutation >= 20);
     return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), transform, p);
 }
 struct ModelColorVertex {
@@ -156,7 +138,7 @@ vertex ModelRaster modelProjectedColorVertex(ModelProjectedColor v [[stage_in]],
 }
 vertex ModelRaster modelProjectedSkinVertex(ModelProjectedSkin v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
     constant ModelAffine* palette [[buffer(2)]]) {
-    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), modelSkinTransform(v.weights, v.bones, palette), p);
+    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), skinTransform(v.weights, v.bones, palette, modelPermutation >= 20), p);
 }
 fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],

@@ -12,6 +12,7 @@ void CheckGxFFXEffect(CGxDeviceMetal& device);
 void CheckGameEvents();
 void CheckGameAsyncFiles();
 void CheckModelShaders(CGxDeviceMetal& device);
+void CheckShadowMapShaders(CGxDeviceMetal& device);
 void CheckTerrainShaders(CGxDeviceMetal& device);
 void CheckWmoShaders(CGxDeviceMetal& device);
 void CheckLiquidShaders(CGxDeviceMetal& device);
@@ -291,6 +292,7 @@ void CheckGxDevice() {
     CheckGxFFXPasses(device);
     CheckGxFFXEffect(device);
     CheckModelShaders(device);
+    CheckShadowMapShaders(device);
     CheckTerrainShaders(device);
     CheckWmoShaders(device);
     CheckLiquidShaders(device);
