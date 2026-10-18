@@ -1,6 +1,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#if defined(__APPLE__)
+#include <cmath>
+#endif
 #include "Client.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -137,7 +140,11 @@ static CVar* s_cvAsyncHandlerTimeout;
 // VERIFY: 1c2781fc auto
 // OFFSET: 0x004015E0
 static bool MouseSpeedCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
-    OsInputSetMouseSpeed(SStrToFloat(value));
+    const float speed = SStrToFloat(value);
+#if defined(__APPLE__)
+    if (!std::isfinite(speed)) return false;
+#endif
+    OsInputSetMouseSpeed(speed);
     return true;
 }
 

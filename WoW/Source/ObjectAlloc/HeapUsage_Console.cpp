@@ -27,13 +27,13 @@ static int32_t HeapUsage(const char* command, const char* arguments) {
         uint32_t totalBytes = list.TotalHeaps() * list.m_objSize * list.m_objsPerBlock;
         uint32_t usedBytes = list.BlocksAllocated() * list.m_objSize;
 
-        str += SStrPrintf(str, line - str, "    \"%24s\" %3u blocks, %5u objs per block (%6u bytes per obj): %6u objs allocated (%3d%%) - Total bytes: %8.3fMb (%8.3fMb), Total Allocs: %d\n", list.m_heapName, list.TotalHeaps(), list.m_objsPerBlock, list.m_objSize, list.BlocksAllocated(), list.PercentUsed(), usedBytes * 0.00000095367432f, totalBytes * 0.00000095367432f, numAllocs);
+        str += SStrPrintf(str, buffer + sizeof(buffer) - str, "    \"%24s\" %3u blocks, %5u objs per block (%6u bytes per obj): %6u objs allocated (%3d%%) - Total bytes: %8.3fMb (%8.3fMb), Total Allocs: %d\n", list.m_heapName, list.TotalHeaps(), list.m_objsPerBlock, list.m_objSize, list.BlocksAllocated(), list.PercentUsed(), usedBytes * 0.00000095367432f, totalBytes * 0.00000095367432f, numAllocs);
 
         objectBytes += globals->objects[i].m_objSize * globals->objects[i].BlocksAllocated();
         heapBytes += globals->objects[i].TotalHeaps() * globals->objects[i].m_objSize * globals->objects[i].m_objsPerBlock;
     }
 
-    SStrPrintf(str, line - str, "%4.3fMb total object bytes used, %4.3fMb bytes allocated for heaps\n", objectBytes * 0.00000095367432f, heapBytes * 0.00000095367432f);
+    SStrPrintf(str, buffer + sizeof(buffer) - str, "%4.3fMb total object bytes used, %4.3fMb bytes allocated for heaps\n", objectBytes * 0.00000095367432f, heapBytes * 0.00000095367432f);
     ReleaseObjAllocGlobals();
 
     char* dest = line;
@@ -49,6 +49,7 @@ static int32_t HeapUsage(const char* command, const char* arguments) {
     }
 
     if (dest != line) {
+        *dest = '\0';
         ConsoleWrite(line, DEFAULT_COLOR);
     }
 

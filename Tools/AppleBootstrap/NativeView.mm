@@ -190,7 +190,8 @@ int32_t Integral(double& remainder, double delta) {
     if (OsInputGetMouseMode() == OS_MOUSE_MODE_RELATIVE) {
         const double sx = self.drawableSize.width / std::max(CGFloat(1), self.bounds.size.width);
         const double sy = self.drawableSize.height / std::max(CGFloat(1), self.bounds.size.height);
-        const int32_t x = Integral(_relativeX, event.deltaX * sx), y = Integral(_relativeY, event.deltaY * sy);
+        const double sensitivity = OsInputGetMouseSpeed();
+        const int32_t x = Integral(_relativeX, event.deltaX * sx * sensitivity), y = Integral(_relativeY, event.deltaY * sy * sensitivity);
         if (x || y) OsQueuePut(OS_INPUT_MOUSE_MOVE_RELATIVE, 0, x, y, 0);
     } else {
         _relativeX = _relativeY = 0;

@@ -5,6 +5,7 @@
 #include "Engine/Source/Os/OsIME.h"
 #include <algorithm>
 #include <cstring>
+#include <cmath>
 #include <deque>
 #include <mutex>
 #include <optional>
@@ -19,6 +20,7 @@ OsInputComposition composition;
 std::set<KEY> keys;
 uint32_t buttons;
 int32_t pointerX, pointerY;
+int32_t mouseSpeed = 10;
 uint32_t imeEnableCount;
 int32_t language;
 bool nativeLanguage = true, secure;
@@ -32,6 +34,17 @@ void OsInputInitialize() {
     queue.clear(); keys.clear(); buttons = 0; composition = {}; pointerX = pointerY = 0;
 }
 void OsInputDestroy() { OsInputSetMouseMode(OS_MOUSE_MODE_NORMAL); OsIMEDestroy(); OsInputEnableSecureMode(0); OsInputInitialize(); pollProc = nullptr; }
+float OsInputGetMouseSpeed() {
+    std::lock_guard<std::mutex> lock(mutex);
+    return mouseSpeed * .1f;
+}
+void OsInputSetMouseSpeed(float speed) {
+    if (!std::isfinite(speed)) throw std::invalid_argument("Non-finite native mouse sensitivity");
+    std::lock_guard<std::mutex> lock(mutex);
+    // Preserve the original preference range and tenth-step quantization.
+    // AppKit applies it to client relative motion, not the system cursor.
+    mouseSpeed = int32_t(std::clamp(speed, .1f, 2.f) * 10.f);
+}
 void OsInputSetEventPollProc(void (*proc)()) { pollProc = proc; }
 void OsInputSetDrawableSize(uint32_t width, uint32_t height) {
     std::lock_guard<std::mutex> lock(mutex);

@@ -6,6 +6,7 @@
 #include "Engine/Source/Base/Prop.h"
 #import <Carbon/Carbon.h>
 #include <cmath>
+#include <limits>
 #include <cstdio>
 #include <stdexcept>
 #include <vector>
@@ -85,9 +86,24 @@ int main() {
             EventQueuePost(context, EVENT_ID_0, nullptr, 0); Step();
             CGEventRef move = CGEventCreateMouseEvent(nullptr, kCGEventMouseMoved, CGPointZero, kCGMouseButtonLeft);
             CGEventSetIntegerValueField(move, kCGMouseEventDeltaX, 3); CGEventSetIntegerValueField(move, kCGMouseEventDeltaY, -2);
-            [view mouseMoved:[NSEvent eventWithCGEvent:move]]; CFRelease(move); Step();
+            [view mouseMoved:[NSEvent eventWithCGEvent:move]]; Step();
             Require(mouse.back().m_mode == MOUSE_MODE_RELATIVE && mouse.back().m_x == 6 && mouse.back().m_y == -4,
                 "Native relative motion lost drawable scaling or Y direction");
+
+            for (const float sensitivity : {.5f, 2.f}) {
+                OsInputSetMouseSpeed(sensitivity);
+                [view mouseMoved:[NSEvent eventWithCGEvent:move]]; Step();
+                Require(mouse.back().m_x == 6 * sensitivity && mouse.back().m_y == -4 * sensitivity,
+                    "Native relative sensitivity did not reach original Event");
+            }
+            CFRelease(move);
+            OsInputSetMouseSpeed(-1); Require(OsInputGetMouseSpeed() == .1f, "Mouse sensitivity lower bound changed");
+            OsInputSetMouseSpeed(3); Require(OsInputGetMouseSpeed() == 2.f, "Mouse sensitivity upper bound changed");
+            OsInputSetMouseSpeed(.59f); Require(OsInputGetMouseSpeed() == .5f, "Mouse sensitivity quantization changed");
+            bool rejected = false;
+            try { OsInputSetMouseSpeed(std::numeric_limits<float>::quiet_NaN()); } catch (const std::invalid_argument&) { rejected = true; }
+            Require(rejected && OsInputGetMouseSpeed() == .5f, "Invalid sensitivity changed native state");
+            OsInputSetMouseSpeed(1);
 
             characters.clear(); compositions.clear(); OsIMEEnable(1);
             [view setMarkedText:@"ni" selectedRange:NSMakeRange(1, 1) replacementRange:NSMakeRange(NSNotFound, 0)];

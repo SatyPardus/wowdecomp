@@ -62,6 +62,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsCall.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Input.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Joystick.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/SteelseriesMouse/Apple/WowMouse.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/NetAddress.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
@@ -159,6 +160,9 @@ add_library(AppleGameResources STATIC
     Engine/Source/Services/ParticleSystem2.cpp
     Engine/Source/Services/RibbonEmitter.cpp
     WoW/Source/ObjectAlloc/ObjectAlloc.cpp
+    WoW/Source/ObjectAlloc/HeapUsage.cpp
+    WoW/Source/ObjectAlloc/HeapUsage_CVar.cpp
+    WoW/Source/ObjectAlloc/HeapUsage_Console.cpp
     WoW/Source/DB/WowClientDB.cpp
     WoW/Source/DB/DBClient/AnimationData.cpp
     WoW/Source/DB/Rec/AnimationDataRec.cpp
