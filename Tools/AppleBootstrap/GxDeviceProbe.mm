@@ -18,6 +18,7 @@ void CheckFixedUnlit(CGxDeviceMetal&);
 void CheckGameTextureAtlases();
 void CheckModelShaders(CGxDeviceMetal& device);
 void CheckModelClipPlanes(CGxDeviceMetal& device);
+void CheckModelDepthOffset(CGxDeviceMetal& device);
 void CheckShadowMapShaders(CGxDeviceMetal& device);
 void CheckDetailDoodadShaders(CGxDeviceMetal& device);
 void CheckWaterRippleShaders(CGxDeviceMetal& device);
@@ -76,6 +77,7 @@ void CheckGxDevice(const char* focus) {
     if (focus && !std::strcmp(focus, "fixed")) { CheckFixedUnlit(device); CheckWaterRippleShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "detail-shaders")) { CheckDetailDoodadShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-clipping")) { CheckModelClipPlanes(device); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "model-depth")) { CheckModelDepthOffset(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-shaders")) { CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "wmo-shaders")) { CheckWmoShaders(device); CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ffx")) { CheckGxFFXPasses(device); CheckGxFFXEffect(device); device.DeviceDestroy(); return; }
@@ -351,6 +353,7 @@ void CheckGxDevice(const char* focus) {
     CheckFixedUnlit(device);
     CheckModelShaders(device);
     CheckModelClipPlanes(device);
+    CheckModelDepthOffset(device);
     CheckShadowMapShaders(device);
     CheckDetailDoodadShaders(device);
     CheckWaterRippleShaders(device);

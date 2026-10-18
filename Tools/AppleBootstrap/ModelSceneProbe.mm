@@ -446,7 +446,10 @@ void CheckGameModels() {
             ~ShadowCleanup() { ShadowDestroy(); }
         } shadowCleanup;
         ShadowInit();
-        for (const char *name : {"Spells\\AcidBurn.m2", "Spells\\Blizzard_Spawn.m2", "Spells\\Consecration_Impact_Base.m2"}) {
+        struct ProjectedFixture { const char* name; float zoom; };
+        for (const auto fixture : {ProjectedFixture{"Spells\\AcidBurn.m2",1}, {"Spells\\Blizzard_Spawn.m2",1},
+                                  {"Spells\\Consecration_Impact_Base.m2",1}, {"Spells\\Astral_Recall_Impact_Base.m2",8}}) {
+            const char* name=fixture.name;
             auto *projectedScene = M2CreateScene();
             if (!projectedScene)
                 throw std::runtime_error("Projected spell scene creation failed");
@@ -489,7 +492,12 @@ void CheckGameModels() {
                     GxPrimVertexPtr(buffer, format);
                     CShaderEffect::SetDefaultShaders(0);
                     CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 5};
+                    // Same normalized bias as World::ProjectTextureCallback
+                    // and ProjectTex2dDrawShaderEffect; retain the planar fixture.
+                    const float oldOffset=device.m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0];
+                    GxRsSet(GxRs_PolygonOffset,(.4f+.4f)*3.0518044e-05f);
                     GxDraw(&batch, 0);
+                    GxRsSet(GxRs_PolygonOffset,oldOffset);
                     ++receiver.draws;
                 },
                 &receiver);
@@ -512,6 +520,10 @@ void CheckGameModels() {
             unsigned batches = 0;
             for (unsigned i = 0; i < projectedScene->m_elements.Count(); ++i)
                 batches += projectedScene->m_elements[i].m_type == 1;
+            // Frame the small Hearthstone ground ring more closely without
+            // changing the model, its animation or its clip-space depth.
+            C44Matrix projection(1); projection.a0=projection.b1=fixture.zoom;
+            device.XformSetProjection(projection);
             device.BeginFrame(pass);
             projectedScene->Draw(M2PASS_0);
             projectedScene->Draw(M2PASS_1);
@@ -526,6 +538,7 @@ void CheckGameModels() {
             if (!batches || receiver.draws != batches || changed < 16)
                 throw std::runtime_error("Authored projected spell did not reach its receiver");
             device.ScenePresent();
+            device.XformSetProjection(C44Matrix(1));
         }
     }
     for (const bool ribbons : {false, true}) {

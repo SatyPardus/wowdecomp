@@ -289,6 +289,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else if (model) {
         ModelFragmentParameters material = geometry.model->fragment;
         material.stateAlphaRef = state.alphaRef / 255.0f;
+        material.depthOffset = geometry.depthOffset;
         for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
     } else if (liquid) {

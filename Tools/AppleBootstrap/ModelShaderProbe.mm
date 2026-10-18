@@ -504,3 +504,79 @@ void CheckModelClipPlanes(CGxDeviceMetal& device) {
     }
     std::fprintf(stderr,"Model clipping: %u draws, six independent homogeneous planes, rigid/one/four weights, plane equality, nonunit W, intersections and disabled-state restoration passed\n",checks);
 }
+
+void CheckModelDepthOffset(CGxDeviceMetal& device) {
+    CGxShader* vertex[4][90]{}; CGxShader* pixel[2][16]{}; CGxTex* texture=nullptr;
+    struct Cleanup {
+        CGxDeviceMetal& device; CGxShader* (*vertex)[90]; CGxShader* (*pixel)[16]; CGxTex*& texture;
+        ~Cleanup() {
+            if(device.FrameCommand()) device.ScenePresent();
+            GxRsSet(GxRs_PolygonOffset,0.0f); GxRsSet(GxRs_ClipPlaneMask,0);
+            GxRsSet(GxRs_DepthTest,0); GxRsSet(GxRs_DepthWrite,0); GxXformSetViewport(0,1,0,1,0,1);
+            for(unsigned family=0;family<4;++family) for(auto* shader:vertex[family]) device.ShaderDestroy(shader);
+            for(unsigned family=0;family<2;++family) for(auto* shader:pixel[family]) device.ShaderDestroy(shader); if(texture) device.TexDestroy(texture);
+        }
+    } cleanup{device,vertex,pixel,texture};
+    const char* families[]={"Diffuse_T1","Diffuse_T1_Env","Diffuse_T1_T2","Diffuse_Env"};
+    for(unsigned i=0;i<4;++i) device.ShaderCreate(vertex[i],GxSh_Vertex,"Shaders\\Vertex",families[i],90);
+    device.ShaderCreate(pixel[0],GxSh_Pixel,"Shaders\\Pixel","Combiners_Mod",16);
+    device.ShaderCreate(pixel[1],GxSh_Pixel,"Shaders\\Pixel","Combiners_Mod_Mod",16);
+    device.TexCreate(GxTex_2d,1,1,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Nearest),nullptr,LayerAlphaPattern,"Model depth reference",texture);
+    GxRsSet(GxRs_Texture0,texture); GxRsSet(GxRs_Texture1,texture);
+    for(auto state:{GxRs_AlphaRef,GxRs_DepthTest,GxRs_Culling,GxRs_ScissorTest,GxRs_Fog,GxRs_ClipPlaneMask,GxRs_PointSprite}) GxRsSet(state,0);
+    GxRsSet(GxRs_BlendingMode,GxBlend_Opaque); GxRsSet(GxRs_ColorWrite,15); GxRsSet(GxRs_DepthWrite,1); GxXformSetViewport(0,1,0,1,0,1);
+    auto descriptor=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
+    descriptor.usage=MTLTextureUsageRenderTarget; descriptor.storageMode=MTLStorageModePrivate;
+    auto pass=[MTLRenderPassDescriptor renderPassDescriptor]; pass.colorAttachments[0].texture=[device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction=MTLLoadActionClear; pass.colorAttachments[0].clearColor=MTLClearColorMake(0,0,0,0);
+    descriptor.pixelFormat=MTLPixelFormatDepth32Float; pass.depthAttachment.texture=[device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.depthAttachment.loadAction=MTLLoadActionClear; pass.depthAttachment.storeAction=MTLStoreActionStore; pass.depthAttachment.clearDepth=1;
+    std::array<Vec,256> c{}; c[2]={1,0,0,0}; c[3]={0,1,0,0}; c[4]={0,0,1,0}; c[5]={0,0,0,1};
+    c[6]={1,0,0,0}; c[7]={0,1,0,0}; c[8]=c[6]; c[9]=c[7];
+    c[10]={1,1,1,0}; c[12]={0,0,-1,0}; c[25]={1,1,1,1}; c[28]={1,1,1,1}; c[30]={0,1,1,0};
+    c[31]={1,0,0,0}; c[32]={0,1,0,0}; c[33]={0,0,1,0}; GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),256);
+    const Vec fog{}; GxShaderConstantsSet(GxSh_Pixel,2,fog.data(),1); unsigned draws=0; bool layered=false;
+    auto encode=[&](float z,float offset,EGxPrim primitive=GxPrim_TriangleStrip,bool slope=false) {
+        std::array<M2Vertex,4> source{};
+        for(unsigned i=0;i<4;++i) {
+            auto& v=source[i]; v.m_position={i&1 ? 1.0f:-1.0f,i&2 ? 1.0f:-1.0f,slope ? (i&1 ? .9f:.1f):z};
+            v.m_normal={0,0,1}; v.m_texcoord[0]=v.m_texcoord[1]={.5f,.5f};
+            const uint8_t weight[]={255,0,0,0}; std::memcpy(&v.m_weights,weight,4);
+        }
+        if(primitive==GxPrim_Points) source[0].m_position={0,0,z};
+        if(primitive==GxPrim_Lines) { source[0].m_position={-.5f,0,z}; source[1].m_position={.5f,0,z}; }
+        auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(M2Vertex),4);
+        std::memcpy(device.BufLock(buffer),source.data(),sizeof(source)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PBNT2);
+        GxRsSet(GxRs_PolygonOffset,offset); CGxBatch batch{primitive,0,primitive==GxPrim_Points ? 1u:primitive==GxPrim_Lines ? 2u:4u,0,0};
+        GxDraw(&batch,0); ++draws;
+    };
+    auto check=[&](float expectedDepth,bool visible,EGxPrim primitive=GxPrim_TriangleStrip) {
+        CiRect rect(0,0,16,16); TSGrowableArray<CImVector> color; TSGrowableArray<float> depth;
+        device.DeviceReadPixels(rect,color); device.DeviceReadDepths(rect,depth); unsigned sample=8*16+8;
+        if(primitive<GxPrim_Triangles) for(unsigned i=0;i<color.Count();++i) if(color[i].a) { sample=i; break; }
+        Require(bool(color[sample].a)==visible,"Model depth offset changed expected depth/alpha rejection");
+        Require(std::abs(depth[sample]-expectedDepth)<1e-6f,"Model normalized depth offset mismatch");
+        if(visible) Require(std::abs(int(color[sample].r)-(layered ? 16:64))<=1 && std::abs(int(color[sample].g)-(layered ? 64:128))<=1 &&
+            std::abs(int(color[sample].b)-(layered ? 145:192))<=1 && std::abs(int(color[sample].a)-(layered ? 64:128))<=1,"Model depth offset changed material RGBA");
+    };
+    auto draw=[&](float z,float offset,float expectedDepth,bool visible=true,EGxPrim primitive=GxPrim_TriangleStrip,bool slope=false) {
+        device.BeginFrame(pass); encode(z,offset,primitive,slope); check(expectedDepth,visible,primitive); device.ScenePresent();
+    };
+    for(unsigned family=0;family<4;++family) for(unsigned permutation:{0u,11u,21u}) {
+        layered=family==1 || family==2; GxRsSet(GxRs_PixelShader,pixel[layered][0]);
+        GxRsSet(GxRs_VertexShader,vertex[family][permutation]);
+        for(float z:{.05f,.5f,.95f}) for(float offset:{-2.0f,-.05f,0.0f,.000024414435f,.05f,2.0f}) draw(z,offset,std::clamp(z-offset,0.0f,1.0f));
+    }
+    layered=false; GxRsSet(GxRs_VertexShader,vertex[0][0]); GxRsSet(GxRs_PixelShader,pixel[0][0]);
+    GxXformSetViewport(0,1,0,1,.2f,.8f); draw(.25f,.125f,.225f); GxXformSetViewport(0,1,0,1,0,1);
+    draw(-.1f,-.5f,1,false); draw(1.1f,.5f,1,false);
+    pass.depthAttachment.clearDepth=.5; GxRsSet(GxRs_DepthTest,1); GxRsSet(GxRs_DepthFunc,3); GxRsSet(GxRs_DepthWrite,0);
+    for(float offset:{-.05f,0.0f,.05f}) draw(.5f,offset,.5f,offset>0);
+    GxRsSet(GxRs_DepthWrite,1); GxRsSet(GxRs_AlphaRef,128); draw(.5f,.05f,.45f);
+    GxRsSet(GxRs_AlphaRef,129); draw(.5f,.05f,.5f,false); GxRsSet(GxRs_AlphaRef,0);
+    GxRsSet(GxRs_DepthTest,0); pass.depthAttachment.clearDepth=1;
+    draw(.5f,.05f,.475f,true,GxPrim_TriangleStrip,true);
+    for(auto primitive:{GxPrim_Points,GxPrim_Lines}) draw(.5f,.25f,.5f,true,primitive);
+    device.BeginFrame(pass); for(float offset:{0.0f,.25f,0.0f}) encode(.5f,offset); check(.5f,true); device.ScenePresent();
+    std::fprintf(stderr,"Model depth offset: %u draws, four rigid/skinned vertex families, normalized sign/saturation, viewport, clip rejection, alpha/depth states, slopes, points/lines and same-frame restoration passed\n",draws);
+}

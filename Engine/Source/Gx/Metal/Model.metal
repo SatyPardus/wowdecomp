@@ -11,6 +11,7 @@ constant bool modelProjected [[function_constant(20)]];
 constant bool modelReflectionOnly [[function_constant(33)]];
 constant uint modelShadowMode [[function_constant(35)]];
 constant bool modelClipping [[function_constant(38)]];
+constant bool modelDepthOffset [[function_constant(39)]];
 struct ModelClipParameters { float4 planes[6]; uint mask; uint padding[3]; };
 enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB };
 struct ModelVertexParameters {
@@ -21,7 +22,7 @@ struct ModelVertexParameters {
     float4 lightColor[4], lightPosition[4];
     float4 attenuationConstant, attenuationLinear, attenuationQuadratic;
 };
-struct ModelFragmentParameters { float4 fogColorAlphaRef, decodeScale[2]; float stateAlphaRef; float padding[3]; };
+struct ModelFragmentParameters { float4 fogColorAlphaRef, decodeScale[2]; float stateAlphaRef, depthOffset; float padding[2]; };
 struct ModelVertex {
     float3 position [[attribute(0)]];
     float3 normal [[attribute(1)]];
@@ -182,7 +183,11 @@ inline float modelShadowVisibility(ModelVaryings v, constant ShadowReceiverParam
         visibility = min(visibility,receiverBandedVisibility(v.nearShadow,v.middleShadow,v.farShadow,p,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
     return receiverShadowModulation(visibility,v.normal,p.lightDirection.xyz);
 }
-fragment float4 modelDiffuseFragment(ModelVaryings v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
+struct ModelFragmentOutput {
+    float4 color [[color(0)]];
+    float depth [[depth(any), function_constant(modelDepthOffset)]];
+};
+fragment ModelFragmentOutput modelDiffuseFragment(ModelVaryings v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
     constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]],
@@ -227,5 +232,9 @@ fragment float4 modelDiffuseFragment(ModelVaryings v [[stage_in]], constant Mode
         const float3 base = fma(float3(texel.a), fma(product, float3(-2), texel.rgb), product + product);
         shaded = fma(base, v.color.rgb, -p.fogColorAlphaRef.rgb);
     } else { shaded = fma(texel.rgb, v.color.rgb, -p.fogColorAlphaRef.rgb); }
-    return float4(fma(float3(v.fog), shaded, p.fogColorAlphaRef.rgb), alpha);
+    ModelFragmentOutput result{float4(fma(float3(v.fog), shaded, p.fogColorAlphaRef.rgb), alpha)};
+    // Preserve the normalized D3D9 offset after clipping and viewport mapping.
+    // The disabled specialization has no fragment-depth output.
+    if (modelDepthOffset) result.depth = saturate(v.position.z + p.depthOffset);
+    return result;
 }

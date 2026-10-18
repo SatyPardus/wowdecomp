@@ -75,8 +75,8 @@ struct ModelVertexParameters {
 struct ModelFragmentParameters {
     simd_float4 fogColorAlphaRef;
     simd_float4 decodeScale[2];
-    float stateAlphaRef;
-    float padding[3]{};
+    float stateAlphaRef, depthOffset = 0;
+    float padding[2]{};
 };
 static_assert(sizeof(ModelAffine) == 48 && sizeof(ModelVertexParameters) == 400 && sizeof(ModelFragmentParameters) == 64,
     "Native model constant layout");
@@ -231,7 +231,7 @@ struct GeometryDraw {
     FogEffectParameters fogEffect{};
     bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
-    float depthOffset = 0; // normalized post-raster depth offset (fixed unlit / water ripples)
+    float depthOffset = 0; // normalized post-raster depth offset (fixed unlit / water ripples / M2)
     bool depthTest = false, depthWrite = false;
     uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
     uint32_t culling = 0; // Gx: none, clockwise, counterclockwise
@@ -312,7 +312,7 @@ private:
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
     id<MTLFunction> m_modelVertex[8][90][2]{};
-    id<MTLFunction> m_modelFragment[13][2][2][2][4]{};
+    id<MTLFunction> m_modelFragment[13][2][2][2][4][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];

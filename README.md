@@ -656,6 +656,16 @@ depth-test and invariance diagnostics did not remove it. This remains a Windows
 rasterization/sampling comparison gap; the original mip chain and filters are
 preserved. Other shader families still reject user clip planes.
 
+Model materials also preserve the normalized D3D9 polygon offset after clipping
+and viewport mapping, with unchanged RGB/alpha and independent depth tests/writes.
+Points and lines ignore it; the disabled specialization omits fragment depth.
+`WOW_METAL_CHECK=model-depth` checks 230 draws, including the small offset used
+by original projected spells, saturation, clip/depth/alpha boundaries, slopes,
+four vertex families and same-frame restoration. The original Acid Burn,
+Blizzard, Consecration and Hearthstone impact resources draw through their
+authored projected batches with that world offset on an explicit planar receiver.
+The Hearthstone fixture uses a closer orthographic view of its small ground ring.
+
 Native `DetailDoodad` rendering preserves sun and three-point-light paths,
 unnormalized terrain normals, vertex tint, distance fading, fog and independent
 state alpha testing. Sixty numeric GPU draws cover both non-shadow vertex and
@@ -682,7 +692,7 @@ independence and clip boundaries. Original ripple/wake creation queries real
 Elwynn MH2O triangles and renders both original textures through the world batch
 routine, including growth, fading, expiry and recreation. Local projection
 matrices no longer read the unused UI camera. This is a focused world integration;
-unit-driven ripple spawning and polygon offset for programmable effects other than water ripples remain pending.
+unit-driven ripple spawning and polygon offset for programmable effects other than water ripples and M2 remain pending.
 
 Original `Model2.wfx` projected materials now use native view-space projection
 for both texture coordinates, with the authored ModMod/ModAdd color and alpha
@@ -1098,7 +1108,7 @@ GPU images, including partial rectangles and callbacks whose data starts at the
 updated region. Original Gx base-mip/filter selection is retained (the standalone
 BLP probe separately checks every authored mip). Frames are limited to three in
 flight and drained on suspension. Native hosts still own window/view creation;
-full client startup and input/event integration remain pending.
+the complete client entry and original input/event integration are described above.
 The native fixed-function unlit path supports zero to four contiguous texture
 stages, all six original Gx RGB/alpha operations independently, per-stage
 saturation, UV set selection, affine/projective texture transforms, vertex or

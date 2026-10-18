@@ -1253,7 +1253,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     if (clipMask && !model) unsupportedState("User clip planes are not implemented");
     Require((clipMask & ~0x3Fu) == 0, "Gx clip-plane mask exceeds six planes");
     if (integer(GxRs_PointSprite)) unsupportedState("Point sprites are not implemented");
-    if (!ripple && !fixed && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
+    if (!ripple && !fixed && !model && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
         unsupportedState("Depth bias is not implemented");
     if (!MasterEnable(GxMasterEnable_PolygonFill)) unsupportedState("Wireframe is not implemented");
     Require(postProcess || (m_primVertexFormat < GxVertexBufferFormats_Last && GxVertexSize(m_primVertexFormat) == vertices->m_itemSize),
@@ -1277,7 +1277,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         draw.indices = indexBinding.buffer; draw.indexOffset = indexBinding.offset;
     }
     draw.format = netherBlur ? GxVBF_PCT : m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
-    if (fixed || ripple) {
+    if (fixed || ripple || model) {
         const float offset = m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0];
         Require(std::isfinite(offset), "Invalid normalized depth offset");
         draw.depthOffset = batch->m_primType >= GxPrim_Triangles ? -offset : 0;
