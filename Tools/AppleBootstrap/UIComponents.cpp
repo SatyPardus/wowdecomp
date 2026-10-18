@@ -1,6 +1,7 @@
 #include "UIComponents.h"
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
+#include "WoW/Source/Ui/ScriptEvents.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -32,6 +33,7 @@ UIComponents::UIComponents(bool enableConsole) {
         CRect bounds; g_theGxDevicePtr->CapsWindowSize(bounds);
         CoordinateSetAspectRatio((bounds.maxX - bounds.minX) / (bounds.maxY - bounds.minY));
         if (!FrameScript_GetContext()) { FrameScript_Initialize(0); m_ownsScript = true; }
+        SystemRegisterFunctions(); m_systemScripts = true;
         ScrnInitialize(0); m_screen = true;
         m_previousConsoleAccess = IsConsoleEnabled();
         ConsoleDeviceSetConsoleAccess(enableConsole);
@@ -107,6 +109,7 @@ void UIComponents::Shutdown() {
     if (m_console) { ConsoleScreenDestroy(); ConsoleDeviceSetConsoleAccess(m_previousConsoleAccess); m_console = false; }
     if (m_resize) { EventUnregisterEx(EVENT_ID_SIZE, Resize, this, 7); m_resize = false; }
     m_top.reset(); m_button = nullptr; m_edit = nullptr; m_colorSelect = nullptr;
+    if (m_systemScripts) { SystemUnregisterFunctions(); m_systemScripts = false; }
     if (m_metatables) {
         CSimpleEditBox::DestroyScriptMetaTable(); CSimpleFontString::DestroyScriptMetaTable();
         CSimpleColorSelect::DestroyScriptMetaTable();

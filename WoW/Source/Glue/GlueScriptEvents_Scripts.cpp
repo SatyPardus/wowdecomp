@@ -46,6 +46,7 @@ static int32_t Script_GetBillingTimeRemaining(lua_State* L);
 static int32_t Script_GetBillingPlan(lua_State* L);
 int32_t Script_GetBillingTimeRested(lua_State* L);
 int32_t Script_IsLinuxClient(lua_State* L);
+int32_t Script_GetAccountExpansionLevel(lua_State* L);
 int32_t Script_RestoreVideoResolutionDefaults(lua_State* L);
 int32_t Script_RestoreVideoEffectsDefaults(lua_State* L);
 int32_t Script_RestoreVideoStereoDefaults(lua_State* L);
@@ -840,14 +841,6 @@ static int32_t Script_HideCursor(lua_State* L) {
     g_theGxDevicePtr->CursorSetVisible(0);
 
     return 0;
-}
-
-// VERIFY: bca364a3 auto
-// OFFSET: 0x004DDC20
-int32_t Script_GetAccountExpansionLevel(lua_State* L) {
-    lua_pushnumber(L, ClientServices::Connection()->m_accountExpansion);
-
-    return 1;
 }
 
 // VERIFY: 7a8c8b01 auto

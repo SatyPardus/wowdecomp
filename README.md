@@ -901,6 +901,11 @@ changes and disabling iOS presentation synchronization remain unsupported.
 `WOW_DISPLAY_CHECK=1` checks real drawable/depth reallocation, GPU readback,
 native pixel/input sizes, unsupported requests and continued rendering across
 successive view callbacks in either native preview.
+The original shared system Lua registration is also linked into Glue and the
+component host: `GetTime`, `GetGameTime`, `ConsoleExec`, the three original
+file-access-denied functions and `GetAccountExpansionLevel`. Their implementations
+are shared unchanged with Windows. Account expansion still comes from the real
+ClientServices connection; the component viewer does not establish a login.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

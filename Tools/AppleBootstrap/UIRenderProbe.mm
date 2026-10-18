@@ -1,6 +1,8 @@
 #include "UIComponents.h"
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
+#include "WoW/Source/Ui/ScriptEvents.h"
+#include "WoW/Source/Game/GameTime.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -16,8 +18,10 @@
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Os/Apple/Input.h"
+#include "Engine/Source/Os/TimeManager.h"
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -91,6 +95,31 @@ void CheckOriginalUI(CGxDeviceMetal& device) {
         OsInputGetMousePosition(&pointerX, &pointerY);
         Require(pointerX == px && pointerY == py, "Native pointer query lost the latest absolute event");
         auto* lua = FrameScript_GetContext();
+        auto runSystem = [&](const char* code) {
+            if (luaL_loadstring(lua, code) || lua_pcall(lua, 0, 0, 0)) throw std::runtime_error(lua_tostring(lua, -1));
+        };
+        {
+            const int hour = g_clientGameTime.m_hour, minute = g_clientGameTime.m_minute;
+            struct TimeScope { int hour, minute; ~TimeScope() { g_clientGameTime.m_hour = hour; g_clientGameTime.m_minute = minute; } } timeScope{hour, minute};
+            g_clientGameTime.m_hour = 14; g_clientGameTime.m_minute = 37;
+            auto* setting = CVar::Register("appleSystemValue", "shared script check", 0, "0", nullptr, CATEGORY_CONSOLE, false, nullptr, false);
+            Require(setting, "Cannot register system-script command check");
+            runSystem("assert(type(GetAccountExpansionLevel) == 'function'); local h,m=GetGameTime(); assert(h==14 and m==37); "
+                "appleSystemClock=GetTime(); assert(select('#',ConsoleExec('appleSystemValue 37'))==0); "
+                "assert(not pcall(ConsoleExec,{})); "
+                "for _,f in ipairs({ReadFile,DeleteFile,AppendToFile}) do local ok,e=pcall(f,'unavailable'); "
+                    "assert(not ok and string.find(e,'Access Denied',1,true)) end");
+            Require(setting->m_intValue == 37, "Shared Lua ConsoleExec did not reach original CVar dispatch");
+            lua_getglobal(lua, "appleSystemClock"); const double clock = lua_tonumber(lua, -1); lua_pop(lua, 1);
+            Require(std::abs(clock - OsGetAsyncTimeMs() * .001) < 1, "Shared Lua clock differs from the native game timer");
+            SystemUnregisterFunctions();
+            runSystem("assert(GetTime==nil and GetGameTime==nil and ConsoleExec==nil and ReadFile==nil and DeleteFile==nil "
+                "and AppendToFile==nil and GetAccountExpansionLevel==nil)");
+            SystemRegisterFunctions();
+            runSystem("local h,m=GetGameTime(); assert(h==14 and m==37); ConsoleExec('appleSystemValue 73')");
+            Require(setting->m_intValue == 73, "Shared system scripts could not re-register");
+            std::fprintf(stderr, "Original system scripts cycle %u: native clock, game time, real CVar dispatch, original file-access denial and seven-function registration lifecycle passed\n", cycle);
+        }
         Require(luaL_loadstring(lua, "assert(AppleOriginalButton.clicks == 1)") == 0 && lua_pcall(lua, 0, 0, 0) == 0,
             "Original UI hit testing did not invoke its Lua callback");
         Require(!CSimpleEditBox::s_currentFocus, "Original Lua button did not release edit-box focus");

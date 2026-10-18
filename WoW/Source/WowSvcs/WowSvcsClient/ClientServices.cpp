@@ -171,9 +171,6 @@ static char s_statusText[256];
 // STATIC: 0x00C79CF0
 RealmResponse* ClientServices::s_clientRealmResponse;
 
-// STATIC: 0x00C79CF4
-ClientConnection* ClientServices::s_currentConnection;
-
 // STATIC: 0x00C79D10
 CHARACTER_INFO ClientServices::s_characterInfo;
 
@@ -466,16 +463,6 @@ void ClientConnection::Disconnect() {
     this->NetClient::Disconnect();
     this->m_connected = 0;
     WardenClient_Destroy();
-}
-
-// VERIFY: ddc9b4a6 manual
-// OFFSET: 0x006B0970
-ClientConnection* ClientServices::Connection() {
-    if (!ClientServices::s_currentConnection) {
-        SErrDisplayAppFatalMessage("", "", 0);
-    }
-
-    return ClientServices::s_currentConnection;
 }
 
 // VERIFY: d41ee95d auto

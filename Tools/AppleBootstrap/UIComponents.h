@@ -27,6 +27,7 @@ private:
     CSimpleColorSelect* m_colorSelect = nullptr;
     bool m_ownsScript = false, m_screen = false, m_metatables = false;
     bool m_resize = false, m_console = false, m_previousConsoleAccess = false;
+    bool m_systemScripts = false;
     float m_previousAspect = 0;
 };
 #endif
