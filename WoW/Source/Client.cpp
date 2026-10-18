@@ -526,9 +526,11 @@ static bool IsPTRBuild() {
 
 // VERIFY: 74297692 auto
 // OFFSET: 0x00402A40
+#if !defined(__APPLE__)
 uint8_t GetClientExpansionLevel() {
     return s_expansionLevel;
 }
+#endif
 
 // VERIFY: 45dcce86 auto
 // OFFSET: 0x00402B20
@@ -691,7 +693,7 @@ static void LoadMopaqFileSigningData(const char* locale) {
         return;
     }
 
-    bool expansion = s_expansionLevel >= 1;
+    bool expansion = GetClientExpansionLevel() >= 1;
     uint32_t localeTag = *reinterpret_cast<const uint32_t*>(locale);
 
     while (record < data + size && SStrCmp(record, "NGIS", 4)) {
@@ -1007,7 +1009,7 @@ static void InitializeClient() {
         StartDataPreloadThread();
     }
 
-    if (s_expansionLevel == 1) {
+    if (GetClientExpansionLevel() == 1) {
         if (s_cvExpansionMovie->m_intValue == 1) {
             s_cvExpansionMovie->Set("0", true, false, false, true);
             s_cvMovie->Set("0", true, false, false, true);
@@ -1809,6 +1811,7 @@ int32_t CommonMain() {
 
 // VERIFY: 8f0a8d05 manual
 // OFFSET: 0x00404A80
+#if !defined(__APPLE__)
 void ListInterfaceArchive(const char* prefix, int32_t (*callback)(const char* fileName, void* param), void* param) {
     if (s_archiveHandles.m_data[s_firstBaseArchive + 1]) {
         ListArchives(prefix, 1, callback, param);
@@ -1816,6 +1819,7 @@ void ListInterfaceArchive(const char* prefix, int32_t (*callback)(const char* fi
         ListArchives(prefix, 19, callback, param);
     }
 }
+#endif
 
 // VERIFY: df6c53d5 auto
 // OFFSET: 0x00406EF0

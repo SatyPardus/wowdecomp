@@ -960,6 +960,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         return success;
     } catch (const std::exception& error) {
         report = out.str() + "Data inspection failed: " + error.what() + "\n";
+        std::fprintf(stderr, "Data inspection failed: %s\n", error.what());
         return false;
     }
 }
