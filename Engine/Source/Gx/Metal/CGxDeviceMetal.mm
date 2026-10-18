@@ -1870,9 +1870,18 @@ void CGxDeviceMetal::StereoSetSeparation(float) { Unsupported("stereo separation
 float CGxDeviceMetal::StereoGetSeparation() { Unsupported("stereo separation"); }
 void CGxDeviceMetal::PrimPointSize(float size) { Require(size == 1, "Metal Gx point size is not implemented"); }
 void CGxDeviceMetal::PrimLineWidth(float width) { Require(width == 1, "Metal Gx wide lines are not implemented"); }
-void CGxDeviceMetal::DeviceSetGamma(float gamma) { Require(gamma == 1, "Metal Gx gamma ramp is not implemented"); CGxDevice::DeviceSetGamma(gamma); }
+void CGxDeviceMetal::DeviceSetGamma(float gamma) {
+    Require(std::isfinite(gamma) && gamma >= 0, "Invalid Gx gamma exponent");
+    CGxGammaRamp ramp; ramp.Set(gamma); DeviceSetGamma(ramp);
+}
 void CGxDeviceMetal::DeviceSetGamma(const CGxGammaRamp& ramp) {
-    CGxGammaRamp identity; identity.Set(1);
-    Require(std::memcmp(&identity, &ramp, sizeof(ramp)) == 0, "Metal Gx gamma ramp is not implemented"); CGxDevice::DeviceSetGamma(ramp);
+    if (!m_format.m_window) {
+        CGxGammaRamp identity; identity.Set(1);
+        Require(std::memcmp(&identity, &ramp, sizeof(ramp)) == 0, "Metal fullscreen gamma ramp is not implemented");
+    }
+    // Match D3D9: keep the requested ramp in windowed mode, but only apply it
+    // to an exclusive fullscreen display. Native hosts are currently windowed.
+    // A stored non-default gamma must not make configuration loading fail.
+    CGxDevice::DeviceSetGamma(ramp);
 }
 CGxDevice* CreateCGxDeviceMetal() { return new CGxDeviceMetal(MTLCreateSystemDefaultDevice()); }

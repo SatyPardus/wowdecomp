@@ -1229,8 +1229,11 @@ scaling uses native sampling on the same command stream without a CPU round trip
 Color/depth clears honor viewport bounds and the last applied scissor state,
 including the original offscreen Y convention. Full-surface clears use attachment
 load actions; regional clears preserve surrounding pixels and the unused portion
-of a larger shared depth surface. Other render-target formats, explicit depth textures, gamma ramps and stereo remain
-explicit unsupported operations. Geometry draws
+of a larger shared depth surface. Windowed gamma requests retain the original
+gamma ramp without changing display output, matching D3D9 windowed behavior;
+loading a non-default gamma no longer aborts the native client. Exclusive
+fullscreen gamma ramps, other render-target formats, explicit depth textures
+and stereo remain explicit unsupported operations. Geometry draws
 share an encoder while attachments and resource ordering permit. Buffer uploads,
 copies, synchronous readback and target switches end the pass; full clears can be
 consumed by the next draw. A focused check encodes 130 geometry draws and a regional
