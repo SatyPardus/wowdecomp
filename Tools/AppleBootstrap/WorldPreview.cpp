@@ -9,6 +9,7 @@
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Event/Event.h"
+#include "Engine/Source/Base/Prop.h"
 #include "WoW/Source/WorldClient/MapWeather.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/Services/ModelBlob.h"
@@ -16,6 +17,7 @@
 #include "Engine/Source/ShaderEffect/ShaderEffectManager.h"
 #include "Engine/Source/Tempest/CRect.h"
 #include <cmath>
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
 
@@ -40,6 +42,7 @@ WorldPreview::WorldPreview(const std::string& selection) {
         throw std::runtime_error("WOW_WORLD has invalid world coordinates");
     C3Vector direction(1, 0.3f, -0.2f); direction.Normalize();
     m_camera.SetFacing(direction);
+    m_initialPosition = m_camera.m_position; m_initialFacing = direction;
     try {
         Load(g_mapDB);
         bool mapFound = false;
@@ -66,10 +69,66 @@ WorldPreview::WorldPreview(const std::string& selection) {
 }
 WorldPreview::~WorldPreview() { Shutdown(); }
 void WorldPreview::Shutdown() {
+    if (m_inputContext) {
+        const auto previous = PropGetSelectedContext(); PropSelectContext(m_inputContext);
+        EventUnregisterEx(EVENT_ID_MOUSEDOWN, MouseDown, this, 7);
+        EventUnregisterEx(EVENT_ID_MOUSEMOVE_RELATIVE, MouseMove, this, 7);
+        EventUnregisterEx(EVENT_ID_KEYDOWN, KeyDown, this, 7);
+        EventSetMouseMode(MOUSE_MODE_NORMAL, 0);
+        PropSelectContext(previous); m_inputContext = nullptr;
+    }
     if (m_world) { CWorld::Destroy(); m_world = false; }
     if (m_models) { M2Destroy(); m_models = false; }
     CShaderEffectManager::DestroyAllEffects();
     if (m_blob) { ModelBlobDestroy(); m_blob = false; }
+}
+void WorldPreview::EnableInput() {
+    if (m_inputContext) return;
+    if (!EventGetCurrentContext()) throw std::logic_error("World viewer input requires its Event context");
+    m_inputContext = PropGetSelectedContext();
+    EventRegisterEx(EVENT_ID_MOUSEDOWN, MouseDown, this, 0);
+    EventRegisterEx(EVENT_ID_MOUSEMOVE_RELATIVE, MouseMove, this, 0);
+    EventRegisterEx(EVENT_ID_KEYDOWN, KeyDown, this, 0);
+}
+int32_t WorldPreview::MouseDown(const void* data, void*) {
+    if (static_cast<const EVENT_DATA_MOUSE*>(data)->m_button == MOUSE_BUTTON_RIGHT)
+        EventSetMouseMode(MOUSE_MODE_RELATIVE, MOUSE_BUTTON_RIGHT);
+    return 1;
+}
+int32_t WorldPreview::MouseMove(const void* data, void* owner) {
+    const auto& event = *static_cast<const EVENT_DATA_MOUSE*>(data);
+    auto& self = *static_cast<WorldPreview*>(owner);
+    if (event.m_mode != MOUSE_MODE_RELATIVE || !(event.m_buttonState & MOUSE_BUTTON_RIGHT)) return 1;
+    const C3Vector forward = self.m_camera.Forward();
+    const float scale = 2.0f / self.m_viewHeight;
+    const float yaw = std::atan2(forward.y, forward.x) - event.m_x * scale;
+    const float pitch = std::clamp(std::asin(std::clamp(forward.z, -1.0f, 1.0f)) - event.m_y * scale, -1.5f, 1.5f);
+    self.m_camera.SetFacing(C3Vector(std::cos(yaw) * std::cos(pitch), std::sin(yaw) * std::cos(pitch), std::sin(pitch)));
+    return 1;
+}
+int32_t WorldPreview::KeyDown(const void* data, void* owner) {
+    const auto key = static_cast<const EVENT_DATA_KEY*>(data)->m_key;
+    auto& self = *static_cast<WorldPreview*>(owner);
+    if (key == KEY_ESCAPE) EventSetMouseMode(MOUSE_MODE_NORMAL, 0);
+    if (key == KEY_HOME) { self.m_camera.m_position = self.m_initialPosition; self.m_camera.SetFacing(self.m_initialFacing); }
+    return 1;
+}
+void WorldPreview::MoveCamera(float elapsedSeconds) {
+    if (!m_inputContext) return;
+    if (PropGetSelectedContext() != m_inputContext) throw std::logic_error("Interactive world draw requires its Event context");
+    // Use the screen-right basis from GxuXformCreateLookAtSgCompat. The
+    // camera's stored second row has the opposite handedness.
+    C3Vector move = m_camera.Forward() * float(EventIsKeyDown(KEY_W) - EventIsKeyDown(KEY_S)) +
+        C3Vector::Cross(m_camera.Forward(), m_camera.Up()) * float(EventIsKeyDown(KEY_D) - EventIsKeyDown(KEY_A));
+    move.z += float(EventIsKeyDown(KEY_E) - EventIsKeyDown(KEY_Q));
+    const float length = std::sqrt(move.SquaredMag());
+    if (length > 0) {
+        const float speed = EventIsKeyDown(KEY_LSHIFT) || EventIsKeyDown(KEY_RSHIFT) ? 70.0f : 14.0f;
+        m_camera.m_position += move * (speed * std::min(elapsedSeconds, 0.1f) / length);
+        m_camera.m_position.x = std::clamp(m_camera.m_position.x, -17066.0f, 17066.0f);
+        m_camera.m_position.y = std::clamp(m_camera.m_position.y, -17066.0f, 17066.0f);
+        m_camera.m_position.z = std::clamp(m_camera.m_position.z, -100000.0f, 100000.0f);
+    }
 }
 void WorldPreview::SetTime(float minutes) {
     if (!std::isfinite(minutes) || minutes < 0 || minutes >= 1440) throw std::runtime_error("World time must be in [0, 1440) minutes");
@@ -78,6 +137,8 @@ void WorldPreview::SetTime(float minutes) {
 bool WorldPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     if (!width || !height) return false;
     if (!std::isfinite(elapsedSeconds) || elapsedSeconds < 0) throw std::runtime_error("Invalid world elapsed time");
+    m_viewHeight = float(height);
+    if (m_loaded) MoveCamera(elapsedSeconds);
     auto& device = *g_theGxDevicePtr;
     device.RsPush();
     device.XformPush(GxXform_View);

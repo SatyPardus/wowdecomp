@@ -276,6 +276,9 @@ public:
             if (wmo || terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
                 throw std::runtime_error("WOW_WORLD cannot be combined with other scene selections");
             _world = std::make_unique<WorldPreview>(world.UTF8String);
+#if TARGET_OS_OSX
+            _world->EnableInput();
+#endif
             NSString* time = NSProcessInfo.processInfo.environment[@"WOW_TIME_MINUTES"];
             if (time) {
                 NSScanner* scanner = [NSScanner scannerWithString:time]; double minutes;

@@ -470,7 +470,11 @@ range ending at 0.94, before the separate horizon and sky bands.
 
 Use `WOW_WORLD=Azeroth:-9465:64:85` with the existing Mac `--preview` command or
 as an iOS environment variable. The format is `Map:worldX:worldY:worldZ`; the
-viewer uses an explicit stationary camera (near 0.2, far 500, FOV 1 radian).
+viewer uses an explicit camera (near 0.2, far 500, FOV 1 radian).
+On Mac, WASD moves the viewer, Q/E moves down/up, Shift moves faster, and holding
+the right mouse button rotates it. Escape releases the mouse and Home restores
+the initial viewpoint. This is a free viewer with no player or collision response;
+the game camera/player controls still require the original session and UI.
 `WOW_TIME_MINUTES` sets the initial time, then advances in real time; authored
 map time overrides are retained. This selection uses the full view for the world
 and is mutually exclusive with terrain/WMO/model previews. Mac and iOS simulator
@@ -478,7 +482,7 @@ both present 120 world frames; the 900x600 Goldshire-area frame selects 125 terr
 chunks and 182 doodads, with trees, roads, fences and lights visible in GPU
 readback. Mac ASan/UBSan and Metal validation pass, and both iOS targets build.
 The native host still has no active player, login/network
-session, input-controlled camera or complete game UI. All-map materials, interior
+session or complete game UI. All-map materials, interior
 portal traversal, dynamic shadows and the complete WorldFrame/FFX/audio policy
 remain to be integrated or validated.
 
