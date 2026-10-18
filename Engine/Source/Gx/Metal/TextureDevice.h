@@ -10,6 +10,7 @@
 #include "Engine/Source/Gx/Metal/LiquidShader.h"
 #include "Engine/Source/Gx/Metal/ShadowMapShader.h"
 #include "Engine/Source/Gx/Metal/DetailDoodadShader.h"
+#include "Engine/Source/Gx/Metal/WaterRippleShader.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -178,6 +179,7 @@ struct GeometryDraw {
     simd_float2 waveSceneScale{}, waveBlurScale{};
     bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
+    float depthOffset = 0; // normalized post-raster depth offset (water ripples)
     bool depthTest = false, depthWrite = false;
     uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
     uint32_t culling = 0; // Gx: none, clockwise, counterclockwise
@@ -208,6 +210,8 @@ public:
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawWaterRipple(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
+        const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawShadowMap(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
@@ -232,6 +236,8 @@ public:
 
 private:
     id<MTLLibrary> m_library;
+    id<MTLFunction> m_rippleVertex;
+    id<MTLFunction> m_rippleFragment[2][2][2]{};
     id<MTLFunction> m_detailVertex[2]{};
     id<MTLFunction> m_detailFragment[2][2]{};
     id<MTLFunction> m_shadowVertex[3][2]{};
@@ -258,7 +264,7 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse, const TerrainDrawParameters* terrain = nullptr, const WmoDrawParameters* wmo = nullptr, const LiquidDrawParameters* liquid = nullptr, const ShadowMapDrawParameters* shadow = nullptr, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm, const DetailDoodadDrawParameters* detail = nullptr);
+        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse, const TerrainDrawParameters* terrain = nullptr, const WmoDrawParameters* wmo = nullptr, const LiquidDrawParameters* liquid = nullptr, const ShadowMapDrawParameters* shadow = nullptr, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm, const DetailDoodadDrawParameters* detail = nullptr, bool depthOffset = false);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 5>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 5>&, id<MTLRenderCommandEncoder>);

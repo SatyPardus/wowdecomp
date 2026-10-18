@@ -14,6 +14,11 @@ struct alignas(16) WaveParameters {
     float alphaRef, padding[3]{};
     simd_float4 decodeScale[3];
 };
+struct alignas(16) WaterRippleParameters {
+    simd_float4 decodeScale;
+    float alphaRef, depthOffset, padding[2]{};
+};
+static_assert(sizeof(WaterRippleParameters) == 32, "Metal ripple constant layout");
 static_assert(sizeof(WaveParameters) == 80, "Metal wave constant layout");
 static_assert(sizeof(GeometryParameters) == 192 && offsetof(GeometryParameters, texture) == 64, "Metal geometry constant layout");
 }
@@ -26,6 +31,11 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
 void GxMetal::TextureDevice::DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::DetailDoodad && geometry.detail, "Invalid native detail-doodad effect");
+    DrawGeometry(command, pass, {texture, nil, nil, nil, nil}, geometry, {}, {state, {}, {}, {}, {}}, encoder);
+}
+void GxMetal::TextureDevice::DrawWaterRipple(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
+    const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
+    Require(geometry.effect == FragmentEffect::WaterRipple && std::isfinite(geometry.depthOffset), "Invalid native water-ripple effect");
     DrawGeometry(command, pass, {texture, nil, nil, nil, nil}, geometry, {}, {state, {}, {}, {}, {}}, encoder);
 }
 void GxMetal::TextureDevice::DrawShadowMap(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
@@ -134,7 +144,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     }
     bool decodePacked = false;
     for (unsigned i = 0; i < inputs; ++i) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest, model ? geometry.model->vertexEffect : ModelVertexEffect::Diffuse, geometry.terrain, geometry.wmo, geometry.liquid, geometry.shadow, target.pixelFormat, geometry.detail);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest, model ? geometry.model->vertexEffect : ModelVertexEffect::Diffuse, geometry.terrain, geometry.wmo, geometry.liquid, geometry.shadow, target.pixelFormat, geometry.detail, geometry.depthOffset != 0);
     std::array<id<MTLSamplerState>, 5> samplers{};
     for (unsigned i = 0; i < inputs; ++i) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
@@ -169,7 +179,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
-    if (detail) {
+    if (geometry.effect == FragmentEffect::WaterRipple) {
+        [encoder setVertexBytes:&geometry.clipFromModel length:sizeof(C44Matrix) atIndex:0];
+    } else if (detail) {
         [encoder setVertexBytes:&geometry.detail->vertex length:sizeof(DetailDoodadVertexParameters) atIndex:0];
     } else if (shadow) {
         [encoder setVertexBytes:&geometry.shadow->vertex length:sizeof(ShadowMapVertexParameters) atIndex:0];
@@ -182,7 +194,10 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else if (terrain) { [encoder setVertexBytes:&geometry.terrain->vertex length:sizeof(TerrainVertexParameters) atIndex:0];
     } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
-    if (detail) {
+    if (geometry.effect == FragmentEffect::WaterRipple) {
+        WaterRippleParameters material{state.decodeScale, state.alphaRef / 255.0f, geometry.depthOffset};
+        [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
+    } else if (detail) {
         DetailDoodadFragmentParameters material = geometry.detail->fragment;
         material.stateAlphaRef = state.alphaRef / 255.0f; material.decodeScale = state.decodeScale;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];

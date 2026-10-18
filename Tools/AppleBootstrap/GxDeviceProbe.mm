@@ -14,6 +14,7 @@ void CheckGameAsyncFiles();
 void CheckModelShaders(CGxDeviceMetal& device);
 void CheckShadowMapShaders(CGxDeviceMetal& device);
 void CheckDetailDoodadShaders(CGxDeviceMetal& device);
+void CheckWaterRippleShaders(CGxDeviceMetal& device);
 void CheckTerrainShaders(CGxDeviceMetal& device);
 void CheckWmoShaders(CGxDeviceMetal& device);
 void CheckLiquidShaders(CGxDeviceMetal& device);
@@ -295,6 +296,7 @@ void CheckGxDevice() {
     CheckModelShaders(device);
     CheckShadowMapShaders(device);
     CheckDetailDoodadShaders(device);
+    CheckWaterRippleShaders(device);
     CheckTerrainShaders(device);
     CheckWmoShaders(device);
     CheckLiquidShaders(device);

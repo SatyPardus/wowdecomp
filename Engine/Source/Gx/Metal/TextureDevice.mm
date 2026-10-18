@@ -89,7 +89,7 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid, const ShadowMapDrawParameters* shadow, MTLPixelFormat colorFormat, const DetailDoodadDrawParameters* detail) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid, const ShadowMapDrawParameters* shadow, MTLPixelFormat colorFormat, const DetailDoodadDrawParameters* detail, bool depthOffset) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(colorFormat == MTLPixelFormatBGRA8Unorm || colorFormat == MTLPixelFormatR32Float, "Unsupported pipeline color format");
@@ -114,7 +114,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42) |
         (uint64_t(wmo ? unsigned(wmo->vertexEffect) : 0) << 47) | (uint64_t(wmo ? wmo->permutation % 10 : 0) << 50) |
         (uint64_t(wmo && wmo->shaderAlphaTest) << 54) | (uint64_t(liquid ? liquid->lightCount : 0) << 55) |
-        (uint64_t(shadow ? shadow->skinning : 0) << 57) | (uint64_t(shadow && shadow->cutout) << 59) | (uint64_t(colorFormat == MTLPixelFormatR32Float) << 60) | (uint64_t(detail && detail->pointLights) << 61);
+        (uint64_t(shadow ? shadow->skinning : 0) << 57) | (uint64_t(shadow && shadow->cutout) << 59) | (uint64_t(colorFormat == MTLPixelFormatR32Float) << 60) | (uint64_t(detail && detail->pointLights) << 61) | (uint64_t(depthOffset) << 62);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -187,7 +187,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
+    if (decodePacked && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -204,6 +204,20 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             if (!fragment) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Packed texture specialization failed"); }
         }
         descriptor.fragmentFunction = fragment;
+    }
+    if (effect == FragmentEffect::WaterRipple) {
+        Require(!screenAtDepth && format == GxVBF_PCT, "Water ripples require original PCT vertices");
+        const bool alpha = state.alphaRef != 0;
+        auto constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        auto& fragment = m_rippleFragment[alpha][decodePacked][depthOffset];
+        NSError* error = nil;
+        if (!m_rippleVertex) m_rippleVertex = [m_library newFunctionWithName:@"waterRippleVertex"];
+        if (!fragment) fragment = [m_library newFunctionWithName:depthOffset ? @"waterRippleBiasedFragment" : @"waterRippleFragment"
+            constantValues:constants error:&error];
+        if (!m_rippleVertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Water-ripple specialization failed");
+        descriptor.vertexFunction = m_rippleVertex; descriptor.fragmentFunction = fragment;
     }
     if (effect == FragmentEffect::DetailDoodad) {
         Require(!screenAtDepth && format == GxVBF_PNCT, "Detail-doodad rendering requires original PNCT vertices");

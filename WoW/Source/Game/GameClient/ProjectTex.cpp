@@ -7,20 +7,21 @@
 // VERIFY: f43753f0 manual
 // OFFSET: 0x007E2D60
 void ProjectTex2dMakeMatrices(C44Matrix& texMatrix, C44Matrix& fadeMatrix, const CAaBox& box, const C44Matrix* rotation, float fade, int32_t local) {
-    C3Vector cameraPos(0.0f, 0.0f, 0.0f);
-    CGWorldFrame::GetCameraPosition(&cameraPos);
-
     C44Matrix translation;
     float centerX = (box.b.x + box.t.x) * 0.5f;
     float centerY = (box.t.y + box.b.y) * 0.5f;
     float centerZ = (box.t.z + box.b.z) * 0.5f;
     C3Vector move;
 
+    // World-local projections need only the box center; the UI camera is
+    // required only for the camera-relative branch.
     if (local) {
         move.x = -centerX;
         move.y = -centerY;
         move.z = -centerZ;
     } else {
+        C3Vector cameraPos(0.0f, 0.0f, 0.0f);
+        CGWorldFrame::GetCameraPosition(&cameraPos);
         move.x = cameraPos.x - centerX;
         move.y = cameraPos.y - centerY;
         move.z = cameraPos.z - centerZ;

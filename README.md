@@ -233,6 +233,16 @@ both DBC orientation flags across resource recreation. These checks use explicit
 instance placement and lighting; world density/placement and shadow receivers
 remain incomplete.
 
+Native `WaterRipples` preserves texture RGB, vertex-controlled alpha and additive
+blending. Its normalized D3D9 polygon offset is applied after clipping and
+viewport mapping, with a separate zero-bias pipeline. Thirty-nine numeric draws
+check color, alpha, perspective transforms, positive/negative bias, depth-write
+independence and clip boundaries. Original ripple/wake creation queries real
+Elwynn MH2O triangles and renders both original textures through the world batch
+routine, including growth, fading, expiry and recreation. Local projection
+matrices no longer read the unused UI camera. This is a focused world integration;
+unit-driven ripple spawning and polygon offset for other effects remain pending.
+
 Original `Model2.wfx` projected materials now use native view-space projection
 for both texture coordinates, with the authored ModMod/ModAdd color and alpha
 rules. Forty additional vertex permutations cover rigid and skinned lit

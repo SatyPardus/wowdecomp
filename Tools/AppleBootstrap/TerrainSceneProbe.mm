@@ -10,6 +10,8 @@
 #include <cstring>
 #include <stdexcept>
 
+void CheckGameWaterRipples(CMapArea& area);
+
 namespace {
 void CheckOriginalAreaLoad() {
     const auto specular = CMap::enableSpecularTerrain;
@@ -47,6 +49,7 @@ void CheckOriginalAreaLoad() {
         }
         std::fprintf(stderr, "Original ADT area %s: %d doodads, %d WMOs, %u resident textures; owned table lifecycle passed\n",
             name, area.m_doodadDefCount, area.m_mapObjDefCount, area.m_textures.Count());
+        if (std::strstr(name,"Azeroth")) CheckGameWaterRipples(area);
     }
 }
 }
