@@ -4,6 +4,8 @@
 #include "Engine/Source/Frame/CSimpleFrame.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Glue/CGlueMgr.h"
+#include "WoW/Source/Glue/CharacterSelection.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/Unit.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
@@ -146,6 +148,70 @@ bool CheckNativeWorldActions(WowNativeView* view) {
             next(); return true;
         }
         Require(elapsed < 5, "Original buff icon did not cancel the server aura");
+    }
+    return false;
+}
+
+bool CheckNativeWorldReentry(WowNativeView* view) {
+    static unsigned phase, stableFrames;
+    static WOWGUID character;
+    static NSPoint point;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 7) return true;
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now - started).count();
+    auto next = [&] { ++phase; stableFrames = 0; started = now; };
+    auto escape = [&](bool down) {
+        NSEvent* event = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp
+            location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil characters:@"\x1b" charactersIgnoringModifiers:@"\x1b" isARepeat:NO keyCode:kVK_Escape];
+        if (down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto mouse = [&](NSEventType type) {
+        NSEvent* event = [NSEvent mouseEventWithType:type location:point modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil
+            eventNumber:0 clickCount:1 pressure:0];
+        if (type == NSEventTypeMouseMoved) [view mouseMoved:event];
+        else if (type == NSEventTypeLeftMouseDown) [view mouseDown:event];
+        else [view mouseUp:event];
+    };
+    auto click = [&](const char* name) {
+        auto* frame = static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name, CSimpleFrame::GetObjectType()));
+        Require(frame && frame->m_isVisible, "Original logout/reentry button is not visible");
+        CRect rect; Require(frame->GetRect(&rect), "Original logout/reentry button has no rectangle");
+        float x, y; DDCToNDC((rect.minX + rect.maxX)*.5f, (rect.minY + rect.maxY)*.5f, &x, &y);
+        Require(x > 0 && x < 1 && y > 0 && y < 1, "Original logout/reentry button is outside the view");
+        point = [view convertPoint:NSMakePoint(x * view.bounds.size.width, (view.isFlipped ? 1-y : y) * view.bounds.size.height) toView:nil];
+        mouse(NSEventTypeMouseMoved); mouse(NSEventTypeLeftMouseDown);
+    };
+    if (!phase) {
+        if (!CGGameUI::s_inWorld || ++stableFrames < 120) return false;
+        character = ClntObjMgrGetActivePlayer();
+        Require(character.m_guid != 0, "Reentry check requires an active player");
+        escape(true); next();
+    } else if (phase == 1 && elapsed >= .05) { escape(false); next(); }
+    else if (phase == 2 && elapsed >= .3) { click("GameMenuButtonLogout"); next(); }
+    else if (phase == 3 && elapsed >= .05) {
+        mouse(NSEventTypeLeftMouseUp); next();
+        std::fputs("Native world reentry: requested logout through the original game menu\n", stderr);
+    } else if (phase == 4) {
+        Require(elapsed < 45, "Original logout did not return to character selection");
+        if (CGGameUI::s_inWorld || std::strcmp(CGlueMgr::m_currentScreen, "charselect") || CGlueMgr::m_idleState != IDLE_NONE) return false;
+        const auto index = CCharacterSelection::s_selectionIndex;
+        Require(index >= 0 && uint32_t(index) < CCharacterSelection::s_characterList.Count() &&
+            CCharacterSelection::s_characterList[index].m_characterInfo.m_guid == character,
+            "Original character selection did not retain the same character");
+        if (++stableFrames < 120) return false;
+        std::fputs("Native world reentry: character selection rendered after server logout\n", stderr);
+        click("CharSelectEnterWorldButton"); next();
+    } else if (phase == 5 && elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); next(); }
+    else if (phase == 6) {
+        Require(elapsed < 60, "Original character-selection button did not reenter the world");
+        if (!CGGameUI::s_inWorld) return false;
+        Require(ClntObjMgrGetActivePlayer() == character, "Original world reentry selected a different character");
+        if (++stableFrames < 120) return false;
+        std::fputs("Native world reentry: same player returned and rendered 120 frames through the original UI/server lifecycle\n", stderr);
+        next(); return true;
     }
     return false;
 }

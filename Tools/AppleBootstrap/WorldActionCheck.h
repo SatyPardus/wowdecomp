@@ -3,3 +3,6 @@
 // Explicit local development check using the character's existing bindings
 // and action bar. Returns true after the original UI/server round trip.
 bool CheckNativeWorldActions(WowNativeView* view);
+// Original game-menu logout and character-selection reentry, using native UI
+// events and the same character. No forced logout or object-manager reset.
+bool CheckNativeWorldReentry(WowNativeView* view);
