@@ -38,4 +38,10 @@ class OsUrlDownload {
 
 bool OsURLDownload(const char* url, OsURLDownloadCallback callback, void* param);
 
+#if defined(__APPLE__)
+// Called by the application owner, outside download callbacks, before freeing
+// callback arguments. Cancels outstanding work and drains final callbacks.
+void OsURLDownloadShutdown();
+#endif
+
 #endif

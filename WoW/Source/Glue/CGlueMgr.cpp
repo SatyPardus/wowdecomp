@@ -1701,6 +1701,7 @@ void CGlueMgr::Suspend() {
 void CGlueMgr::Shutdown() {
 #if defined(__APPLE__)
     NetClient::SetDisconnectHandler(nullptr);
+    OsURLDownloadShutdown();
 #endif
     while (CGlueMgr::m_pendingServerAlert || CGlueMgr::m_latestAgreements.m_data.Count()) {
         if (CGlueMgr::m_latestAgreements.m_data.Count()) {
