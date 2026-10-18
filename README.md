@@ -233,8 +233,11 @@ single scheduler thread; server network pumping is explicitly unsupported.
 
 Original Frame/FrameXML/Scrn now build on all Apple targets. On Mac,
 `build/macos-asan/bin/AppleUIProbe /path/to/Data --preview` opens an interactive
-component window using original Glue fonts/button templates, Lua callbacks,
-CSimpleTop layout, Services textures and Scrn painting. Its original edit box
+component window using original Glue fonts/button templates, the original color
+wheel/value selector, Lua callbacks, CSimpleTop layout, Services textures and
+Scrn painting. The color selector uses its original generated textures, HSV/RGB
+methods and mouse tracking; the tabard/color texture callback is shared with
+the game UI. Its original edit box
 accepts native Unicode/composition and supplies the AppKit candidate rectangle.
 Without `--preview`, it checks two full lifecycles, native button hit testing,
 composition replacement, caret movement and GPU output. `WOW_UI_FRAMES=120`

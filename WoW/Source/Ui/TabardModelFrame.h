@@ -5,6 +5,7 @@
 #include <cstdint>
 #include "Engine/Source/Base/CDataAllocator.h"
 #include "Engine/Source/Gx/Types.h"
+#include "Engine/Source/Frame/ColorTexture.h"
 #include "WoW/Source/Ui/CharacterModelBase.h"
 
 class CSimpleFrame;
@@ -42,7 +43,5 @@ class CGTabardModelFrame : public CGCharacterModelBase {
 
     CGTabardModelFrame(CSimpleFrame* parent);
 };
-
-void EmblemTextureUpdate(EGxTexCommand command, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevel, void* userArg, uint32_t& texelStrideInBytes, const void*& texels);
 
 #endif

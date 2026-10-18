@@ -6,6 +6,7 @@
 #include "Engine/Source/Frame/CSimpleTop.h"
 #include "Engine/Source/Frame/CSimpleButton.h"
 #include "Engine/Source/Frame/CSimpleEditBox.h"
+#include "Engine/Source/Frame/CSimpleColorSelect.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
 #include "Engine/Source/Frame/CSimpleRender.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
@@ -32,10 +33,12 @@ UIComponents::UIComponents() {
         ScrnInitialize(0); m_screen = true;
         CSimpleFrame::CreateScriptMetaTable(); CSimpleTexture::CreateScriptMetaTable();
         CSimpleFont::CreateScriptMetaTable(); CSimpleFontString::CreateScriptMetaTable();
-        CSimpleEditBox::CreateScriptMetaTable(); CSimpleButton::CreateScriptMetaTable(); m_metatables = true;
+        CSimpleEditBox::CreateScriptMetaTable(); CSimpleButton::CreateScriptMetaTable();
+        CSimpleColorSelect::CreateScriptMetaTable(); m_metatables = true;
         FrameXML_RegisterFactory("Button", Create_SimpleButton, false);
         FrameXML_RegisterFactory("EditBox", Create_SimpleEditBox, false);
         FrameXML_RegisterFactory("Frame", Create_SimpleFrame, false);
+        FrameXML_RegisterFactory("ColorSelect", Create_SimpleColorSelect, false);
         m_top = std::make_unique<CSimpleTop>();
         EventRegisterEx(EVENT_ID_SIZE, Resize, this, 2); m_resize = true;
         CStatus status; MD5_CTX md5; MD5Init(&md5);
@@ -55,6 +58,20 @@ UIComponents::UIComponents() {
             char errors[4096]; throw std::runtime_error(status.GetErrorStr(errors, sizeof(errors), STATUS_INFO, "\n"));
         }
         Require(m_button, "Cannot instantiate original button template");
+        const char* colorXML = R"(<Ui><ColorSelect name="AppleOriginalColorSelect">
+            <Size><AbsDimension x="150" y="128"/></Size><Anchors><Anchor point="BOTTOMLEFT"><Offset><AbsDimension x="24" y="24"/></Offset></Anchor></Anchors>
+            <ColorWheelTexture><Size><AbsDimension x="128" y="128"/></Size><Anchors><Anchor point="LEFT"/></Anchors></ColorWheelTexture>
+            <ColorValueTexture><Size><AbsDimension x="16" y="128"/></Size><Anchors><Anchor point="RIGHT"/></Anchors></ColorValueTexture>
+            <Scripts><OnColorSelect>self.changes = (self.changes or 0) + 1; self.red, self.green, self.blue = r,g,b</OnColorSelect></Scripts>
+            </ColorSelect></Ui>)";
+        tree = XMLTree_Load(colorXML, uint32_t(std::strlen(colorXML)));
+        Require(tree, "Cannot parse color-selector XML");
+        m_colorSelect = static_cast<CSimpleColorSelect*>(FrameXML_CreateFrame(XMLTree_GetRoot(tree)->m_child, nullptr, &status));
+        XMLTree_Free(tree);
+        if (!status.IsEmpty()) {
+            char errors[4096]; throw std::runtime_error(status.GetErrorStr(errors, sizeof(errors), STATUS_INFO, "\n"));
+        }
+        Require(m_colorSelect, "Cannot instantiate original color selector");
         auto* memory = CSimpleEditBox::s_allocator.GetData(1, __FILE__, __LINE__);
         m_edit = new (memory) CSimpleEditBox(nullptr);
         m_edit->SetName("AppleOriginalEdit");
@@ -83,9 +100,10 @@ int32_t UIComponents::Resize(const void* data, void* owner) {
 }
 void UIComponents::Shutdown() {
     if (m_resize) { EventUnregisterEx(EVENT_ID_SIZE, Resize, this, 7); m_resize = false; }
-    m_top.reset(); m_button = nullptr; m_edit = nullptr;
+    m_top.reset(); m_button = nullptr; m_edit = nullptr; m_colorSelect = nullptr;
     if (m_metatables) {
         CSimpleEditBox::DestroyScriptMetaTable(); CSimpleFontString::DestroyScriptMetaTable();
+        CSimpleColorSelect::DestroyScriptMetaTable();
         CSimpleButton::DestroyScriptMetaTable(); FrameXML_FreeHashNodes(); FrameXML_ClearFactories();
         CSimpleFont::DestroyScriptMetaTable(); CSimpleTexture::DestroyScriptMetaTable(); CSimpleFrame::DestroyScriptMetaTable();
         m_metatables = false;

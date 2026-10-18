@@ -7,6 +7,7 @@
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Frame/CSimpleEditBox.h"
+#include "Engine/Source/Frame/CSimpleColorSelect.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Services/AsyncFile.h"
@@ -95,6 +96,32 @@ void CheckOriginalUI(CGxDeviceMetal& device) {
             GxReadPixels(rect, pixels); device.ScenePresent();
             return std::vector<CImVector>(pixels.Ptr(), pixels.Ptr() + pixels.Count());
         };
+        const auto neutralColor = read();
+        Require(luaL_loadstring(lua, "AppleOriginalColorSelect:SetColorHSV(120, 1, 1); local r,g,b = AppleOriginalColorSelect:GetColorRGB(); assert(r == 0 and g == 1 and b == 0)") == 0 &&
+                    lua_pcall(lua, 0, 0, 0) == 0, "Original color-selector Lua HSV/RGB methods failed");
+        step();
+        const auto greenColor = read();
+        size_t colorChanges = 0;
+        for (size_t i = 0; i < greenColor.size(); ++i)
+            colorChanges += std::memcmp(&neutralColor[i], &greenColor[i], sizeof(CImVector)) != 0;
+        Require(colorChanges > 10, "Original color-selector value texture update did not reach the GPU");
+        auto clickRegion = [&](CSimpleTexture* texture, float u, float v) {
+            CRect bounds;
+            Require(texture && texture->GetRect(&bounds), "Original color-selector texture has no rectangle");
+            float x, y;
+            DDCToNDC(bounds.minX + u * (bounds.maxX - bounds.minX), bounds.minY + v * (bounds.maxY - bounds.minY), &x, &y);
+            const int px = int(x * 600), py = int((1 - y) * 300);
+            OsQueuePut(OS_INPUT_MOUSE_MOVE, 0, px, py, 0);
+            OsQueuePut(OS_INPUT_MOUSE_DOWN, MOUSE_BUTTON_LEFT, px, py, 0);
+            OsQueuePut(OS_INPUT_MOUSE_UP, MOUSE_BUTTON_LEFT, px, py, 0); step();
+        };
+        clickRegion(components.ColorSelect()->m_wheelTexture, .1f, .5f);
+        clickRegion(components.ColorSelect()->m_valueTexture, .5f, .5f);
+        Require(luaL_loadstring(lua, "local c = AppleOriginalColorSelect; assert(c.changes >= 3 and c.red > .3 and c.red < .7 and c.red > c.green*2 and c.red > c.blue*2)") == 0 &&
+                    lua_pcall(lua, 0, 0, 0) == 0, "Original color wheel/value mouse tracking or Lua callback failed");
+        Require(!components.ColorSelect()->m_wheelTracking && !components.ColorSelect()->m_valueTracking,
+                "Original color selector retained mouse tracking after release");
+        OsQueuePut(OS_INPUT_MOUSE_MOVE, 0, 0, 0, 0); step();
         const auto pixels = read(); size_t ink = 0, red = 0;
         for (const auto& pixel : pixels) { ink += pixel.r || pixel.g || pixel.b; red += pixel.r > pixel.g + 10; }
         Require(ink > 100 && red > 100, "Original Glue text or button texture did not reach the GPU");
@@ -111,7 +138,7 @@ void CheckOriginalUI(CGxDeviceMetal& device) {
         const auto restored = read();
         Require(restored.size() == pixels.size() && !std::memcmp(restored.data(), pixels.data(), pixels.size() * sizeof(CImVector)),
             "Original UI drawable resize/restore changed its output");
-        std::fprintf(stderr, "Original UI cycle %u: native text/composition, Lua hit test, %zu visible / %zu red pixels; resize/restore exact\n", cycle, ink, red);
+        std::fprintf(stderr, "Original UI cycle %u: native text/composition, Lua hit test, color wheel/value input (%zu changed pixels), %zu visible / %zu red pixels; resize/restore exact\n", cycle, colorChanges, ink, red);
         device.Drain();
     }
 }

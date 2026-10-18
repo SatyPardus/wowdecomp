@@ -24,7 +24,7 @@
 #include "Engine/Source/Tempest/NTempest.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
-#include "WoW/Source/Ui/TabardModelFrame.h"
+#include "Engine/Source/Frame/ColorTexture.h"
 
 // STATIC: 0x00B2CDB0
 int32_t CSimpleColorSelect::s_metatable = LUA_NOREF;
