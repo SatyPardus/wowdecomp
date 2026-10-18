@@ -399,8 +399,14 @@ creation rules; sex is 0 or 1. For example, `WOW_CHARACTER=1:1:0:0:0:0:0:220`
 shows a human female wearing the real chest display 220. This scene selection is
 exclusive with the other scene environment options. It is a character preview,
 not a player session or a replacement for the unfinished Glue/character UI.
-The arm64 compressor currently uses the original scalar DXT1 implementation;
-equivalence with the original x86 SIMD compressor remains to be established.
+The arm64 compressor uses native NEON while retaining the original SIMD path's
+integer mean, covariance order, power iterations and ties-to-even DXT1 quantization.
+Native division/square root differ from x86 approximate reciprocals at some
+quantization boundaries; full original Windows visual equivalence remains pending.
+For a local compressor comparison, the Metal probe can append composed four-by-four
+BGRA blocks to a derived file selected by `WOW_CHARACTER_BLOCK_DUMP`. This optional
+diagnostic includes the real bare/equipped character mip inputs and does not write
+to the original Data directory.
 These options are mutually exclusive. Character composition is not integrated;
 an unsupported shader reports its name and stops rendering.
 `WOW_MODEL='Spells\Fireball_Missile_Low.m2'` exercises original particle emission

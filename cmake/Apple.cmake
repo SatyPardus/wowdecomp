@@ -213,6 +213,7 @@ target_link_libraries(CharacterTextureCache PUBLIC AppleGameResources)
 add_library(CharacterAppearance STATIC
     WoW/Source/Glue/ComponentData.cpp
     WoW/Common/ComponentCore/CharacterComponent.cpp
+    WoW/Common/ComponentCore/CharacterCompressionNeon.cpp
     WoW/Common/ComponentCore/CharacterComponent_CVar.cpp
     WoW/Common/ComponentCore/ComponentUtils.cpp
     WoW/Common/ComponentCore/PlayerComponentState.cpp

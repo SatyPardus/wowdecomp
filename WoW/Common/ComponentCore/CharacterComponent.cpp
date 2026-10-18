@@ -14,6 +14,10 @@
 #include <alloca.h>
 #endif
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#if defined(__aarch64__) || defined(__arm64__)
+#define WOW_COMPONENT_NEON 1
+#include "WoW/Common/ComponentCore/CharacterCompressionNeon.h"
+#endif
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Base/Prop.h"
@@ -1552,11 +1556,18 @@ static void CompressBlock(const uint8_t* src, uint32_t stride, uint8_t* out) {
 static void ComputeMipLevels(MipBits* src, MipBits* dst) {
     int32_t size = s_textureSize;
 
-#if defined(WOW_COMPONENT_SSE2)
-    if ((OsGetProcessorFeatures() & 0x14) == 0x14) {
+#if defined(WOW_COMPONENT_SSE2) || defined(WOW_COMPONENT_NEON)
+#if defined(WOW_COMPONENT_NEON)
+    const bool useSimd = true;
+    const auto compressBlock = &CompressCharacterBlockNeon;
+#else
+    const bool useSimd = (OsGetProcessorFeatures() & 0x14) == 0x14;
+    const auto compressBlock = &CompressBlockSSE;
+#endif
+    if (useSimd) {
         for (uint32_t level = 0; level < CCharacterComponent::s_mipLevels; level++, size >>= 1) {
             if (size < 4) {
-                CompressBlockSSE(reinterpret_cast<const uint8_t*>(src->m_mip[CCharacterComponent::s_mipLevels - 2]), 16, reinterpret_cast<uint32_t*>(dst->m_mip[level]));
+                compressBlock(reinterpret_cast<const uint8_t*>(src->m_mip[CCharacterComponent::s_mipLevels - 2]), 16, reinterpret_cast<uint32_t*>(dst->m_mip[level]));
                 continue;
             }
 
@@ -1567,7 +1578,7 @@ static void ComputeMipLevels(MipBits* src, MipBits* dst) {
 
             for (int32_t by = 0; by < blocks; by++) {
                 for (int32_t bx = 0; bx < blocks; bx++) {
-                    CompressBlockSSE(in, stride, out);
+                    compressBlock(in, stride, out);
                     out += 2;
                     in += 16;
                 }

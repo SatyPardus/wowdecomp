@@ -14,10 +14,29 @@
 #include <cstdio>
 #include <vector>
 #include <cstring>
+#include <cstdlib>
 
 namespace {
 void Require(bool value, const char* text) { if (!value) throw std::runtime_error(text); }
 template<class T> void Load(T& db) { if (!db.m_loaded) db.Load(__FILE__, __LINE__); Require(db.m_loaded, "Character appearance DBC failed to load"); }
+void DumpCompressionInputs(CCharacterComponent* component) {
+    const char* path = std::getenv("WOW_CHARACTER_BLOCK_DUMP");
+    if (!path) return;
+    // Optional derived-data input for an independent original-x86 compressor
+    // comparison. Normal application/probe runs do not write these images.
+    component->RenderPrepAll();
+    FILE* file = std::fopen(path, "ab");
+    Require(file != nullptr, "Cannot open character compression input dump");
+    bool success = true;
+    for (unsigned level = 0, size = 1u << CCharacterComponent::s_mipLevels; size >= 4; ++level, size >>= 1) {
+        const auto* source = reinterpret_cast<const uint8_t*>(CCharacterComponent::s_textureBuffer->m_mip[level]);
+        for (unsigned y = 0; y < size; y += 4) for (unsigned x = 0; x < size; x += 4)
+            for (unsigned row = 0; row < 4; ++row)
+                success &= std::fwrite(source + ((y + row) * size + x) * 4, 1, 16, file) == 16;
+    }
+    success &= std::fclose(file) == 0;
+    Require(success, "Cannot write character compression input dump");
+}
 }
 
 void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) {
@@ -90,8 +109,10 @@ void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) 
             return std::vector<CImVector>(pixels.Ptr(), pixels.Ptr() + pixels.Count());
         };
         const auto bare = draw();
+        DumpCompressionInputs(component);
         component->AddItem(ITEMSLOT_CHEST, &chest, 0); compose();
         const auto equipped = draw();
+        DumpCompressionInputs(component);
         unsigned changed = 0;
         for (size_t i = 0; i < bare.size(); ++i) changed += std::memcmp(&bare[i], &equipped[i], sizeof(CImVector)) != 0;
         Require(changed > 4, "Original equipment layers did not alter the character output");
