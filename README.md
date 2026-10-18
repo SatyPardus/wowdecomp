@@ -927,6 +927,10 @@ Original `UIUtil`, `DB`, loading screens and `AppleClientCore` now compile on al
 three targets as well. This includes the original client startup/game transition,
 client commands/CVars, camera/input control, tooltips and full DBC registration.
 Achievement tooltip links retain their 64-bit GUID through a portable scan.
+The original `Magic`, `WoWCommon`, `ObjectMgrClient` and `Minigame` libraries
+also compile for all three targets, retaining spell logic/visual dispatch and
+object-create/mirror messages. A combined Glue/client link still has missing
+platform, Battle.net, voice, external LCD and verification/scan dependencies.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 
