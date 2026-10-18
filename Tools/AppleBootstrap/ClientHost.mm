@@ -1,5 +1,6 @@
 #include "NativeView.h"
 #include "LoginInput.h"
+#include "WorldActionCheck.h"
 #include "WoW/Source/Apple/LocalServerPolicy.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
@@ -55,6 +56,7 @@ std::unique_ptr<NativeLoginInput> pendingLogin;
 std::string enterCharacter;
 bool entryQueued;
 bool checkWorldInput, worldInputDone;
+bool checkWorldActions, worldActionsDone;
 bool appBundle;
 uint32_t synchronousFrames;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
@@ -304,6 +306,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         const bool running = EventProcessPending();
         PropSelectContext(context);
         if (checkWorldInput) CheckWorldInput(self.view);
+        if (checkWorldActions && (!checkWorldInput || worldInputDone)) worldActionsDone = CheckNativeWorldActions(self.view);
         if (device->FrameCommand()) device->ScenePresent();
         [view.inputContext invalidateCharacterCoordinates];
         if (pendingLogin && self.frames == 2) {
@@ -324,6 +327,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; in world: %u; Glue screen: %s\n", CGGameUI::s_inWorld, CGlueMgr::m_currentScreen);
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
             if (self.frameLimit) Require(!checkWorldInput || worldInputDone,"Frame limit reached before native world input check completed");
+            if (self.frameLimit) Require(!checkWorldActions || worldActionsDone,"Frame limit reached before native world action check completed");
             if (NSString* file = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"]) {
                 MTLRenderPassDescriptor* readPass = [pass copy];
                 readPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
@@ -357,12 +361,13 @@ int main(int argc, char** argv) {
         if (!std::strcmp(argv[argument], "--local-unchecked")) local = true;
         else if (!std::strcmp(argv[argument], "--login-stdin")) loginInput = true;
         else if (!std::strcmp(argv[argument], "--check-world-input")) checkWorldInput = true;
+        else if (!std::strcmp(argv[argument], "--check-world-actions")) checkWorldActions = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
-    if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || (checkWorldInput && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions) && enterCharacter.empty())) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {

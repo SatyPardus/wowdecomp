@@ -292,6 +292,13 @@ the full sequence. World rendering, these inputs and normal shutdown have passed
 Mac ASan/UBSan and Metal validation in a 900-frame local session. Full combat,
 area transitions and sustained play are still being integrated and verified.
 
+`--check-world-actions` verifies self-targeting, an existing Mark of the Wild
+action, server aura/mana updates, backpack open/close and cancellation through
+the original buff icon. It requires a druid with that spell on the current
+regular action bar and the existing F1/B/number bindings; it applies or refreshes
+and then cancels the buff. It does not change bindings or action slots. Allow
+1200 frames, or 1800 when combined with `--check-world-input`.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;
