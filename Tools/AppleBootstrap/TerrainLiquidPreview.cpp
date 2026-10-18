@@ -197,6 +197,11 @@ bool TerrainLiquidPreview::Ready(bool wait) {
         ready &= LiquidPreviewContext::Ready(*instance, wait);
     return ready;
 }
+void TerrainLiquidPreview::Prepare() {
+    if (!m->context) return;
+    for (auto* instance:m->instances) m->renderer.Draw(instance);
+    m->renderer.Prepare();
+}
 void TerrainLiquidPreview::Draw(const C3Vector &camera) {
     if (!m->context)
         return;

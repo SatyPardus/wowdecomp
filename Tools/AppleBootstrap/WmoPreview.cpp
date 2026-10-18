@@ -240,6 +240,7 @@ bool WmoPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, boo
     else
         GxXformSetViewport(0.5f, 0.98f, 0.2f, 0.92f, 0, 1);
     CMapObj::SetEmissiveAmbient(CImVector{0, 0, 0, 0});
+    if (m->liquid) m->liquid->Prepare();
     if (!liquidOnly) m->object->UnifiedRender(m->group, 0);
     if (m->liquid) {
         // LiquidSystem reads the native projection directly. Preserve the host

@@ -357,3 +357,23 @@ void Liquid::CMaterialWaterFFP::Render(Liquid::IEnvironment* environment, Liquid
     GxXformPop(GxXform_World);
     g_theGxDevicePtr->RsPop();
 }
+
+namespace {
+bool PrepareWater(Liquid::IGeomFactory *geometry, C44Matrix *transform, Liquid::CMaterialSettings *settings, CGxBuf **vertices,
+                  CGxBuf **indices) {
+    if (!settings->GetTexture(0, settings->GetInt(1)) || !settings->GetTexture(1, 1250))
+        return false;
+    geometry->SetTransform(transform);
+    CGxBatch batch{};
+    geometry->GetBuffers(GxVBF_PNCT2, vertices, indices, &batch);
+    return batch.m_count != 0;
+}
+} // namespace
+bool Liquid::CMaterialWater::PrepareGeometry(IGeomFactory *geometry, C44Matrix *transform, CMaterialSettings *settings, CGxBuf **vertices,
+                                             CGxBuf **indices) {
+    return PrepareWater(geometry, transform, settings, vertices, indices);
+}
+bool Liquid::CMaterialWaterNoSpec::PrepareGeometry(IGeomFactory *geometry, C44Matrix *transform, CMaterialSettings *settings,
+                                                   CGxBuf **vertices, CGxBuf **indices) {
+    return PrepareWater(geometry, transform, settings, vertices, indices);
+}

@@ -12,6 +12,7 @@ public:
     WmoLiquidPreview(CMapObj& object, CMapObjGroup& group);
     ~WmoLiquidPreview();
     bool Ready(bool wait);
+    void Prepare();
     void Draw(const C3Vector& camera);
 private:
     struct Impl;

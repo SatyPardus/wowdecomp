@@ -106,6 +106,46 @@ void CheckGxDevice() {
         std::memcpy(result.data(), pixels.Ptr(), result.size() * 4);
         return result;
     };
+    // Batch private vertex/index uploads, including a repeated entry. A later
+    // update must remain ordered after the first draw without a CPU/GPU wait.
+    auto *preparedPool =
+        device.PoolCreate(GxPoolTarget_Vertex, GxPoolUsage_Static, 4 * sizeof(Vertex), GxPoolHintBit_Unk0, "prepared vertices");
+    auto *preparedVertices = device.BufCreate(preparedPool, sizeof(Vertex), 4, 0);
+    Vertex preparedData[4];
+    Vertices(preparedData, 0xFFFF0000, 0);
+    device.BufData(preparedVertices, preparedData, sizeof(preparedData), 0);
+    CGxBuf *prepared[] = {preparedVertices, indices, preparedVertices};
+    device.BeginFrame(pass);
+    const auto uploadStart = device.EncodingStats();
+    device.PrepareBuffers(prepared, 3);
+    Require(device.EncodingStats().bufferUploadPasses - uploadStart.bufferUploadPasses == 1,
+            "Private buffer set did not share its upload encoder");
+    auto drawPrepared = [&](float translation) {
+        GxPrimVertexPtr(preparedVertices, GxVBF_PCT);
+        C44Matrix matrix(1);
+        matrix.Translate(C3Vector(translation, 0, 0));
+        matrix.Scale(C3Vector(0.5f, 1, 1));
+        const auto registers = matrix.Transpose();
+        GxShaderConstantsSet(GxSh_Vertex, 0, &registers.a0, 4);
+        CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3};
+        GxDraw(&batch, 1);
+    };
+    drawPrepared(-0.5f);
+    const auto resident = device.EncodingStats();
+    device.PrepareBuffers(prepared, 3);
+    Require(device.EncodingStats().bufferUploadPasses == resident.bufferUploadPasses &&
+                device.EncodingStats().renderPasses == resident.renderPasses,
+            "Resident preparation split a render pass or copied geometry");
+    Vertices(preparedData, 0xFF00FF00, 0);
+    device.BufData(preparedVertices, preparedData, sizeof(preparedData), 0);
+    device.PrepareBuffers(prepared, 3);
+    drawPrepared(0.5f);
+    auto ordered = read();
+    for (size_t y = 0; y < 16; ++y)
+        for (size_t x = 0; x < 16; ++x)
+            Require(ordered[y * 16 + x] == (x < 8 ? 0xFFFF0000u : 0xFF00FF00u), "Prepared buffer update changed an earlier draw");
+    device.BufDestroy(preparedVertices);
+    device.PoolDestroy(preparedPool);
     device.BeginFrame(pass); draw(0.5f, -0.5f, 0xFFFF0000);
     CiRect left(0, 0, 16, 8); TSGrowableArray<CImVector> leftPixels;
     GxReadPixels(left, leftPixels);

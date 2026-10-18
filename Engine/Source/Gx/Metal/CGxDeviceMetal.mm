@@ -171,6 +171,7 @@ struct CGxDeviceMetal::Impl {
     explicit Impl(id<MTLDevice> device) : gpu(device) {}
     GxMetal::TextureDevice gpu;
     std::unordered_map<CGxPool*, Pool> pools;
+    std::vector<Pool*> preparedPools;
     std::unordered_map<CGxTex*, Texture> textures;
     std::unordered_map<CGxShader*, Shader> shaders;
     id<MTLCommandBuffer> command;
@@ -327,6 +328,24 @@ struct CGxDeviceMetal::Impl {
         pool->m_apiSpecific = &storage;
         return storage;
     }
+    void Upload(Pool &storage, id<MTLBlitCommandEncoder> __strong &encoder) {
+        if (storage.streaming || storage.updates.empty())
+            return;
+        if (!encoder) {
+            Require(command != nil, "Gx buffer uploads require an active frame");
+            EndRender();
+            encoder = [command blitCommandEncoder];
+            Require(encoder != nil, "Cannot encode Gx buffer uploads");
+            ++statistics.bufferUploadPasses;
+        }
+        for (const auto &update : storage.updates)
+            [encoder copyFromBuffer:update.staging
+                       sourceOffset:0
+                           toBuffer:storage.gpu
+                  destinationOffset:update.offset
+                               size:update.staging.length];
+        storage.updates.clear();
+    }
     BufferBinding Flush(CGxBuf* buffer) {
         Require(buffer && buffer->m_valid && buffer->m_hasData, "Gx draw uses an uninitialized buffer");
         auto& storage = Storage(buffer->m_pool);
@@ -342,17 +361,9 @@ struct CGxDeviceMetal::Impl {
             storage.snapshots.emplace(key, binding);
             return binding;
         }
-        if (!storage.updates.empty()) {
-            EndRender();
-            id<MTLBlitCommandEncoder> encoder = [command blitCommandEncoder];
-            Require(encoder != nil, "Cannot encode Gx buffer uploads");
-            ++statistics.bufferUploadPasses;
-            for (const auto& update : storage.updates) {
-                [encoder copyFromBuffer:update.staging sourceOffset:0 toBuffer:storage.gpu destinationOffset:update.offset size:update.staging.length];
-            }
-            [encoder endEncoding];
-            storage.updates.clear();
-        }
+        id<MTLBlitCommandEncoder> encoder = nil;
+        Upload(storage, encoder);
+        if (encoder) [encoder endEncoding];
         return {storage.gpu, buffer->m_index};
     }
 };
@@ -586,6 +597,27 @@ int32_t CGxDeviceMetal::BufUnlock(CGxBuf* buffer, uint32_t size) {
     m->Queue(storage, buffer->m_index, buffer->m_size);
     buffer->m_hasData = 1;
     return 1;
+}
+void CGxDeviceMetal::PrepareBuffers(CGxBuf *const *buffers, uint32_t count) {
+    Require(!count || (buffers && m->command), "Gx buffer preparation requires an active frame and buffer list");
+    // Validate the full set before opening an encoder. Repeated buffers/pools
+    // naturally become no-ops after their queued immutable copies are consumed.
+    auto &pools = m->preparedPools;
+    pools.clear();
+    pools.reserve(count);
+    for (uint32_t i = 0; i < count; ++i) {
+        auto *buffer = buffers[i];
+        Require(buffer && buffer->m_valid && buffer->m_hasData, "Preparing an uninitialized Gx buffer");
+        auto &storage = m->Storage(buffer->m_pool);
+        Require(buffer->m_index <= storage.shadow.size() && buffer->m_size <= storage.shadow.size() - buffer->m_index,
+                "Gx buffer preparation exceeds pool");
+        pools.push_back(&storage);
+    }
+    id<MTLBlitCommandEncoder> encoder = nil;
+    for (auto *pool : pools)
+        m->Upload(*pool, encoder);
+    if (encoder)
+        [encoder endEncoding];
 }
 void CGxDeviceMetal::BufData(CGxBuf* buffer, const void* data, uint32_t size, uint32_t offset) {
     Require(buffer && buffer->m_pool && data && offset <= buffer->m_size && size <= buffer->m_size - offset, "Invalid Gx buffer data range");

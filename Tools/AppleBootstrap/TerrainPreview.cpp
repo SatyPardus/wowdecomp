@@ -180,6 +180,7 @@ bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height,
     GxPrimVertexPtr(m_vertices, GxVBF_PNC); device.PrimIndexPtr(m_indices);
     const float geoToTex = 1.0f/4.1666665f;
     const float animationRate[] = {64,48,32,16,8,4,2,1};
+    if (m_liquid) m_liquid->Prepare();
     if (!liquidOnly) for (size_t i = 0; i < m_chunks.size(); ++i) {
         auto& chunk = m_chunks[i]; if (!chunk.batch.m_count) continue;
         const auto& layers = m_surface.chunks[i].layers;

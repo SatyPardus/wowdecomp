@@ -37,6 +37,8 @@ public:
     void PoolDestroy(CGxPool* pool) override;
     char* BufLock(CGxBuf* buf) override;
     int32_t BufUnlock(CGxBuf* buf, uint32_t size) override;
+    bool BufferUploadsDeferred() const override { return true; }
+    void PrepareBuffers(CGxBuf* const* buffers, uint32_t count) override;
     void BufData(CGxBuf* buf, const void* data, uint32_t size, uint32_t offset) override;
     int32_t TexCreate(EGxTexTarget, uint32_t, uint32_t, uint32_t, EGxTexFormat, EGxTexFormat,
         CGxTexFlags, void*, GxTexUserFunc, const char*, CGxTex*&) override;

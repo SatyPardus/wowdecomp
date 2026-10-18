@@ -103,6 +103,7 @@ namespace Liquid {
     class IMaterial {
         public:
         virtual ~IMaterial();
+        virtual bool PrepareGeometry(IGeomFactory* geometry, C44Matrix* transform, CMaterialSettings* settings, CGxBuf** vertices, CGxBuf** indices) { return false; }
         virtual void Release() = 0;
         virtual void Render(IEnvironment* environment, IGeomFactory* geomFactory, IWaveManager* waveManager, const C3Vector& cameraPos, const C44Matrix* transform, const CAaSphere* bounds, CMaterialSettings* settings) = 0;
     };
@@ -138,9 +139,10 @@ namespace Liquid {
 
         static CMaterialWater* Create();
 
-        virtual ~CMaterialWater();
-        virtual void Release();
-        virtual void Render(IEnvironment* environment, IGeomFactory* geomFactory, IWaveManager* waveManager, const C3Vector& cameraPos, const C44Matrix* transform, const CAaSphere* bounds, CMaterialSettings* settings);
+        virtual ~CMaterialWater() override;
+        bool PrepareGeometry(IGeomFactory*, C44Matrix*, CMaterialSettings*, CGxBuf**, CGxBuf**) override;
+        virtual void Release() override;
+        virtual void Render(IEnvironment* environment, IGeomFactory* geomFactory, IWaveManager* waveManager, const C3Vector& cameraPos, const C44Matrix* transform, const CAaSphere* bounds, CMaterialSettings* settings) override;
 
         CMaterialWater();
     };
@@ -153,9 +155,10 @@ namespace Liquid {
 
         static CMaterialWaterNoSpec* Create();
 
-        virtual ~CMaterialWaterNoSpec();
-        virtual void Release();
-        virtual void Render(IEnvironment* environment, IGeomFactory* geomFactory, IWaveManager* waveManager, const C3Vector& cameraPos, const C44Matrix* transform, const CAaSphere* bounds, CMaterialSettings* settings);
+        virtual ~CMaterialWaterNoSpec() override;
+        bool PrepareGeometry(IGeomFactory*, C44Matrix*, CMaterialSettings*, CGxBuf**, CGxBuf**) override;
+        virtual void Release() override;
+        virtual void Render(IEnvironment* environment, IGeomFactory* geomFactory, IWaveManager* waveManager, const C3Vector& cameraPos, const C44Matrix* transform, const CAaSphere* bounds, CMaterialSettings* settings) override;
 
         CMaterialWaterNoSpec();
     };
@@ -176,9 +179,10 @@ namespace Liquid {
 
         static CMaterialMagma* Create();
 
-        virtual ~CMaterialMagma();
-        virtual void Release();
-        virtual void Render(IEnvironment* environment, IGeomFactory* geomFactory, IWaveManager* waveManager, const C3Vector& cameraPos, const C44Matrix* transform, const CAaSphere* bounds, CMaterialSettings* settings);
+        virtual ~CMaterialMagma() override;
+        bool PrepareGeometry(IGeomFactory*, C44Matrix*, CMaterialSettings*, CGxBuf**, CGxBuf**) override;
+        virtual void Release() override;
+        virtual void Render(IEnvironment* environment, IGeomFactory* geomFactory, IWaveManager* waveManager, const C3Vector& cameraPos, const C44Matrix* transform, const CAaSphere* bounds, CMaterialSettings* settings) override;
 
         CMaterialMagma();
     };
@@ -309,9 +313,12 @@ namespace Liquid {
         static int32_t CompareTransparent(const void* a, const void* b);
 
         /* 0000 */ TSGrowableArray<CInstance*> m_instances[2];
+        bool m_prepared = false;
+        TSGrowableArray<CGxBuf*> m_prepareBuffers;
 
         ~CRenderer();
         void Draw(CInstance* instance);
+        void Prepare();
         void Flush(const C3Vector& cameraPos, uint32_t pass);
         void Validate();
     };

@@ -101,14 +101,39 @@ int32_t Liquid::CRenderer::CompareTransparent(const void* a, const void* b) {
 // OFFSET: 0x008A20C0
 void Liquid::CRenderer::Draw(Liquid::CInstance* instance) {
     if (!instance->m_queued) {
+        m_prepared = false;
         this->m_instances[instance->m_settings->m_transparent != 0].New(instance);
         instance->m_queued = 1;
     }
 }
 
+// Prepare both queues together without changing their order or render states.
+// This also serves callers that have not yet moved preparation before opaque
+// world drawing: they pay one upload boundary instead of one per liquid batch.
+void Liquid::CRenderer::Prepare() {
+    if (m_prepared || !g_theGxDevicePtr->BufferUploadsDeferred())
+        return;
+    auto &buffers = m_prepareBuffers;
+    buffers.Clear();
+    for (auto &list : m_instances)
+        for (uint32_t i = 0; i < list.Count(); ++i) {
+            auto *instance = list[i];
+            CGxBuf *vertices = nullptr;
+            CGxBuf *indices = nullptr;
+            if (instance->m_material->PrepareGeometry(instance->m_geomFactory, &instance->m_transform, instance->m_settings, &vertices,
+                                                      &indices)) {
+                buffers.New(vertices);
+                buffers.New(indices);
+            }
+        }
+    g_theGxDevicePtr->PrepareBuffers(buffers.m_data, buffers.Count());
+    m_prepared = true;
+}
+
 // VERIFY: d17a0633 manual
 // OFFSET: 0x008A2240
 void Liquid::CRenderer::Flush(const C3Vector& cameraPos, uint32_t pass) {
+    Prepare();
     CGxLight lights[4];
 
     for (uint32_t i = 0; i < 4; i++) {
@@ -127,6 +152,7 @@ void Liquid::CRenderer::Flush(const C3Vector& cameraPos, uint32_t pass) {
     }
 
     instances.Clear();
+    if (!m_instances[0].Count() && !m_instances[1].Count()) m_prepared = false;
 
     for (uint32_t i = 0; i < 4; i++) {
         if (lights[i].m_flags & 0x1) {

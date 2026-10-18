@@ -15,6 +15,7 @@ class TerrainLiquidPreview {
                          const std::string &mapName);
     ~TerrainLiquidPreview();
     bool Ready(bool wait);
+    void Prepare();
     void Draw(const C3Vector &camera);
     size_t LayerCount() const;
     size_t BatchCount() const;

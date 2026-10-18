@@ -58,6 +58,10 @@ WmoLiquidPreview::WmoLiquidPreview(CMapObj &object, CMapObjGroup &group) : m(std
 }
 WmoLiquidPreview::~WmoLiquidPreview() = default;
 bool WmoLiquidPreview::Ready(bool wait) { return LiquidPreviewContext::Ready(*m->instance, wait); }
+void WmoLiquidPreview::Prepare() {
+    m->renderer.Draw(m->instance);
+    m->renderer.Prepare();
+}
 void WmoLiquidPreview::Draw(const C3Vector &camera) {
     Liquid::UpdateProceduralTextures();
     m->renderer.Draw(m->instance);

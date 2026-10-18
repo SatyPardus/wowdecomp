@@ -181,3 +181,13 @@ void Liquid::CMaterialMagmaFFP::Render(Liquid::IEnvironment* environment, Liquid
     GxXformPop(GxXform_World);
     g_theGxDevicePtr->RsPop();
 }
+
+bool Liquid::CMaterialMagma::PrepareGeometry(IGeomFactory *geometry, C44Matrix *transform, CMaterialSettings *settings, CGxBuf **vertices,
+                                             CGxBuf **indices) {
+    if (!settings->GetTexture(0, 1250))
+        return false;
+    geometry->SetTransform(transform);
+    CGxBatch batch{};
+    geometry->GetBuffers(GxVBF_PCT, vertices, indices, &batch);
+    return batch.m_count != 0;
+}

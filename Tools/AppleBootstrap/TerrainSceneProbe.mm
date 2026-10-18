@@ -42,8 +42,9 @@ void CheckGameTerrain() {
             const auto after = device.EncodingStats();
             if (after.geometryDraws - before.geometryDraws != (frame >= 2 ? 0 : 256) + terrain.LiquidBatchCount())
                 throw std::runtime_error("Terrain surface omitted chunks");
-            if (frame && after.renderPasses - before.renderPasses != 1)
+            if (after.renderPasses - before.renderPasses != 1)
                 throw std::runtime_error("Resident terrain split its render pass");
+            if (!frame && after.bufferUploadPasses-before.bufferUploadPasses > 3) throw std::runtime_error("Initial terrain/liquid buffer copies were not batched");
             CiRect rect(0, 0, 256, 256);
             TSGrowableArray<CImVector> pixels;
             device.DeviceReadPixels(rect, pixels);
@@ -68,9 +69,10 @@ void CheckGameTerrain() {
             }
             if (frame && after.bufferUploadPasses != before.bufferUploadPasses)
                 throw std::runtime_error("Resident terrain/liquid geometry reuploaded");
-            std::fprintf(stderr, "Terrain GPU %s frame %u: %u triangles, %u covered pixels, %llu draws / %llu passes\n", name, frame,
+            std::fprintf(stderr, "Terrain GPU %s frame %u: %u triangles, %u covered pixels, %llu draws / %llu passes / %llu buffer uploads\n", name, frame,
                          terrain.TriangleCount(), covered, static_cast<unsigned long long>(after.geometryDraws - before.geometryDraws),
-                         static_cast<unsigned long long>(after.renderPasses - before.renderPasses));
+                         static_cast<unsigned long long>(after.renderPasses - before.renderPasses),
+                         static_cast<unsigned long long>(after.bufferUploadPasses-before.bufferUploadPasses));
             device.ScenePresent();
             if (frame >= 2 && frame < 5)
                 OsSleep(250);

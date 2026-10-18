@@ -215,6 +215,10 @@ class CGxDevice {
     virtual void PoolDestroy(CGxPool* pool);
     virtual char* BufLock(CGxBuf* buf);
     virtual int32_t BufUnlock(CGxBuf* buf, uint32_t size);
+    // Backends with deferred private-buffer copies can upload a prepared set
+    // before opening a render pass. Eager backends retain their lock/unlock path.
+    virtual bool BufferUploadsDeferred() const { return false; }
+    virtual void PrepareBuffers(CGxBuf* const* buffers, uint32_t count) {}
     virtual void BufData(CGxBuf* buf, const void* data, uint32_t size, uint32_t offset);
     virtual int32_t TexCreate(EGxTexTarget target, uint32_t width, uint32_t height, uint32_t depth, EGxTexFormat format, EGxTexFormat dataFormat, CGxTexFlags flags, void* userArg, GxTexUserFunc userFunc, const char* name, CGxTex*& texId);
     virtual void TexDestroy(CGxTex* texId);

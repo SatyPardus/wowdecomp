@@ -342,7 +342,14 @@ MH2O and MCLQ liquids now use original CChunkLiquid vertices/triangle strips, ad
 chunk batching, depth coordinates, original material/settings banks and animated
 MPQ textures. Elwynn's 42 layers become 19 draws; Northrend's 256 ocean layers
 become 64 draws. Their liquid-only views cover 1585/12195 pixels and show animation.
-Resident surface plus water uses one render pass and does not reupload geometry.
+Liquid materials now prepare geometry before drawing, and Metal batches their
+pending immutable private-buffer copies into one upload encoder. Original queue
+sorting, material states and same-frame update order are preserved; eager upload
+backends retain their lock/unlock path. Elwynn, Northrend and the two Outland
+fixtures now use one render pass from their first frame (previously 20/65/63/17),
+with three buffer upload passes total for surface plus liquid geometry. Resident
+frames do not reupload geometry. Upload queues reuse storage; repeated preparation
+is a no-op, and an updated buffer preserves earlier draws in the same frame.
 macOS ASan/UBSan and Metal validation pass through two resource/context cycles;
 Elwynn terrain/water and original audio run together for 120 frames. Both iOS
 targets build; the simulator runs Northrend terrain/water and audio for 120 frames,
