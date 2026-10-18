@@ -64,7 +64,13 @@ void CGlueMgr::ScanDLLContinueAnyway() {
 // VERIFY: 25435ec1 manual
 // OFFSET: 0x004E5880
 bool CGlueMgr::IsScanDLLFinished() {
+#if defined(__APPLE__)
+    // There is no Windows Scan.dll startup phase on Apple. This query only
+    // controls the Glue screen; it does not report server integrity success.
+    return true;
+#else
     return CGlueMgr::m_scandllOkayToLogIn;
+#endif
 }
 
 // VERIFY: 69834dc2 auto
@@ -258,6 +264,9 @@ static bool VersionDownloadCallback(void* param, const char* data, uint32_t size
 // VERIFY: 451fb6dc manual
 // OFFSET: 0x004E5CB0
 void CGlueMgr::ScanDLLStart(const char* versionURL, const char* dllURL) {
+#if defined(__APPLE__)
+    DebugLog("Windows Scan.dll startup is not applicable to the native Apple client");
+#else
     if (CGlueMgr::m_scandllStatus || s_downloadComplete) {
         return;
     }
@@ -313,4 +322,5 @@ void CGlueMgr::ScanDLLStart(const char* versionURL, const char* dllURL) {
     FrameScript_SignalEvent(GLUE_EVENT_SCANDLL_DOWNLOADING, "%s", FrameScript_GetText("SCANDLL_MESSAGE_SCANNING", -1, GENDER_NOT_APPLICABLE));
     CGlueMgr::m_idleState = IDLE_14;
     CGlueMgr::m_showedDisconnect = 0;
+#endif
 }

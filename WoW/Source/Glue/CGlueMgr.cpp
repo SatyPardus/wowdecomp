@@ -334,7 +334,13 @@ static int32_t CheckTrialAccountConversion() {
 // VERIFY: e5e10296 auto
 // OFFSET: 0x004D8A30
 void CGlueMgr::LoginServerLogin(const char* username, char* password) {
-    if (!CGlueMgr::m_scandllOkayToLogIn || !CGlueMgr::m_acceptedTOS || !CGlueMgr::m_acceptedEULA || CGlueMgr::m_idleState != IDLE_NONE) {
+    // Scan.dll is a Windows startup service. Native Apple UI does not start
+    // that DLL; server integrity requests remain separate explicit boundaries.
+    if (
+#if !defined(__APPLE__)
+        !CGlueMgr::m_scandllOkayToLogIn ||
+#endif
+        !CGlueMgr::m_acceptedTOS || !CGlueMgr::m_acceptedEULA || CGlueMgr::m_idleState != IDLE_NONE) {
         return;
     }
 

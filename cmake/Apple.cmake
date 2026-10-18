@@ -392,6 +392,7 @@ target_link_libraries(ObjectMgrClient PUBLIC Object Game)
 add_subdirectory(WoW/Source/Minigame)
 target_link_libraries(Minigame PUBLIC Game)
 add_library(AppleClientCore STATIC WoW/Source/Client.cpp WoW/Source/Client_CVar.cpp
+    WoW/Source/Apple/LocalServerPolicy.cpp
     WoW/Source/Client_Console.cpp WoW/Source/WowSysMessageOutput.cpp WoW/Source/Apple/ClientIntegrity.cpp)
 target_link_libraries(AppleClientCore PUBLIC Glue WowSvcs UIUtil Game Object DB AppleLoadingScreen Magic WoWCommon ObjectMgrClient Minigame)
 add_library(AppleRealmProbeCore STATIC Tools/AppleBootstrap/RealmProbe.cpp Tools/AppleBootstrap/CacheProbe.cpp Tools/AppleBootstrap/AccountDataProbe.cpp)

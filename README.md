@@ -229,9 +229,10 @@ it does not create a playable player or connect to an external realm.
 `AppleClient` is the macOS host for the original engine/client initialization,
 GlueXML login interface, Event loop and shutdown. It mounts the original Data,
 loads the authenticated file-signature manifest and preserves GlueXML signature
-checks. This is a development client entry: interactive authentication and world
-entry are still being integrated, and native executable challenge verification
-currently fails explicitly.
+checks. The original Glue login has authenticated to local AzerothCore, selected the
+realm, loaded an existing character with its equipment/background, and rendered
+the character-selection screen. World entry is still being integrated. Native
+executable challenge verification remains unavailable.
 
 ```sh
 cmake --build --preset macos-arm64 --target AppleClient
@@ -247,6 +248,23 @@ GPU image. With no frame limit the window remains interactive. The original
 login interface and agreement display have run for 120 frames under Mac
 ASan/UBSan and Metal validation, followed by the original client teardown.
 This complete startup host has not yet been added to the iOS app.
+
+For a local development server, `--local-unchecked` explicitly omits executable
+challenge verification and restricts Grunt authentication to `127.0.0.1:3724`
+and realm endpoints to literal `127.0.0.1` with a valid port. The server must
+already use `StrictVersionCheck=0`; the client does not change that setting.
+Resource/GlueXML signatures, SRP proofs and encrypted world authentication remain
+active. Without this flag no unchecked challenge is supplied. Unsupported server
+integrity modules still reject the session. Apple uses the Mac Glue platform
+branch and has no Windows Scan.dll startup phase.
+
+`--login-stdin` is an optional local development input path. It reads account and
+password with terminal password echo disabled, submits them through the original
+Glue login after the UI starts, and clears the password. It requires
+`--local-unchecked`, an idle login screen and existing agreement preferences;
+it does not accept agreements or create/delete characters. A 600-frame session
+has reached the original character-selection screen and shut down normally under
+Mac ASan/UBSan and Metal validation.
 
 `AppleRealmClient` is a separate macOS command-line entry for a local AzerothCore
 server. It performs real SRP authentication, realm selection, encrypted world

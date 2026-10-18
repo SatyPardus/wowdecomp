@@ -304,7 +304,11 @@ static int32_t Script_IsScanDLLFinished(lua_State* L) {
 // VERIFY: e95a71be auto
 // OFFSET: 0x004DCE40
 int32_t Script_IsWindowsClient(lua_State* L) {
+#if defined(__APPLE__)
+    lua_pushnil(L);
+#else
     lua_pushnumber(L, 1.0);
+#endif
     return 1;
 }
 
@@ -800,7 +804,11 @@ static int32_t Script_GetChangedOptionWarnings(lua_State* L) {
 // VERIFY: 02785aeb auto
 // OFFSET: 0x00510B90
 int32_t Script_IsMacClient(lua_State* L) {
+#if defined(__APPLE__)
+    lua_pushnumber(L, 1.0);
+#else
     lua_pushnil(L);
+#endif
     return 1;
 }
 

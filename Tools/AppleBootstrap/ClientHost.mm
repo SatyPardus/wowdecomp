@@ -1,4 +1,6 @@
 #include "NativeView.h"
+#include "LoginInput.h"
+#include "WoW/Source/Apple/LocalServerPolicy.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/WowServices/Apple/ClientSettings.h"
@@ -23,6 +25,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <execinfo.h>
 #include <memory>
@@ -37,6 +40,7 @@ namespace {
 CGxDeviceMetal* device;
 HPROPCONTEXT context;
 bool initialized;
+std::unique_ptr<NativeLoginInput> pendingLogin;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 [[noreturn]] void Fatal(const char* message) {
     // Original initialization and packet dispatch are not exception-safe.
@@ -135,6 +139,14 @@ void SelectRuntime(const std::filesystem::path& data, const std::filesystem::pat
         PropSelectContext(context);
         if (device->FrameCommand()) device->ScenePresent();
         [view.inputContext invalidateCharacterCoordinates];
+        if (pendingLogin && self.frames == 2) {
+            Require(CGlueMgr::m_acceptedTOS && CGlueMgr::m_acceptedEULA, "Original agreement preferences are required before stdin login");
+            Require(!std::strcmp(CGlueMgr::m_currentScreen, "login") && CGlueMgr::m_idleState == IDLE_NONE,
+                "Stdin login requires the idle original login screen");
+            CGlueMgr::LoginServerLogin(pendingLogin->account.c_str(), pendingLogin->password.data());
+            pendingLogin.reset();
+            Require(CGlueMgr::m_idleState == IDLE_LOGIN_SERVER_LOGIN, "Original Glue did not start login");
+        }
         if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; Glue screen: %s\n", CGlueMgr::m_currentScreen);
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
             if (NSString* file = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"]) {
@@ -164,14 +176,27 @@ void SelectRuntime(const std::filesystem::path& data, const std::filesystem::pat
 @end
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        std::fprintf(stderr, "Usage: AppleClient /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    int argument = 1;
+    bool local = false, loginInput = false;
+    while (argument < argc && !std::strncmp(argv[argument], "--", 2)) {
+        if (!std::strcmp(argv[argument], "--local-unchecked")) local = true;
+        else if (!std::strcmp(argv[argument], "--login-stdin")) loginInput = true;
+        else break;
+        ++argument;
+    }
+    if (argc - argument != 2 || (loginInput && !local)) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
         try {
-            const std::filesystem::path data = std::filesystem::canonical(argv[1]);
-            SelectRuntime(data, argv[2]);
+            const std::filesystem::path data = std::filesystem::canonical(argv[argument]);
+            SelectRuntime(data, argv[argument + 1]);
+            if (local) {
+                EnableNativeLocalServerPolicy();
+                std::fputs("Local development mode: only loopback Grunt/realm endpoints; executable check omitted (server StrictVersionCheck=0 required).\n", stderr);
+            }
+            if (loginInput) { pendingLogin = std::make_unique<NativeLoginInput>(); pendingLogin->Read(); }
             [NSApplication sharedApplication];
             [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
             StormInitialize();
@@ -189,6 +214,7 @@ int main(int argc, char** argv) {
             CVar::ArchiveCodeRegisteredOnly();
             CVar::Register("locale", "Game locale selected from mounted Data", 0, mounts->Locale().c_str(), nullptr, CATEGORY_DEFAULT, false, nullptr, false);
             ClientServices::InitLoginServerCVars(0, mounts->Locale().c_str());
+            if (local) ClientServices::s_realmListVar->Set("127.0.0.1:3724", true, false, false, true);
             LoadMopaqFileSigningData(mounts->Locale().c_str());
             EventInitialize(1, 0); OsTimeStartup(OsTimeManager::BestAvailable); OsIMEInitialize();
 

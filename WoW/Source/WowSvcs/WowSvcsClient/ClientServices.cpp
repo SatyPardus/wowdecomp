@@ -1,6 +1,9 @@
 #include <cstdint>
 #include <cstring>
 #include "ClientServices.h"
+#if defined(__APPLE__)
+#include "WoW/Source/Apple/LocalServerPolicy.h"
+#endif
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -875,6 +878,13 @@ void ClientServices::Logon(const char* username, const char* password) {
 
     const char* portal = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_portalVar->m_stringValue.m_str : "";
     const char* realmList = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_realmListBNVar->m_stringValue.m_str : ClientServices::s_realmListVar->m_stringValue.m_str;
+#if defined(__APPLE__)
+    if (!NativeServerEndpointAllowed(true, realmList) || (NativeLocalServerPolicy() && ClientServices::s_loginObj->GetLoginServerType() != 0)) {
+        DebugLog("Native local development login requires Grunt at 127.0.0.1:3724");
+        ClientServices::CreateLoginResponse()->UpdateLoginStatus(LOGIN_STATE_FAILED, LOGIN_FAILED, nullptr, 0);
+        return;
+    }
+#endif
     ClientServices::s_loginObj->Logon(realmList, portal);
 }
 
@@ -1181,6 +1191,13 @@ void ClientServices::ConnectToSelectedServer() {
         return;
     }
 
+#if defined(__APPLE__)
+    if (!NativeServerEndpointAllowed(false, ClientServices::m_selectRealmInfo.m_realmAddress)) {
+        DebugLog("Native local development mode rejected a non-loopback realm endpoint");
+        ClientServices::Connection()->Complete(0, 39);
+        return;
+    }
+#endif
     ClientServices::s_currentConnection->SetSelectedRealm(ClientServices::m_selectRealmInfo.m_regionId, ClientServices::m_selectRealmInfo.m_battlegroupId, ClientServices::m_selectRealmInfo.m_realmId);
     ClientServices::Connection()->NetClient::Connect(ClientServices::m_selectRealmInfo.m_realmAddress);
 }
