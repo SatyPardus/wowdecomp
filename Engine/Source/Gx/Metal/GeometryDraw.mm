@@ -23,6 +23,13 @@ static_assert(sizeof(WaveParameters) == 80, "Metal wave constant layout");
 static_assert(sizeof(GeometryParameters) == 192 && offsetof(GeometryParameters, texture) == 64, "Metal geometry constant layout");
 }
 
+void GxMetal::TextureDevice::DrawFixedUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass,
+    const std::array<id<MTLTexture>, 9>& textures, const GeometryDraw& geometry,
+    const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
+    Require(geometry.effect == FragmentEffect::FixedUnlit && geometry.fixed && geometry.fixed->stages <= 4,
+            "Invalid unlit fixed-function draw");
+    DrawGeometry(command, pass, textures, geometry, {}, states, encoder);
+}
 void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::Unlit, "Unlit draw received a different native effect");
@@ -95,7 +102,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const bool terrainShadow = geometry.effect == FragmentEffect::TerrainShadowMap;
-    const unsigned inputs = terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
+    const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
     const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : (1u << inputs) - 1;
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
@@ -188,7 +195,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
-    if (geometry.effect == FragmentEffect::WaterRipple) {
+    if (geometry.fixed) {
+        [encoder setVertexBytes:&geometry.fixed->vertex length:sizeof(FixedUnlitVertexParameters) atIndex:0];
+    } else if (geometry.effect == FragmentEffect::WaterRipple) {
         [encoder setVertexBytes:&geometry.clipFromModel length:sizeof(C44Matrix) atIndex:0];
     } else if (detail) {
         [encoder setVertexBytes:&geometry.detail->vertex length:sizeof(DetailDoodadVertexParameters) atIndex:0];
@@ -203,7 +212,12 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else if (terrain) { [encoder setVertexBytes:&geometry.terrain->vertex length:sizeof(TerrainVertexParameters) atIndex:0];
     } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
-    if (geometry.effect == FragmentEffect::WaterRipple) {
+    if (geometry.fixed) {
+        FixedUnlitFragmentParameters material = geometry.fixed->fragment;
+        material.alphaRef = state.alphaRef / 255.0f;
+        for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
+        [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
+    } else if (geometry.effect == FragmentEffect::WaterRipple) {
         WaterRippleParameters material{state.decodeScale, state.alphaRef / 255.0f, geometry.depthOffset};
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
     } else if (detail) {

@@ -87,6 +87,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
     if (GxMetal::IsLiquidEffect(effect)) return GxMetal::LiquidShaderFamily(effect, target);
     if (GxMetal::IsWmoEffect(effect)) return target == GxSh_Vertex ? GxMetal::WmoVertexFamily(wmoVertex) : GxMetal::WmoPixelFamily(effect);
     switch (effect) {
+        case GxMetal::FragmentEffect::FixedUnlit: return "FixedUnlit";
         case GxMetal::FragmentEffect::DetailDoodad: return "DetailDoodad";
         case GxMetal::FragmentEffect::WaterRipple: return "WaterRipples";
         case GxMetal::FragmentEffect::ShadowMap: return target == GxSh_Vertex ? "ShadowMap" : "ShadowMapSL";
@@ -992,8 +993,9 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     auto pointer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.p; };
     auto* vertex = static_cast<CGxShader*>(pointer(GxRs_VertexShader));
     auto* pixel = static_cast<CGxShader*>(pointer(GxRs_PixelShader));
-    Require(pixel && m->shaders.count(pixel) && pixel->m_target == GxSh_Pixel, "Gx draw requires a verified native pixel shader");
-    const auto effect = m->shaders.at(pixel).effect;
+    const bool fixed = !vertex && !pixel;
+    Require(fixed || (pixel && m->shaders.count(pixel) && pixel->m_target == GxSh_Pixel), "Gx draw requires a verified native pixel shader");
+    const auto effect = fixed ? GxMetal::FragmentEffect::FixedUnlit : m->shaders.at(pixel).effect;
     const bool model = GxMetal::IsModelEffect(effect);
     const bool wmo = GxMetal::IsWmoEffect(effect);
     const bool liquid = GxMetal::IsLiquidEffect(effect);
@@ -1001,12 +1003,14 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool shadow = effect == GxMetal::FragmentEffect::ShadowMap;
     const bool ripple = effect == GxMetal::FragmentEffect::WaterRipple;
     const bool detail = effect == GxMetal::FragmentEffect::DetailDoodad;
-    const bool postProcess = !ripple && !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
+    const bool postProcess = !fixed && !ripple && !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
-    const unsigned inputs = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation)) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
-    Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
-        ((liquid || shadow || detail || ripple) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui)),
+    unsigned fixedInputs = 0;
+    if (fixed) while (fixedInputs < unsigned(m_caps.m_numTmus) && pointer(EGxRenderState(GxRs_Texture0 + fixedInputs))) ++fixedInputs;
+    const unsigned inputs = fixed ? fixedInputs : effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation)) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
+    Require(fixed || (postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
+        ((liquid || shadow || detail || ripple) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui))),
         "Unsupported native Gx vertex/pixel shader combination");
     if (model && (!GxMetal::SupportsModelPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation, m->shaders.at(vertex).vertexEffect) ||
         !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation))) {
@@ -1046,11 +1050,18 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
                 (m_xforms[i].m_flags[m_xforms[i].m_level] & CGxMatrixStack::F_Identity), "FFX texture transforms or generated coordinates are not implemented");
         }
     }
-    // LiquidSystem retains Fog=1 with its SM3 program, which computes fog in
-    // the shader itself. There is no additional fixed-function fog stage.
-    Require((liquid || !(MasterEnable(GxMasterEnable_Fog) && integer(GxRs_Fog))) && !integer(GxRs_ClipPlaneMask) &&
-        !integer(GxRs_PointSprite) && (ripple || m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] == 0) && MasterEnable(GxMasterEnable_PolygonFill),
-        "Gx fog, clip planes, point sprites, depth bias or wireframe path is not implemented");
+    // SM3 performs fog entirely inside the shaders, even when FOGENABLE is
+    // retained by the world state. SM2/fixed-function paths still need a stage.
+    // https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/shader-model-3
+    const bool shaderFog = model || terrain || wmo || liquid || shadow || detail || ripple;
+    auto unsupportedState = [&](const char* message) { throw std::runtime_error(std::string(message) + " in " + ShaderFamily(effect)); };
+    if (!fixed && !shaderFog && MasterEnable(GxMasterEnable_Fog) && integer(GxRs_Fog))
+        unsupportedState("Fixed-function fog is not implemented");
+    if (integer(GxRs_ClipPlaneMask)) unsupportedState("User clip planes are not implemented");
+    if (integer(GxRs_PointSprite)) unsupportedState("Point sprites are not implemented");
+    if (!ripple && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
+        unsupportedState("Depth bias is not implemented");
+    if (!MasterEnable(GxMasterEnable_PolygonFill)) unsupportedState("Wireframe is not implemented");
     Require(postProcess || (m_primVertexFormat < GxVertexBufferFormats_Last && GxVertexSize(m_primVertexFormat) == vertices->m_itemSize),
         "Custom or split Gx vertex streams are not implemented");
     Require(!m_bufLocked[GxPoolTarget_Vertex] && !m_bufLocked[GxPoolTarget_Index], "Gx draw uses locked buffers");
@@ -1058,6 +1069,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         batch->m_count <= m_primIndexBuf->m_itemCount - batch->m_start && batch->m_maxIndex < vertices->m_itemCount :
         batch->m_count <= vertices->m_itemCount, "Gx draw exceeds its logical buffer range");
     GxMetal::GeometryDraw draw;
+    std::optional<GxMetal::FixedUnlitDrawParameters> fixedParameters;
     std::optional<GxMetal::ModelDrawParameters> modelParameters;
     std::optional<GxMetal::ShadowMapDrawParameters> shadowParameters;
     std::optional<GxMetal::DetailDoodadDrawParameters> detailParameters;
@@ -1071,7 +1083,52 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         draw.indices = indexBinding.buffer; draw.indexOffset = indexBinding.offset;
     }
     draw.format = m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
-    if (postProcess) {
+    if (fixed) {
+        Require(!integer(GxRs_Lighting), "Lit fixed-function materials are not implemented");
+        Require(inputs <= 4, "Unlit fixed-function texture stage limit exceeded");
+        auto& native = fixedParameters.emplace(); draw.fixed = &native;
+        native.stages = inputs;
+        const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
+        const C44Matrix worldView = world.m_mtx[world.m_level] * view.m_mtx[view.m_level];
+        draw.clipFromModel = worldView * m_projNative;
+        std::memcpy(&native.vertex.clipFromModel, &draw.clipFromModel, sizeof(C44Matrix));
+        native.vertex.viewDepth = {worldView.a2, worldView.b2, worldView.c2, worldView.d2};
+        auto color = [&](EGxRenderState state) {
+            const uint32_t value = integer(state);
+            return simd_make_float4((value >> 16) & 255, (value >> 8) & 255, value & 255, value >> 24) / 255.0f;
+        };
+        native.vertex.materialColor = color(GxRs_MatDiffuse);
+        if (integer(GxRs_MatDiffuse) != 0xffffffffu) {
+            const auto emissive = color(GxRs_MatEmissive);
+            for (unsigned i = 0; i < 3; ++i) native.vertex.materialColor[i] = std::min(1.0f, native.vertex.materialColor[i] + emissive[i]);
+        }
+        native.fog = MasterEnable(GxMasterEnable_Fog) && integer(GxRs_Fog);
+        if (native.fog) {
+            const float start = m_appRenderStates[GxRs_FogStart].m_value.m_data.f[0], end = m_appRenderStates[GxRs_FogEnd].m_value.m_data.f[0];
+            Require(std::isfinite(start) && std::isfinite(end) && start != end, "Invalid fixed-function fog interval");
+            native.vertex.fog = {start, end, 1 / (end - start), 0};
+            native.fragment.fogColor = color(GxRs_FogColor);
+        }
+        for (unsigned i = 0; i < inputs; ++i) {
+            const unsigned rgb = integer(EGxRenderState(GxRs_ColorOp0 + i)), alpha = integer(EGxRenderState(GxRs_AlphaOp0 + i));
+            Require(rgb < 6 && alpha < 6, "Invalid fixed-function texture operation");
+            native.colorOps |= rgb << (3 * i); native.alphaOps |= alpha << (3 * i);
+            Require(!integer(EGxRenderState(GxRs_TexGen0 + i)), "Generated fixed-function texture coordinates are not implemented");
+            native.vertex.uvSet[i] = integer(EGxRenderState(GxRs_TextureCoord0 + i));
+            Require(native.vertex.uvSet[i] < 8, "Invalid fixed-function coordinate set");
+            const unsigned mode = integer(EGxRenderState(GxRs_TextureShader0 + i));
+            Require(mode <= 2, "Invalid fixed-function texture transform");
+            const auto& gen = m_texGen[i]; const auto& xform = m_xforms[i];
+            C44Matrix matrix = mode ? gen.m_mtx[gen.m_level] * xform.m_mtx[xform.m_level] : gen.m_mtx[gen.m_level];
+            // D3D's two-component input is extended with (1, 0). Gx moves
+            // affine translation into the third row for COUNT2 transforms.
+            if (mode == 1) { matrix.c0 = matrix.d0; matrix.c1 = matrix.d1; }
+            native.vertex.textureRows[i][0] = {matrix.a0, matrix.b0, matrix.c0, matrix.d0};
+            native.vertex.textureRows[i][1] = {matrix.a1, matrix.b1, matrix.c1, matrix.d1};
+            native.vertex.textureRows[i][2] = {matrix.a2, matrix.b2, matrix.c2, matrix.d2};
+            native.vertex.projected[i] = mode == 2;
+        }
+    } else if (postProcess) {
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
         draw.clipFromModel = world.m_mtx[world.m_level] * view.m_mtx[view.m_level] * m_projNative;
     } else if (ripple) {
@@ -1248,7 +1305,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             m->gpu.device.supports32BitFloatFiltering, "This GPU cannot filter R32F textures with the requested sampler");
     }
     const auto encoder = m->Render();
-    if (ripple) { m->gpu.DrawWaterRipple(m->command, m->pass, textures[0], draw, states[0], encoder); }
+    if (fixed) { m->gpu.DrawFixedUnlit(m->command, m->pass, textures, draw, states, encoder); }
+    else if (ripple) { m->gpu.DrawWaterRipple(m->command, m->pass, textures[0], draw, states[0], encoder); }
     else if (detail) { m->gpu.DrawDetailDoodad(m->command, m->pass, textures[0], draw, states[0], encoder); }
     else if (shadow) { m->gpu.DrawShadowMap(m->command, m->pass, textures[0], draw, inputs ? states[0] : state, encoder); }
     else if (model) { m->gpu.DrawModel(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }

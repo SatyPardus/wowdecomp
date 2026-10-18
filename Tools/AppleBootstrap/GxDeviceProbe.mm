@@ -12,6 +12,7 @@ void CheckGxFFXEffect(CGxDeviceMetal& device);
 void CheckGameEvents();
 void CheckGameAsyncFiles();
 void CheckGameWorldLifecycle();
+void CheckFixedUnlit(CGxDeviceMetal&);
 void CheckModelShaders(CGxDeviceMetal& device);
 void CheckShadowMapShaders(CGxDeviceMetal& device);
 void CheckDetailDoodadShaders(CGxDeviceMetal& device);
@@ -295,6 +296,7 @@ void CheckGxDevice() {
     CheckGxFont(device);
     CheckGxFFXPasses(device);
     CheckGxFFXEffect(device);
+    CheckFixedUnlit(device);
     CheckModelShaders(device);
     CheckShadowMapShaders(device);
     CheckDetailDoodadShaders(device);

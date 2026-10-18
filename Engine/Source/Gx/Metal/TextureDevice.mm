@@ -93,6 +93,7 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
 id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, const GeometryDraw& geometry, bool depthAttachment, bool decodePacked, MTLPixelFormat colorFormat) {
     const auto format = geometry.format; const auto effect = geometry.effect;
     const bool screenAtDepth = geometry.screenAtDepth, signedWave = geometry.signedWave, depthOffset = geometry.depthOffset != 0;
+    const auto* fixed = geometry.fixed;
     const auto* model = geometry.model; const auto* terrain = geometry.terrain; const auto* wmo = geometry.wmo;
     const auto* liquid = geometry.liquid; const auto* shadow = geometry.shadow; const auto* detail = geometry.detail;
     const uint32_t modelPermutation = model ? model->permutation : 0;
@@ -131,7 +132,9 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
-        terrain ? terrain->pixelPermutation : 0, terrain ? terrain->shadowMode : 0, terrain ? uint32_t(terrain->layerPass) : 0};
+        fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
+        fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : 0,
+        fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) : terrain ? uint32_t(terrain->layerPass) : 0};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -204,7 +207,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
+    if (decodePacked && effect != FragmentEffect::FixedUnlit && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -449,6 +452,31 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         attribute(3, GxVA_TexCoord0, MTLVertexFormatFloat2);
         if (!magma) { attribute(1, GxVA_Normal, MTLVertexFormatFloat3); attribute(4, GxVA_TexCoord1, MTLVertexFormatFloat2); }
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
+    }
+    if (effect == FragmentEffect::FixedUnlit) {
+        Require(fixed && fixed->stages <= 4 && !screenAtDepth, "Invalid unlit fixed-function pipeline");
+        const bool alpha = state.alphaRef != 0, color = GxVertexHasAttrib(format, GxVA_Color0),
+                   uv0 = GxVertexHasAttrib(format, GxVA_TexCoord0), uv1 = GxVertexHasAttrib(format, GxVA_TexCoord1);
+        auto constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&fixed->stages type:MTLDataTypeUInt atIndex:26];
+        [constants setConstantValue:&fixed->colorOps type:MTLDataTypeUInt atIndex:27];
+        [constants setConstantValue:&fixed->alphaOps type:MTLDataTypeUInt atIndex:28];
+        [constants setConstantValue:&fixed->fog type:MTLDataTypeBool atIndex:29];
+        [constants setConstantValue:&color type:MTLDataTypeBool atIndex:30];
+        [constants setConstantValue:&uv0 type:MTLDataTypeBool atIndex:31];
+        [constants setConstantValue:&uv1 type:MTLDataTypeBool atIndex:32];
+        NSError* error = nil;
+        descriptor.vertexFunction = [m_library newFunctionWithName:@"fixedUnlitVertex" constantValues:constants error:&error];
+        descriptor.fragmentFunction = [m_library newFunctionWithName:@"fixedUnlitFragment" constantValues:constants error:&error];
+        if (!descriptor.vertexFunction || !descriptor.fragmentFunction)
+            throw std::runtime_error(error.localizedDescription.UTF8String ?: "Unlit fixed-function specialization failed");
+        if (uv1) {
+            descriptor.vertexDescriptor.attributes[3].bufferIndex = 1;
+            descriptor.vertexDescriptor.attributes[3].offset = GxVertexAttribOffset(format, GxVA_TexCoord1);
+            descriptor.vertexDescriptor.attributes[3].format = MTLVertexFormatFloat2;
+        }
     }
     auto attachment = descriptor.colorAttachments[0];
     attachment.pixelFormat = colorFormat;

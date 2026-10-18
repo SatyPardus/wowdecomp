@@ -16,6 +16,26 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 
 namespace GxMetal {
+// Typed native parameters for the original unlit texture-stage pipeline.
+struct FixedUnlitVertexParameters {
+    simd_float4x4 clipFromModel;
+    simd_float4 viewDepth, materialColor, fog;
+    simd_float4 textureRows[4][3];
+    simd_uint4 uvSet{}, projected{};
+};
+struct FixedUnlitFragmentParameters {
+    simd_float4 fogColor, decodeScale[4];
+    float alphaRef, padding[3]{};
+};
+static_assert(sizeof(FixedUnlitVertexParameters) == 336 && sizeof(FixedUnlitFragmentParameters) == 96,
+              "Native fixed-function constant layout");
+struct FixedUnlitDrawParameters {
+    FixedUnlitVertexParameters vertex{};
+    FixedUnlitFragmentParameters fragment{};
+    uint32_t stages = 0, colorOps = 0, alphaOps = 0;
+    bool fog = false;
+};
+
 struct QuadParameters {
     simd_float2 scale = {1, 1};
     float mipLevel = 0;
@@ -173,6 +193,7 @@ struct GeometryDraw {
     EGxVertexBufferFormat format = GxVBF_PCT;
     FragmentEffect effect = FragmentEffect::Unlit;
     CGxBatch batch{};
+    const FixedUnlitDrawParameters* fixed = nullptr;
     const ModelDrawParameters* model = nullptr;
     const ShadowMapDrawParameters* shadow = nullptr;
     const DetailDoodadDrawParameters* detail = nullptr;
@@ -211,6 +232,8 @@ public:
         const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport = nullptr);
     // A supplied encoder remains open and must belong to the given pass/command.
     // Without one, these helpers encode an independent complete pass.
+    void DrawFixedUnlit(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 9>&,
+        const GeometryDraw&, const std::array<TextureDrawState, 9>&, id<MTLRenderCommandEncoder> = nil);
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,

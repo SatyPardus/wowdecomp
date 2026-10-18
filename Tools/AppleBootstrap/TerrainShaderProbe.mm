@@ -183,7 +183,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
     GxRsSet(GxRs_DepthTest, 0);
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Culling, 0);
-    GxRsSet(GxRs_Fog, 0);
+    GxRsSet(GxRs_Fog, 1); // SM3 must retain its shader fog without a second fixed-function fog stage.
     GxRsSet(GxRs_ScissorTest, 0);
     GxRsSet(GxRs_ClipPlaneMask, 0);
     GxRsSet(GxRs_PolygonOffset, 0);

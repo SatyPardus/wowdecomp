@@ -94,7 +94,8 @@ void CheckModelShaders(CGxDeviceMetal& device) {
     device.RsSet(GxRs_Texture1, cleanup.texture[2]);
     device.RsSet(GxRs_Texture0, cleanup.texture[0]);
     GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_Culling, 0);
-    GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_ScissorTest, 0); GxRsSet(GxRs_ClipPlaneMask, 0);
+    GxRsSet(GxRs_Fog, 1); // SM3 must retain its shader fog without a second fixed-function fog stage.
+    GxRsSet(GxRs_ScissorTest, 0); GxRsSet(GxRs_ClipPlaneMask, 0);
     GxRsSet(GxRs_PolygonOffset, 0); GxRsSet(GxRs_PointSprite, 0); GxRsSet(GxRs_ColorWrite, 15);
     GxRsSet(GxRs_BlendingMode, GxBlend_Opaque); GxRsSet(GxRs_AlphaRef, 0);
     GxXformSetViewport(0, 1, 0, 1, 0, 1);
