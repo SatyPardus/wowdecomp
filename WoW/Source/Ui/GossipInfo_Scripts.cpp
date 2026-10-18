@@ -69,11 +69,13 @@ static int32_t Script_GetGossipText(lua_State* L) {
 static int32_t Script_GetGossipOptions(lua_State* L) {
     int32_t count = 0;
 
-    for (GossipOption* option = CGGossipInfo::m_options; option < reinterpret_cast<GossipOption*>(CGGossipInfo::m_gossipText); option++) {
-        if (option && option->m_index >= 0) {
+    // The original executable placed m_gossipText immediately after this array.
+    // Separate globals need not remain adjacent in a rebuilt client.
+    for (const GossipOption& option : CGGossipInfo::m_options) {
+        if (option.m_index >= 0) {
             lua_checkstack(L, 2);
-            lua_pushstring(L, option->m_text);
-            lua_pushstring(L, s_gossipTypes[option->m_type]);
+            lua_pushstring(L, option.m_text);
+            lua_pushstring(L, s_gossipTypes[option.m_type]);
             count++;
         }
     }

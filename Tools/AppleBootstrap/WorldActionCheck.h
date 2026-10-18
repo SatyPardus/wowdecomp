@@ -7,6 +7,8 @@ bool CheckNativeWorldActions(WowNativeView* view);
 bool CheckNativeWorldCasting(WowNativeView* view);
 // Original live shadow-quality CVar, resource recreation and restoration.
 bool CheckNativeWorldShadows();
+// Native picking and an existing nearby NPC's original server gossip dialog.
+bool CheckNativeWorldNPC(WowNativeView* view);
 // Original game-menu logout and character-selection reentry, using native UI
 // events and the same character. No forced logout or object-manager reset.
 bool CheckNativeWorldReentry(WowNativeView* view);

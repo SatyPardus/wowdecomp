@@ -354,6 +354,13 @@ waits for the server and character-selection screen, then clicks Enter World for
 the same selected character. It never forces a logout or resets game objects.
 Allow 3000 frames to include both world loads and a possible logout countdown.
 
+`--check-world-npc` right-clicks a visible friendly gossip NPC within five units
+through native mouse events and checks the original target, server text/options
+and visible GossipFrame. It leaves the dialog open and selects no option. A
+900-frame local session beside Innkeeper Allison passed Mac ASan/UBSan and Metal
+validation, including normal shutdown. Gossip option iteration uses the actual
+array boundary instead of relying on the original executable's adjacent globals.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;

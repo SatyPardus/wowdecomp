@@ -11,9 +11,12 @@
 #include "WoW/Source/Glue/CharacterSelection.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/Unit.h"
+#include "WoW/Source/Object/Object.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/ActionBarFrame.h"
 #include "WoW/Source/Ui/GameUI.h"
+#include "WoW/Source/Ui/GossipInfo.h"
+#include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/Ui/UIBindings.h"
 #import <Carbon/Carbon.h>
 #include <chrono>
@@ -193,6 +196,64 @@ bool CheckNativeWorldShadows() {
     const int next = phase == 8 ? original : modes[phase];
     Require(setting->Set(next, true, false, false, false), "Original shadow-quality callback rejected the requested mode");
     ++phase; frames = 0;
+    return false;
+}
+
+bool CheckNativeWorldNPC(WowNativeView* view) {
+    static unsigned phase,readyFrames;
+    static WOWGUID target;
+    static std::chrono::steady_clock::time_point started;
+    if(phase==4) return true;
+    auto* player=ClntObjMgrGetActivePlayerObj();
+    if(!CGGameUI::s_inWorld || !player) { Require(!phase,"World left during native NPC check"); return false; }
+    if(!phase && ++readyFrames<120) return false;
+    auto* frame=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("GossipFrame",CSimpleFrame::GetObjectType()));
+    Require(frame,"Original NPC gossip frame is missing");
+    auto project=[](CGUnit_C* unit,float& x,float& y) {
+        const auto feet=unit->GetPosition(),head=unit->GetNamePosition(); C3Vector screen;
+        if(!CGWorldFrame::s_currentWorldFrame->GetScreenCoordinates(C3Vector(feet.x,feet.y,feet.z+(head.z-feet.z)*.4f),&screen,nullptr)) return false;
+        DDCToNDC(screen.x,screen.y,&x,&y); return x>.15f && x<.85f && y>.2f && y<.85f;
+    };
+    const auto now=std::chrono::steady_clock::now();
+    const double elapsed=std::chrono::duration<double>(now-started).count();
+    auto next=[&] { ++phase; started=now; };
+    if(!phase) {
+        Require(!frame->m_isShown,"NPC check requires a closed gossip dialog");
+        struct Search { CGPlayer_C* player; decltype(project)* project; CGUnit_C* unit=nullptr; float distanceSquared=25; } search{player,&project};
+        ClntObjMgrEnumVisibleObjects([](WOWGUID guid,void* context)->int32_t {
+            auto& search=*static_cast<Search*>(context);
+            auto* unit=static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid,TYPEMASK_UNIT,__FILE__,__LINE__));
+            if(!unit || unit==search.player || (unit->m_obj->m_type&TYPEMASK_PLAYER) || !(unit->m_unit->m_unitNpcFlags&1) ||
+               unit->IsDeadOrGhost() || !search.player->CanInteract(unit)) return 1;
+            const auto d=unit->GetPosition()-search.player->GetPosition(); const float distance=d.x*d.x+d.y*d.y+d.z*d.z; float x,y;
+            if(distance<search.distanceSquared && (*search.project)(unit,x,y)) { search.unit=unit; search.distanceSquared=distance; }
+            return 1;
+        },&search);
+        Require(search.unit,"Native NPC check requires an on-screen gossip NPC within five units");
+        target=search.unit->m_obj->m_guid;
+        std::fprintf(stderr,"Native NPC: picking %s, flags %u, squared distance %.3f\n",search.unit->GetObjectName(),search.unit->m_unit->m_unitNpcFlags,search.distanceSquared);
+        float x,y; Require(project(search.unit,x,y),"NPC left the world view");
+        const NSPoint p=[view convertPoint:NSMakePoint(x*view.bounds.size.width,(view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        [view mouseMoved:[NSEvent mouseEventWithType:NSEventTypeMouseMoved location:p modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:0 pressure:0]];
+        next();
+    } else if((phase==1 && elapsed>=.1) || (phase==2 && elapsed>=.05)) {
+        auto* unit=static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target,TYPEMASK_UNIT,__FILE__,__LINE__)); float x,y;
+        Require(unit && project(unit,x,y),"NPC moved before native right click");
+        const NSPoint p=[view convertPoint:NSMakePoint(x*view.bounds.size.width,(view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        const bool down=phase==1;
+        CGEventRef event=CGEventCreateMouseEvent(nullptr,down ? kCGEventRightMouseDown:kCGEventRightMouseUp,
+            CGPointMake(p.x,NSMaxY(NSScreen.screens.firstObject.frame)-p.y),kCGMouseButtonRight);
+        Require(event,"Cannot create native NPC right click"); NSEvent* native=[NSEvent eventWithCGEvent:event];
+        if(down) [view rightMouseDown:native]; else [view rightMouseUp:native]; CFRelease(event); next();
+    } else if(phase==3) {
+        if(CGGossipInfo::m_gossip==target && CGGossipInfo::m_gossipOptionsCount && CGGossipInfo::m_gossipText[0] && frame->m_isVisible) {
+            Require(CGGameUI::m_lockedTarget==target,"Native NPC click did not select the original target");
+            std::fprintf(stderr,"Native NPC: original target, server gossip text and %u options displayed; no option selected\n",CGGossipInfo::m_gossipOptionsCount);
+            next(); return true;
+        }
+        Require(elapsed<8,"Native NPC right click did not display the original server gossip");
+    }
     return false;
 }
 
