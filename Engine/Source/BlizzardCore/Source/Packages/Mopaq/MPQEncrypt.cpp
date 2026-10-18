@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstring>
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.h"
 
 // STATIC: 0x00AB7B90
@@ -204,11 +205,17 @@ uint32_t System_MPQEncrypt::Hash(const char* str, uint32_t type) {
 // OFFSET: 0x00426600
 void System_MPQEncrypt::Decrypt(uint32_t* data, uint32_t size, uint32_t key) {
     uint32_t seed = 0xEEEEEEEE;
+    auto* bytes = reinterpret_cast<uint8_t*>(data);
 
+    // Compressed encrypted sectors may begin at any byte offset. Retain
+    // the original word operations without requiring aligned caller memory.
     for (uint32_t count = size >> 2; count; count--) {
         seed += s_cryptTable[0x400 + (key & 0xFF)];
-        uint32_t value = *data ^ (key + seed);
-        *data++ = value;
+        uint32_t value;
+        std::memcpy(&value, bytes, sizeof(value));
+        value ^= key + seed;
+        std::memcpy(bytes, &value, sizeof(value));
+        bytes += sizeof(value);
         key = ((~key << 21) + 0x11111111) | (key >> 11);
         seed = value + seed + (seed << 5) + 3;
     }
@@ -218,11 +225,17 @@ void System_MPQEncrypt::Decrypt(uint32_t* data, uint32_t size, uint32_t key) {
 // OFFSET: 0x00426670
 void System_MPQEncrypt::Encrypt(uint32_t* data, uint32_t size, uint32_t key) {
     uint32_t seed = 0xEEEEEEEE;
+    auto* bytes = reinterpret_cast<uint8_t*>(data);
 
+    // Compressed encrypted sectors may begin at any byte offset. Retain
+    // the original word operations without requiring aligned caller memory.
     for (uint32_t count = size >> 2; count; count--) {
         seed += s_cryptTable[0x400 + (key & 0xFF)];
-        uint32_t value = *data;
-        *data++ = value ^ (key + seed);
+        uint32_t value;
+        std::memcpy(&value, bytes, sizeof(value));
+        const uint32_t encrypted = value ^ (key + seed);
+        std::memcpy(bytes, &encrypted, sizeof(encrypted));
+        bytes += sizeof(value);
         key = ((~key << 21) + 0x11111111) | (key >> 11);
         seed = value + seed + (seed << 5) + 3;
     }
