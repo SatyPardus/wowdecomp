@@ -1,4 +1,5 @@
 #include "MapChunk.h"
+#include "MapChunkData.h"
 #include "MapChunkLiquid.h"
 #include <stdexcept>
 #include <cstring>
@@ -173,81 +174,33 @@ void CMapChunk::SelectLights(CM2Lighting* lighting) {
 // VERIFY: 092514c8 manual
 // OFFSET: 0x007C3A10
 void CMapChunk::ProcessIffChunks(bool a3) {
-    SIffChunk* headerChunk = reinterpret_cast<SIffChunk*>(this->m_chunkInfoBeginPtr);
-    this->m_header = reinterpret_cast<SMChunk*>(&headerChunk->m_data);
+    auto* parent = m_parentLinkList.Head();
+    if (m_parentLinkList.IsEnd(parent) || !parent->m_ref) throw std::runtime_error("ADT chunk has no parent area");
+    auto* area = static_cast<CMapArea*>(parent->m_ref);
+    const auto base = reinterpret_cast<uintptr_t>(area->m_fileBuffer), address = reinterpret_cast<uintptr_t>(m_chunkInfoBeginPtr);
+    if (!area->m_header || area->m_fileSize < 0 || address < base || address-base > size_t(area->m_fileSize) ||
+        size_t(area->m_fileSize)-(address-base) < 8) throw std::runtime_error("ADT chunk lies outside its area");
+    uint32_t length; std::memcpy(&length, m_chunkInfoBeginPtr+4, 4);
+    if (length > size_t(area->m_fileSize)-(address-base)-8) throw std::runtime_error("ADT chunk exceeds its area");
+    LoadChunkData(m_chunkInfoBeginPtr, size_t(length)+8, (CMap::header.m_flags & 4) != 0, area->m_header->m_mampValue);
+}
 
-    int32_t remaining = headerChunk->m_size - sizeof(SMChunk);
-    SIffChunk* chunk = reinterpret_cast<SIffChunk*>(reinterpret_cast<uint8_t*>(this->m_header) + sizeof(SMChunk));
-
-    while (remaining > 0) {
-        uint8_t* data = reinterpret_cast<uint8_t*>(&chunk->m_data);
-        remaining -= offsetof(SIffChunk, m_data);
-
-        switch (chunk->m_token) {
-            case 0x4D434E52:
-                this->m_normals = reinterpret_cast<int8_t*>(data);
-
-                if (a3) {
-                    chunk->m_size = 448;
-                }
-
-                break;
-
-            case 0x4D435348:
-                this->m_shadowMap = data;
-                break;
-
-            case 0x4D435654:
-                this->m_height = reinterpret_cast<float*>(data);
-                break;
-
-            case 0x4D435246:
-                this->m_mcrfPtr = data;
-                break;
-
-            case 0x4D435345:
-                if (this->m_header->m_nSndEmitters) {
-                    this->m_soundEmitters = reinterpret_cast<CWSoundEmitter*>(data);
-                }
-
-                break;
-
-            case 0x4D434C59:
-                this->m_layers = reinterpret_cast<SMLayer*>(data);
-                break;
-
-            case 0x4D434C51: {
-                uint32_t liquidSize, flags;
-                std::memcpy(&liquidSize, reinterpret_cast<const uint8_t *>(m_header) + offsetof(SMChunk, m_sizeLiquid), 4);
-                std::memcpy(&flags, reinterpret_cast<const uint8_t *>(m_header) + offsetof(SMChunk, m_flags), 4);
-                if (liquidSize > 8) {
-                    const auto payloadSize = liquidSize - 8;
-                    if (remaining < 0 || payloadSize > uint32_t(remaining))
-                        throw std::runtime_error("MCLQ exceeds MCNK container");
-                    m_nativeLiquidData = Liquid::ReadLegacyChunks(data, payloadSize, flags);
-                    m_liquid = m_nativeLiquidData.empty() ? nullptr : m_nativeLiquidData.data();
-                    std::memcpy(reinterpret_cast<uint8_t *>(chunk) + offsetof(SIffChunk, m_size), &payloadSize, 4);
-                }
-                break;
-            }
-
-            case 0x4D43414C:
-                this->m_additionalShadowmap = data;
-
-                if (a3) {
-                    chunk->m_size = this->m_header->m_sizeAlpha - 8;
-                }
-
-                break;
-
-            case 0x4D434356:
-                this->m_vertexShading = reinterpret_cast<uint32_t*>(data);
-                break;
-        }
-
-        remaining -= chunk->m_size;
-        chunk = reinterpret_cast<SIffChunk*>(data + chunk->m_size);
-    }
+void CMapChunk::LoadChunkData(const void* bytes, size_t size, bool bigAlpha, uint8_t alphaMapShift) {
+    if (m_nativeData) throw std::runtime_error("ADT chunk data is already loaded");
+    auto native = std::make_unique<MapChunkData>(bytes, size, bigAlpha, alphaMapShift);
+    m_header = &native->header;
+    m_height = native->surface.heights.data();
+    m_normals = native->surface.normals.data();
+    m_vertexShading = native->surface.hasColors ? native->surface.colors.data() : nullptr;
+    m_shadowMap = native->surface.shadow.empty() ? nullptr : native->surface.shadow.data();
+    m_layers = native->layers.empty() ? nullptr : native->layers.data();
+    m_additionalShadowmap = native->surface.alpha.empty() ? nullptr : native->surface.alpha.data();
+    m_mcrfPtr = reinterpret_cast<uint8_t*>(native->references.data());
+    m_liquid = native->liquids.empty() ? nullptr : native->liquids.data();
+    m_soundEmitters = native->sounds.empty() ? nullptr : native->sounds.data();
+    m_lowQualityTexMap = m_header->m_lowQualityTextureMap;
+    m_predTexture = reinterpret_cast<uint8_t*>(&m_header->m_predTex);
+    m_nativeData = std::move(native);
 }
 
 // VERIFY: 86d6cd8c manual
@@ -762,7 +715,7 @@ void CMapChunk::CreateSoundEmitters(bool a3) {
 // OFFSET: 0x007C6150
 void CMapChunk::CreateRefs(CMapArea* area, uint32_t* mcrfPtr, uint32_t doodadRefs, uint32_t mapObjRefs) {
     C3Vector center(17066.666f, 17066.666f, 0.0f);
-    uint32_t* mapObjRefList = &mcrfPtr[doodadRefs];
+    uint32_t* mapObjRefList = mcrfPtr ? mcrfPtr+doodadRefs : nullptr;
 
     for (uint32_t i = 0; i < mapObjRefs; i++) {
         SMMapObjDef* def = &area->m_mapObjDef[mapObjRefList[i]];

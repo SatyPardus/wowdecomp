@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include <memory>
 #include "WoW/Common/TerrainGeometry.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "WoW/Source/WorldClient/CChunkLiquid.h"
@@ -29,6 +30,7 @@ class CM2Lighting;
 class CDetailDoodadInst;
 class CChunkLiquid;
 class CMapChunk;
+class MapChunkData;
 class CMapChunkDoodadDefLink;
 class CMapChunkMapObjDefLink;
 class CMapObjDef;
@@ -94,10 +96,10 @@ class CMapChunk : public CMapBaseObj {
     /* 0130 */ uint8_t* m_additionalShadowmap;
     /* 0134 */ uint8_t* m_mcrfPtr;
     /* 0138 */ SMLiquidChunk* m_liquid;
-    std::vector<SMLiquidChunk> m_nativeLiquidData;
     /* 013C */ CWSoundEmitter* m_soundEmitters;
     /* 0140 */ CBitArray m_deepBits;
     /* 014C */ CBitArray m_fishableBits;
+    std::unique_ptr<MapChunkData> m_nativeData;
 
     virtual void SelectLights(CM2Lighting* lighting);
 
@@ -106,6 +108,7 @@ class CMapChunk : public CMapBaseObj {
     void Create(SIffChunk* headerChunk, bool a3);
     void CreateRefs(CMapArea* mapChunk, uint32_t* mcrfPtr, uint32_t doodadRefs, uint32_t mapObjRefs);
     void ProcessIffChunks(bool a3);
+    void LoadChunkData(const void* bytes, size_t size, bool bigAlpha, uint8_t alphaMapShift);
     void CreateBounds();
     int32_t Intersect(int32_t subX, int32_t subY, const C3Ray& ray, float* t);
     void RenderPrep();

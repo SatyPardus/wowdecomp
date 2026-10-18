@@ -32,6 +32,8 @@ struct Surface {
 // Does not modify the archive buffer. ADT subchunks may be unaligned; numeric
 // arrays are copied into their naturally aligned destination representation.
 Surface ReadSurface(const void* bytes, size_t size, bool bigAlpha);
+// The same bounded surface decoder is used by the original CMapChunk loader.
+SurfaceChunk ReadSurfaceChunk(const void* bytes, size_t size, bool bigAlpha, uint8_t alphaMapShift);
 struct BlendTexture {
     unsigned side = 0;
     std::vector<CImVector> rgba;

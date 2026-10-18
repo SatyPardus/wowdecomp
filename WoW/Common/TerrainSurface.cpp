@@ -96,6 +96,13 @@ Terrain::SurfaceChunk ReadChunk(Bytes bytes, bool bigAlpha, unsigned side) {
 }
 }
 
+Terrain::SurfaceChunk Terrain::ReadSurfaceChunk(const void* input, size_t size, bool bigAlpha, uint8_t alphaMapShift) {
+    Require(input && size >= 136 && size <= 64 * 1024 * 1024 && alphaMapShift <= 6, "invalid chunk extent or alpha shift");
+    Bytes bytes{static_cast<const uint8_t*>(input), size};
+    Require(bytes.Block(0, 0x4D434E4B, 128).size == size-8, "MCNK extent mismatch");
+    return ReadChunk(bytes, bigAlpha, 64 >> alphaMapShift);
+}
+
 Terrain::Surface Terrain::ReadSurface(const void* input, size_t size, bool bigAlpha) {
     Require(input && size >= 12 && size <= 64 * 1024 * 1024, "invalid file size");
     static_assert(sizeof(Layer) == 16 && sizeof(C3Vector) == 12, "ADT scalar layout");

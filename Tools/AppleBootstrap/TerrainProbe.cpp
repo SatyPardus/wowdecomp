@@ -1,5 +1,6 @@
 #include "WoW/Common/TerrainSurface.h"
 #include "WoW/Source/WorldClient/MapAreaData.h"
+#include "WoW/Source/WorldClient/MapChunkData.h"
 #include "WoW/Source/LiquidSystem/Liquid.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include <cmath>
@@ -14,6 +15,61 @@ uint32_t Word(const std::vector<uint8_t>& bytes, size_t offset) {
     uint32_t word; std::memcpy(&word, bytes.data() + offset, 4); return word;
 }
 void Write(std::vector<uint8_t>& bytes, size_t offset, uint32_t word) { std::memcpy(bytes.data() + offset, &word, 4); }
+uint32_t CheckNativeChunk(const std::vector<uint8_t>& adt, const Terrain::Surface& surface, const Terrain::GeometryView& geometry,
+    const std::array<CGxVertexPN, 145>& expected, size_t slot) {
+    const auto index = size_t(Word(adt, 24))+28+slot*16;
+    const auto at = Word(adt, index), size = Word(adt, index+4);
+    std::vector<uint8_t> unaligned(size+1);
+    std::memcpy(unaligned.data()+1, adt.data()+at, size);
+    CMapChunk runtime;
+    runtime.LoadChunkData(unaligned.data()+1, size, surface.bigAlpha, surface.alphaMapShift);
+    const auto& native = *runtime.m_nativeData;
+    const auto& header = *runtime.m_header;
+    Require(!std::memcmp(&header, adt.data()+at+8, sizeof(header)), "Native MCNK header bytes changed");
+    auto equal = [&](const void* pointer, size_t offset, size_t count) {
+        if (count) Require(!std::memcmp(pointer, adt.data()+at+offset+8, count), "Native MCNK payload bytes changed");
+    };
+    equal(runtime.m_height, header.m_ofsHeight, 145*4);
+    equal(runtime.m_normals, header.m_ofsNormal, 145*3);
+    equal(runtime.m_layers, header.m_ofsLayer, header.m_nLayers*16);
+    equal(runtime.m_mcrfPtr, header.m_ofsRefs, native.references.size()*4);
+    equal(runtime.m_soundEmitters, header.m_ofsSndEmitters, native.sounds.size()*28);
+    equal(runtime.m_liquid, header.m_ofsLiquid, native.liquids.size()*804);
+    if (runtime.m_vertexShading) equal(runtime.m_vertexShading, header.m_ofsMCCV, 145*4);
+    Require(!std::memcmp(unaligned.data()+1, adt.data()+at, size), "Native MCNK loader repaired source bytes in place");
+    std::fill(unaligned.begin(), unaligned.end(), 0);
+    runtime.m_cOffset = geometry.chunkOffset;
+    runtime.m_topLeftCoords.z = geometry.baseHeight;
+    std::array<CGxVertexPN, 145> actual;
+    runtime.CreateVerticesWorld(actual.data(), C3Vector(0,0,0));
+    Require(!std::memcmp(actual.data(), expected.data(), sizeof(actual)), "Owned native MCNK geometry changed or borrowed source bytes");
+    if (!slot) {
+        auto reject = [&](std::vector<uint8_t> invalid) {
+            CMapChunk rejected;
+            bool failed = false;
+            try { rejected.LoadChunkData(invalid.data(), invalid.size(), surface.bigAlpha, surface.alphaMapShift); }
+            catch (const std::runtime_error&) { failed = true; }
+            Require(failed && !rejected.m_header && !rejected.m_nativeData, "Invalid MCNK published partial runtime views");
+        };
+        std::vector<uint8_t> copy(adt.begin()+at, adt.begin()+at+size);
+        auto invalid = copy; invalid.pop_back(); reject(invalid);
+        invalid = copy; Write(invalid, 8+0x10, 0xFFFFFFFF); reject(invalid);
+        invalid = copy; Write(invalid, 8+0x5C, 1); Write(invalid, 8+0x58, size); reject(invalid);
+        // The real fixtures contain no MCSE records. Append one declared
+        // emitter to exercise its native layout without altering source assets.
+        CWSoundEmitter sound{42, C3Vector(1.25f,-2.5f,3.75f), C3Vector(4,5,6)};
+        copy.resize(size+8+sizeof(sound));
+        Write(copy, 4, uint32_t(copy.size()-8));
+        Write(copy, 8+0x58, size); Write(copy, 8+0x5C, 1);
+        Write(copy, size, 0x4D435345); Write(copy, size+4, sizeof(sound));
+        std::memcpy(copy.data()+size+8, &sound, sizeof(sound));
+        CMapChunk withSound;
+        withSound.LoadChunkData(copy.data(), copy.size(), surface.bigAlpha, surface.alphaMapShift);
+        Require(withSound.m_soundEmitters && !std::memcmp(withSound.m_soundEmitters, &sound, sizeof(sound)), "MCSE record layout changed");
+        Write(copy, size+12, 0x7FC00000); reject(copy);
+    }
+    return uint32_t(native.sounds.size());
+}
 void CheckAreaTables(const std::vector<uint8_t>& adt, std::ostream& report) {
     std::vector<uint8_t> unaligned(adt.size()+1);
     std::memcpy(unaligned.data()+1, adt.data(), adt.size());
@@ -138,7 +194,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report) {
         std::memcpy(unaligned.data() + 1, asset.bytes.data(), asset.bytes.size());
         const auto surface = Terrain::ReadSurface(unaligned.data() + 1, asset.bytes.size(), bigAlpha);
         Require(!std::memcmp(unaligned.data() + 1, asset.bytes.data(), asset.bytes.size()), "Terrain loader modified archive bytes");
-        size_t triangles = 0, layers = 0, colored = 0, compressed = 0;
+        size_t triangles = 0, layers = 0, colored = 0, compressed = 0, sounds = 0;
         for (const auto& chunk : surface.chunks) {
             CheckBlend(surface, chunk.y * 16 + chunk.x);
             Terrain::GeometryView view{{int32_t(test.x * 16 + chunk.x), int32_t(test.y * 16 + chunk.y)}, chunk.origin.z,
@@ -148,6 +204,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report) {
             std::array<uint16_t, 768> indices;
             Terrain::CreateVerticesWorld(vertices.data(), view);
             Terrain::CreateVerticesWorld(colors.data(), view);
+            sounds += CheckNativeChunk(asset.bytes, surface, view, vertices, chunk.y*16+chunk.x);
             for (unsigned i = 0; i < 145; ++i) {
                 const auto& v = vertices[i];
                 Require(std::isfinite(v.m_position.x) && std::isfinite(v.m_position.y) && std::isfinite(v.m_position.z), "Non-finite terrain geometry");
@@ -164,7 +221,8 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report) {
             for (const auto& layer : chunk.layers) compressed += (layer.flags & 0x200) != 0;
         }
         report << "  terrain " << test.map << ": 256 aligned chunks, " << triangles << " triangles, " << layers
-            << " material layers, " << colored << " vertex-colored chunks, " << compressed << " compressed alpha maps; original packed/RGBA blend and shadow paths passed\n";
+            << " material layers, " << colored << " vertex-colored chunks, " << compressed << " compressed alpha maps, " << sounds
+            << " sound emitters; native CMapChunk ownership and original packed/RGBA blend and shadow paths passed\n";
         auto reject = [&](const std::vector<uint8_t>& bytes) {
             bool failed = false;
             try { Terrain::ReadSurface(bytes.data(), bytes.size(), bigAlpha); } catch (const std::runtime_error&) { failed = true; }

@@ -1,5 +1,6 @@
 #include "Tools/AppleBootstrap/TerrainPreview.h"
 #include "WoW/Source/WorldClient/MapAreaData.h"
+#include "WoW/Source/WorldClient/MapChunkData.h"
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
@@ -12,7 +13,8 @@
 namespace {
 void CheckOriginalAreaLoad() {
     const auto specular = CMap::enableSpecularTerrain;
-    struct Restore { decltype(specular) value; ~Restore() { CMap::enableSpecularTerrain = value; } } restore{specular};
+    const auto flags = CMap::header.m_flags;
+    struct Restore { decltype(specular) value; decltype(flags) flags; ~Restore() { CMap::enableSpecularTerrain = value; CMap::header.m_flags = flags; } } restore{specular, flags};
     CMap::enableSpecularTerrain = 1;
     for (const char* name : {"World\\Maps\\Azeroth\\Azeroth_32_48.adt", "World\\Maps\\Northrend\\Northrend_32_32.adt"}) {
         CMapArea area;
@@ -30,6 +32,19 @@ void CheckOriginalAreaLoad() {
         SMChunkInfo first; std::memcpy(&first, source, sizeof(first));
         area.m_chunkInfo[0].m_flags ^= 1;
         if (std::memcmp(&first, source, sizeof(first))) throw std::runtime_error("ADT runtime flags modified source bytes");
+        // These fixtures use original 4-bit Elwynn and 8-bit Northrend alpha.
+        CMap::header.m_flags = std::strstr(name, "Northrend") ? 4 : 0;
+        for (unsigned slot : {0u, 127u, 255u}) {
+            CMapChunk chunk;
+            CMapBaseObjLink parent{};
+            parent.m_ref = &area; parent.m_owner = &chunk;
+            chunk.m_parentLinkList.LinkToTail(&parent);
+            chunk.m_chunkInfoBeginPtr = static_cast<uint8_t*>(area.m_fileBuffer)+area.m_chunkInfo[slot].m_offset;
+            chunk.ProcessIffChunks(true);
+            if (!chunk.m_nativeData || chunk.m_header != &chunk.m_nativeData->header || !chunk.m_height ||
+                chunk.m_header->m_index.x != int32_t(slot%16) || chunk.m_header->m_index.y != int32_t(slot/16))
+                throw std::runtime_error("Original area-to-chunk load did not publish aligned runtime fields");
+        }
         std::fprintf(stderr, "Original ADT area %s: %d doodads, %d WMOs, %u resident textures; owned table lifecycle passed\n",
             name, area.m_doodadDefCount, area.m_mapObjDefCount, area.m_textures.Count());
     }
