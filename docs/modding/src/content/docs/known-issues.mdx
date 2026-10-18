@@ -1,0 +1,57 @@
+---
+title: Known issues
+description: Gaps between the advertised API and the implementation in the current commits.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ModCore is a work in progress. This page lists behavior verified against the source that differs from the generated typings or from what a hook name suggests.
+
+## Runtime
+
+- **Lua 5.1, not LuaJIT.** The state is the engine's bundled Lua 5.1. No bitwise operators, no `goto`, no FFI.
+- **Windows only.** File watching uses `ReadDirectoryChangesW`.
+- **Bindings register more than once.** `RegisterLuaBindings` is called from both the Glue and in-game script setup. Make `init.lua` idempotent.
+- **Hot reload re-executes files.** It does not unregister listeners or refresh `require`d modules. See [Hot reload](/guides/hot-reload/).
+
+## Mod loading
+
+- `mod.json` is checked for existence only. `id` is the directory name; `entryPoint`, `priority`, and the rest are ignored.
+- `config.json` keys `logLevel` and `searchPaths` are ignored.
+
+## Hooks
+
+- `OnEngineInit`, `OnEngineShutdown`, and `OnFrameTick` have dispatchers but no callers, so they never fire.
+- `OnWorldUpdate` is always called with `dt = 0`.
+- `OnPacketSend` always receives `opcode = 0`.
+- `OnSpellQuery` supports only `"PowerCost"` and `"IsPassive"` and does not receive the caster.
+- `OnSpellPacket` and `OnModMounted` fire but are missing from the typings.
+- Pointer arguments are opaque. See [Engine types](/reference/api/cgobject-c/).
+- GUIDs are doubles and lose precision above $2^{53}$.
+
+## Modules
+
+- `Visuals` is not loaded by `bootstrap.lua`, decals are not rendered, and (because `dt` is `0`) they never time out. `AttachWeaponTrail` is a stub.
+- `DBC` is a standalone Lua store. The client does not consult it.
+- `Net.Send` cannot encode `guid` fields and reports success while disconnected.
+- `ModCore.ClickTerrain()` without arguments clicks `(0, 0, 0)`.
+
+## Typings that do not match the implementation
+
+The generated `mods/api/wowdecomp.d.lua`, `wowdecomp_api.json`, and `AI_MODDING_GUIDE.md` describe a larger surface than exists:
+
+| Typings say | Reality |
+| --- | --- |
+| Globals `Hooks`, `Net`, `DbcEngine`, `Visuals` | The modules are `ModCore.Hooks`, `ModCore.Net`, `ModCore.DBC` (also global `DBC`), and `require("system.visuals")` |
+| `DbcEngine.GetTable` | Does not exist. See the [DBC reference](/reference/api/dbcengine/) for real functions |
+| `Visuals.CreateRibbonTrail` | Does not exist |
+| `CGObject_C`, `CGUnit_C`, `CGPlayer_C`, `ClntObjMgr`, `WOWGUID` methods | No bindings |
+| `ModCore.ClickTerrain(x?, y?, z?)` | Coordinates are effectively required |
+| `OnSpellQuery(queryType, spellId, caster)` | `caster` is not passed |
+| `OnPacketReceived(opcode, time, reader)` | Third argument is a raw `CDataStore` pointer, not a reader |
+| Hook return type `void` for notifications | Any non-nil return stops dispatch |
+| Parameters written as `priority?` in `function` signatures | Not valid Lua syntax. Language servers may flag the file |
+
+<Aside type="caution" title="The generated AI guide has examples that do not work in Lua 5.1">
+The keyboard example in `AI_MODDING_GUIDE.md` uses `(modifiers & 1)` (no bitwise operators in Lua 5.1) and compares `keyString` to `"H"` (the string includes modifier prefixes, for example `LSHIFT-H`). Use the versions in [Recipes](/guides/recipes/#keyboard-shortcuts).
+</Aside>

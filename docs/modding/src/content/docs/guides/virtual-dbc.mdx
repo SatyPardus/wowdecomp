@@ -1,0 +1,41 @@
+---
+title: Virtual DBC
+description: Add, override, and intercept database rows from Lua.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`mods/system/dbc.lua` implements an in-memory DBC layer. It is loaded by `bootstrap.lua` as `ModCore.DBC` and also exported as the global `DBC`, `_CDBC_GET`, and `GetCDBCRow`.
+
+```lua
+local DBC = ModCore.DBC
+
+DBC.RegisterTable("MyTable", { "id", "name", "value" }, {
+    [1] = { name = "First",  value = 10 },
+    [2] = { name = "Second", value = 20 },
+})
+
+DBC.RegisterVirtualRow("MyTable", 3, { name = "Third", value = 30 })
+DBC.OverrideRow("MyTable", 1, { value = 99 })
+
+local row = DBC.GetRow("MyTable", 1)        -- { id = 1, name = "First", value = 99 }
+local id, name, value = DBC.GetRowUnpacked("MyTable", 1)
+```
+
+## Lookup order
+
+`DBC.GetRow(table, id)` resolves a row in this order and stops at the first hit:
+
+1. Lookup hooks registered with `DBC.OnRowLookup(table, fn)`. The first non-nil result wins.
+2. Rows added with `DBC.RegisterVirtualRow`.
+3. Rows registered with `DBC.RegisterTable` or `DBC.DefineRow`, with field overrides from `DBC.OverrideRow` applied to a copy.
+
+`id` is converted with `tonumber` when possible.
+
+## Scope
+
+<Aside type="caution" title="Lua-side only today">
+This module is a self-contained Lua table store. No C++ code in these commits calls it, so it does **not** change what the client reads from real `.dbc` files, and `DBC.GetRow` cannot read the game's own tables. `_CDBC_GET` and `GetCDBCRow` exist as hooks for C++ or script callers that follow the same calling convention.
+</Aside>
+
+See the [DBC reference](/reference/api/dbcengine/) for every function.

@@ -1,0 +1,55 @@
+---
+title: MSDF font backend
+description: The pluggable font rasterizer and its fontMsdf CVar.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Alongside ModCore, the same change set added an optional font backend that renders glyphs as multi-channel signed distance fields (MSDF). It is separate from the Lua API: there are no hooks or Lua functions for it.
+
+## Pieces
+
+| Piece | Location |
+| --- | --- |
+| Backend interface `IGxuFontBackend` | `Engine/Source/Gxu/GxuFontPlugin.h` |
+| Loader and shader glue | `Engine/Source/Gxu/GxuFontMsdf.{h,cpp}` |
+| Plugin DLL `msdf_renderer` | `plugins/msdf_renderer/` |
+| Vendored msdfgen | `ThirdParty/msdfgen/` |
+| CVar | `fontMsdf` (graphics category, default `1`) |
+
+## Loading
+
+The engine tries each path with `LoadLibraryA` in this order. The first DLL that exports `CreateFontBackend` and whose backend `Initialize` succeeds is registered with `Gxu_RegisterFontBackend`:
+
+```text
+plugins\msdf_renderer.dll
+msdf_renderer.dll
+bin\Win\plugins\msdf_renderer.dll
+plugins\msdf_renderer\msdf_renderer.dll
+```
+
+The CMake target `msdf_renderer` writes the DLL to `bin/Win/plugins`. If no plugin loads, `g_msdfEnabled` stays `0` and the stock FreeType path is used.
+
+## Interface
+
+```cpp
+struct IGxuFontBackend {
+    virtual bool Initialize(FontAllocFn allocFn, FontFreeFn freeFn) = 0;
+    virtual void Shutdown() = 0;
+    virtual bool GenerateGlyph(FT_Face face, uint32_t pixelSize, uint32_t code,
+                               uint32_t baseline, GLYPHBITMAPDATA* dataPtr, uint32_t padding) = 0;
+    virtual float ComputeScreenPxRange(uint32_t renderedPixelSize) = 0;
+    virtual const void* GetPixelShaderBytecode(uint32_t* outSize) = 0;
+    virtual const char* GetPixelShaderHlsl() = 0;
+};
+```
+
+The UI_MSDF pixel shader is built from the backend's HLSL with `D3DCompile` (target `ps_2_a`, from `d3dcompiler_47.dll` with `_43` as a fallback). If the compiler is unavailable or compilation fails, the backend's precompiled bytecode is used. If the shader does not validate, `g_msdfEnabled` is reset to `0`.
+
+## The `fontMsdf` CVar
+
+`/console fontMsdf 0` disables MSDF rendering and `1` enables it. Changing the value clears the glyph cache of every loaded font and recomputes dimensions so existing text is re-rasterized.
+
+<Aside type="note">
+The plugin is built only when targeting Windows (`add_subdirectory(plugins/msdf_renderer)` is inside `if (WIN32)`).
+</Aside>

@@ -1,0 +1,93 @@
+---
+title: Directory layout
+description: Where ModCore looks for mods, and how a mod is structured.
+---
+
+import { FileTree, Aside } from '@astrojs/starlight/components';
+
+## Mods root
+
+ModCore picks the first of these that exists:
+
+1. `<directory of the executable>/mods`
+2. `<current working directory>/mods`
+3. `<current working directory>/bin/Win/mods`
+
+If none exist, `<cwd>/mods` is used.
+
+<FileTree>
+
+- mods
+  - config.json runtime switches
+  - system framework Lua (do not edit per mod)
+    - bootstrap.lua
+    - hooks.lua
+    - net.lua
+    - dbc.lua
+    - visuals.lua
+    - api_export.lua
+  - api generated typings and schema (overwritten on export)
+    - wowdecomp.d.lua
+    - wowdecomp_api.json
+    - AI_MODDING_GUIDE.md
+  - cache compiled bytecode (`*.luac`), created on demand
+  - user_mods put your mods here
+    - my-mod
+      - mod.json
+      - init.lua
+
+</FileTree>
+
+## Discovery
+
+On boot, `DiscoverAndMountMods()` scans, in order:
+
+1. Each directory in `mods/user_mods/` that contains a `mod.json`.
+2. Each directory directly in `mods/` that contains a `mod.json`, excluding `system`, `cache`, `api`, and `user_mods`.
+
+## Manifest
+
+```json title="mods/user_mods/my-mod/mod.json"
+{
+  "id": "my-mod",
+  "name": "My Mod",
+  "version": "1.0.0",
+  "entryPoint": "init.lua",
+  "priority": 100
+}
+```
+
+<Aside type="caution" title="The manifest is not parsed yet">
+`ModManager::MountMod` only checks that `mod.json` exists and is non-empty. It then calls `ModCore.MountMod` with a table containing just `id` (the **directory name**) and `dir`. Fields such as `name`, `version`, `entryPoint`, and `priority` are ignored, so the entry point is always `<dir>/init.lua`. A missing `init.lua` is skipped without an error.
+</Aside>
+
+## Entry point
+
+`init.lua` is loaded with `loadfile` (through the bytecode cache) and run under `pcall` with one argument, the mod context:
+
+| Field | Description |
+| --- | --- |
+| `id` | Mod identifier (directory name today) |
+| `dir` | Absolute mod directory, using `/` separators |
+| `manifest` | The table passed to `MountMod` (`id` and `dir` today) |
+| `state` | Empty table you can use for per-mod state |
+
+```lua title="init.lua"
+local ctx = ...
+ModCore.LogInfo("Mounted %s from %s", ctx.id, ctx.dir)
+```
+
+After the entry point runs, the mod is stored in `ModCore.LoadedMods[id]` and the `OnModMounted(id, context)` hook is fired. Duplicate ids are rejected.
+
+## Requiring modules
+
+`bootstrap.lua` sets `package.path` to:
+
+```text
+<mods>/?.lua
+<mods>/?/init.lua
+<mods>/system/?.lua
+<mods>/user_mods/?.lua
+```
+
+Dots in a module name become `/`. From a mod in `user_mods`, `require("my-mod.util")` resolves to `mods/user_mods/my-mod/util.lua`. If the Lua state has no `require`, ModCore installs a fallback built on the cached `loadfile`.

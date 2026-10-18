@@ -1,0 +1,32 @@
+---
+title: Hooks
+description: Conventions and an index of every ModCore hook.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { loadApi } from '../../../../lib/api-source.mjs';
+import HookCatalog from '../../../../components/HookCatalog.astro';
+
+ModCore declares {loadApi().hooks.length} hooks, plus two that fire but are not in the exported schema. Register any of them with `ModCore.On(name, fn, priority)`. How return values work is explained in [Hooks and return values](/guides/hooks/).
+
+Each hook has its own page, generated from the exported API schema and combined with hand-written notes. The sidebar groups them by area.
+
+## Reading the pages
+
+- **Type** `Notification` means the return value is ignored, `Consume` (`boolean?`) means returning `true` consumes the event, and `Override` means a returned value replaces the engine's.
+- **Status** `Fires` means the engine calls the hook in the current source. `Not wired` means a dispatcher exists but nothing calls it, so listeners never run. `Partial` means it fires but behaves differently from its signature.
+
+## Hooks fired but not in the schema
+
+| Hook | Arguments | Fired when |
+| --- | --- | --- |
+| `OnSpellPacket` | `opcode: number, msg: lightuserdata` | A spell-related server message is handled in `Spell_C.cpp`. |
+| `OnModMounted` | `modId: string, context: table` | After `ModCore.MountMod` finishes a mod. |
+
+<Aside type="note">
+The same dispatcher handles every name, so listeners for hooks the engine never calls are harmless. They simply never run.
+</Aside>
+
+## All hooks
+
+<HookCatalog />

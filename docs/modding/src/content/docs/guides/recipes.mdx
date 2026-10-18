@@ -1,0 +1,119 @@
+---
+title: Recipes
+description: Worked examples for common modding tasks.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Override spell attributes
+
+`OnSpellQuery` supports the queries `"PowerCost"` and `"IsPassive"`. Return a number or boolean to override, `nil` for stock behavior.
+
+```lua
+ModCore.On("OnSpellQuery", function(queryType, spellId)
+    if queryType == "IsPassive" and spellId == 48266 then
+        return false                -- show Blood Presence on the action bar
+    elseif queryType == "PowerCost" and spellId == 98100 then
+        return 35
+    end
+    return nil
+end)
+```
+
+<Aside type="caution">
+The hook receives only `(queryType, spellId)`. The documented `caster` parameter is not passed. A hook returning `false` for `"PowerCost"` sets the cost to `0`.
+</Aside>
+
+## Dynamic tooltip text
+
+The `caster` argument of `OnTooltipEvaluate` is a table with `GetAttackPower()` and `GetSpellPower(school)` methods (always for the **active player**). Return a string to replace the description. In the spell-description parser, `$` variables left in the returned text are still expanded.
+
+```lua
+ModCore.On("OnTooltipEvaluate", function(spellId, caster, defaultText)
+    if spellId == 98100 then
+        local ap = caster:GetAttackPower()
+        local sp = caster:GetSpellPower("FIRE")
+        return string.format("Strike enemies for %.0f Fire damage.", 300 + ap * 0.45 + sp * 0.2)
+    end
+end)
+```
+
+## Keyboard shortcuts
+
+`keyString` is the same string the key-binding system uses, **including modifier prefixes** such as `LSHIFT-H`, `SHIFT-H` (both shifts), or `CTRL-K`. Pure modifier presses and auto-repeats do not fire the hook.
+
+```lua
+ModCore.On("OnKeyDown", function(key, modifiers, keyString)
+    if keyString == "LSHIFT-H" then
+        ModCore.LogInfo("Toggled custom UI")
+        return true                 -- consume; no binding executes
+    end
+end)
+```
+
+## Filter chat
+
+```lua
+ModCore.On("OnChatMessage", function(chatType, sender, message, channel)
+    if string.find(message, "spam", 1, true) then
+        return true                 -- hide the message
+    end
+end)
+
+ModCore.On("OnSendChatMessage", function(message, chatType, language, target)
+    if string.sub(message, 1, 4) == "!dbg" then
+        ModCore.LogInfo("debug command: %s", message)
+        return true                 -- do not send to the server
+    end
+end)
+```
+
+## Ground-targeted cast at the cursor
+
+`SetCastAtCursor(true)` arms the engine. On the next terrain-tracking event it disarms itself and synthesizes a left terrain click at the cursor position.
+
+```lua
+ModCore.On("OnKeyDown", function(key, modifiers, keyString)
+    if keyString == "F" then
+        CastSpellByName("Blizzard")       -- starts ground targeting
+        ModCore.SetCastAtCursor(true)
+        return true
+    end
+end)
+```
+
+<Aside type="caution">
+`ModCore.ClickTerrain` calls `CGGameUI::HandleTerrainClick`, the same entry point real terrain clicks use, so it can re-trigger `OnTerrainClick`. Guard against re-entrancy if you call it from inside that hook.
+</Aside>
+
+## Block login
+
+```lua
+ModCore.On("IsLoginBlocked", function()
+    if not ModMyConfigIsValid() then return true end   -- DefaultServerLogin does nothing
+end)
+```
+
+## Intercept a server packet
+
+```lua
+ModCore.On("OnPacketReceived", function(opcode, time, dataStore)
+    if opcode == BLOCKED_OPCODE then        -- a message id you want to drop
+        return true                         -- skip the client handler
+    end
+end)
+```
+
+`dataStore` is an opaque pointer. To read payloads from your own server, use [custom packets](/guides/custom-packets/) instead.
+
+## Watch for entities
+
+```lua
+local seen = 0
+ModCore.On("OnObjectCreate", function(guid, typeId, objectPtr)
+    seen = seen + 1
+end)
+ModCore.On("OnObjectDestroy", function(guid, typeId, objectPtr)
+    seen = seen - 1
+end)
+```

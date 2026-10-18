@@ -1,0 +1,77 @@
+---
+title: Hooks and return values
+description: Registering listeners, priorities, and how return values affect the engine.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Registering
+
+```lua
+ModCore.On("OnWorldUpdate", function(dt) end)                  -- default priority 100
+ModCore.On("OnKeyDown", handler, 200)                          -- runs before priority-100 listeners
+ModCore.On("OnKeyDown", handler, 100, "My key handler")        -- optional doc string
+ModCore.UnregisterHook("OnKeyDown", handler)                   -- unregister by function identity
+```
+
+`ModCore.On`, `ModCore.RegisterHook`, `ModCore.Hooks.Register`, and the `ModCore.Hooks.OnXxx(fn, priority)` sugar all do the same thing. See [Hooks module](/reference/api/hooks/).
+
+<Aside type="caution" title="Firing is not registering">
+`ModCore.OnWorldUpdate(...)` (a name starting with `On` on the `ModCore` table) **fires** the hook. Only `ModCore.Hooks.OnWorldUpdate(fn)` registers one. Use `ModCore.On(name, fn)` to avoid confusion.
+</Aside>
+
+## Dispatch order
+
+1. Listeners run from the highest priority to the lowest. Order between equal priorities is not guaranteed.
+2. Each listener runs under `pcall`. An error is logged as `Error in hook '<name>': ...` and dispatch continues.
+3. The first listener that returns a **non-nil** value ends dispatch. That value is returned to the engine.
+
+Hooks with no listeners cost one table lookup.
+
+## Return values
+
+Hook signatures use these conventions:
+
+| Signature | Meaning |
+| --- | --- |
+| `void` | Notification. Return values still stop the chain, so return nothing. |
+| `boolean?` | **Consume** hook. Return `true` to consume the event (the engine skips its default behavior). `nil` lets later listeners and the engine proceed. |
+| `T?` (value) | **Override** hook. Return a value to replace the engine's value. `nil` falls back to the stock value. |
+
+<Aside type="caution">
+`false` is not `nil`. In a consume hook, returning `false` stops dispatch to later listeners but does **not** consume the event. In an override hook such as `OnSpellQuery`, a boolean is converted to `0`/`1` and used.
+</Aside>
+
+## Argument types
+
+- **GUIDs** are passed as Lua numbers (doubles). Values above $2^{53}$ lose precision. Compare them with each other, but do not do arithmetic on them. `ModCore.GetLastHitGuid()` also returns a hex string.
+- **Pointers** (`worldFrame`, `objectPtr`, `tooltip`, `reader`, `msg`, `namePlatePtr`, ...) are opaque light userdata. Lua cannot dereference them. See [Engine types](/reference/api/cgobject-c/).
+- Points are tables `{ x = ..., y = ..., z = ... }`.
+- The `integer` type in the typings is an ordinary Lua number.
+
+## Modifier keys
+
+`OnKeyDown`/`OnKeyUp` `modifiers` is a bit mask. Lua 5.1 has no `&`, so use a helper:
+
+| Bit | Value | Key |
+| --- | --- | --- |
+| 0 | 1 | Left Shift |
+| 1 | 2 | Right Shift |
+| 2 | 4 | Left Ctrl |
+| 3 | 8 | Right Ctrl |
+| 4 | 16 | Left Alt |
+| 5 | 32 | Right Alt |
+
+```lua
+local function hasBit(mask, bit) return math.floor(mask / 2^bit) % 2 == 1 end
+```
+
+## Custom hooks
+
+Any string works as a hook name. Mods can talk to each other with `ModCore.FireHook("MyMod_Event", ...)` and `ModCore.On("MyMod_Event", ...)`. To include a custom hook in the exported typings, declare it:
+
+```lua
+ModCore.ApiExport.RegisterHook("MyMod_Event", "Fired by my mod", "fun(x: number)", "MyMod")
+```
+
+See [API export](/reference/api-export/).
