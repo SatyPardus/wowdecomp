@@ -52,6 +52,7 @@
 void CheckM2Resources(const ClientData& client, std::ostream& report);
 void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
+void CheckGameNetwork();
 
 namespace {
 struct ReleaseUnit { void operator()(IOUnit* unit) const { if (unit) { unit->Release(); } } };
@@ -644,6 +645,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(signaled, "event did not wake waiter");
         CheckNativeThreads();
         CheckStormSynchronization();
+        CheckGameNetwork();
         CheckBlpLoading();
 
         IOUnitContainer container(3u, 17u, 0u);

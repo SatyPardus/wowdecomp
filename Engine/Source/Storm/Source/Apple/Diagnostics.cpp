@@ -67,6 +67,14 @@ int32_t STORMAPI SErrDisplayError(uint32_t error, const char* file, int32_t line
 
 [[noreturn]] void StormExitProcess(int32_t code) { std::exit(code); }
 
+int32_t SErrDisplayErrorFmt(uint32_t error, const char* file, int32_t line, int32_t recoverable,
+    uint32_t exitCode, const char* format, ...) {
+    char description[2048];
+    va_list args; va_start(args, format);
+    std::vsnprintf(description, sizeof(description), format, args); va_end(args);
+    return SErrDisplayError(error, file, line, description, recoverable, exitCode, 0);
+}
+
 #ifndef NDEBUG
 void DebugLog(const char* format, ...) {
     va_list args;

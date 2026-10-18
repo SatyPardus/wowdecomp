@@ -28,6 +28,7 @@ WowConnectionNet::WORKER::WORKER() : m_event(0, 0) {
 
 // VERIFY: 87918bed manual
 // OFFSET: 0x00469320
+#if !defined(__APPLE__)
 void WowConnectionNet::Start() {
     char name[32];
     uint32_t i = 0;
@@ -59,6 +60,7 @@ void WowConnectionNet::Start() {
         OsSleep(100);
     }
 }
+#endif
 
 // VERIFY: c90eb59b auto
 // OFFSET: 0x00468FF0
@@ -112,7 +114,11 @@ void WowConnectionNet::RunWorker(int32_t index) {
         this->Service(worker.m_connection, serviceFlags);
 
         worker.m_lock.Enter();
+#if defined(__APPLE__)
+        --worker.m_connection->m_serviceCount;
+#else
         InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(&worker.m_connection->m_serviceCount), -1);
+#endif
         worker.m_connection->Release();
         worker.m_connection = nullptr;
         worker.m_lock.Leave();
@@ -131,7 +137,11 @@ void WowConnectionNet::SignalWorker(WowConnection* connection, uint32_t flags) {
 
     connection->m_refCount.Increment();
     connection->m_serviceFlags = flags;
+#if defined(__APPLE__)
+    ++connection->m_serviceCount;
+#else
     InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(&connection->m_serviceCount), 1);
+#endif
 
     for (int32_t i = 0; i < this->m_numWorkers; i++) {
         WowConnectionNet::WORKER& worker = this->m_workers[i];
@@ -153,7 +163,11 @@ void WowConnectionNet::SignalWorker(WowConnection* connection, uint32_t flags) {
 void WowConnectionNet::Delete(WowConnection* connection) {
     this->m_connectionsLock.Enter();
 
+#if defined(__APPLE__)
+    if (!__atomic_load_n(&connection->m_refCount.m_value, __ATOMIC_SEQ_CST)) {
+#else
     if (!connection->m_refCount.m_value) {
+#endif
         delete connection;
     }
 
@@ -166,6 +180,7 @@ WowConnectionNet::WowConnectionNet(int32_t numThreads, void (*threadInit)()) : m
     this->m_numWorkers = numThreads;
     this->m_threadInit = threadInit;
     this->m_stop = false;
+    this->m_event = nullptr;
 }
 
 // VERIFY: 88d38822 manual
@@ -196,6 +211,7 @@ void WowConnectionNet::Remove(WowConnection* connection) {
 
 // VERIFY: eb055e2d manual
 // OFFSET: 0x00469080
+#if !defined(__APPLE__)
 void WowConnectionNet::Stop() {
     this->m_stop = true;
     this->PlatformStop();
@@ -224,6 +240,7 @@ void WowConnectionNet::Stop() {
         }
     }
 }
+#endif
 
 // VERIFY: 91633125 manual
 // OFFSET: 0x004694C0

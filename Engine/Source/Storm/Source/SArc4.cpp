@@ -43,9 +43,13 @@ void SARC4ProcessBuffer(uint8_t* data, uint32_t length, const SARC4Key* inKey, S
         swap = state[x];
         state[x] = state[y];
         state[y] = swap;
-        stream |= state[static_cast<uint8_t>(state[x] + state[y])] << 24;
+        stream |= uint32_t(state[static_cast<uint8_t>(state[x] + state[y])]) << 24;
 
-        *reinterpret_cast<uint32_t*>(data + i) ^= stream;
+        // Packet payloads can begin immediately after a 2/3-byte header.
+        uint32_t value;
+        memcpy(&value, data + i, sizeof(value));
+        value ^= stream;
+        memcpy(data + i, &value, sizeof(value));
     }
 
     for (; i < length; i++) {

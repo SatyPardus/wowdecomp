@@ -57,10 +57,12 @@ void WDataStoreHeap::Delete(WDATASTOREBUFFER* buffer) {
 
 // OFFSET: 0x00466140
 void WDataStore::StaticDestroy() {
+#if !defined(__APPLE__)
     delete s_smallBufferHeap;
     delete s_largeBufferHeap;
     delete s_superBufferHeap;
     s_initialized = false;
+#endif
 }
 
 // VERIFY: c0b008bd manual
@@ -70,9 +72,19 @@ void WDataStore::StaticInitialize() {
         return;
     }
 
+#if defined(__APPLE__)
+    // ObjectAlloc heap identities live for the process. Keep these three
+    // identities across network restarts, including buffers still owned by
+    // a disconnected connection or message. Empty heap pages remain reclaimable.
+    static WDataStoreHeap small{ObjectAllocAddHeap(800, 256, "WDataStoreSmallBuffer", true)};
+    static WDataStoreHeap large{ObjectAllocAddHeap(0x4020, 16, "WDataStoreLargeBuffer", true)};
+    static WDataStoreHeap super{ObjectAllocAddHeap(0x40060, 4, "WDataStoreSuperBuffer", true)};
+    s_smallBufferHeap = &small; s_largeBufferHeap = &large; s_superBufferHeap = &super;
+#else
     s_smallBufferHeap = new (__FILE__, __LINE__) WDataStoreHeap{ObjectAllocAddHeap(800, 256, "WDataStoreSmallBuffer", true)};
     s_largeBufferHeap = new (__FILE__, __LINE__) WDataStoreHeap{ObjectAllocAddHeap(0x4020, 16, "WDataStoreLargeBuffer", true)};
     s_superBufferHeap = new (__FILE__, __LINE__) WDataStoreHeap{ObjectAllocAddHeap(0x40060, 4, "WDataStoreSuperBuffer", true)};
+#endif
     s_initialized = true;
 }
 

@@ -1,9 +1,12 @@
-#if defined(WOWDECOMP_ARCH_64)
+#if defined(WOWDECOMP_ARCH_64) || defined(__APPLE__)
 
-#include <winsock2.h>
-#include <windows.h>
+#include "WoW/Source/WowServices/SocketPlatform.h"
 #include <cerrno>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include <new>
 #include "WoW/Source/WowServices/WowConnection.h"
 #include "Engine/Source/Base/CDataStore.h"
@@ -23,11 +26,11 @@ char* WowConnection::PeerAddrToStr(char* buffer, uint32_t size) {
 
 // OFFSET: 0x00466DE0
 void WowConnection::CloseSocket(int32_t sock) {
-    closesocket(sock);
+    WowSocketClose(sock);
 
     if (sock >= 0) {
         WowConnection::s_idLock.Enter();
-        WowConnection::s_idBits.m_bits.m_data[sock >> 5] &= ~(1 << (sock & 0x1F));
+        WowConnection::s_idBits.m_bits.m_data[sock >> 5] &= ~(1u << (sock & 0x1F));
         WowConnection::s_idLock.Leave();
     }
 }
@@ -41,7 +44,7 @@ void WowConnection::DoStreamReads() {
     while (true) {
         do {
             bytes = recv(this->m_sock, reinterpret_cast<char*>(buffer), sizeof(buffer), 0);
-        } while (bytes < 0 && WSAGetLastError() == WSAEINTR);
+        } while (bytes < 0 && WowSocketError() == WowSocketInterrupted);
 
         if (bytes <= 0) {
             break;
@@ -63,7 +66,7 @@ void WowConnection::DoStreamReads() {
         }
     }
 
-    if (bytes < 0 && WSAGetLastError() == WSAEWOULDBLOCK) {
+    if (bytes < 0 && WowSocketError() == WowSocketWouldBlock) {
         return;
     }
 
@@ -75,6 +78,9 @@ void WowConnection::DoStreamReads() {
     this->SetState(WOWC_DISCONNECTED);
 
     int32_t sock = this->m_sock;
+#if defined(__APPLE__)
+    this->m_sock = -1;
+#endif
     this->m_lock.Leave();
 
     if (response && sock >= 0) {
@@ -82,14 +88,16 @@ void WowConnection::DoStreamReads() {
     }
 
     this->m_lock.Enter();
+#if !defined(__APPLE__)
     this->m_sock = -1;
+#endif
     this->ReleaseResponseRef();
 }
 
 // OFFSET: 0x00467270
 WowConnection::WowConnection(int32_t sock, const NETADDR* addr, WowConnectionResponse* response) {
     this->Init(response, nullptr);
-    int32_t nameLength = sizeof(this->m_peer.peerAddr);
+    WowSocketLength nameLength = sizeof(this->m_peer.peerAddr);
     getpeername(sock, reinterpret_cast<sockaddr*>(&this->m_peer.peerAddr), &nameLength);
     nameLength = sizeof(this->m_peer.selfAddr);
     getsockname(sock, reinterpret_cast<sockaddr*>(&this->m_peer.selfAddr), &nameLength);
@@ -172,7 +180,7 @@ int32_t WowConnection::SendPacket(CDataStore* msg, int32_t headroom) {
                 this->Encrypt(node->m_data, length);
             }
 
-            int32_t sent = send(this->m_sock, reinterpret_cast<char*>(node->m_data), node->m_size, 0);
+            int32_t sent = WowSocketSend(this->m_sock, reinterpret_cast<char*>(node->m_data), node->m_size);
 
             if (sent == static_cast<int32_t>(node->m_size)) {
                 if (!stackNode) {
@@ -181,7 +189,7 @@ int32_t WowConnection::SendPacket(CDataStore* msg, int32_t headroom) {
 
                 result = 0;
             } else {
-                bool wouldBlock = WSAGetLastError() == WSAEWOULDBLOCK;
+                bool wouldBlock = WowSocketError() == WowSocketWouldBlock;
 
                 if (stackNode) {
                     node = this->NewSendNodeCopy(node, size);
@@ -242,7 +250,7 @@ int32_t WowConnection::Send(uint8_t* data, int32_t size, bool raw) {
 
     if (size > 0 && this->m_connState == WOWC_CONNECTED) {
         if (!this->m_sendList.Head()) {
-            int32_t sent = send(this->m_sock, reinterpret_cast<char*>(data), size, 0);
+            int32_t sent = WowSocketSend(this->m_sock, reinterpret_cast<char*>(data), size);
 
             if (sent == size) {
                 this->m_lock.Leave();
@@ -250,7 +258,7 @@ int32_t WowConnection::Send(uint8_t* data, int32_t size, bool raw) {
             }
 
             if (sent < 0) {
-                if (WSAGetLastError() == WSAEWOULDBLOCK) {
+                if (WowSocketError() == WowSocketWouldBlock) {
                     sent = 0;
                 } else if (this->m_sendDepth < this->m_maxSendDepth) {
                     this->SetState(WOWC_DISCONNECTING);
@@ -385,7 +393,7 @@ void WowConnection::DoMessageReads() {
         } else {
             do {
                 bytes = recv(this->m_sock, reinterpret_cast<char*>(this->m_readBuffer + this->m_readBytes), toRead, 0);
-            } while (bytes < 0 && WSAGetLastError() == WSAEINTR);
+            } while (bytes < 0 && WowSocketError() == WowSocketInterrupted);
 
             if (bytes <= 0) {
                 break;
@@ -432,7 +440,7 @@ void WowConnection::DoMessageReads() {
         }
     }
 
-    if (bytes < 0 && WSAGetLastError() == WSAEWOULDBLOCK) {
+    if (bytes < 0 && WowSocketError() == WowSocketWouldBlock) {
         return;
     }
 
@@ -444,6 +452,9 @@ void WowConnection::DoMessageReads() {
     this->SetState(WOWC_DISCONNECTED);
 
     int32_t sock = this->m_sock;
+#if defined(__APPLE__)
+    this->m_sock = -1;
+#endif
     this->m_lock.Leave();
 
     if (response && sock >= 0) {
@@ -451,14 +462,16 @@ void WowConnection::DoMessageReads() {
     }
 
     this->m_lock.Enter();
+#if !defined(__APPLE__)
     this->m_sock = -1;
+#endif
     this->ReleaseResponseRef();
 }
 
 // OFFSET: 0x00468390
 void WowConnection::CheckConnect() {
     int32_t error;
-    int32_t length = sizeof(error);
+    WowSocketLength length = sizeof(error);
 
     if (getsockopt(this->m_sock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &length)) {
         return;
@@ -486,7 +499,7 @@ void WowConnection::CheckConnect() {
         WowConnectionResponse* response = this->m_response;
         this->m_lock.Leave();
 
-        int32_t nameLength = sizeof(this->m_peer.peerAddr);
+        WowSocketLength nameLength = sizeof(this->m_peer.peerAddr);
         getpeername(this->m_sock, reinterpret_cast<sockaddr*>(&this->m_peer.peerAddr), &nameLength);
         nameLength = sizeof(this->m_peer.selfAddr);
         getsockname(this->m_sock, reinterpret_cast<sockaddr*>(&this->m_peer.selfAddr), &nameLength);
@@ -505,7 +518,7 @@ void WowConnection::CheckConnect() {
 void WowConnection::CheckAccept() {
     for (int32_t i = 0; i < 1000; i++) {
         NETADDR addr;
-        int32_t addrLength = sizeof(addr);
+        WowSocketLength addrLength = sizeof(addr);
         int32_t sock = static_cast<int32_t>(accept(this->m_sock, reinterpret_cast<sockaddr*>(&addr), &addrLength));
 
         if (sock < 0) {
@@ -514,18 +527,17 @@ void WowConnection::CheckAccept() {
 
         if (WowConnection::s_verifyAddr) {
             NETADDR peer;
-            int32_t peerLength = sizeof(peer);
+            WowSocketLength peerLength = sizeof(peer);
             getpeername(sock, reinterpret_cast<sockaddr*>(&peer), &peerLength);
 
             if (!WowConnection::s_verifyAddr(&peer)) {
-                closesocket(sock);
+                WowSocketClose(sock);
                 continue;
             }
         }
 
+        if (!WowSocketNonBlocking(sock)) { WowSocketClose(sock); continue; }
         WowConnection::MarkSocketId(sock);
-        u_long nonBlocking = 1;
-        ioctlsocket(sock, FIONBIO, &nonBlocking);
 
         WowConnection* inbound = new (__FILE__, __LINE__) WowConnection(sock, &addr, this->m_response);
         inbound->AddRef();
@@ -579,7 +591,7 @@ void WowConnection::DoWrites() {
             }
 
             if (bytes) {
-                int32_t sent = send(this->m_sock, reinterpret_cast<char*>(node->m_data + node->m_offset), bytes, 0);
+                int32_t sent = WowSocketSend(this->m_sock, reinterpret_cast<char*>(node->m_data + node->m_offset), bytes);
 
                 if (sent != static_cast<int32_t>(bytes)) {
                     if (sent > 0) {
@@ -587,7 +599,7 @@ void WowConnection::DoWrites() {
                         break;
                     }
 
-                    if (sent >= 0 || WSAGetLastError() == WSAEWOULDBLOCK) {
+                    if (sent >= 0 || WowSocketError() == WowSocketWouldBlock) {
                         break;
                     }
 
@@ -624,6 +636,9 @@ void WowConnection::DoWrites() {
         WowConnection::s_network->Remove(this);
         this->CloseSocket(this->m_sock);
         sock = this->m_sock;
+#if defined(__APPLE__)
+        this->m_sock = -1;
+#endif
         this->SetState(WOWC_DISCONNECTED);
     } else if (this->m_notifyWriteReady && !this->m_sendList.Head()) {
         writeReady = true;
@@ -640,7 +655,9 @@ void WowConnection::DoWrites() {
         }
 
         this->m_lock.Enter();
+#if !defined(__APPLE__)
         this->m_sock = -1;
+#endif
         this->ReleaseResponseRef();
         this->m_lock.Leave();
     } else if (writeReady) {
@@ -658,6 +675,13 @@ void WowConnection::DoWrites() {
 
 // OFFSET: 0x00468BA0
 void WowConnection::StartConnect() {
+#if defined(__APPLE__)
+    this->m_lock.Enter();
+    if (!s_network || s_network->m_stop) { this->m_lock.Leave(); return; }
+    ++this->m_socketSerial;
+    this->FreeSendList();
+    this->m_sendDepth = this->m_sendBytes = 0;
+#endif
     if (this->m_sock >= 0) {
         if (this->m_netLink.IsLinked()) {
             WowConnection::s_network->Remove(this);
@@ -667,7 +691,9 @@ void WowConnection::StartConnect() {
         this->m_sock = -1;
     }
 
+#if !defined(__APPLE__)
     this->m_lock.Enter();
+#endif
 
     int32_t sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -678,11 +704,15 @@ void WowConnection::StartConnect() {
     WowConnection::MarkSocketId(sock);
     this->m_sock = sock;
 
+    if (sock >= 0 && !WowSocketNonBlocking(sock)) {
+        this->CloseSocket(sock); this->m_sock = sock = -1;
+    }
     if (sock >= 0) {
-        u_long nonBlocking = 1;
-        ioctlsocket(sock, FIONBIO, &nonBlocking);
 
-        sockaddr_in address;
+        sockaddr_in address{};
+#if defined(__APPLE__)
+        address.sin_len = sizeof(address);
+#endif
         address.sin_family = AF_INET;
         address.sin_port = htons(this->m_connectPort);
         address.sin_addr.s_addr = this->m_connectAddress;
@@ -694,7 +724,7 @@ void WowConnection::StartConnect() {
         this->m_readBytes = 0;
         this->SetState(WOWC_CONNECTING);
 
-        if (connect(this->m_sock, reinterpret_cast<sockaddr*>(&address), sizeof(address)) >= 0 || WSAGetLastError() == WSAEWOULDBLOCK) {
+        if (connect(this->m_sock, reinterpret_cast<sockaddr*>(&address), sizeof(address)) >= 0 || WowSocketConnectPending()) {
             this->m_lock.Leave();
             return;
         }
@@ -712,6 +742,16 @@ void WowConnection::StartConnect() {
 
 // OFFSET: 0x00468D20
 bool WowConnection::Connect(const char* host, uint16_t port, int32_t timeout) {
+#if defined(__APPLE__)
+    // Preserve the IPv4 wire/address API while avoiding gethostbyname's shared
+    // resolver storage. A failed lookup must not silently connect to 0.0.0.0.
+    addrinfo hints{}, *addresses = nullptr;
+    hints.ai_family = AF_INET; hints.ai_socktype = SOCK_STREAM;
+    if (!s_network || s_network->m_stop || !host || getaddrinfo(host, nullptr, &hints, &addresses)) return false;
+    const auto address = reinterpret_cast<const sockaddr_in*>(addresses->ai_addr)->sin_addr.s_addr;
+    freeaddrinfo(addresses);
+    return this->Connect(address, port, timeout);
+#else
     uint32_t address = inet_addr(host);
 
     if (address == INADDR_NONE || !address) {
@@ -731,6 +771,7 @@ bool WowConnection::Connect(const char* host, uint16_t port, int32_t timeout) {
     this->StartConnect();
 
     return true;
+#endif
 }
 
 #endif

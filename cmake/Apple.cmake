@@ -50,6 +50,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Tls.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsCall.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Input.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/NetAddress.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Coordinate.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/ConvertUTF.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsFile.cpp
@@ -170,6 +171,21 @@ add_library(AppleGameResources STATIC
 )
 target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile ConsoleBase Event)
 
+add_library(AppleGameNetwork STATIC
+    WoW/Source/WowServices/WowConnection.cpp
+    WoW/Source/WowServices/WowConnectionSocket.cpp
+    WoW/Source/WowServices/WowConnectionNet.cpp
+    WoW/Source/WowServices/Apple/WowConnectionNet.cpp
+    WoW/Source/WowServices/WDataStore.cpp
+    Engine/Source/Storm/Source/SArc4.cpp)
+target_link_libraries(AppleGameNetwork PUBLIC AppleGameResources)
+add_library(AppleNetworkProbeCore STATIC Tools/AppleBootstrap/NetworkProbe.cpp)
+target_link_libraries(AppleNetworkProbeCore PUBLIC AppleGameNetwork)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_executable(AppleNetworkProbe Tools/AppleBootstrap/network_main.cpp)
+    target_link_libraries(AppleNetworkProbe PRIVATE AppleNetworkProbeCore)
+endif ()
+
 add_subdirectory(Engine/Source/ShaderEffect)
 target_link_libraries(ShaderEffect PUBLIC Gx AppleArchives)
 add_subdirectory(Engine/Source/Model2)
@@ -262,7 +278,7 @@ target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp Tools/AppleBootstrap/LiquidDataProbe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

@@ -85,7 +85,7 @@ used. Original SFile archive/resource IO, decompression and the game's SFile2
 open/read/seek/preload layer are linked. The native
 loader shares the client's archive definitions and applies patch priorities,
 locale fallback and regional alternate views. Signature policy, game startup, the full Gx/Metal backend, audio and
-network integration remain to be connected. Apple currently selects a full local
+login/session integration remain to be connected. Apple currently selects a full local
 filesystem (`WOW_LOCAL_FILES_ONLY`); the remote streaming filesystem is not enabled.
 
 Use CMake 3.21+ and Xcode. The presets target arm64, macOS 11+ and iOS 15+; the
@@ -97,6 +97,9 @@ cmake --build --preset macos-arm64 --parallel
 build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data
 # Optionally start locale fallback at a particular language.
 build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data --locale zhCN
+
+# Check original packet/stream networking using local loopback only.
+build/macos-arm64/bin/AppleNetworkProbe
 
 # Draw and read back every authored mip; add --preview for a native window.
 build/macos-arm64/bin/AppleMetalProbe --data-root /path/to/client335a/Data \
@@ -132,6 +135,16 @@ read/write/replacement, 64-bit sizes, directory and hidden/read-only attributes,
 glob enumeration, copy/move and cleanup. Its directory attributes use the bits
 expected by CVar/AddOns callers; unsupported attribute flags fail explicitly.
 Windows cross-process sharing restrictions remain unsupported on Apple.
+
+The original `WowConnection` framing, directional header/opcode encryption,
+send queues, stream callbacks and worker dispatch now run over native Apple
+nonblocking IPv4 sockets and a waking `poll` loop. `AppleNetworkProbe` uses only
+local loopback: it checks split 2/3-byte headers, queued sends, independent cipher
+reference bytes, immediate reconnect, refusal, active shutdown and repeated
+initialization. The iOS core check runs the same cases. Network shutdown joins
+workers before closing retained sockets; queued message buffers can outlive it.
+The original login/realm protocol and game-thread session integration remain
+to be connected; these checks do not log in to an external server.
 
 The shared Event scheduler now has a nonblocking native-host step. Mac/iOS
 previews render continuously from the original paint event, preserving update,

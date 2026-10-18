@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <stdexcept>
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -16,13 +17,25 @@ WowConnection::IDBITS WowConnection::s_idBits;
 static uint32_t s_unused_B38D00;
 
 // STATIC: 0x00B38D04
+#if defined(__APPLE__)
+static std::atomic<int32_t> s_sendNodeCount;
+#else
 static int32_t s_sendNodeCount;
+#endif
 
 // STATIC: 0x00B38D08
+#if defined(__APPLE__)
+static std::atomic<uint64_t> s_sendNodeBytes;
+#else
 static uint64_t s_sendNodeBytes;
+#endif
 
 // STATIC: 0x00B38D10
+#if defined(__APPLE__)
+std::atomic<uint64_t> WowConnection::s_sendBytes;
+#else
 uint64_t WowConnection::s_sendBytes;
+#endif
 
 // STATIC: 0x00B38D18
 bool (*WowConnection::s_verifyAddr)(const NETADDR* addr);
@@ -37,7 +50,7 @@ int32_t WowConnection::s_lagTestDelayMin;
 int32_t WowConnection::s_lagTestDelayMax;
 
 // STATIC: 0x00B38D28
-static volatile LONG s_numConnections;
+static ATOMIC32 s_numConnections{};
 
 // STATIC: 0x00B38D34
 SCritSect WowConnection::s_idLock;
@@ -64,6 +77,9 @@ void WowConnection::IDBITS::SetCount(uint32_t count) {
 // VERIFY: 2fa3073a manual
 // OFFSET: 0x00466BF0
 void WowConnection::SetEncryptionKey(const uint8_t* key, uint8_t keyLength, uint8_t direction, const uint8_t* seed, uint8_t seedLength) {
+#if defined(__APPLE__)
+    this->m_lock.Enter();
+#endif
     if (!seed) {
         seed = s_defaultSeed;
         seedLength = sizeof(s_defaultSeed);
@@ -87,8 +103,14 @@ void WowConnection::SetEncryptionKey(const uint8_t* key, uint8_t keyLength, uint
 
     SARC4PrepareKey(this->m_sendKeyInit, sizeof(this->m_sendKeyInit), &this->m_sendKey);
     SARC4PrepareKey(this->m_receiveKeyInit, sizeof(this->m_receiveKeyInit), &this->m_receiveKey);
+#if defined(__APPLE__)
+    uint8_t s_arc4drop1024Key[1024]{}; // Discarded bytes must not race across connections.
+#endif
     SARC4ProcessBuffer(s_arc4drop1024Key, sizeof(s_arc4drop1024Key), &this->m_sendKey, &this->m_sendKey);
     SARC4ProcessBuffer(s_arc4drop1024Key, sizeof(s_arc4drop1024Key), &this->m_receiveKey, &this->m_receiveKey);
+#if defined(__APPLE__)
+    this->m_lock.Leave();
+#endif
 }
 
 // VERIFY: 9c7e0bb3 manual
@@ -228,6 +250,9 @@ void WowConnection::SetEncryption(bool enabled) {
     this->m_encrypt = enabled;
     SARC4PrepareKey(this->m_sendKeyInit, sizeof(this->m_sendKeyInit), &this->m_sendKey);
     SARC4PrepareKey(this->m_receiveKeyInit, sizeof(this->m_receiveKeyInit), &this->m_receiveKey);
+#if defined(__APPLE__)
+    uint8_t s_arc4drop1024[1024]{};
+#endif
     SARC4ProcessBuffer(s_arc4drop1024, sizeof(s_arc4drop1024), &this->m_sendKey, &this->m_sendKey);
     SARC4ProcessBuffer(s_arc4drop1024, sizeof(s_arc4drop1024), &this->m_receiveKey, &this->m_receiveKey);
     this->m_lock.Leave();
@@ -236,7 +261,7 @@ void WowConnection::SetEncryption(bool enabled) {
 // VERIFY: 9e1a898f manual
 // OFFSET: 0x004669D0
 void WowConnection::Init(WowConnectionResponse* response, void (*threadInit)()) {
-    InterlockedExchangeAdd(&s_numConnections, 1);
+    s_numConnections.Increment();
 
     this->m_refCount.m_value = 1;
     this->m_responseRef = 0;
@@ -392,7 +417,7 @@ WowConnection::WowConnection(WowConnectionResponse* response, void (*threadInit)
 // VERIFY: e9974d81 manual
 // OFFSET: 0x004673C0
 WowConnection::~WowConnection() {
-    InterlockedExchangeAdd(&s_numConnections, -1);
+    s_numConnections.Decrement();
 
     if (WowConnection::s_network) {
         WowConnection::s_network->Remove(this);
@@ -471,7 +496,7 @@ void WowConnection::MarkSocketId(int32_t sock) {
         WowConnection::s_idBits.Or(bits);
     }
 
-    WowConnection::s_idBits.m_bits.m_data[sock >> 5] |= 1 << (sock & 0x1F);
+    WowConnection::s_idBits.m_bits.m_data[sock >> 5] |= 1u << (sock & 0x1F);
 
     WowConnection::s_idLock.Leave();
 }
@@ -479,7 +504,19 @@ void WowConnection::MarkSocketId(int32_t sock) {
 // VERIFY: a9157009 auto
 // OFFSET: 0x00468200
 int32_t WowConnection::Release() {
-    int32_t refCount = InterlockedDecrement(reinterpret_cast<volatile LONG*>(&this->m_refCount.m_value));
+#if defined(__APPLE__)
+    // The native poller takes references while traversing this list. Serialize
+    // the final decrement with that traversal, so zero cannot be resurrected
+    // while a second thread is already waiting to delete the connection.
+    if (auto* network = WowConnection::s_network) {
+        network->m_connectionsLock.Enter();
+        const int32_t count = this->m_refCount.Decrement();
+        if (count <= 0) delete this;
+        network->m_connectionsLock.Leave();
+        return count;
+    }
+#endif
+    int32_t refCount = this->m_refCount.Decrement();
 
     if (refCount <= 0) {
         if (WowConnection::s_network) {
@@ -508,6 +545,10 @@ void WowConnection::DoDisconnect() {
 
     WowConnectionResponse* response = this->m_response;
     int32_t sock = this->m_sock;
+#if defined(__APPLE__)
+    // The callback may reconnect immediately and the OS may reuse this fd.
+    this->m_sock = -1;
+#endif
 
     this->m_lock.Leave();
 
@@ -516,7 +557,9 @@ void WowConnection::DoDisconnect() {
     }
 
     this->m_lock.Enter();
+#if !defined(__APPLE__)
     this->m_sock = -1;
+#endif
     this->ReleaseResponseRef();
     this->m_lock.Leave();
 
@@ -564,6 +607,9 @@ void WowConnection::DoExceptions() {
 // VERIFY: 2e088c06 auto
 // OFFSET: 0x00468D00
 bool WowConnection::Connect(uint32_t address, uint16_t port, int32_t timeout) {
+#if defined(__APPLE__)
+    if (!s_network || s_network->m_stop) return false;
+#endif
     this->m_connectAddress = address;
     this->m_connectPort = port;
     this->StartConnect();
@@ -591,6 +637,9 @@ void WowConnection::DestroyOsNet() {
 // OFFSET: 0x00468D90
 int32_t WowConnection::InitOsNet(bool (*netAddrFilter)(const NETADDR* addr), void (*threadInit)(), int32_t numThreads, bool useEngine) {
     if (!WowConnection::s_network) {
+#if defined(__APPLE__)
+        if (!numThreads) throw std::invalid_argument("Native network requires a worker thread");
+#endif
         WowConnection::s_idBits.SetCount(256);
         WDataStore::StaticInitialize();
         WowConnection::s_verifyAddr = netAddrFilter;
@@ -601,8 +650,17 @@ int32_t WowConnection::InitOsNet(bool (*netAddrFilter)(const NETADDR* addr), voi
         }
 
         WowConnection::s_network = new (SMemAlloc(sizeof(WowConnectionNet), __FILE__, __LINE__, 0)) WowConnectionNet(numThreads, threadInit);
+#if defined(__APPLE__)
+        try {
+#endif
         WowConnection::s_network->PlatformInit(useEngine);
         WowConnection::s_network->Start();
+#if defined(__APPLE__)
+        } catch (...) {
+            if (s_network->m_event) s_network->PlatformDestroy();
+            delete s_network; s_network = nullptr; WDataStore::StaticDestroy(); throw;
+        }
+#endif
     }
 
     return 1;
@@ -629,14 +687,12 @@ bool WowConnection::Connect(const char* address, int32_t timeout) {
         SStrCopy(host, address, sizeof(host));
     }
 
-    this->Connect(host, this->m_connectPort, timeout);
-
-    return true;
+    return this->Connect(host, this->m_connectPort, timeout);
 }
 
 // INLINED
 void WowConnection::AddRef() {
-    InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(&this->m_refCount.m_value), 1);
+    this->m_refCount.Increment();
 }
 
 // VERIFY: 050b636a manual

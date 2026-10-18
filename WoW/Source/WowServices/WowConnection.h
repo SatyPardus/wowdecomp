@@ -3,6 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(__APPLE__)
+#include <atomic>
+#endif
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/BlizzardCore/Source/System/Lock/Lock.h"
 #include "Engine/Source/Os/OsTcp.h"
@@ -44,7 +47,11 @@ class WowConnection {
 
     static WowConnection::IDBITS s_idBits;
     static SCritSect s_idLock;
+#if defined(__APPLE__)
+    static std::atomic<uint64_t> s_sendBytes;
+#else
     static uint64_t s_sendBytes;
+#endif
     static WowConnectionNet* s_network;
     static int32_t s_lagTestDelayMin;
     static int32_t s_lagTestDelayMax;
@@ -55,7 +62,7 @@ class WowConnection {
     /* 0008 */ int32_t m_oldsock;
     /* 000C */ uint8_t unused_000C;
     /* 000D */ uint8_t unused_000D[3];
-    /* 0010 */ WOW_CONN_STATE m_connState;
+    /* 0010 */ WOW_CONN_STATE m_connState = WOWC_UNINITIALIZED;
     /* 0014 */ WowConnectionResponse* m_response;
     /* 0018 */ int32_t unused_0018;
     /* 001C */ uint8_t* m_readBuffer;
@@ -90,7 +97,12 @@ class WowConnection {
     /* 00F8 */ int32_t m_serviceFlags;
     /* 00FC */ TSList<WowConnection::SENDNODE> m_lagTestRecvList;
     /* 0108 */ SCritSect m_lock;
+#if defined(__APPLE__)
+    std::atomic<int32_t> m_serviceCount{0};
+    uint64_t m_socketSerial = 0; // Distinguish reused descriptors in native poll snapshots.
+#else
     /* 0130 */ int32_t m_serviceCount;
+#endif
     /* 0134 */ int32_t unused_0134;
     /* 0138 */ void* m_event;
     /* 013C */ WOWC_TYPE m_type;
