@@ -1,6 +1,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#if defined(__APPLE__)
+#include <cerrno>
+#include <cctype>
+#endif
 #include "SCmd.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -50,9 +54,30 @@ static void ConvertNumber(CMDDEF* ptr, const char* string, int32_t* datachars) {
     char* endptr = nullptr;
 
     if (ptr->flags & SCMD_NUM_SIGNED) {
+#if defined(__APPLE__)
+        // The original Windows CRT converts to 32-bit long. Darwin long is
+        // 64-bit, so an out-of-range option must saturate before narrowing.
+        const long value = strtol(string, &endptr, 0);
+        if (value < INT32_MIN || value > INT32_MAX) errno = ERANGE;
+        ptr->currvalue = value < INT32_MIN ? uint32_t(INT32_MIN) : value > INT32_MAX ? uint32_t(INT32_MAX) : uint32_t(value);
+#else
         ptr->currvalue = strtol(string, &endptr, 0);
+#endif
     } else {
+#if defined(__APPLE__)
+        const int previousError = errno;
+        errno = 0;
+        const unsigned long value = strtoul(string, &endptr, 0);
+        const bool overflow = errno == ERANGE;
+        if (!errno) errno = previousError;
+        const char* first = string;
+        while (std::isspace(static_cast<unsigned char>(*first))) ++first;
+        const unsigned long magnitude = *first == '-' ? 0ul - value : value;
+        if (overflow || magnitude > UINT32_MAX) { ptr->currvalue = UINT32_MAX; errno = ERANGE; }
+        else ptr->currvalue = uint32_t(value);
+#else
         ptr->currvalue = strtoul(string, &endptr, 0);
+#endif
     }
 
     if (endptr) {
@@ -97,7 +122,11 @@ static CMDDEF* FindFlagDef(const char* string, CMDDEF* firstdef, int32_t minleng
             if (ptr->flags & SCMD_CASE_SENSITIVE) {
                 match = !strncmp(ptr->name, string, ptr->namelength);
             } else {
+#if defined(__APPLE__)
+                match = SStrCmpI(ptr->name, string, ptr->namelength) == 0;
+#else
                 match = !_strnicmp(ptr->name, string, ptr->namelength);
+#endif
             }
 
             if (match) {
@@ -501,3 +530,33 @@ int32_t STORMAPI SCmdProcess(const char* cmdline, int32_t skipprogname, int32_t 
 
     return result;
 }
+
+#if defined(__APPLE__)
+// Native launchers already tokenize argv. Rebuilding a Windows command string
+// would lose literal quotes, separators and absolute paths. Feed the original
+// conversions directly; a pending value consumes its whole native argument.
+int32_t SCmdProcessArguments(int argc, const char* const* argv, int32_t (STORMAPI* extracallback)(const char*), void (STORMAPI* errorcallback)(_CMDERROR*)) {
+    constexpr size_t budget = 1024 * 1024;
+    size_t bytes = 0;
+    bool valid = argc >= 0 && argc <= 16384 && (argv || !argc);
+    for (int i = 0; valid && i < argc; ++i) {
+        valid = argv[i] && (bytes += strnlen(argv[i], budget + 1) + 1) <= budget;
+    }
+    if (!valid) {
+        SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
+        return 0;
+    }
+    _PROCESSING processing{};
+    CMDDEF* nextarg = s_arglist.Head();
+    for (int i = 1; i < argc; ++i) {
+        if (!ProcessToken(argv[i], processing.ptr != nullptr, &processing, &nextarg, extracallback, errorcallback)) return 0;
+    }
+    for (; nextarg; nextarg = nextarg->Next()) {
+        if ((nextarg->flags & SCMD_ARG_MASK) == SCMD_ARG_REQUIRED) {
+            if (errorcallback) GenerateError(errorcallback, STORM_ERROR_NOT_ENOUGH_ARGUMENTS, "");
+            return 0;
+        }
+    }
+    return 1;
+}
+#endif

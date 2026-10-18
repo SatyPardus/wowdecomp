@@ -55,6 +55,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
 void CheckGameNetwork();
 void CheckURLDownloads();
+void CheckCommandLine(const std::string& scratch);
 void CheckGameLogin();
 void CheckGameSession();
 void CheckGameRealm();
@@ -686,6 +687,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckStormSynchronization();
         CheckGameNetwork();
         CheckURLDownloads();
+        CheckCommandLine(scratchDirectory);
         CheckGameLogin();
         CheckGameSession();
         CheckGameRealm();

@@ -7,5 +7,8 @@
 int32_t CmdLineGetBool(CMDOPT opt);
 const char* CmdLineGetString(CMDOPT opt);
 int32_t CmdLineProcess();
+#if defined(__APPLE__)
+int32_t CmdLineProcess(int argc, const char* const* argv);
+#endif
 
 #endif

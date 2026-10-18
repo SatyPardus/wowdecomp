@@ -41,6 +41,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataStore.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CRTRandom.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CmdLine.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SCmd.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/BitArray.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Handle.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/RCString.cpp
@@ -340,7 +342,7 @@ add_library(AppleTextureData ALIAS BLPFile)
 enable_language(OBJCXX)
 set(CMAKE_OBJCXX_STANDARD 17)
 set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
-target_sources(AppleFoundation PRIVATE Engine/Source/Os/Apple/OsURLDownload.mm)
+target_sources(AppleFoundation PRIVATE Engine/Source/Os/Apple/OsURLDownload.mm Engine/Source/Storm/Source/Apple/SCmd.mm)
 target_compile_options(AppleFoundation PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(AppleFoundation PUBLIC "-framework Foundation")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS Engine/Source/Gx/Metal/TextureQuad.metal Engine/Source/Gx/Metal/Skinning.metal Engine/Source/Gx/Metal/ShadowMap.metal Engine/Source/Gx/Metal/Model.metal Engine/Source/Gx/Metal/Terrain.metal Engine/Source/Gx/Metal/Wmo.metal Engine/Source/Gx/Metal/Liquid.metal Engine/Source/Gx/Metal/DetailDoodad.metal Engine/Source/Gx/Metal/WaterRipple.metal Engine/Source/Gx/Metal/FixedUnlit.metal)
@@ -392,6 +394,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CharacterTextureProbe
 target_link_libraries(AppleProbeCore PUBLIC CharacterTextureCache)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CharacterNameProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/URLDownloadProbe.cpp)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CommandLineProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")

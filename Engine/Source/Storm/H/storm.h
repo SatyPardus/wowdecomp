@@ -128,6 +128,10 @@ uint32_t STORMAPI SCmdGetNum(uint32_t id);
 int32_t STORMAPI SCmdGetString(uint32_t id, char* buffer, uint32_t bufferchars);
 int32_t STORMAPI SCmdProcess(const char* cmdline, int32_t skipprogname, int32_t (STORMAPI* extracallback)(const char*), void (STORMAPI* errorcallback)(_CMDERROR*));
 int32_t STORMAPI SCmdProcessCommandLine(int32_t (STORMAPI* extracallback)(const char*), void (STORMAPI* errorcallback)(_CMDERROR*));
+#if defined(__APPLE__)
+// Includes argv[0]; preserves each native token, including a pending absolute path.
+int32_t SCmdProcessArguments(int argc, const char* const* argv, int32_t (STORMAPI* extracallback)(const char*), void (STORMAPI* errorcallback)(_CMDERROR*));
+#endif
 int32_t STORMAPI SCmdRegisterArgList(const _ARGLIST* listptr, uint32_t numargs);
 int32_t STORMAPI SCmdRegisterArgument(uint32_t flags, uint32_t id, const char* name, void* variableptr, uint32_t variablebytes, uint32_t setvalue, uint32_t setmask, int32_t (STORMAPI* callback)(_CMDPARAMS*, const char*));
 

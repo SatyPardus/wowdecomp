@@ -44,3 +44,10 @@ int32_t CmdLineProcess() {
     SCmdRegisterArgList(s_argList, sizeof(s_argList) / sizeof(s_argList[0]));
     return SCmdProcessCommandLine(nullptr, nullptr);
 }
+
+#if defined(__APPLE__)
+int32_t CmdLineProcess(int argc, const char* const* argv) {
+    if (!SCmdRegisterArgList(s_argList, sizeof(s_argList) / sizeof(s_argList[0]))) return 0;
+    return SCmdProcessArguments(argc, argv, nullptr, nullptr);
+}
+#endif
