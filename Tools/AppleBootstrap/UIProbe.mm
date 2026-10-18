@@ -2,6 +2,7 @@
 #include "WorldPreview.h"
 #include "UIComponents.h"
 #include "MoviePlayback.h"
+#include "NativeDisplayProbe.h"
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
@@ -63,8 +64,11 @@ public:
 @property(nonatomic) NSUInteger frameLimit;
 @property(nonatomic, copy) NSString* error;
 @property(nonatomic, assign) MoviePlayback* movie;
+@property(nonatomic) BOOL displayChecked;
 @end
-@implementation OriginalUIPreview
+@implementation OriginalUIPreview {
+    std::unique_ptr<NativeDisplayProbe> _displayProbe;
+}
 - (void)stop:(id)sender {
     self.stopping = YES; [self suspend]; [NSApp stop:nil];
     [NSApp postEvent:[NSEvent otherEventWithType:NSEventTypeApplicationDefined location:NSZeroPoint modifierFlags:0
@@ -96,6 +100,13 @@ public:
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (!self.active) return;
+    try {
+        if (!self.displayChecked && NSProcessInfo.processInfo.environment[@"WOW_DISPLAY_CHECK"]) {
+            if (!_displayProbe) _displayProbe = std::make_unique<NativeDisplayProbe>(*renderDevice, view);
+            if (_displayProbe->Step()) { self.displayChecked = YES; _displayProbe.reset(); }
+            return;
+        }
+    } catch (const std::exception& error) { _displayProbe.reset(); self.error = [NSString stringWithUTF8String:error.what()]; [self stop:nil]; return; }
     auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
     if (!pass || !drawable) return;
     try {

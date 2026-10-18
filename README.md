@@ -888,7 +888,19 @@ retryable saves. Native console output goes to startup diagnostics and, while
 the original console screen is alive, its game-thread display queue.
 `WOW_METAL_CHECK=ui` runs only the shared UI/console input and MovieFrame GPU/audio checks;
 its result is explicitly labelled as a focused run. Full ConsoleDevice startup,
-host display-mode switching and remaining shader families are still pending.
+full `gxRestart` integration and remaining shader families are still pending.
+At an idle frame boundary, Metal `DeviceSetFormat` applies windowed resolution
+and vsync requests to the actual macOS view. AppKit point rounding is published
+as the active pixel size rather than stretching a differently sized drawable.
+On iOS it applies a fixed rendering resolution inside the UIKit scene. Hosts
+must acquire the next drawable after a size change; an already acquired
+MetalKit color drawable retains its old dimensions until the current view draw
+callback returns. Active Gx frames and non-main-thread native requests fail
+without changing the format. Fullscreen/maximized windows, physical display mode
+changes and disabling iOS presentation synchronization remain unsupported.
+`WOW_DISPLAY_CHECK=1` checks real drawable/depth reallocation, GPU readback,
+native pixel/input sizes, unsupported requests and continued rendering across
+successive view callbacks in either native preview.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

@@ -7,6 +7,7 @@
 #include "Tools/AppleBootstrap/GameAudioPreview.h"
 #include "Tools/AppleBootstrap/UIComponents.h"
 #include "Tools/AppleBootstrap/MoviePlayback.h"
+#include "Tools/AppleBootstrap/NativeDisplayProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/GxuFont.h"
@@ -174,6 +175,7 @@ public:
     std::unique_ptr<WorldPreview> _world;
     std::unique_ptr<UIComponents> _movieUI;
     std::unique_ptr<MoviePlayback> _movie;
+    std::unique_ptr<NativeDisplayProbe> _displayProbe;
     NSString* _movieSelection;
     CGxBuf* _vertices;
     CGxBuf* _indices;
@@ -182,6 +184,7 @@ public:
     __weak MTKView* _view;
     BOOL _active;
     uint32_t _presentedFrames;
+    BOOL _displayChecked;
 }
 - (instancetype)initWithView:(MTKView*)view textureName:(const char*)textureName {
     if ((self = [super init])) {
@@ -261,6 +264,11 @@ public:
 - (void)drawInMTKView:(MTKView*)view {
     if (!_active) { return; }
     try {
+        if (!_displayChecked && NSProcessInfo.processInfo.environment[@"WOW_DISPLAY_CHECK"]) {
+            if (!_displayProbe) _displayProbe = std::make_unique<NativeDisplayProbe>(*_device, view);
+            if (_displayProbe->Step()) { _displayChecked = YES; _displayProbe.reset(); }
+            return;
+        }
         if (_movieSelection) {
             if (!_movieUI) {
                 // Initialize the original Event/Services context before adding
@@ -285,6 +293,7 @@ public:
     catch (const std::exception& error) { [self stopAfterError:error.what()]; }
 }
 - (void)stopAfterError:(const char*)message {
+    _displayProbe.reset();
 #if TARGET_OS_OSX
     if ([_view isKindOfClass:WowNativeView.class]) [(WowNativeView*)_view setGameInputActive:NO];
 #endif

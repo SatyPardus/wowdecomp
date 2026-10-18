@@ -476,13 +476,20 @@ int32_t CGxDeviceMetal::DeviceCreate(void* window, const CGxFormat& format) {
     return 1;
 }
 int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
-    if (format.m_size.x <= 0 || format.m_size.y <= 0 || format.m_multisampleCount != 1 ||
+    if (m->window && !NSThread.isMainThread) return 0;
+    if (m->command || format.m_size.x <= 0 || format.m_size.y <= 0 ||
+        uint32_t(format.m_size.x) > m_caps.m_texMaxSize[GxTex_2d] || uint32_t(format.m_size.y) > m_caps.m_texMaxSize[GxTex_2d] || format.m_multisampleCount != 1 ||
         format.m_colorFormat != CGxFormat::Fmt_Argb8888 || format.m_depthFormat != CGxFormat::Fmt_Ds320 || format.m_stereoEnabled) { return 0; }
-    m_format = format;
+    // A host must apply the request before the game can publish it as active.
+    // Headless clients own their attachments and have no native presentation.
+    CGxFormat applied = format;
+    if (m->window && !ApplyHostFormat(applied)) return 0;
+    m_format = applied;
     m_curWindowRect.minX = m_curWindowRect.minY = 0;
-    m_curWindowRect.maxX = format.m_size.x; m_curWindowRect.maxY = format.m_size.y;
+    m_curWindowRect.maxX = applied.m_size.x; m_curWindowRect.maxY = applied.m_size.y;
     m_defWindowRect = m_curWindowRect;
-    m->scissor = {0, 0, size_t(format.m_size.x), size_t(format.m_size.y)};
+    m->scissor = {0, 0, size_t(applied.m_size.x), size_t(applied.m_size.y)};
+    m_viewportDirty = m_scissorRectDirty = 1;
     return 1;
 }
 void CGxDeviceMetal::DeviceDestroy() { Require(!m->command, "End the Metal frame before destroying its host"); Drain(); OsInputApplyWindowResizeLock(nullptr); m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy(); }
@@ -511,6 +518,9 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     m_defWindowRect.minX = m_defWindowRect.minY = 0;
     m_defWindowRect.maxX = pass.colorAttachments[0].texture.width;
     m_defWindowRect.maxY = pass.colorAttachments[0].texture.height;
+    if (m->window && drawable) {
+        m_format.m_size = {int32_t(m_defWindowRect.maxX), int32_t(m_defWindowRect.maxY)};
+    }
     ApplyRenderTarget();
     if (resized) { m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)}; m_scissorRectDirty = 1; }
 }

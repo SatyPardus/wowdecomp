@@ -403,6 +403,7 @@ target_link_libraries(AppleMetalProbeCore PUBLIC AppleUIComponents AppleVideoOpt
 target_sources(AppleMetalProbeCore PRIVATE Tools/AppleBootstrap/CharacterSceneProbe.mm)
 target_link_libraries(AppleMetalProbeCore PUBLIC CharacterAppearance)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/NativeView.mm Tools/AppleBootstrap/ModelPreview.cpp Tools/AppleBootstrap/WorldPreview.cpp)
+target_sources(AppleMetalView PRIVATE Tools/AppleBootstrap/NativeDisplayProbe.mm)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleUIComponents)
 target_link_libraries(AppleMetalView PUBLIC CharacterAppearance AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")

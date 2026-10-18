@@ -79,6 +79,7 @@ public:
     void DeviceUnk82() override {}
     void DeviceUnk83(uint32_t, uint32_t) override {}
 private:
+    bool ApplyHostFormat(CGxFormat& format);
     void ApplyRenderTarget();
     MTLViewport Viewport() const;
     MTLScissorRect Scissor() const;

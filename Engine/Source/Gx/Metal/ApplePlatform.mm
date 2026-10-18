@@ -3,6 +3,7 @@
 #include "Engine/Source/Tempest/CRect.h"
 #include "Engine/Source/Os/Input.h"
 #include "Engine/Source/Os/Apple/Input.h"
+#import <MetalKit/MetalKit.h>
 #include <TargetConditionals.h>
 #include <stdexcept>
 #include <atomic>
@@ -11,6 +12,49 @@
 #else
 #import <UIKit/UIKit.h>
 #endif
+
+bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
+    // AppKit/UIKit mutations and drawable acquisition share the host thread.
+    if (!NSThread.isMainThread) return false;
+    MTKView* view = (__bridge MTKView*)DeviceWindow();
+    if (![view isKindOfClass:MTKView.class] || !format.m_window || format.m_maximize || format.m_vsync > 1) return false;
+#if TARGET_OS_OSX
+    // This path changes windowed rendering, not the physical display mode.
+    if (format.m_refreshRate || !view.window || view.window.contentView != view || view.inFullScreenMode ||
+        (view.window.styleMask & NSWindowStyleMaskFullScreen)) return false;
+    const CGFloat scale = view.window.backingScaleFactor;
+    if (!(scale > 0)) return false;
+#else
+    // UIKit owns scene size and presentation synchronization. A fixed render
+    // resolution may scale into that scene, but cannot disable its vsync.
+    if (!format.m_vsync || (format.m_refreshRate && format.m_refreshRate != view.window.screen.maximumFramesPerSecond)) return false;
+#endif
+    Drain();
+    // Changing drawableSize can synchronously call the host's size delegate.
+    // Prevent reentrant rendering until the format and attachments agree.
+    id<MTKViewDelegate> delegate = view.delegate;
+    view.delegate = nil;
+    [view releaseDrawables];
+    view.autoResizeDrawable = NO;
+#if TARGET_OS_OSX
+    [view.window setContentSize:NSMakeSize(format.m_size.x / scale, format.m_size.y / scale)];
+    // AppKit rounds window points (e.g. 641 pixels at 2x becomes 642).
+    // Publish the actual native size, as D3D's adjusted window creation does;
+    // do not scale an odd-sized drawable into a differently sized window.
+    const NSRect backing = [view convertRectToBacking:view.bounds];
+    format.m_size = {int32_t(backing.size.width), int32_t(backing.size.height)};
+    ((CAMetalLayer*)view.layer).displaySyncEnabled = format.m_vsync != 0;
+#endif
+    view.drawableSize = CGSizeMake(format.m_size.x, format.m_size.y);
+#if TARGET_OS_OSX
+    // Future interactive window resizing follows the screen's backing scale.
+    view.autoResizeDrawable = YES;
+#endif
+    view.delegate = delegate;
+    OsInputSetDrawableSize(format.m_size.x, format.m_size.y);
+    OsQueuePut(OS_INPUT_SIZE, format.m_size.x, format.m_size.y, 0, 0);
+    return true;
+}
 
 int32_t CGxDevice::DeviceAdapterID(uint16_t& vendor, uint16_t& device, uint32_t& driverHi, uint32_t& driverLo) {
     // Apple GPU does not expose a D3D PCI device/driver version tuple.
