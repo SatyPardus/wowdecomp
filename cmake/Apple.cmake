@@ -43,6 +43,8 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CDataStore.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/Base.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Base/FileCache.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CRTRandom.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/CmdLine.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Base/DynamicString.cpp

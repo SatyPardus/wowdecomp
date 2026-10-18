@@ -966,6 +966,12 @@ whitespace and EOF behavior. Native path trimming handles UTF-8 and empty paths;
 zero-size outputs fail without writing, and profile files are limited to 4 MiB
 before allocation. Mac sanitizer and simulator checks cover locale fields,
 FourCC values, failed-read retry/append and repeated create/destroy lifetimes.
+The native scene host now calls the original Base global/context startup and
+shutdown. Event and CVar resources are destroyed before Base releases its
+properties, file-cache tables and string pool. Two visible Mac host lifetimes
+each render 120 frames with sanitizer/Metal validation; iOS foreground rebuilds
+also re-enter the original lifecycle. The existing prefetch implementation is
+unchanged and this does not add the unfinished asynchronous prefetch behavior.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

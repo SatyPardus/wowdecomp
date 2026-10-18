@@ -12,6 +12,7 @@
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Base/Coordinate.h"
+#include "Engine/Source/Base/Base.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/Event/Event.h"
@@ -26,6 +27,12 @@
 #include <stdexcept>
 
 namespace {
+class GameBase {
+public:
+    GameBase() { BaseInitializeGlobal(); }
+    ~GameBase() { BaseDestroyGlobal(); }
+};
+
 class GameConfig {
 public:
     GameConfig() {
@@ -49,7 +56,6 @@ private:
     static void Shutdown() {
         CVar::Destroy();
         ConsoleCommandDestroy();
-        CStringManager::DestroyManager();
         CVar::s_configFile = nullptr;
     }
 };
@@ -71,10 +77,10 @@ class GameEvents {
         static_cast<GameEvents*>(arg)->m_elapsedSeconds += static_cast<const EVENT_DATA_UPDATE*>(data)->m_elapsedSec;
         return 1;
     }
-    static int32_t Destroy(const void*, void*) { TextureDestroy(); AsyncFileReadDestroy(); return 1; }
+    static int32_t Destroy(const void*, void*) { TextureDestroy(); AsyncFileReadDestroy(); BaseDestroyContext(); return 1; }
     static int32_t Initialize(const void*, void*) {
         s_current->m_context = PropGetSelectedContext();
-        try { AsyncFileReadInitialize(0, 20); TextureInitialize(); }
+        try { BaseInitializeContext(); AsyncFileReadInitialize(0, 20); TextureInitialize(); }
         catch (const std::exception& error) { s_current->m_error = error.what(); }
         EventRegisterEx(EVENT_ID_UPDATE, Update, s_current, 0);
         EventRegisterEx(EVENT_ID_PAINT, Paint, s_current, 0);
@@ -86,17 +92,15 @@ public:
     GameEvents(void (*paint)(void*, float), void* owner) : m_paint(paint), m_owner(owner) {
         if (s_current) { throw std::logic_error("A native game event host already exists"); }
         s_current = this;
-        PropInitialize();
         try {
             EventInitialize(1, 0);
             if (!EventCreateContextEx(1, Initialize, Destroy, 1, 0)) { throw std::runtime_error("Cannot create native game Event context"); }
         } catch (...) {
-            EventDestroy(); PropDestroy(); s_current = nullptr; throw;
+            EventDestroy(); s_current = nullptr; throw;
         }
     }
     ~GameEvents() {
         EventDestroy();
-        PropDestroy();
         s_current = nullptr;
     }
 };
@@ -163,6 +167,8 @@ public:
 
 @implementation WowTextureRenderer {
     std::unique_ptr<CGxDeviceMetal> _device;
+    // Base owns global properties and strings until Event and CVar teardown.
+    std::unique_ptr<GameBase> _base;
     std::unique_ptr<GameConfig> _config;
     // Texture handles and fonts die before Services; Services dies before Gx.
     std::unique_ptr<GameEvents> _events;
@@ -217,6 +223,7 @@ public:
         view.framebufferOnly = NO; // Gx screenshot / framebuffer copy source.
         view.clearColor = MTLClearColorMake(0.12, 0.14, 0.18, 1);
         view.paused = YES; view.enableSetNeedsDisplay = NO; view.delegate = self;
+        _base = std::make_unique<GameBase>();
         _config = std::make_unique<GameConfig>();
         _events = std::make_unique<GameEvents>([](void* owner, float elapsed) {
             [(__bridge WowTextureRenderer*)owner renderGameFrame:elapsed];
