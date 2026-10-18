@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
@@ -1580,7 +1581,7 @@ int32_t CM2Model::BoneHasParent(uint32_t boneId) {
 void CM2Model::SetupBoneSequence(uint16_t sequenceIndex, M2SequenceFallback fallback, uint32_t time, float speed, M2ModelBoneSeq* boneSequence) {
     M2Sequence* sequence = &this->m_shared->m_data->m_sequences[sequenceIndex];
     int32_t minRepeat = sequence->m_replay.m_l;
-    int32_t random = rand();
+    int32_t random = ClientRand();
     uint32_t startOffset = 0;
     uint32_t repeats = minRepeat + (sequence->m_replay.m_h - minRepeat) * random / 0x8000;
     repeats += repeats == 0;
@@ -1687,7 +1688,7 @@ void CM2Model::PickRandomSequenceVariation(uint32_t* variation, uint16_t* sequen
     *variation = 0;
 
     uint32_t count = 0;
-    int32_t random = rand();
+    int32_t random = ClientRand();
     uint16_t index = *sequenceIndex;
 
     while (index != 0xFFFF) {

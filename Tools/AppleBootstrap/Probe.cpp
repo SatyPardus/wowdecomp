@@ -28,6 +28,7 @@
 #include "Engine/Source/Gx/ShaderBinary.h"
 #include "Engine/Source/Gx/Metal/UIShader.h"
 #include "Engine/Source/Base/CDataStore.h"
+#include "Engine/Source/Base/CRTRandom.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
@@ -66,6 +67,36 @@ using Unit = std::unique_ptr<IOUnit, ReleaseUnit>;
 
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }
+}
+
+void CheckCRTRandom() {
+    // Run in a fresh thread to check the original implicit seed without
+    // replacing the host's random stream. Nested threads must not reseed it.
+    bool passed = false;
+    std::thread worker([&] {
+        constexpr int expected[] = {41, 18467, 6334, 26500, 19169, 15724, 11478, 29358};
+        bool valid = true;
+        for (int value : expected) valid &= ClientRand() == value;
+        ClientSrand(1);
+        valid &= ClientRand() == 41;
+        bool childValid = false;
+        std::thread child([&] {
+            childValid = ClientRand() == 41;
+            ClientSrand(0);
+            childValid &= ClientRand() == 38;
+        });
+        child.join();
+        valid &= childValid && ClientRand() == 18467;
+        ClientSrand(0xFFFFFFFFu);
+        valid &= ClientRand() == 35;
+        for (unsigned i = 0; i < 65536; ++i) {
+            const int value = ClientRand();
+            valid &= value >= 0 && value <= 32767;
+        }
+        passed = valid;
+    });
+    worker.join();
+    Require(passed, "Client CRT random range, sequence, seed or thread isolation changed");
 }
 
 std::atomic<int> tlsDestroyed{0};
@@ -650,6 +681,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         signal.join();
         Require(signaled, "event did not wake waiter");
         CheckNativeThreads();
+        CheckCRTRandom();
         CheckStormSynchronization();
         CheckGameNetwork();
         CheckGameLogin();
@@ -683,9 +715,14 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
             std::unique_ptr<lua_State, decltype(&lua_close)> lua(lua_newstate(luaM_reallocPool, pool.get(), profile), lua_close);
             Require(bool(lua), "Lua allocation failed");
             luaL_openlibs(lua.get());
+            ClientSrand(1);
+            Require(luaL_dostring(lua.get(), "assert(math.random() == 41/32767); assert(math.random(10) == 6)") == 0 &&
+                        ClientRand() == 6334,
+                    "Lua random does not share the original client CRT sequence/range");
             const int result = luaL_dostring(lua.get(), "local t = {}; for i=1,10000 do t[i]=i end; collectgarbage('collect'); assert(string.upper('abc') == 'ABC'); return t[10000] + 42");
             Require(result == 0 && lua_tonumber(lua.get(), -1) == 10042, "Lua execution/GC/profiling failed");
         }
+        std::fprintf(stderr, "Client CRT random: original 15-bit sequence, thread-local seed and shared Lua stream passed\n");
 
         // Sparse scratch data exercises large offsets without allocating 4 GiB.
         ScratchFile scratch(scratchDirectory);

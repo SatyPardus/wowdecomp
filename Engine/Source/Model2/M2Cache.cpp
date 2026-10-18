@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "Engine/Source/Model2/M2Vector.h"
 #include <cstdint>
 #include <cstdlib>
@@ -156,8 +157,8 @@ int32_t CM2Cache::Initialize(uint32_t flags) {
 
     this->m_flags |= flags & 0x1A0;
 
-    uint32_t high = static_cast<uint32_t>(rand()) << 16;
-    CRndSeed seed(high | static_cast<uint16_t>(rand()));
+    uint32_t high = static_cast<uint32_t>(ClientRand()) << 16;
+    CRndSeed seed(high | static_cast<uint16_t>(ClientRand()));
 
     for (uint32_t i = 0; i < sizeof(s_randomTable) / sizeof(s_randomTable[0]); i++) {
         uint32_t bits = (CRandom::uint32_(seed) & 0x7FFFFF) | 0x3F800000;

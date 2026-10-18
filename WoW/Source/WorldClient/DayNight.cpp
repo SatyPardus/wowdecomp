@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include <cmath>
 #include <new>
@@ -616,7 +617,7 @@ void DayNight::ApplyFogSettings(const SMOFog::Fog* fog) {
 // OFFSET: 0x007ED250
 static void InitCloudNoise() {
     for (uint32_t i = 0; i < 256; i++) {
-        int32_t value = rand();
+        int32_t value = ClientRand();
         s_cloudNoise[i] = 1.0f - (value * 0.000030518509f + value * 0.000030518509f);
     }
 

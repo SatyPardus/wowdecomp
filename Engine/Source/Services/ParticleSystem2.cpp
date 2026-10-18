@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -2203,7 +2204,7 @@ CParticleEmitter2::CParticleEmitter2() : m_random(0) {
     this->m_worldBounds.t.z = -3.4028235e38f;
     this->unused_0230 = 0;
 
-    this->m_random.SetSeed((static_cast<uint32_t>(rand()) << 16) | static_cast<uint16_t>(rand()));
+    this->m_random.SetSeed((static_cast<uint32_t>(ClientRand()) << 16) | static_cast<uint16_t>(ClientRand()));
     this->m_childEmitterCount = 0;
 }
 
@@ -2598,7 +2599,7 @@ CParticleEmitter2::CParticleEmitter2(const CParticleEmitter2& source, int32_t co
     this->m_worldBounds.t.z = 0.0f;
     this->unused_0230 = 0;
 
-    this->m_random.SetSeed((static_cast<uint32_t>(rand()) << 16) | static_cast<uint16_t>(rand()));
+    this->m_random.SetSeed((static_cast<uint32_t>(ClientRand()) << 16) | static_cast<uint16_t>(ClientRand()));
     this->m_childEmitterCount = source.m_childEmitterCount;
 
     for (uint32_t i = 0; i < source.m_childEmitterCount; i++) {

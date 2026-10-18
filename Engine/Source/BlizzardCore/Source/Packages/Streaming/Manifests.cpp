@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "Manifests.h"
 #include <cstdint>
 #include <cstdio>
@@ -807,7 +808,7 @@ std::string Blizzard::Streaming::ManifestInfo::GetRandomServerLocation(const std
     }
 
     if (total) {
-        int32_t roll = rand() % total;
+        int32_t roll = ClientRand() % total;
 
         for (int32_t i = 0; i < count; i++) {
             if (weights[i] > roll) {
@@ -825,7 +826,7 @@ std::string Blizzard::Streaming::ManifestInfo::GetRandomServerLocation(const std
 // OFFSET: 0x00451EE0
 Blizzard::Streaming::ManifestInfo::ManifestInfo() {
     this->m_version = 0;
-    srand(static_cast<uint32_t>(time(nullptr)));
+    ClientSrand(static_cast<uint32_t>(time(nullptr)));
 }
 
 // VERIFY: fb6c09d1 manual

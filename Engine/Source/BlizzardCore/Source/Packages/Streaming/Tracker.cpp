@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "Tracker.h"
 #include <cstdint>
 #include <cstdlib>
@@ -44,7 +45,7 @@ void Tracker::TrackerHttpDataDownloadCallBack::Completed(Blizzard::URL::Download
 char* Tracker::GetPeerID() {
     if (!s_peerId[0]) {
         for (int32_t i = 0; i < 20; i++) {
-            s_peerId[i] = rand() % 222 + 33;
+            s_peerId[i] = ClientRand() % 222 + 33;
         }
 
         s_peerId[20] = '\0';
@@ -58,7 +59,7 @@ char* Tracker::GetPeerID() {
 char* Tracker::GetKey() {
     if (!s_key[0]) {
         for (int32_t i = 0; i < 8; i++) {
-            s_key[i] = rand() % 9 + '0';
+            s_key[i] = ClientRand() % 9 + '0';
         }
 
         s_key[8] = '\0';

@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "Unit_C.h"
 #include <cmath>
 #include <new>
@@ -21008,7 +21009,7 @@ void CGUnit_C::UpdateCritterDisplay() {
         return;
     }
 
-    uint32_t index = static_cast<uint32_t>(rand()) % count;
+    uint32_t index = static_cast<uint32_t>(ClientRand()) % count;
     this->m_critterDisplayCreatureId = GetVisibleAuraEffectDisplay();
     this->m_displayId = stats->m_displayId[index];
     this->UpdateDisplayInfo(0);

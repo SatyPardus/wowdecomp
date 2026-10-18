@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "WowConnection.h"
 #include <cstdlib>
 #include <cstring>
@@ -162,7 +163,7 @@ void WowConnection::SetSendTime(WowConnection::SENDNODE* node) {
     }
 
     if (WowConnection::s_lagTestDelayMax > delay) {
-        delay = static_cast<int32_t>(delay + static_cast<double>((WowConnection::s_lagTestDelayMax - delay + 1) * rand()) / 32768.0);
+        delay = static_cast<int32_t>(delay + static_cast<double>((WowConnection::s_lagTestDelayMax - delay + 1) * ClientRand()) / 32768.0);
     }
 
     node->m_sendTime = delay + OsGetAsyncTimeMs();

@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 /*
 ** $Id: lmathlib.c,v 1.67 2005/08/26 17:36:32 roberto Exp $
 ** Standard mathematical library
@@ -234,8 +235,8 @@ static int math_max (lua_State *L) {
 // OFFSET: 0x00851640
 static int math_random (lua_State *L) {
   /* the `%' avoids the (rare) case of r==1, and is needed also because on
-     some systems (SunOS!) `rand()' may return a value larger than RAND_MAX */
-  lua_Number r = (lua_Number)(rand()%RAND_MAX) / (lua_Number)RAND_MAX;
+     some systems (SunOS!) `ClientRand()' may return a value larger than CLIENT_RAND_MAX */
+  lua_Number r = (lua_Number)(ClientRand()%CLIENT_RAND_MAX) / (lua_Number)CLIENT_RAND_MAX;
   switch (lua_gettop(L)) {  /* check number of arguments */
     case 0: {  /* no arguments */
       lua_pushnumber(L, r);  /* Number between 0 and 1 */

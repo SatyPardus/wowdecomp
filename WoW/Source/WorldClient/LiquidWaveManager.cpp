@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "LiquidWaveManager.h"
 #include <cstring>
 #include "WoW/Source/WorldClient/World.h"
@@ -66,7 +67,7 @@ void Liquid::CWaveManager::PrepareRenderTransform(const C3Vector* camPos) {
             SWave& wave = this->m_waves[i];
 
             this->m_time[i] = 0.0f;
-            this->m_duration[i] = static_cast<float>(rand() % 20000 + 20000);
+            this->m_duration[i] = static_cast<float>(ClientRand() % 20000 + 20000);
 
             C3Vector* target = CWorldScene::GetCamTarget();
             float toTargetX = target->x - camPos->x;
@@ -80,10 +81,10 @@ void Liquid::CWaveManager::PrepareRenderTransform(const C3Vector* camPos) {
                 toTargetY = inv * toTargetY;
             }
 
-            float distX = (rand() % 50 + 150.0f) * toTargetX;
-            float x = (rand() % 100 - 50) + camPos->x + distX;
-            float distY = (rand() % 50 + 150.0f) * toTargetY;
-            float y = (rand() % 100 - 50) + distY + camPos->y;
+            float distX = (ClientRand() % 50 + 150.0f) * toTargetX;
+            float x = (ClientRand() % 100 - 50) + camPos->x + distX;
+            float distY = (ClientRand() % 50 + 150.0f) * toTargetY;
+            float y = (ClientRand() % 100 - 50) + distY + camPos->y;
             wave.m_x = x;
             wave.m_y = y;
 
@@ -98,15 +99,15 @@ void Liquid::CWaveManager::PrepareRenderTransform(const C3Vector* camPos) {
             }
 
             C44Matrix rotation;
-            rotation.RotateAroundZ((rand() % 2000 - 1000.0f) * 0.00078539818f);
+            rotation.RotateAroundZ((ClientRand() % 2000 - 1000.0f) * 0.00078539818f);
             C3Vector dir = C3Vector(dirX, dirY, 0.0f) * rotation;
             wave.m_dirX = dir.x;
             wave.m_dirY = dir.y;
 
-            wave.m_speed = (rand() % 1000) * 0.039999999f + 10.0f;
-            wave.m_length = (rand() % 1000) * 0.2f + 200.0f;
-            wave.m_amplitude = (rand() % 1000) * 0.00050000002f + 0.5f;
-            wave.unk_001C = (rand() % 1000) * 0.000030000001f + 0.02f;
+            wave.m_speed = (ClientRand() % 1000) * 0.039999999f + 10.0f;
+            wave.m_length = (ClientRand() % 1000) * 0.2f + 200.0f;
+            wave.m_amplitude = (ClientRand() % 1000) * 0.00050000002f + 0.5f;
+            wave.unk_001C = (ClientRand() % 1000) * 0.000030000001f + 0.02f;
 
             this->m_data.m_waves[i] = wave;
             this->m_data.m_waves[i].m_amplitude = 0.0f;

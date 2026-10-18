@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "RandomSeed.h"
 #include <cstdlib>
 #include <ctime>
@@ -68,12 +69,12 @@ static void SeedRandomValues(_RandomSeed* seed, int32_t value) {
 // OFFSET: 0x007F6C70
 void InitializeRandomSeed(_RandomSeed* seed, uint32_t value) {
     if (value) {
-        srand(value);
+        ClientSrand(value);
     } else {
-        srand(static_cast<uint32_t>(time(nullptr)));
+        ClientSrand(static_cast<uint32_t>(time(nullptr)));
     }
 
-    SeedRandomValues(seed, rand());
+    SeedRandomValues(seed, ClientRand());
 }
 
 // VERIFY: 78b9370d manual

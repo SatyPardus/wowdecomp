@@ -1,3 +1,4 @@
+#include "Engine/Source/Base/CRTRandom.h"
 #include "Player_C.h"
 #include <malloc.h>
 #include "Engine/Source/Base/CDataStore.h"
@@ -7802,7 +7803,7 @@ void CGPlayer_C::CastRandomCritter() {
     uint32_t count = this->m_companionSpells.m_count;
 
     if (count) {
-        Spell_C::CastSpell(this->m_companionSpells.m_data[rand() % count], nullptr, WOWGUID{ 0 }, false);
+        Spell_C::CastSpell(this->m_companionSpells.m_data[ClientRand() % count], nullptr, WOWGUID{ 0 }, false);
     }
 }
 

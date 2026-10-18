@@ -2,6 +2,7 @@
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Model2/M2Memory.h"
+#include "Engine/Source/Base/CRTRandom.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "Engine/Source/Services/Camera.h"
@@ -31,14 +32,21 @@ namespace {
 void CheckEmptySkeleton(CM2Scene* scene) {
     // Exercise a valid zero-bone instance with other arena-backed arrays. The
     // legacy release path used the absent bone view as its allocation owner.
-    struct Data { M2Data header{}; M2Sequence sequence{}; M2Loop loops[2]{}; };
+    struct Data { M2Data header{}; M2Sequence sequences[2]{}; M2Loop loops[2]{}; };
     auto shared = std::make_unique<CM2Shared>(nullptr);
     auto* data = new (M2AllocData(sizeof(Data))) Data();
     shared->m_data = &data->header;
     shared->m_skinData = new (SIMD::AllocA16(sizeof(M2SkinProfile), __FILE__, __LINE__)) M2SkinProfile();
-    data->header.m_sequences.m_count = 1;
-    data->header.m_sequences.Set(&data->sequence);
-    data->sequence.m_flags = 0x20;
+    data->header.m_sequences.m_count = 2;
+    data->header.m_sequences.Set(data->sequences);
+    for (unsigned i = 0; i < 2; ++i) {
+        data->sequences[i].m_flags = 0x20;
+        data->sequences[i].m_frequency = 16384;
+        data->sequences[i].m_variationNext = i ? 0xFFFF : 1;
+        data->sequences[i].m_duration = 100;
+        data->sequences[i].m_replay.m_l = 2;
+        data->sequences[i].m_replay.m_h = 6;
+    }
     data->header.m_loops.m_count = 2;
     data->header.m_loops.Set(data->loops);
     shared->m_flags = 3;
@@ -46,6 +54,24 @@ void CheckEmptySkeleton(CM2Scene* scene) {
     if (!model.Initialize(scene, shared.get(), nullptr, 0) || !(model.m_fFlags & 1) || model.m_bones || !model.m_loops ||
         model.m_loops[0] || model.m_loops[1])
         throw std::runtime_error("Zero-bone instance did not initialize its independent arrays");
+    ClientSrand(1);
+    unsigned selected[2]{};
+    for (unsigned i = 0; i < 4096; ++i) {
+        uint16_t index = 0;
+        uint32_t variation = 0;
+        model.PickRandomSequenceVariation(&variation, &index);
+        if (index > 1 || index != variation)
+            throw std::runtime_error("M2 random variation escaped its authored sequence chain");
+        ++selected[index];
+        M2ModelBoneSeq clock{};
+        model.SetupBoneSequence(index, {}, 0, 2.0f, &clock);
+        if (clock.m_repeatCount < 2 || clock.m_repeatCount >= 6 ||
+            clock.m_endTime - clock.m_startTime != clock.m_repeatCount * 50)
+            throw std::runtime_error("M2 random replay escaped authored bounds or changed duration");
+    }
+    if (selected[0] < 1000 || selected[1] < 1000)
+        throw std::runtime_error("M2 random variation did not select both authored alternatives");
+    std::fprintf(stderr, "M2 original random variation/replay: %u / %u selections, all authored replay bounds preserved\n", selected[0], selected[1]);
     model.FreeExternalResources();
     model.FreeInternalResources();
     if (model.m_internalMemory || model.m_loops || model.m_textures || model.m_ribbonEmitters || model.m_particleEmitters)
