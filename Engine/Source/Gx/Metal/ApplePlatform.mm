@@ -51,7 +51,7 @@ int32_t CGxDevice::AdapterFormats(EGxApi api, TSGrowableArray<CGxFormat>& format
 void OsInputGetMousePosition(int32_t* x, int32_t* y) {
 #if TARGET_OS_OSX
     NSView* view = g_theGxDevicePtr ? (__bridge NSView*)g_theGxDevicePtr->DeviceWindow() : nil;
-    if (!view.window) { throw std::runtime_error("Gx mouse position requires a native host view"); }
+    if (!view.window) { OsInputGetQueuedPointer(x, y); return; }
     NSPoint point = [view convertPoint:[view.window convertPointFromScreen:NSEvent.mouseLocation] fromView:nil];
     point.x -= view.bounds.origin.x; point.y -= view.bounds.origin.y;
     if (!view.isFlipped) { point.y = view.bounds.size.height - point.y; }
@@ -60,7 +60,9 @@ void OsInputGetMousePosition(int32_t* x, int32_t* y) {
     if (x) { *x = int32_t(pixels.x); }
     if (y) { *y = int32_t(pixels.y); }
 #else
-    throw std::runtime_error("iOS pointer input is not connected to Gx");
+    // UI layout can run before an iOS host has delivered any pointer events.
+    // This supplies its initial position; it does not synthesize touch input.
+    OsInputGetQueuedPointer(x, y);
 #endif
 }
 

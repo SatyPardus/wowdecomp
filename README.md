@@ -164,6 +164,11 @@ the composed GPU frame at frame 120. This is an integration entry point;
 full Glue/game UI, name-cache declension, movie playback and login remain pending.
 Clipboard has native UTF-8 platform bindings; these checks do not access the
 user's clipboard. UI Desaturate uses the original BLS luminance and alpha rules.
+Mac and iOS GPU checks now share this component initialization and exercise
+Unicode/composition delivery, original Lua button hit testing, two complete
+lifetimes and exact output after changing/restoring drawable dimensions and
+aspect ratio. Headless/iOS pointer queries use the last native absolute event
+or the initial drawable origin; iOS touch integration remains pending.
 
 The original Services asynchronous file queue now runs on native workers and
 returns completion through Event poll handlers on the game thread. Idle Apple

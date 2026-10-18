@@ -1,0 +1,29 @@
+#ifndef TOOLS_APPLEBOOTSTRAP_UICOMPONENTS_H
+#define TOOLS_APPLEBOOTSTRAP_UICOMPONENTS_H
+#include <cstdint>
+#include <memory>
+class CSimpleTop;
+class CSimpleFrame;
+class CSimpleEditBox;
+
+// Original Glue components shared by the Mac window and native GPU checks.
+// Requires the caller's selected Event context, CVar and Services lifetime.
+class UIComponents {
+public:
+    UIComponents();
+    ~UIComponents();
+    UIComponents(const UIComponents&) = delete;
+    UIComponents& operator=(const UIComponents&) = delete;
+    CSimpleFrame* Button() const { return m_button; }
+    CSimpleEditBox* Edit() const { return m_edit; }
+private:
+    void Shutdown();
+    static int32_t Resize(const void*, void*);
+    std::unique_ptr<CSimpleTop> m_top;
+    CSimpleFrame* m_button = nullptr;
+    CSimpleEditBox* m_edit = nullptr;
+    bool m_ownsScript = false, m_screen = false, m_metatables = false;
+    bool m_resize = false;
+    float m_previousAspect = 0;
+};
+#endif

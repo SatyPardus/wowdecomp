@@ -18,6 +18,7 @@ std::deque<QueuedInput> queue;
 OsInputComposition composition;
 std::set<KEY> keys;
 uint32_t buttons;
+int32_t pointerX, pointerY;
 uint32_t imeEnableCount;
 int32_t language;
 bool nativeLanguage = true, secure;
@@ -28,7 +29,7 @@ void (*pollProc)();
 }
 void OsInputInitialize() {
     std::lock_guard<std::mutex> lock(mutex);
-    queue.clear(); keys.clear(); buttons = 0; composition = {};
+    queue.clear(); keys.clear(); buttons = 0; composition = {}; pointerX = pointerY = 0;
 }
 void OsInputDestroy() { OsInputSetMouseMode(OS_MOUSE_MODE_NORMAL); OsIMEDestroy(); OsInputEnableSecureMode(0); OsInputInitialize(); pollProc = nullptr; }
 void OsInputSetEventPollProc(void (*proc)()) { pollProc = proc; }
@@ -42,6 +43,11 @@ int32_t OsGetDefaultWindowRect(tagRECT* rect) {
     *rect = bounds;
     return 1;
 }
+void OsInputGetQueuedPointer(int32_t* x, int32_t* y) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (x) *x = pointerX;
+    if (y) *y = pointerY;
+}
 void OsQueuePut(OSINPUT id, int32_t a, int32_t b, int32_t c, int32_t) {
     if (id == OS_INPUT_STRING) {
         throw std::invalid_argument("Use OsInputQueueText for owned native text, not a 32-bit pointer");
@@ -52,6 +58,9 @@ void OsQueuePut(OSINPUT id, int32_t a, int32_t b, int32_t c, int32_t) {
     if (id == OS_INPUT_KEY_UP) { keys.erase(KEY(a)); }
     if (id == OS_INPUT_MOUSE_DOWN) { buttons |= uint32_t(a); }
     if (id == OS_INPUT_MOUSE_UP) { buttons &= ~uint32_t(a); }
+    if (id == OS_INPUT_MOUSE_MOVE || id == OS_INPUT_MOUSE_DOWN || id == OS_INPUT_MOUSE_UP || id == OS_INPUT_MOUSE_WHEEL) {
+        pointerX = b; pointerY = c;
+    }
     // Preserve transitions even when a native event burst exceeds the original
     // 15-event Win32 ring. A dropped release can leave a game action stuck.
     queue.push_back({{id, {a, b, c, int32_t(OsGetAsyncTimeMs())}}, {}});

@@ -1,5 +1,6 @@
 #include "NativeView.h"
 #include "WorldPreview.h"
+#include "UIComponents.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -12,13 +13,9 @@
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Frame/CSimpleTop.h"
 #include "Engine/Source/Frame/CSimpleEditBox.h"
-#include "Engine/Source/Frame/CSimpleButton.h"
 #include "Engine/Source/Frame/CSimpleRender.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
-#include "Engine/Source/FrameXML/XMLTree.h"
-#include "Engine/Source/FrameXML/FrameXML.h"
-#include "Engine/Source/Storm/Source/MD5.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Scrn/Scrn.h"
 #include <memory>
@@ -162,37 +159,10 @@ int main(int argc, char** argv) {
             renderPass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
             renderPass.colorAttachments[0].loadAction = MTLLoadActionClear;
             renderDevice = &device;
-            FrameScript_Initialize(0); ScrnInitialize(0);
-            CSimpleFrame::CreateScriptMetaTable(); CSimpleTexture::CreateScriptMetaTable();
-            CSimpleFont::CreateScriptMetaTable(); CSimpleFontString::CreateScriptMetaTable(); CSimpleEditBox::CreateScriptMetaTable();
-            CSimpleButton::CreateScriptMetaTable();
-            FrameXML_RegisterFactory("Button", Create_SimpleButton, false);
-            FrameXML_RegisterFactory("EditBox", Create_SimpleEditBox, false);
-            FrameXML_RegisterFactory("Frame", Create_SimpleFrame, false);
             {
-                auto top = std::make_unique<CSimpleTop>();
-                CStatus status; MD5_CTX md5; MD5Init(&md5);
-                for (const char* file : {"GlueFonts.xml", "GlueFontStyles.xml", "GlueButtons.xml", "GlueTemplates.xml"}) {
-                    const auto path = std::string("Interface\\GlueXML\\") + file;
-                    Require(FrameXML_ProcessFile(path.c_str(), nullptr, &md5, &status), "Cannot load original Glue XML");
-                }
-                const char* xml = R"(<Ui><Button name="AppleOriginalButton" inherits="GluePanelButtonTemplate" text="Metal UI">
-                    <Size><AbsDimension x="180" y="40"/></Size><Anchors><Anchor point="CENTER"><Offset><AbsDimension x="0" y="60"/></Offset></Anchor></Anchors>
-                    <Scripts><OnClick>self.clicks = (self.clicks or 0) + 1; self:SetText("Clicked"); AppleOriginalEdit:ClearFocus()</OnClick></Scripts>
-                    </Button></Ui>)";
-                auto* tree = XMLTree_Load(xml, uint32_t(std::strlen(xml)));
-                Require(tree, "Cannot parse UI instance XML");
-                auto* button = FrameXML_CreateFrame(XMLTree_GetRoot(tree)->m_child, nullptr, &status);
-                XMLTree_Free(tree);
-                if (!status.IsEmpty()) { char errors[4096]; throw std::runtime_error(status.GetErrorStr(errors, sizeof(errors), STATUS_INFO, "\n")); }
-                Require(button, "Cannot instantiate original button template");
-                auto* memory = CSimpleEditBox::s_allocator.GetData(1, __FILE__, __LINE__);
-                auto* edit = new (memory) CSimpleEditBox(nullptr);
-                edit->SetName("AppleOriginalEdit");
-                edit->SetWidth(0.65f); edit->SetHeight(0.08f); edit->SetPoint(FRAMEPOINT_CENTER, top.get(), FRAMEPOINT_CENTER, 0, 0, 1);
-                auto* localizedFont = CSimpleFont::GetFont("EditBoxFont_Large", 0);
-                Require(localizedFont, "Original Glue edit-box font is missing");
-                edit->m_font->m_attributes.SetFont(localizedFont->m_attributes.m_font.m_str, 0.04f, 0); edit->m_font->UpdateObjects();
+                UIComponents components;
+                auto* button = components.Button();
+                auto* edit = components.Edit();
                 view.textInputRectProvider = ^NSRect {
                     auto* focused = CSimpleEditBox::s_currentFocus;
                     CRect rect;
@@ -261,10 +231,6 @@ int main(int argc, char** argv) {
                 }
                 device.Drain(); view.gameInputActive = NO; view.textInputRectProvider = nil;
             }
-            CSimpleEditBox::DestroyScriptMetaTable(); CSimpleFontString::DestroyScriptMetaTable();
-            CSimpleButton::DestroyScriptMetaTable(); FrameXML_FreeHashNodes(); FrameXML_ClearFactories();
-            CSimpleFont::DestroyScriptMetaTable(); CSimpleTexture::DestroyScriptMetaTable(); CSimpleFrame::DestroyScriptMetaTable();
-            ScrnDestroy(); FrameScript_Destroy(); XMLTree_Cleanup();
             renderDevice = nullptr; renderPass = nil;
             PropSelectContext(nullptr); EventDestroy(); PropDestroy(); CVar::Destroy(); ConsoleCommandDestroy(); CStringManager::DestroyManager();
             std::puts("Original CSimpleTop/edit box: native Unicode and composition, layout, rendering and teardown passed");

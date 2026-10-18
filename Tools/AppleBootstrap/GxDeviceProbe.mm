@@ -23,6 +23,7 @@ void CheckTerrainShadowGenerator(CGxDeviceMetal& device);
 void CheckWmoShaders(CGxDeviceMetal& device);
 void CheckLiquidShaders(CGxDeviceMetal& device);
 void CheckGxFont(CGxDeviceMetal& device);
+void CheckOriginalUI(CGxDeviceMetal& device);
 void CheckGxRenderTargets(CGxDeviceMetal& device);
 void CheckPackedTextureFormats(CGxDeviceMetal& device);
 
@@ -338,5 +339,6 @@ void CheckGxDevice() {
     CheckGameEvents();
     CheckGameAsyncFiles();
     CheckGameWorldLifecycle();
+    CheckOriginalUI(device);
     device.DeviceDestroy();
 }
