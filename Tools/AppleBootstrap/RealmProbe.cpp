@@ -18,6 +18,10 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
+#include <functional>
+
+void CheckAccountData(NetClient&, const std::function<void(CDataStore&)>&,
+                      const std::function<std::vector<uint8_t>()>&, int);
 
 extern WowClientDB<BannedAddOnsRec> g_bannedAddOnsDB;
 
@@ -94,15 +98,18 @@ struct Realm : RealmConnection {
     void HandleLogoutResponse(int32_t, int32_t) override { throw std::runtime_error("Unexpected logout response callback"); }
     void HandleLogoutAbortAck() override { throw std::runtime_error("Unexpected logout abort callback"); }
 };
+HPROPCONTEXT realmContext;
 template<class Predicate> void Pump(Predicate ready) {
     auto limit = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     while (!ready()) {
         Require(std::chrono::steady_clock::now() < limit, "Original realm event timed out");
         Require(EventProcessPending(), "Original Event loop stopped during realm check");
+        PropSelectContext(realmContext);
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 int32_t Initialize(const void*, void*) {
+    realmContext = PropGetSelectedContext();
     EventRegister(EVENT_ID_POLL, [](const void* data, void* param) -> int32_t { RealmConnection::PollNet(data, param); return 1; });
     return 1;
 }
@@ -170,8 +177,8 @@ void CheckGameRealm() {
     CheckClientCache();
     CheckSignature();
     PropInitialize(); EventInitialize(1, 0);
-    struct Context { ~Context() { EventDestroy(); PropDestroy(); NetClient::SetDisconnectHandler(nullptr); } } context;
-    EventCreateContextEx(0, Initialize, nullptr, 1, 0); EventProcessPending();
+    struct Context { ~Context() { PropSelectContext(nullptr); EventDestroy(); PropDestroy(); NetClient::SetDisconnectHandler(nullptr); } } context;
+    EventCreateContextEx(0, Initialize, nullptr, 1, 0); EventProcessPending(); PropSelectContext(realmContext);
     NetClient::SetDisconnectHandler([](NetClient*) -> int32_t { return 1; });
     for (unsigned cycle = 0; cycle < 3; ++cycle) {
         Socket listener; listener.fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -227,6 +234,8 @@ void CheckGameRealm() {
         Require(response.validList && response.characters.size() == 2 && realm.m_restrictHuman == 20 && realm.m_restrictBloodElf == 29, "Character list or race restrictions changed");
         const auto& hero = response.characters[0];
         Require(hero.m_guid.m_guid == 0x0102030405060708ull && !std::strcmp(hero.m_name, "AppleHero") && hero.m_experienceLevel == 9 && hero.m_position.x == -9465 && hero.m_inventoryItemDisplayID[22] == 1022 && hero.m_inventoryItemType[22] == 22 && hero.m_inventoryItemVisualID[22] == 2022, "Original character details changed");
+        CheckAccountData(realm, [&](CDataStore& packet) { SendPacket(peer.fd, packet, &crypto); },
+            [&] { return ReceivePacket(peer.fd, &crypto); }, peer.fd);
         realm.RequestCharacterLogin(hero.m_guid, 0); bytes = ReceivePacket(peer.fd, &crypto); CDataStore enter(bytes.data(), bytes.size()); uint64_t guid; enter.Get(opcode); enter.Get(guid);
         Require(opcode == CMSG_PLAYER_LOGIN && guid == hero.m_guid.m_guid && enter.IsRead(), "Original selected-character login request changed");
         CDataStore rejected; rejected.Put(uint16_t(SMSG_CHARACTER_LOGIN_FAILED)); rejected.Put(uint8_t(0x51)); SendPacket(peer.fd, rejected, &crypto);

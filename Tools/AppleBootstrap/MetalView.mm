@@ -17,6 +17,7 @@
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
+#include "WoW/Source/WowServices/Apple/ClientSettings.h"
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -26,15 +27,12 @@ class GameConfig {
 public:
     GameConfig() {
         if (CVar::m_initialized) throw std::logic_error("A game configuration already owns the native host");
-        NSError* error = nil;
-        NSURL* root = [NSFileManager.defaultManager URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask
-                                                  appropriateForURL:nil create:YES error:&error];
-        if (!root) throw std::runtime_error("Cannot locate writable application settings");
-        NSURL* file = [[root URLByAppendingPathComponent:@"wowdecomp" isDirectory:YES] URLByAppendingPathComponent:@"Config.wtf"];
-        CVar::Initialize(file.path.fileSystemRepresentation);
+        std::string file;
+        if (!NativeSettingsFile(file, "Config.wtf", true)) throw std::runtime_error("Cannot locate writable application settings");
+        CVar::Initialize(file.c_str());
         // Initialize has no load status. Before registering callbacks, repeat
         // the SET-only load with its checked API so failures remain visible.
-        if ([NSFileManager.defaultManager fileExistsAtPath:file.path] && !CVar::Load(file.path.fileSystemRepresentation)) {
+        if ([NSFileManager.defaultManager fileExistsAtPath:[NSString stringWithUTF8String:file.c_str()]] && !CVar::Load(file.c_str())) {
             CVar::m_needsSave = false; // Do not overwrite an unreadable configuration with a partial load.
             Shutdown();
             throw std::runtime_error("Cannot load native Config.wtf");

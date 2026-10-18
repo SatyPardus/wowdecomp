@@ -199,6 +199,22 @@ Full AddOns/UI startup and real executable version checks remain pending.
 Warden cache serialization is shared; native execution of Windows
 Warden modules is not implemented.
 
+The original account-settings synchronization now runs on the native Realm
+session too. `AccountDataHost` supplies the session and selected identity; the
+normal Glue entry still binds the original ClientServices/CGlueMgr. Downloads,
+compressed uploads, MD5/time caches, old-file backups, delayed saves, and the
+original synchronization switches are retained. Native account/character files
+live under Application Support's `wowdecomp/Account/<account>[/<realm>/<character>]`.
+`WOW_SETTINGS_ROOT` selects an absolute persistent settings root for these files
+and the preview's existing `Config.wtf`; this is separate from disposable WDB
+caches and read-only Data. Invalid path components fail. Native downloads validate
+the complete compressed payload before atomic replacement, preserve existing
+files/checksums on failure, and use an explicit 16 MiB per-file budget. Shutdown
+cancels outstanding save timers and load callbacks. Two encrypted loopback
+lifetimes check transfers, local-only layout, disabled synchronization, unchanged
+saves, backups/reload, invalid types/lengths and recovery. Native platform bot
+checks remain explicitly unsupported; no success response is fabricated.
+
 The shared Event scheduler now has a nonblocking native-host step. Mac/iOS
 previews render continuously from the original paint event, preserving update,
 timer, input, poll, queued-message, idle and paint ordering. Focus/resize events

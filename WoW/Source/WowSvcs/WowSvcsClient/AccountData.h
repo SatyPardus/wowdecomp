@@ -4,9 +4,24 @@
 #include <cstdint>
 #include "Engine/Source/Os/OsFile.h"
 #include "WoW/Source/Net/Types.h"
+#include "WoW/Source/Object/WGUID.h"
 
 class CDataStore;
 struct CVar;
+class NetClient;
+
+// Application/session ownership is separate from the original synchronization
+// state machine. The normal client binds ClientServices and CGlueMgr; native
+// hosts can bind their live session before the complete Glue startup is ready.
+class AccountDataHost {
+public:
+    virtual ~AccountDataHost() = default;
+    virtual NetClient& Connection() const = 0;
+    virtual const char* AccountName() const = 0;
+    virtual const char* RealmName() const = 0;
+    virtual const char* CharacterName() const = 0;
+    virtual WOWGUID ActiveCharacter() const = 0;
+};
 
 typedef void (*ACCOUNTDATALOADFUNC)(HOSFILE localFile, HOSFILE cacheFile, void* param);
 
@@ -32,6 +47,7 @@ extern CVar* s_cvSynchronizeSettings;
 
 void AccountDataInitialize(bool global);
 void AccountDataInitializeBasicSystem();
+void AccountDataInitializeBasicSystem(AccountDataHost& host);
 void AccountDataShutdownBasicSystem();
 void DownloadAccountData(int32_t type);
 void LoadAccountData(int32_t type, ACCOUNTDATALOADFUNC func, void* param);

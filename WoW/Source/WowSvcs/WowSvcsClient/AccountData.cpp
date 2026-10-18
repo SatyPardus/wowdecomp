@@ -10,11 +10,21 @@
 #include "Engine/Source/ConsoleBase/Types.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/MD5.h"
-#include "WoW/Source/Glue/CGlueMgr.h"
-#include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
+#include "WoW/Source/Net/NetClient/NetClient.h"
+#if defined(__APPLE__)
+#include "WoW/Source/WowServices/Apple/ClientSettings.h"
+#include <stdexcept>
+#include <vector>
+#endif
 #include "ThirdParty/zlib/zlib.h"
 #include "WoW/Source/Client.h"
 #include "Engine/Source/Event/Event.h"
+
+static AccountDataHost* s_host;
+static int32_t SaveTimerHandler(const void* data, void* param);
+#if defined(__APPLE__)
+static constexpr uint32_t NativeAccountDataBudget = 16 * 1024 * 1024;
+#endif
 
 // STATIC: 0x00AD94E0
 static AccountDataInfo s_accountData[] = {
@@ -40,10 +50,17 @@ static int32_t s_clearCharacterConfig;
 // VERIFY: 4934bdac auto
 // OFFSET: 0x006B8AB0
 static int32_t CopyAccountFile(bool global, const char* source, const char* dest) {
+#if defined(__APPLE__)
+    std::string sourcePath, destPath;
+    if (!s_host->AccountName() || (!global && (!s_host->RealmName() || !s_host->CharacterName())) ||
+        !NativeSettingsFile(sourcePath, source, false, s_host->AccountName(), global ? nullptr : s_host->RealmName(), global ? nullptr : s_host->CharacterName()) ||
+        !NativeSettingsFile(destPath, dest, true, s_host->AccountName(), global ? nullptr : s_host->RealmName(), global ? nullptr : s_host->CharacterName())) return 0;
+    return OsCopyFile(sourcePath.c_str(), destPath.c_str(), 0);
+#else
     char sourcePath[260];
     char destPath[260];
 
-    const char* accountName = ClientServices::GetAccountName();
+    const char* accountName = s_host->AccountName();
 
     if (!accountName || !source || !dest) {
         return 0;
@@ -53,19 +70,27 @@ static int32_t CopyAccountFile(bool global, const char* source, const char* dest
         SStrPrintf(sourcePath, sizeof(sourcePath), "WTF\\Account\\%s\\%s", accountName, source);
         SStrPrintf(destPath, sizeof(destPath), "WTF\\Account\\%s\\%s", accountName, dest);
     } else {
-        SStrPrintf(sourcePath, sizeof(sourcePath), "WTF\\Account\\%s\\%s\\%s\\%s", accountName, ClientServices::GetSelectedRealmName(), ClientServices::GetCharacterName(), source);
-        SStrPrintf(destPath, sizeof(destPath), "WTF\\Account\\%s\\%s\\%s\\%s", accountName, ClientServices::GetSelectedRealmName(), ClientServices::GetCharacterName(), dest);
+        SStrPrintf(sourcePath, sizeof(sourcePath), "WTF\\Account\\%s\\%s\\%s\\%s", accountName, s_host->RealmName(), s_host->CharacterName(), source);
+        SStrPrintf(destPath, sizeof(destPath), "WTF\\Account\\%s\\%s\\%s\\%s", accountName, s_host->RealmName(), s_host->CharacterName(), dest);
     }
 
     return OsCopyFile(sourcePath, destPath, 0);
+#endif
 }
 
 // VERIFY: e89d2711 auto
 // OFFSET: 0x006B8B90
 static HOSFILE OpenAccountFile(bool global, const char* fileName, bool write) {
+#if defined(__APPLE__)
+    std::string path;
+    if (!s_host->AccountName() || (!global && (!s_host->RealmName() || !s_host->CharacterName())) ||
+        !NativeSettingsFile(path, fileName, write, s_host->AccountName(), global ? nullptr : s_host->RealmName(), global ? nullptr : s_host->CharacterName())) return OS_INVALID_FILE;
+    return OsCreateFile(path.c_str(), write ? OS_GENERIC_WRITE : OS_GENERIC_READ, 0,
+        write ? OS_CREATE_ALWAYS : OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+#else
     char path[260];
 
-    const char* accountName = ClientServices::GetAccountName();
+    const char* accountName = s_host->AccountName();
 
     if (!accountName || !fileName) {
         return OS_INVALID_FILE;
@@ -74,7 +99,7 @@ static HOSFILE OpenAccountFile(bool global, const char* fileName, bool write) {
     if (global) {
         SStrPrintf(path, sizeof(path), "WTF\\Account\\%s", accountName);
     } else {
-        SStrPrintf(path, sizeof(path), "WTF\\Account\\%s\\%s\\%s", accountName, ClientServices::GetSelectedRealmName(), ClientServices::GetCharacterName());
+        SStrPrintf(path, sizeof(path), "WTF\\Account\\%s\\%s\\%s", accountName, s_host->RealmName(), s_host->CharacterName());
     }
 
     if (write && !OsDirectoryExists(path)) {
@@ -89,6 +114,7 @@ static HOSFILE OpenAccountFile(bool global, const char* fileName, bool write) {
     }
 
     return OsCreateFile(path, OS_GENERIC_READ, 0, OS_OPEN_EXISTING, OS_FILE_ATTRIBUTE_NORMAL, OS_FILE_TYPE_ANY);
+#endif
 }
 
 // VERIFY: e5cad552 auto
@@ -216,6 +242,14 @@ void AccountDataDestroy(bool global) {
     for (uint32_t i = 0; i < sizeof(s_accountData) / sizeof(s_accountData[0]); i++) {
         if (s_accountData[i].m_global == global) {
             s_accountData[i].m_active = false;
+#if defined(__APPLE__)
+            auto& info = s_accountData[i];
+            if (info.m_saveTimer) EventKillTimer(info.m_saveTimer, SaveTimerHandler, "SaveTimerHandler");
+            info.m_saveTimer = 0;
+            info.m_loadFunc = nullptr;
+            info.m_loadParam = nullptr;
+            info.m_downloading = false;
+#endif
         }
     }
 }
@@ -256,6 +290,13 @@ void SetClearConfigData(int32_t clear) {
 // OFFSET: 0x006B9100
 void UploadAccountData(int32_t type) {
     HOSFILE file = OpenAccountFile(s_accountData[type].m_global, s_accountData[type].m_cacheFile, false);
+#if defined(__APPLE__)
+    if (file != OS_INVALID_FILE && OsGetFileSize(file) > NativeAccountDataBudget) {
+        OsCloseFile(file);
+        DebugLog("Account settings exceed the native 16 MiB budget\n");
+        return;
+    }
+#endif
     uint32_t size = file == OS_INVALID_FILE ? 0 : static_cast<uint32_t>(OsGetFileSize(file));
 
     uint32_t time = s_accountDataTime++;
@@ -278,7 +319,15 @@ void UploadAccountData(int32_t type) {
         }
 
         uint32_t bytesRead;
-        OsReadFile(file, data, size, &bytesRead);
+        const bool read = OsReadFile(file, data, size, &bytesRead);
+#if defined(__APPLE__)
+        if (!read || bytesRead != size) {
+            if (allocated) SMemFree(allocated, __FILE__, __LINE__, 0);
+            OsCloseFile(file);
+            DebugLog("Cannot read complete account settings for upload\n");
+            return;
+        }
+#endif
 
         uint32_t compressedSize = compressBound(size);
         uint8_t* compressedAllocated = nullptr;
@@ -291,7 +340,16 @@ void UploadAccountData(int32_t type) {
             compressed = static_cast<uint8_t*>(alloca(compressedSize));
         }
 
-        zlib_compress(compressed, &compressedSize, data, size, 1);
+        const int32_t result = zlib_compress(compressed, &compressedSize, data, size, 1);
+#if defined(__APPLE__)
+        if (result) {
+            if (allocated) SMemFree(allocated, __FILE__, __LINE__, 0);
+            if (compressedAllocated) SMemFree(compressedAllocated, __FILE__, __LINE__, 0);
+            OsCloseFile(file);
+            DebugLog("Cannot compress account settings for upload\n");
+            return;
+        }
+#endif
         msg.PutData(compressed, compressedSize);
 
         if (allocated) {
@@ -304,7 +362,7 @@ void UploadAccountData(int32_t type) {
     }
 
     msg.Finalize();
-    ClientServices::Send2(&msg);
+    s_host->Connection().Send(&msg);
 
     if (file != OS_INVALID_FILE) {
         OsCloseFile(file);
@@ -320,7 +378,7 @@ void DownloadAccountData(int32_t type) {
     msg.Put(static_cast<uint32_t>(CMSG_REQUEST_ACCOUNT_DATA));
     msg.Put(static_cast<uint32_t>(type));
     msg.Finalize();
-    ClientServices::Send2(&msg);
+    s_host->Connection().Send(&msg);
 
     s_accountData[type].m_downloading = true;
 }
@@ -362,16 +420,22 @@ static void ScheduleAccountDataSave(int32_t type) {
     }
 
     if (info.m_saveTimer) {
-        ClientKillTimer(info.m_saveTimer, SaveTimerHandler, "SaveTimerHandler");
+        EventKillTimer(info.m_saveTimer, SaveTimerHandler, "SaveTimerHandler");
         info.m_saveTimer = 0;
     }
 
-    info.m_saveTimer = ClientSetTimer(30000, SaveTimerHandler, reinterpret_cast<void*>(static_cast<intptr_t>(type)));
+    info.m_saveTimer = EventSetTimer(30000, SaveTimerHandler, reinterpret_cast<void*>(static_cast<intptr_t>(type)));
 }
 
 // VERIFY: fe34ba05 manual
 // OFFSET: 0x006B94C0
 static int32_t Packet_SMSG_ACCOUNT_DATA_TIMES(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
+#if defined(__APPLE__)
+    if (msg->m_read > msg->m_size || msg->m_size - msg->m_read < 9) {
+        msg->m_read = msg->m_size;
+        return 1;
+    }
+#endif
     uint32_t serverTime = 0;
     msg->Get(serverTime);
     s_accountDataTime = serverTime;
@@ -445,15 +509,27 @@ static int32_t Packet_SMSG_ACCOUNT_DATA_TIMES(void* param, NETMESSAGE msgId, uin
 // VERIFY: d5e85999 manual
 // OFFSET: 0x006B9730
 static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
+#if defined(__APPLE__)
+    if (msg->m_read > msg->m_size || msg->m_size - msg->m_read < 20) {
+        msg->m_read = msg->m_size;
+        return 1;
+    }
+#endif
     WOWGUID guid;
     msg->Get(guid.m_guid);
 
     uint32_t type;
     msg->Get(type);
 
+#if defined(__APPLE__)
+    if (type >= sizeof(s_accountData) / sizeof(s_accountData[0])) {
+        msg->m_read = msg->m_size;
+        return 1;
+    }
+#endif
     AccountDataInfo& info = s_accountData[type];
 
-    if ((guid != CGlueMgr::GetActive() && !info.m_global) || !info.m_downloading) {
+    if ((guid != s_host->ActiveCharacter() && !info.m_global) || !info.m_downloading) {
         msg->m_read = msg->m_size;
         return 1;
     }
@@ -462,6 +538,26 @@ static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, ui
     msg->Get(serverTime);
 
     if (info.m_changed || info.m_time < static_cast<int32_t>(serverTime)) {
+#if defined(__APPLE__)
+        uint32_t size = 0; msg->Get(size);
+        bool valid = size <= NativeAccountDataBudget;
+        std::vector<uint8_t> decoded;
+        if (valid) {
+            decoded.resize(size);
+            const uint32_t compressedSize = msg->m_size - msg->m_read;
+            uint32_t actual = size;
+            valid = size ? !zlib_uncompress(decoded.data(), &actual, msg->m_data + msg->m_read, compressedSize) && actual == size : compressedSize == 0;
+        }
+        std::string path;
+        if (valid && s_host->AccountName() && (info.m_global || (s_host->RealmName() && s_host->CharacterName())) &&
+            NativeSettingsFile(path, info.m_cacheFile, true, s_host->AccountName(), info.m_global ? nullptr : s_host->RealmName(), info.m_global ? nullptr : s_host->CharacterName()) &&
+            NativeSettingsReplace(path, decoded.data(), decoded.size())) {
+            UpdateCachedChecksum(type, serverTime);
+        } else {
+            DebugLog("Rejected account settings update; previous file and checksum retained\n");
+        }
+        msg->m_read = msg->m_size;
+#else
         HOSFILE file = OpenAccountFile(info.m_global, info.m_cacheFile, true);
 
         if (file != OS_INVALID_FILE) {
@@ -499,6 +595,7 @@ static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, ui
             OsCloseFile(file);
             UpdateCachedChecksum(type, serverTime);
         }
+#endif
     } else {
         msg->m_read = msg->m_size;
     }
@@ -514,21 +611,36 @@ static int32_t Packet_SMSG_UPDATE_ACCOUNT_DATA(void* param, NETMESSAGE msgId, ui
 
 // VERIFY: d11d72c6 auto
 // OFFSET: 0x006B9900
-void AccountDataInitializeBasicSystem() {
+void AccountDataInitializeBasicSystem(AccountDataHost& host) {
+#if defined(__APPLE__)
+    if (s_host || !EventGetCurrentContext()) throw std::logic_error("Account settings require an unowned game Event context");
+#endif
+    s_host = &host;
     s_cvSynchronizeSettings = CVar::Register("synchronizeSettings", "Whether client settings should be stored on the server", 0, "1", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
-    ClientServices::SetMessageHandler(SMSG_ACCOUNT_DATA_TIMES, Packet_SMSG_ACCOUNT_DATA_TIMES, nullptr);
-    ClientServices::SetMessageHandler(SMSG_UPDATE_ACCOUNT_DATA, Packet_SMSG_UPDATE_ACCOUNT_DATA, nullptr);
-    ClientServices::SetMessageHandler(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, Packet_SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, nullptr);
-    ClientServices::SetMessageHandler(SMSG_CHECK_FOR_BOTS, Packet_SMSG_CHECK_FOR_BOTS, nullptr);
+    s_host->Connection().SetMessageHandler(SMSG_ACCOUNT_DATA_TIMES, Packet_SMSG_ACCOUNT_DATA_TIMES, nullptr);
+    s_host->Connection().SetMessageHandler(SMSG_UPDATE_ACCOUNT_DATA, Packet_SMSG_UPDATE_ACCOUNT_DATA, nullptr);
+    s_host->Connection().SetMessageHandler(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, Packet_SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, nullptr);
+#if defined(__APPLE__)
+    s_host->Connection().SetMessageHandler(SMSG_CHECK_FOR_BOTS, [](void*, NETMESSAGE, uint32_t, CDataStore*) -> int32_t {
+        throw std::runtime_error("Native platform bot-check protocol is not implemented");
+    }, nullptr);
+#else
+    s_host->Connection().SetMessageHandler(SMSG_CHECK_FOR_BOTS, Packet_SMSG_CHECK_FOR_BOTS, nullptr);
+#endif
 }
 
 // VERIFY: 04a1fda3 auto
 // OFFSET: 0x006B8FF0
 void AccountDataShutdownBasicSystem() {
-    ClientServices::ClearMessageHandler(SMSG_ACCOUNT_DATA_TIMES);
-    ClientServices::ClearMessageHandler(SMSG_UPDATE_ACCOUNT_DATA);
-    ClientServices::ClearMessageHandler(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE);
-    ClientServices::ClearMessageHandler(SMSG_CHECK_FOR_BOTS);
+#if defined(__APPLE__)
+    AccountDataDestroy(false);
+    AccountDataDestroy(true);
+#endif
+    s_host->Connection().ResetHandler(SMSG_ACCOUNT_DATA_TIMES);
+    s_host->Connection().ResetHandler(SMSG_UPDATE_ACCOUNT_DATA);
+    s_host->Connection().ResetHandler(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE);
+    s_host->Connection().ResetHandler(SMSG_CHECK_FOR_BOTS);
+    s_host = nullptr;
 }
 
 // VERIFY: bc2420a0 manual
@@ -600,7 +712,7 @@ void AccountDataInitialize(bool global) {
 void AccountDataFlush() {
     for (int32_t i = 0; i < static_cast<int32_t>(sizeof(s_accountData) / sizeof(s_accountData[0])); i++) {
         if (s_accountData[i].m_saveTimer) {
-            ClientKillTimer(s_accountData[i].m_saveTimer, SaveTimerHandler, "SaveTimerHandler");
+            EventKillTimer(s_accountData[i].m_saveTimer, SaveTimerHandler, "SaveTimerHandler");
             SaveTimerHandler(nullptr, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
         }
     }

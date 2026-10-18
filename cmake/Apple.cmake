@@ -123,6 +123,7 @@ target_link_libraries(ConsoleBase PUBLIC AppleArchives)
 add_subdirectory(Engine/Source/Event)
 target_link_libraries(Event PUBLIC AppleArchives Tempest)
 add_library(AppleGameResources STATIC
+    WoW/Source/WowServices/Apple/ClientSettings.mm
     WoW/Source/ClientRandom.cpp
     Engine/Source/Base/Status.cpp
     Engine/Source/Services/Texture.cpp
@@ -261,6 +262,8 @@ add_library(AppleSessionServices STATIC
     WoW/Source/UIUtil/BannedAddOns.cpp
     WoW/Source/WowServices/Apple/ClientInstall.cpp
     WoW/Source/WowServices/Apple/ClientCache.mm
+    WoW/Source/WowSvcs/WowSvcsClient/AccountData.cpp
+    WoW/Source/WowSvcs/WowSvcsClient/AccountData_CVar.cpp
     WoW/Source/Game/GameClient/WardenCache.cpp
     WoW/Source/Game/GameClient/NameCache.cpp
     WoW/Source/Game/GameClient/PetNameCache.cpp
@@ -281,7 +284,7 @@ add_library(AppleSessionServices STATIC
     WoW/Source/DB/DBClient/DBCacheInstances.cpp)
 target_link_libraries(AppleSessionServices PUBLIC Net Frame AppleGameLogin)
 target_link_libraries(WowSvcs PUBLIC AppleSessionServices)
-add_library(AppleRealmProbeCore STATIC Tools/AppleBootstrap/RealmProbe.cpp Tools/AppleBootstrap/CacheProbe.cpp)
+add_library(AppleRealmProbeCore STATIC Tools/AppleBootstrap/RealmProbe.cpp Tools/AppleBootstrap/CacheProbe.cpp Tools/AppleBootstrap/AccountDataProbe.cpp)
 target_link_libraries(AppleRealmProbeCore PUBLIC AppleGameLogin AppleSessionServices AppleMetal)
 if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(AppleRealmProbe Tools/AppleBootstrap/realm_main.cpp)
