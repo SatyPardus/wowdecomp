@@ -58,6 +58,8 @@ void CheckGameNetwork();
 void CheckURLDownloads();
 void CheckKnowledgeBaseDownloads();
 void CheckCommandLine(const std::string& scratch);
+void CheckVersionInfo(const std::string& scratch);
+void CheckInstalledVersions(const std::string& dataRoot);
 void CheckGameLogin();
 void CheckGameSession();
 void CheckGameRealm();
@@ -691,6 +693,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckURLDownloads();
         CheckKnowledgeBaseDownloads();
         CheckCommandLine(scratchDirectory);
+        CheckVersionInfo(scratchDirectory);
         struct Library {
             void* module = OsLoadLibrary("/usr/lib/libSystem.B.dylib");
             ~Library() { OsFreeLibrary(module); }
@@ -835,6 +838,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         CheckRealmMetadata(client, out);
         CheckCharacterTextureCache(&client);
         CheckCharacterNames();
+        CheckInstalledVersions(dataRoot);
         CheckTerrainResources(client, out);
         CheckWorldData(client, out);
         CheckAudioResources(client, out);
