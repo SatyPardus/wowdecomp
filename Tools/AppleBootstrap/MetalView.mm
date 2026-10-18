@@ -1,3 +1,4 @@
+#include "Engine/Source/Os/Gui.h"
 #include "Tools/AppleBootstrap/MetalView.h"
 #include "Tools/AppleBootstrap/NativeView.h"
 #include "Tools/AppleBootstrap/ModelPreview.h"
@@ -211,8 +212,9 @@ public:
         _storm = std::make_unique<GameStorm>();
         C2iVector size{std::max(1, int32_t(view.drawableSize.width)), std::max(1, int32_t(view.drawableSize.height))};
         CGxFormat format(true, size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, 0, 1, true, false, false, false, 0);
+        OsGuiSetGxWindow((__bridge void*)view);
         _device.reset(static_cast<CGxDeviceMetal*>(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format)));
-        if (!_device || !_device->DeviceCreate((__bridge void*)view, format)) { throw std::runtime_error("Cannot create the native game Gx device"); }
+        if (!_device || _device->DeviceWindow() != (__bridge void*)view) { throw std::runtime_error("Cannot create the native game Gx device"); }
         _image = std::make_unique<GameTexture>(textureName);
         _device->ShaderCreate(_vertexShaders, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
         _device->ShaderCreate(&_pixelShader, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);

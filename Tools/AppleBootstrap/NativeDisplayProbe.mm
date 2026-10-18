@@ -2,6 +2,7 @@
 #include "NativeGuiProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Os/Apple/Input.h"
+#include "Engine/Source/Os/Gui.h"
 #include <TargetConditionals.h>
 #include <cstdio>
 #include <cstdlib>
@@ -70,6 +71,12 @@ bool NativeDisplayProbe::Impl::Step() {
                 view.drawableSize.width == size.x && view.drawableSize.height == size.y, "Rejected native format changed drawable or active size");
         };
         CGxFormat invalid = accepted; invalid.m_size.x = 16385; reject(invalid);
+        Require(!device.DeviceCreate((__bridge void*)view, invalid) && device.DeviceWindow() == (__bridge void*)view &&
+            OsGuiGetWindow(0) == (__bridge void*)view && view.drawableSize.width == size.x,
+            "Failed host creation lost the existing native binding");
+        MTKView* detached = [[MTKView alloc] initWithFrame:CGRectMake(0, 0, 17, 13) device:view.device];
+        Require(!device.DeviceCreate((__bridge void*)detached, invalid) && device.DeviceWindow() == (__bridge void*)view,
+            "Failed replacement published the new host");
         invalid = accepted; invalid.m_maximize = 1; reject(invalid);
         invalid = accepted; invalid.m_window = false; reject(invalid);
         invalid = accepted; invalid.m_refreshRate = 777; reject(invalid);

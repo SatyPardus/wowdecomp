@@ -464,12 +464,19 @@ void CGxDeviceMetal::Drain() {
     [fence commit]; [fence waitUntilCompleted];
 }
 int32_t CGxDeviceMetal::DeviceCreate(GxWindowProc proc, const CGxFormat& format) {
+    // Native hosts create their view before original ConsoleDevice startup.
+    // A Windows-style callback does not create an AppKit/UIKit window.
+    void* window = NSThread.isMainThread ? OsGuiGetWindow(0) : nullptr;
+    if (proc && !window) return 0;
+    if (!DeviceCreate(window, format)) return 0;
     m_windowProc = proc;
-    return DeviceCreate(static_cast<void*>(nullptr), format);
+    return 1;
 }
 int32_t CGxDeviceMetal::DeviceCreate(void* window, const CGxFormat& format) {
-    if (!DeviceSetFormat(format)) { return 0; }
+    if (window && !NSThread.isMainThread) return 0;
+    void* previous = m->window;
     m->window = window;
+    if (!DeviceSetFormat(format)) { m->window = previous; return 0; }
     if (window) OsGuiSetGxWindow(window);
     OsInputApplyWindowResizeLock(window);
     m_context = 1;

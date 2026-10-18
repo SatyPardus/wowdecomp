@@ -928,6 +928,11 @@ MetalKit color drawable retains its old dimensions until the current view draw
 callback returns. Active Gx frames and non-main-thread native requests fail
 without changing the format. Fullscreen/maximized windows, physical display mode
 changes and disabling iOS presentation synchronization remain unsupported.
+Native hosts now bind their view before the shared Gx factory runs, and the first
+format request updates the real window/drawable. Failed host creation preserves
+the previous binding and active format; a callback-based startup without a host
+cannot silently create a headless display. Headless component probes remain
+available when no callback or native view is supplied.
 `WOW_DISPLAY_CHECK=1` checks real drawable/depth reallocation, GPU readback,
 native pixel/input sizes, unsupported requests and continued rendering across
 successive view callbacks in either native preview.

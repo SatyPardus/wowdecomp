@@ -190,8 +190,11 @@ int main(int argc, char** argv) {
             view.autoResizeDrawable = NO; view.drawableSize = CGSizeMake(600, 300);
             C2iVector size{600, 300};
             CGxFormat format(true, size, CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, 0, 1, true, false, false, false, 0);
+            OsGuiSetGxWindow((__bridge void*)view);
             std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
-            Require(owner && owner->DeviceCreate((__bridge void*)view, format), "Cannot create UI device");
+            Require(owner && owner->DeviceWindow() == (__bridge void*)view, "Cannot create UI device on its native host");
+            Require(view.drawableSize.width == owner->m_format.m_size.x && view.drawableSize.height == owner->m_format.m_size.y,
+                "Initial UI format did not reach the native drawable");
             auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
             OsInputSetWindowResizeLock(1);
             Require(!(window.styleMask & NSWindowStyleMaskResizable), "Native resize lock did not restrict the host window");
