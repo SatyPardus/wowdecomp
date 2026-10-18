@@ -511,6 +511,24 @@ else ()
     add_executable(AppleClient Tools/AppleBootstrap/ClientHost.mm)
     target_compile_options(AppleClient PRIVATE -fobjc-arc)
     target_link_libraries(AppleClient PRIVATE AppleMetalView AppleClientCore)
+    add_executable(WowAppleClient MACOSX_BUNDLE Tools/AppleBootstrap/ClientHost.mm)
+    target_compile_options(WowAppleClient PRIVATE -fobjc-arc)
+    target_link_libraries(WowAppleClient PRIVATE AppleMetalView AppleClientCore)
+    set_target_properties(WowAppleClient PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Tools/AppleBootstrap/ClientInfo.plist.in
+        MACOSX_BUNDLE_GUI_IDENTIFIER org.wowdecomp.AppleClient
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER org.wowdecomp.AppleClient
+        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-"
+        XCODE_ATTRIBUTE_CODE_SIGN_STYLE Manual
+        XCODE_GENERATE_SCHEME TRUE
+    )
+    if (NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        # Seal Info.plist and the bundle as well as the linker-signed arm64
+        # executable. This is a local development signature, not notarization.
+        add_custom_command(TARGET WowAppleClient POST_BUILD
+            COMMAND /usr/bin/codesign --force --sign - "$<TARGET_BUNDLE_DIR:WowAppleClient>"
+            VERBATIM)
+    endif ()
     add_executable(AppleInputProbe Tools/AppleBootstrap/NativeInputProbe.mm)
     target_compile_options(AppleInputProbe PRIVATE -fobjc-arc)
     target_link_libraries(AppleInputProbe PRIVATE AppleMetalView)

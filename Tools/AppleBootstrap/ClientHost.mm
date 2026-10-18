@@ -54,6 +54,7 @@ std::unique_ptr<NativeLoginInput> pendingLogin;
 std::string enterCharacter;
 bool entryQueued;
 bool checkWorldInput, worldInputDone;
+bool appBundle;
 uint32_t synchronousFrames;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 // Explicit local development option: exercise the native input boundary and
@@ -147,6 +148,13 @@ void CheckWorldInput(WowNativeView* view) {
     // shutdown routines; fail the process visibly at the native boundary.
     std::fprintf(stderr, "Native client stopped: %s\n", message);
     std::fflush(nullptr);
+    if (appBundle && NSThread.isMainThread && !std::getenv("WOW_CLIENT_FRAMES")) {
+        if (device && device->DeviceWindow()) ((__bridge MTKView*)device->DeviceWindow()).paused = YES;
+        NSAlert* alert=[NSAlert new];
+        alert.messageText=@"WoW Apple 无法继续运行";
+        alert.informativeText=[NSString stringWithUTF8String:message] ?: @"发生未知错误，请查看运行目录中的日志。";
+        [alert addButtonWithTitle:@"关闭"]; [alert runModal];
+    }
     std::_Exit(EXIT_FAILURE);
 }
 int32_t Initialize(const void* data, void* param) {
@@ -202,6 +210,35 @@ void SelectRuntime(const std::filesystem::path& data, const std::filesystem::pat
     // Remaining legacy relative output paths (GlueXML.log, screenshots, etc.)
     // are confined to this explicit writable runtime, never the installation.
     fs::current_path(root);
+}
+bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runtime, bool& local) {
+    NSUserDefaults* preferences=NSUserDefaults.standardUserDefaults;
+    NSString* saved=[preferences stringForKey:@"NativeDataRoot"];
+    NSString* savedRuntime=[preferences stringForKey:@"NativeRuntimeRoot"];
+    const bool choose=(NSEvent.modifierFlags & NSEventModifierFlagOption) || !saved.length ||
+        !std::filesystem::is_directory(saved.fileSystemRepresentation);
+    if (choose) {
+        NSOpenPanel* panel=[NSOpenPanel openPanel];
+        panel.title=@"选择原版 3.3.5a 客户端的 Data 文件夹";
+        panel.message=@"游戏资源保持只读；配置、缓存和日志保存在独立运行目录。按住 Option 启动可重新选择。";
+        panel.canChooseFiles=NO; panel.canChooseDirectories=YES; panel.allowsMultipleSelection=NO;
+        if (saved.length) panel.directoryURL=[NSURL fileURLWithPath:saved isDirectory:YES];
+        NSButton* development=[NSButton checkboxWithTitle:@"本机 AzerothCore（跳过原 Windows 可执行文件校验）" target:nil action:nil];
+        development.state=(local || [preferences boolForKey:@"NativeLocalDevelopment"]) ? NSControlStateValueOn : NSControlStateValueOff;
+        panel.accessoryView=development;
+        [NSApp activateIgnoringOtherApps:YES];
+        if ([panel runModal]!=NSModalResponseOK) return false;
+        saved=panel.URL.path; local=development.state==NSControlStateValueOn;
+    } else {
+        local=local || [preferences boolForKey:@"NativeLocalDevelopment"];
+    }
+    if (!savedRuntime.length) {
+        NSString* support=NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,NSUserDomainMask,YES).firstObject;
+        Require(support.length,"Cannot locate application support directory");
+        savedRuntime=[support stringByAppendingPathComponent:@"WoWDecompClient"];
+    }
+    data=saved.fileSystemRepresentation; runtime=savedRuntime.fileSystemRepresentation;
+    return true;
 }
 }
 
@@ -317,21 +354,28 @@ int main(int argc, char** argv) {
         else break;
         ++argument;
     }
-    if (argc - argument != 2 || ((loginInput || !enterCharacter.empty()) && !local) || (checkWorldInput && enterCharacter.empty())) {
+    if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || (checkWorldInput && enterCharacter.empty())) {
         std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
         try {
-            const std::filesystem::path data = std::filesystem::canonical(argv[argument]);
-            SelectRuntime(data, argv[argument + 1]);
+            [NSApplication sharedApplication];
+            [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+            appBundle=[NSBundle.mainBundle.bundleURL.pathExtension isEqualToString:@"app"];
+            std::filesystem::path data, runtime;
+            if (argc - argument == 2) { data=argv[argument]; runtime=argv[argument+1]; }
+            else {
+                Require(appBundle,"The command-line client requires Data and runtime paths");
+                if (!SelectBundlePaths(data,runtime,local)) return 0;
+            }
+            data=std::filesystem::canonical(data);
+            SelectRuntime(data, runtime);
             if (local) {
                 EnableNativeLocalServerPolicy();
                 std::fputs("Local development mode: only loopback Grunt/realm endpoints; executable check omitted (server StrictVersionCheck=0 required).\n", stderr);
             }
             if (loginInput) { pendingLogin = std::make_unique<NativeLoginInput>(); pendingLogin->Read(); }
-            [NSApplication sharedApplication];
-            [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
             StormInitialize();
             SErrRegisterHandler([](uint32_t, const char*, const char*, int32_t, const char*) -> int32_t {
                 void* frames[40]; const int count = backtrace(frames, 40);
@@ -339,6 +383,16 @@ int main(int argc, char** argv) {
             });
             BaseInitializeGlobal(); SFile::Initialize();
             auto mounts = std::make_unique<ClientData>(data.string(), "");
+            if (appBundle) {
+                NSUserDefaults* preferences=NSUserDefaults.standardUserDefaults;
+                [preferences setObject:[NSString stringWithUTF8String:data.c_str()] forKey:@"NativeDataRoot"];
+                [preferences setObject:[NSString stringWithUTF8String:std::filesystem::current_path().c_str()] forKey:@"NativeRuntimeRoot"];
+                [preferences setBool:local forKey:@"NativeLocalDevelopment"];
+                NSMenu* menu=[NSMenu new]; NSMenuItem* item=[NSMenuItem new]; [menu addItem:item];
+                NSMenu* application=[NSMenu new];
+                [application addItemWithTitle:@"退出 WoW Apple" action:@selector(terminate:) keyEquivalent:@"q"];
+                item.submenu=application; NSApp.mainMenu=menu;
+            }
             ConsoleInitializeClientCommand();
             std::string settings;
             Require(NativeSettingsFile(settings, "Config.wtf", true), "Cannot locate native Config.wtf");

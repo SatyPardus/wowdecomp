@@ -241,6 +241,16 @@ cmake --build --preset macos-arm64 --target AppleClient
 build/macos-arm64/bin/AppleClient /absolute/path/to/client335a/Data /absolute/path/to/native-runtime
 ```
 
+The `WowAppleClient` target builds `build/macos-arm64/bin/WowAppleClient.app`,
+with a local development signature and high-resolution display declaration.
+Opening the app without arguments restores its saved Data/runtime paths or asks
+for the original Data directory. The picker has an explicit local AzerothCore
+development option; hold Option while launching to reopen it. A fresh setup
+keeps writable files in `~/Library/Application Support/WoWDecompClient`.
+The app also accepts the command-line options below and remembers explicitly
+supplied paths and local mode after successfully mounting Data. It does not save
+the stdin password. macOS may request removable-volume access for external Data.
+
 The explicit runtime directory must be outside the original installation. It
 contains `WTF/Config.wtf`, cache, logs and other relative client output. Existing
 configuration is loaded and saved through the original CVar system; credentials
