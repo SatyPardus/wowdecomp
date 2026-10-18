@@ -14,6 +14,7 @@ namespace ProjectTex {
 }
 
 CGxTex* ProjectTex2dGetAddFadeTex();
+CGxTex* ProjectTex2dGetModFadeTex();
 void ProjectTex2dDrawShaderEffect(const CAaBox& box, const CImVector& color, uint32_t triFlags, uint32_t flags, float polygonOffset);
 void ProjectTex2dMakeMatrices(C44Matrix& texMatrix, C44Matrix& fadeMatrix, const CAaBox& box, const C44Matrix* rotation, float fade, int32_t local);
 

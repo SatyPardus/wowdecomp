@@ -195,8 +195,8 @@ private:
     id<MTLFunction> m_wmoFragment[7][2][2][2]{};
     id<MTLFunction> m_terrainVertex[32]{};
     id<MTLFunction> m_terrainFragment[16][2][2]{};
-    id<MTLFunction> m_modelVertex[5][30]{};
-    id<MTLFunction> m_modelFragment[7][2][2][2]{};
+    id<MTLFunction> m_modelVertex[7][30]{};
+    id<MTLFunction> m_modelFragment[8][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];

@@ -3,11 +3,11 @@
 #include <vector>
 
 namespace GxMetal {
-enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod, ModelOpaqueAddNA, ModelModAddNA, ModelModMod, ModelOpaqueMod2xNAAlpha, ModelOpaqueMod2x, Terrain, WmoDiffuse, WmoOpaque, WmoSpecular, WmoMetal, WmoEnvironment, WmoEnvironmentMetal, WmoComposite, LiquidWater, LiquidWaterNoSpec, LiquidMagma };
+enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod, ModelOpaqueAddNA, ModelModAddNA, ModelModMod, ModelOpaqueMod2xNAAlpha, ModelOpaqueMod2x, ModelModAdd, Terrain, WmoDiffuse, WmoOpaque, WmoSpecular, WmoMetal, WmoEnvironment, WmoEnvironmentMetal, WmoComposite, LiquidWater, LiquidWaterNoSpec, LiquidMagma };
 constexpr bool IsModelEffect(FragmentEffect effect) {
     return effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod ||
         effect == FragmentEffect::ModelOpaqueAddNA || effect == FragmentEffect::ModelModAddNA ||
-        effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod2xNAAlpha || effect == FragmentEffect::ModelOpaqueMod2x;
+        effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod2xNAAlpha || effect == FragmentEffect::ModelOpaqueMod2x || effect == FragmentEffect::ModelModAdd;
 }
 constexpr unsigned ModelTextureCount(FragmentEffect effect) {
     return IsModelEffect(effect) && effect != FragmentEffect::ModelOpaque && effect != FragmentEffect::ModelMod ? 2 : 1;

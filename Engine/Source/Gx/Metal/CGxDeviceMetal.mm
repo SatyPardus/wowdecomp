@@ -92,6 +92,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::ModelOpaqueAddNA: return "Combiners_Opaque_AddNA";
         case GxMetal::FragmentEffect::ModelModAddNA: return "Combiners_Mod_AddNA";
         case GxMetal::FragmentEffect::ModelModMod: return "Combiners_Mod_Mod";
+        case GxMetal::FragmentEffect::ModelModAdd: return "Combiners_Mod_Add";
         case GxMetal::FragmentEffect::ModelOpaqueMod2xNAAlpha: return "Combiners_Opaque_Mod2xNA_Alpha";
         case GxMetal::FragmentEffect::ModelOpaqueMod2x: return "Combiners_Opaque_Mod2x";
         default: return "UI";
@@ -780,7 +781,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     auto wmoVertex = GxMetal::WmoVertexEffect::Diffuse;
     auto effect = Effect::Unlit;
     if (target == GxSh_Vertex) {
-        for (auto candidate : {Vertex::Diffuse, Vertex::Color, Vertex::ColorDiffuse, Vertex::DiffuseEnvironment, Vertex::DiffuseDualUV}) {
+        for (auto candidate : {Vertex::Diffuse, Vertex::Color, Vertex::ColorDiffuse, Vertex::DiffuseEnvironment, Vertex::DiffuseDualUV, Vertex::DiffuseProjected, Vertex::ColorProjected}) {
             if (SStrCmpI(name, GxMetal::ModelVertexFamily(candidate), STORM_MAX_STR) == 0) {
                 vertexEffect = candidate; effect = Effect::ModelOpaque; break;
             }
@@ -788,7 +789,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     } else {
         for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave,
             Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
-            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x}) {
+            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd}) {
             if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
         }
     }

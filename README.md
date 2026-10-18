@@ -215,6 +215,15 @@ boundaries. The original motorcycle (display 25870) draws two combined material
 batches; its dual-UV death effect is exercised at 1137 ms, following the authored
 color-alpha track instead of forcing visibility.
 
+Original `Model2.wfx` projected materials now use native view-space projection
+for both texture coordinates, with the authored ModMod/ModAdd color and alpha
+rules. Forty additional vertex permutations cover rigid and skinned lit
+receivers and rigid colored receivers; 320 numeric GPU draws exercise their
+projection, lighting, sampling, fog and alpha boundaries. Original acid, blizzard
+and consecration models also pass through `CM2SceneRender::DrawBatchProj`, using
+the original procedural depth-fade textures. Those checks use an explicit planar
+receiver; complete world receiver queries and occlusion remain unintegrated.
+
 The macOS preview and iOS Metal view run that original M2 scene beside the texture
 and font preview. Model/skin/texture loading is asynchronous; the game Event update
 drives animation time. The default is CreatureDisplayInfo 165 (timber wolf), playing
@@ -233,7 +242,7 @@ materials.
 
 The shared `WorldClient` static library now builds for all three Apple targets.
 The original world-parameter and startup entry points now link on macOS; startup
-currently stops explicitly at the unimplemented `Diffuse_Proj_Proj` effect.
+currently stops explicitly at the unimplemented `ShadowMap` effect.
 Apple Storm settings use the app-owned `org.wowdecomp.client` Core Foundation
 preferences domain, preserving user/system lookup flags and 32-bit values.
 The normal game CVars continue to use their configured WTF file.

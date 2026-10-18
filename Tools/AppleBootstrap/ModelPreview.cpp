@@ -32,9 +32,12 @@ ModelPreview::ModelPreview(const char* name, uint32_t creatureDisplay) : m_name(
         m_blobLoaded = ModelBlobLoad("World\\model.blob");
         if (!m_blobLoaded) throw std::runtime_error("Cannot load model bounds index");
         CShaderEffect::InitShaderSystem(1, 0); m_effectsInitialized = true;
+        CShaderEffectManager::AddEffectFile("Model2.wfx");
         CShaderEffectManager::AddEffectFile("Particle.wfx");
-        if (!CShaderEffectManager::GetEffect("Particle") || !CShaderEffectManager::GetEffect("Particle_Unlit"))
-            throw std::runtime_error("Required original particle effect definitions are missing");
+        for (const char* effect : {"Particle", "Particle_Unlit", "Projected_ModMod", "Projected_ModAdd",
+                                   "Projected_ModMod_Unlit", "Projected_ModAdd_Unlit"})
+            if (!CShaderEffectManager::GetEffect(effect))
+                throw std::runtime_error(std::string("Required original model effect is missing: ") + effect);
         M2Initialize(8, 16); m_initialized = true;
         m_scene = M2CreateScene();
         if (!m_scene) throw std::runtime_error("Cannot create preview model scene");

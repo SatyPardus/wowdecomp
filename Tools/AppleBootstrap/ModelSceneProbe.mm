@@ -13,6 +13,10 @@
 #include "Engine/Source/ShaderEffect/ShaderEffectManager.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Gx/CGxVertexPC.h"
+#include "WoW/Common/TerrainGeometry.h"
+#include "WoW/Source/WorldClient/shadow.h"
+#include "WoW/Source/Game/GameClient/ProjectTex.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -54,9 +58,12 @@ void CheckGameModels() {
     struct BlobCleanup { ~BlobCleanup() { ModelBlobDestroy(); } } blobCleanup;
     CShaderEffect::InitShaderSystem(1, 0);
     struct Shutdown { bool cache = false; ~Shutdown() { if (cache) M2Destroy(); CShaderEffectManager::DestroyAllEffects(); } } shutdown;
+    CShaderEffectManager::AddEffectFile("Model2.wfx");
     CShaderEffectManager::AddEffectFile("Particle.wfx");
-    if (!CShaderEffectManager::GetEffect("Particle") || !CShaderEffectManager::GetEffect("Particle_Unlit"))
-        throw std::runtime_error("Required original particle effect definitions are missing");
+    for (const char* effect : {"Particle", "Particle_Unlit", "Projected_ModMod", "Projected_ModAdd",
+                               "Projected_ModMod_Unlit", "Projected_ModAdd_Unlit"})
+        if (!CShaderEffectManager::GetEffect(effect))
+            throw std::runtime_error(std::string("Required original model effect is missing: ") + effect);
     M2Initialize(8, 16); shutdown.cache = true;
     auto* scene = M2CreateScene();
     if (!scene) throw std::runtime_error("M2 scene creation failed");
@@ -202,9 +209,99 @@ void CheckGameModels() {
             throw std::runtime_error("Original layered model materials did not reach Metal drawing");
         device.ScenePresent();
     }
+    {
+        // Exercise authored projected batches through CM2SceneRender. The
+        // bounded planar receiver is an explicit fixture, not a world query.
+        struct ShadowCleanup {
+            ~ShadowCleanup() { ShadowDestroy(); }
+        } shadowCleanup;
+        ShadowInit();
+        for (const char *name : {"Spells\\AcidBurn.m2", "Spells\\Blizzard_Spawn.m2", "Spells\\Consecration_Impact_Base.m2"}) {
+            auto *projectedScene = M2CreateScene();
+            if (!projectedScene)
+                throw std::runtime_error("Projected spell scene creation failed");
+            Release releaseProjected{projectedScene};
+            struct Receiver {
+                unsigned draws = 0;
+            } receiver;
+            projectedScene->SetProjectTextureCallback(
+                [](const CAaBox &box, const CImVector &color, int32_t lit, void *arg, int32_t) {
+                    auto &receiver = *static_cast<Receiver *>(arg);
+                    const float z = (box.b.z + box.t.z) * 0.5f;
+                    const C3Vector corners[] = {{box.b.x, box.b.y, z}, {box.t.x, box.b.y, z}, {box.b.x, box.t.y, z},
+                                                {box.b.x, box.t.y, z}, {box.t.x, box.b.y, z}, {box.t.x, box.t.y, z}};
+                    auto &device = *g_theGxDevicePtr;
+                    const bool mod = device.m_appRenderStates[GxRs_BlendingMode].m_value.m_data.i[0] == GxBlend_Mod;
+                    device.RsSet(GxRs_Texture1, mod ? ProjectTex2dGetModFadeTex() : ProjectTex2dGetAddFadeTex());
+                    C44Matrix identity(1);
+                    GxXformSet(GxXform_World, identity);
+                    CShaderEffect::UpdateWorldViewMatrix();
+                    const auto format = lit ? GxVBF_PN : GxVBF_PC;
+                    auto *buffer = GxBufStream(GxPoolTarget_Vertex, GxVertexSize(format), 6);
+                    auto *data = device.BufLock(buffer);
+                    if (lit) {
+                        CShaderEffect::SetDiffuse(C4Vector(color));
+                        auto *vertices = reinterpret_cast<CGxVertexPN *>(data);
+                        for (unsigned i = 0; i < 6; ++i) {
+                            vertices[i].m_position = corners[i];
+                            vertices[i].m_normal = C3Vector(0, 0, 1);
+                        }
+                    } else {
+                        CImVector packed = color;
+                        GxFormatColor(packed);
+                        auto *vertices = reinterpret_cast<CGxVertexPC *>(data);
+                        for (unsigned i = 0; i < 6; ++i) {
+                            vertices[i].p = corners[i];
+                            vertices[i].c = packed;
+                        }
+                    }
+                    device.BufUnlock(buffer, 0);
+                    GxPrimVertexPtr(buffer, format);
+                    CShaderEffect::SetDefaultShaders(0);
+                    CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 5};
+                    GxDraw(&batch, 0);
+                    ++receiver.draws;
+                },
+                &receiver);
+            auto *spell = projectedScene->CreateModel(name, 0);
+            if (!spell || !spell->IsLoaded(1, 0) || !spell->IsDrawable(1, 0))
+                throw std::runtime_error("Projected spell resources did not load");
+            const auto &bounds = spell->m_shared->m_data->m_bounds;
+            C44Matrix world(1);
+            world.Translate(C3Vector(0, 0, 0.4f));
+            world.Scale(0.65f / bounds.m_radius);
+            world.Translate((bounds.m_extent.b + bounds.m_extent.t) * -0.5f);
+            spell->SetWorldTransform(world);
+            spell->m_lightingCallback = visible->m_lightingCallback;
+            for (unsigned i = 0; i < 32; ++i) {
+                spell->m_fFlags |= 8;
+                spell->SetAnimating(1);
+                projectedScene->AdvanceTime(16);
+                projectedScene->Animate(C3Vector(0, 0, 0));
+            }
+            unsigned batches = 0;
+            for (unsigned i = 0; i < projectedScene->m_elements.Count(); ++i)
+                batches += projectedScene->m_elements[i].m_type == 1;
+            device.BeginFrame(pass);
+            projectedScene->Draw(M2PASS_0);
+            projectedScene->Draw(M2PASS_1);
+            projectedScene->Draw(M2PASS_2);
+            TSGrowableArray<CImVector> image;
+            device.DeviceReadPixels(rect, image);
+            unsigned changed = 0;
+            for (unsigned i = 0; i < image.Count(); ++i)
+                changed += image[i].r || image[i].g || image[i].b;
+            std::fprintf(stderr, "Projected spell %s: %u authored batches, %u receiver draws, %u visible pixels\n", name, batches,
+                         receiver.draws, changed);
+            if (!batches || receiver.draws != batches || changed < 16)
+                throw std::runtime_error("Authored projected spell did not reach its receiver");
+            device.ScenePresent();
+        }
+    }
     for (const bool ribbons : {false, true}) {
-        auto* spellScene = M2CreateScene();
-        if (!spellScene) throw std::runtime_error("Spell scene creation failed");
+        auto *spellScene = M2CreateScene();
+        if (!spellScene)
+            throw std::runtime_error("Spell scene creation failed");
         Release releaseSpell{spellScene};
         const char* name = ribbons ? "Spells\\Rejuvenation_Impact_Base.m2" : "Spells\\Fireball_Missile_Low.m2";
         auto* spell = spellScene->CreateModel(name, 0);

@@ -7,7 +7,8 @@ constant uint modelColorMode [[function_constant(8)]];
 constant bool modelEnvironment [[function_constant(9)]];
 constant uint modelLayerOperation [[function_constant(10)]];
 constant bool modelDualUV [[function_constant(11)]];
-enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate };
+constant bool modelProjected [[function_constant(20)]];
+enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha };
 struct ModelAffine { float4 x, y, z; };
 struct ModelVertexParameters {
     float4x4 projection;
@@ -62,7 +63,9 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
     const float fog = min(pow(max(fma(view.z, p.fog.x, p.fog.y), 0.0f), p.fog.z), 1.0f);
     const float3 texturePoint = float3(uv, 1);
     float2 secondaryUV = 0;
-    if (modelDualUV) {
+    if (modelProjected) {
+        secondaryUV = float2(dot(p.uv[2], float4(view, 1)), dot(p.uv[3], float4(view, 1)));
+    } else if (modelDualUV) {
         const float3 secondPoint = float3(uv2, 1);
         secondaryUV = float2(dot(p.uv[2].xyw, secondPoint), dot(p.uv[3].xyw, secondPoint));
     } else if (modelEnvironment) {
@@ -75,28 +78,33 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
         secondaryUV = fma(reflected.xy * rsqrt(dot(sphere, sphere)), float2(0.5f), float2(0.5f));
     }
     return {p.projection * float4(view, 1), color,
-        float2(dot(p.uv[0].xyw, texturePoint), dot(p.uv[1].xyw, texturePoint)), secondaryUV, fog, 1};
+        modelProjected ? float2(dot(p.uv[0], float4(view, 1)), dot(p.uv[1], float4(view, 1))) :
+            float2(dot(p.uv[0].xyw, texturePoint), dot(p.uv[1].xyw, texturePoint)), secondaryUV, fog, 1};
 }
 vertex ModelRaster modelRigidVertex(ModelVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
     constant ModelAffine* palette [[buffer(2)]]) {
     return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), palette[0], p);
 }
-vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]]) {
-    ModelAffine transform = palette[v.bones.x];
+inline ModelAffine modelSkinTransform(float4 weights, uint4 bones, constant ModelAffine* palette) {
+    ModelAffine transform = palette[bones.x];
     if (modelPermutation >= 20) {
         // Match the original's y,x,z,w weighted-matrix association; do not
         // normalize weights or blend already-normalized vertex normals.
-        transform.x = fma(palette[v.bones.x].x, v.weights.x, palette[v.bones.y].x * v.weights.y);
-        transform.y = fma(palette[v.bones.x].y, v.weights.x, palette[v.bones.y].y * v.weights.y);
-        transform.z = fma(palette[v.bones.x].z, v.weights.x, palette[v.bones.y].z * v.weights.y);
-        transform.x = fma(palette[v.bones.z].x, v.weights.z, transform.x);
-        transform.y = fma(palette[v.bones.z].y, v.weights.z, transform.y);
-        transform.z = fma(palette[v.bones.z].z, v.weights.z, transform.z);
-        transform.x = fma(palette[v.bones.w].x, v.weights.w, transform.x);
-        transform.y = fma(palette[v.bones.w].y, v.weights.w, transform.y);
-        transform.z = fma(palette[v.bones.w].z, v.weights.w, transform.z);
+        transform.x = fma(palette[bones.x].x, weights.x, palette[bones.y].x * weights.y);
+        transform.y = fma(palette[bones.x].y, weights.x, palette[bones.y].y * weights.y);
+        transform.z = fma(palette[bones.x].z, weights.x, palette[bones.y].z * weights.y);
+        transform.x = fma(palette[bones.z].x, weights.z, transform.x);
+        transform.y = fma(palette[bones.z].y, weights.z, transform.y);
+        transform.z = fma(palette[bones.z].z, weights.z, transform.z);
+        transform.x = fma(palette[bones.w].x, weights.w, transform.x);
+        transform.y = fma(palette[bones.w].y, weights.w, transform.y);
+        transform.z = fma(palette[bones.w].z, weights.w, transform.z);
     }
+    return transform;
+}
+vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    const auto transform = modelSkinTransform(v.weights, v.bones, palette);
     return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), transform, p);
 }
 struct ModelColorVertex {
@@ -123,6 +131,33 @@ vertex ModelRaster modelWhiteVertex(ModelWhiteVertex v [[stage_in]], constant Mo
     constant ModelAffine* palette [[buffer(2)]]) {
     return modelTransform(v.position, float3(0, 0, 1), v.uv, float2(0), float4(1), palette[0], p);
 }
+// Projected geometry has no authored UV stream. These entry points match the
+// original PN/PC/P world batches and the existing packed skinned M2 layout.
+struct ModelProjectedPosition { float3 position [[attribute(0)]]; };
+struct ModelProjectedNormal { float3 position [[attribute(0)]]; float3 normal [[attribute(1)]]; };
+struct ModelProjectedColor { float3 position [[attribute(0)]]; float4 color [[attribute(5)]]; };
+struct ModelProjectedSkin {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float4 weights [[attribute(3)]];
+    uint4 bones [[attribute(4)]];
+};
+vertex ModelRaster modelProjectedPositionVertex(ModelProjectedPosition v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, float3(0,0,1), float2(0), float2(0), float4(1), palette[0], p);
+}
+vertex ModelRaster modelProjectedNormalVertex(ModelProjectedNormal v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), palette[0], p);
+}
+vertex ModelRaster modelProjectedColorVertex(ModelProjectedColor v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, float3(0,0,1), float2(0), float2(0), v.color, palette[0], p);
+}
+vertex ModelRaster modelProjectedSkinVertex(ModelProjectedSkin v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
+    constant ModelAffine* palette [[buffer(2)]]) {
+    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), modelSkinTransform(v.weights, v.bones, palette), p);
+}
 fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]]) {
@@ -134,14 +169,15 @@ fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelF
     const float baseAlpha = modelTextureAlpha ? texel.a * v.color.a : v.color.a;
     // Original DP2ADD sums two alpha products before the scalar threshold.
     const float doubledAlpha = dot(float2(v.color.a), float2(layer.a));
-    const float alpha = modelLayerOperation == LayerDoubleModulate ? doubledAlpha : modelLayerOperation == LayerMultiply ? baseAlpha * layer.a : baseAlpha;
-    const float shaderAlpha = modelLayerOperation == LayerDoubleModulate ? doubledAlpha - p.fogColorAlphaRef.a :
+    const float projectedAlpha = fma(v.color.a, texel.a, layer.a);
+    const float alpha = modelLayerOperation == LayerAddAlpha ? projectedAlpha : modelLayerOperation == LayerDoubleModulate ? doubledAlpha : modelLayerOperation == LayerMultiply ? baseAlpha * layer.a : baseAlpha;
+    const float shaderAlpha = modelLayerOperation == LayerAddAlpha ? projectedAlpha - p.fogColorAlphaRef.a : modelLayerOperation == LayerDoubleModulate ? doubledAlpha - p.fogColorAlphaRef.a :
         modelLayerOperation == LayerMultiply ? fma(baseAlpha, layer.a, -p.fogColorAlphaRef.a) :
         modelTextureAlpha ? fma(texel.a, v.color.a, -p.fogColorAlphaRef.a) : v.color.a - p.fogColorAlphaRef.a;
     if (modelShaderAlphaTest && shaderAlpha < 0) discard_fragment();
     if (alphaTest && alpha < p.stateAlphaRef) discard_fragment();
     float3 shaded;
-    if (modelLayerOperation == LayerAdd) {
+    if (modelLayerOperation == LayerAdd || modelLayerOperation == LayerAddAlpha) {
         // AddNA contributes RGB independently of either texture's alpha.
         shaded = fma(texel.rgb, v.color.rgb, layer.rgb) - p.fogColorAlphaRef.rgb;
     } else if (modelLayerOperation == LayerMultiply || modelLayerOperation == LayerDoubleModulate) {
