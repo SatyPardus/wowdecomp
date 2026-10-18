@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Os/Input.h"
+#include "Engine/Source/Os/Apple/Input.h"
 #include <TargetConditionals.h>
 #include <stdexcept>
 #if TARGET_OS_OSX
@@ -50,8 +51,10 @@ void OsInputGetMousePosition(int32_t* x, int32_t* y) {
     NSView* view = g_theGxDevicePtr ? (__bridge NSView*)g_theGxDevicePtr->DeviceWindow() : nil;
     if (!view.window) { throw std::runtime_error("Gx mouse position requires a native host view"); }
     NSPoint point = [view convertPoint:[view.window convertPointFromScreen:NSEvent.mouseLocation] fromView:nil];
+    point.x -= view.bounds.origin.x; point.y -= view.bounds.origin.y;
     if (!view.isFlipped) { point.y = view.bounds.size.height - point.y; }
-    const NSPoint pixels = [view convertPointToBacking:point];
+    tagRECT bounds; OsGetDefaultWindowRect(&bounds);
+    const NSPoint pixels = NSMakePoint(point.x * bounds.right / view.bounds.size.width, point.y * bounds.bottom / view.bounds.size.height);
     if (x) { *x = int32_t(pixels.x); }
     if (y) { *y = int32_t(pixels.y); }
 #else
@@ -59,8 +62,9 @@ void OsInputGetMousePosition(int32_t* x, int32_t* y) {
 #endif
 }
 
+static OS_MOUSE_MODE current = OS_MOUSE_MODE_NORMAL;
+OS_MOUSE_MODE OsInputGetMouseMode() { return current; }
 void OsInputSetMouseMode(OS_MOUSE_MODE mode) {
-    static OS_MOUSE_MODE current = OS_MOUSE_MODE_NORMAL;
     if (mode == current) { return; }
     if (mode >= OS_MOUSE_MODES) { throw std::invalid_argument("Invalid native mouse mode"); }
 #if TARGET_OS_OSX
@@ -77,8 +81,10 @@ void OsInputSetMousePosition(int32_t x, int32_t y) {
 #if TARGET_OS_OSX
     NSView* view = g_theGxDevicePtr ? (__bridge NSView*)g_theGxDevicePtr->DeviceWindow() : nil;
     if (!view.window) { throw std::runtime_error("Mouse positioning requires a native host view"); }
-    NSPoint point = [view convertPointFromBacking:NSMakePoint(x, y)];
+    tagRECT bounds; OsGetDefaultWindowRect(&bounds);
+    NSPoint point = NSMakePoint(x * view.bounds.size.width / bounds.right, y * view.bounds.size.height / bounds.bottom);
     if (!view.isFlipped) { point.y = view.bounds.size.height - point.y; }
+    point.x += view.bounds.origin.x; point.y += view.bounds.origin.y;
     point = [view.window convertPointToScreen:[view convertPoint:point toView:nil]];
     const CGFloat top = NSScreen.screens.firstObject.frame.size.height;
     if (CGWarpMouseCursorPosition(CGPointMake(point.x, top - point.y)) != kCGErrorSuccess) {

@@ -233,6 +233,12 @@ void IEvtDispatchFocusChanged(EvtContext* context, int32_t focus) {
 
     IEvtQueueDispatch(context, EVENT_ID_FOCUS, &data);
 
+#if defined(__APPLE__)
+    // AppKit must reconnect the system cursor as soon as the window loses
+    // focus, including relative mode without a hold button. Keep Event in sync.
+    if (!focus && Input::s_mouseMode == MOUSE_MODE_RELATIVE) EventSetMouseMode(MOUSE_MODE_NORMAL, 0);
+#endif
+
     if (Input::s_mouseHoldButton && Input::s_mouseHoldButton != (Input::s_buttonState & Input::s_mouseHoldButton)) {
         EventSetMouseMode(MOUSE_MODE_NORMAL, 0);
     }

@@ -136,8 +136,16 @@ Windows cross-process sharing restrictions remain unsupported on Apple.
 The shared Event scheduler now has a nonblocking native-host step. Mac/iOS
 previews render continuously from the original paint event, preserving update,
 timer, input, poll, queued-message, idle and paint ordering. Focus/resize events
-come from the host; native keyboard, pointer and composed-text delivery remain
-to be connected. Foreground resume resets frame elapsed time while retaining
+come from the host. The Mac view now delivers physical keys/repeat, independent
+left/right modifiers, drawable-pixel pointer coordinates, buttons, wheel and
+relative motion through Os/Event. AppKit text commits become Unicode scalar
+events; IME updates own their UTF-8 snapshots and use the original OsIME getters.
+Candidate presentation stays with AppKit, currently anchored to the view until
+the original edit-box caret is connected. Secure text entry and focus loss balance
+system input capture; original edit-box integration and interactive IME-provider
+testing remain. `AppleInputProbe` checks this boundary with local AppKit events
+and the original Event dispatcher. iOS touch interaction remains deferred.
+Foreground resume resets frame elapsed time while retaining
 wall-clock timers. Context shutdown and recreation release property TLS, call
 contexts, queues and timers. Native stepping currently requires the client's
 single scheduler thread; server network pumping is explicitly unsupported.

@@ -1,18 +1,21 @@
 #include "Tools/AppleBootstrap/MetalProbe.h"
 #include "Tools/AppleBootstrap/MetalView.h"
+#include "Tools/AppleBootstrap/NativeView.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #import <AppKit/AppKit.h>
 #include <cstdio>
 #include <cstring>
 
-@interface MetalPreviewDelegate : NSObject <NSApplicationDelegate>
+@interface MetalPreviewDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(nonatomic, strong) NSWindow* window;
 @property(nonatomic, strong) WowTextureRenderer* renderer;
 @end
 @implementation MetalPreviewDelegate
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender { return YES; }
 - (void)applicationDidResignActive:(NSNotification*)notification { [self.renderer suspend]; }
-- (void)applicationDidBecomeActive:(NSNotification*)notification { [self.renderer resume]; }
+- (void)applicationDidBecomeActive:(NSNotification*)notification { if (self.window.isKeyWindow) [self.renderer resume]; }
+- (void)windowDidBecomeKey:(NSNotification*)notification { [self.renderer resume]; }
+- (void)windowDidResignKey:(NSNotification*)notification { [self.renderer suspend]; }
 @end
 
 int main(int argc, char** argv) {
@@ -36,6 +39,11 @@ int main(int argc, char** argv) {
             if (success && argc == 6) {
                 [NSApplication sharedApplication];
                 [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+                NSMenu* menu = [NSMenu new];
+                NSMenuItem* appMenu = [NSMenuItem new]; [menu addItem:appMenu];
+                appMenu.submenu = [NSMenu new];
+                [appMenu.submenu addItemWithTitle:@"Quit WoW" action:@selector(terminate:) keyEquivalent:@"q"];
+                NSApp.mainMenu = menu;
                 __attribute__((objc_precise_lifetime)) MetalPreviewDelegate* delegate = [MetalPreviewDelegate new];
                 NSApp.delegate = delegate;
                 delegate.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 900, 600)
@@ -43,11 +51,13 @@ int main(int argc, char** argv) {
                     backing:NSBackingStoreBuffered defer:NO];
                 delegate.window.title = [NSString stringWithFormat:@"WoW Metal — %s", argv[4]];
                 delegate.window.releasedWhenClosed = NO;
-                MTKView* view = [[MTKView alloc] initWithFrame:delegate.window.contentView.bounds];
+                MTKView* view = [[WowNativeView alloc] initWithFrame:delegate.window.contentView.bounds device:nil];
                 delegate.window.contentView = view;
+                delegate.window.delegate = delegate;
                 delegate.renderer = [[WowTextureRenderer alloc] initWithView:view textureName:argv[4]];
                 [delegate.window center];
                 [delegate.window makeKeyAndOrderFront:nil];
+                [delegate.window makeFirstResponder:view];
                 [NSApp activateIgnoringOtherApps:YES];
                 [delegate.renderer resume];
                 [NSApp run];

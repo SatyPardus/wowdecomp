@@ -1,4 +1,5 @@
 #include "Tools/AppleBootstrap/MetalView.h"
+#include "Tools/AppleBootstrap/NativeView.h"
 #include "Tools/AppleBootstrap/ModelPreview.h"
 #include "Tools/AppleBootstrap/TerrainPreview.h"
 #include "Tools/AppleBootstrap/WmoPreview.h"
@@ -211,6 +212,10 @@ public:
     return self;
 }
 - (void)resume {
+    if (_active) return;
+#if TARGET_OS_OSX
+    if ([_view isKindOfClass:WowNativeView.class]) [(WowNativeView*)_view setGameInputActive:YES];
+#endif
     try { if (_audio) _audio->SetActive(true); }
     catch (const std::exception& error) { [self stopAfterError:error.what()]; return; }
     _active = YES;
@@ -220,6 +225,10 @@ public:
     [_view draw];
 }
 - (void)suspend {
+    if (!_active) return;
+#if TARGET_OS_OSX
+    if ([_view isKindOfClass:WowNativeView.class]) [(WowNativeView*)_view setGameInputActive:NO];
+#endif
     _active = NO; _view.paused = YES;
     try { if (_audio) _audio->SetActive(false); }
     catch (const std::exception& error) { NSLog(@"Game audio suspension: %s", error.what()); }
@@ -239,6 +248,10 @@ public:
     catch (const std::exception& error) { [self stopAfterError:error.what()]; }
 }
 - (void)stopAfterError:(const char*)message {
+#if TARGET_OS_OSX
+    if ([_view isKindOfClass:WowNativeView.class]) [(WowNativeView*)_view setGameInputActive:NO];
+#endif
+    OsQueuePut(OS_INPUT_FOCUS, 0, 0, 0, 0);
     if (_device->FrameCommand()) _device->ScenePresent();
     _active = NO; _view.paused = YES;
     _audio.reset();
