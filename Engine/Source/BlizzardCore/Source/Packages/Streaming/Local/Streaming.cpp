@@ -1,4 +1,5 @@
 #if defined(WOW_LOCAL_FILES_ONLY)
+#include <atomic>
 #include <cerrno>
 #include <stdexcept>
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
@@ -26,6 +27,18 @@ bool MakeLocalBlocking(File::StreamRecord*, int64_t, int32_t, int32_t, const cha
 bool InitializeStreaming(const char*, const char*, const char*, const char*, bool) { return UnsupportedDownload(); }
 }
 bool CheckIfStreamingAndTrial() { return false; }
+// These queries gate Glue character selection and the loading screen. The
+// original StreamingManager returns ready / 1.0 and ignores state, enable and
+// preload requests when CheckIfStreamingAndTrial() is false. This describes
+// local installation mode, not successful completion of a remote download.
+namespace { std::atomic<int32_t> s_localRace{-1}; }
+void StreamingSetRace(int32_t raceID) { s_localRace.store(raceID); }
+int32_t StreamingGetRace() { return s_localRace.load(); }
+bool StreamingIsRaceDataReady(int32_t) { return true; }
+float StreamingGetLoadFraction(int32_t) { return 1.0f; }
+void StreamingSetState(int32_t) {}
+void StreamingSetEnabled(bool) {}
+void StartDataPreloadThread() {}
 void StreamingSetMapId(int32_t) {
     throw std::runtime_error("Remote map streaming is unavailable in the local-files build");
 }

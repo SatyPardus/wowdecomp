@@ -33,6 +33,7 @@
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/Posix/IOPosixFileUnit.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/MPQEncrypt.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFileArchives.h"
@@ -694,6 +695,18 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckKnowledgeBaseDownloads();
         CheckCommandLine(scratchDirectory);
         CheckVersionInfo(scratchDirectory);
+        const int32_t previousRace = StreamingGetRace();
+        for (int32_t race : {-1, 1, 4, 11}) {
+            StreamingSetRace(race);
+            StreamingSetState(1); StreamingSetEnabled(true); StartDataPreloadThread();
+            Require(!CheckIfStreamingAndTrial() && !Blizzard::Streaming::IsStreamingMode() &&
+                StreamingGetRace() == race && StreamingIsRaceDataReady(race) && StreamingGetLoadFraction(race) == 1.0f,
+                "Local installation no longer follows original disabled-streaming semantics");
+            StreamingSetState(0); StreamingSetEnabled(false);
+        }
+        StreamingSetRace(previousRace);
+        Require(!Blizzard::Streaming::InitializeStreaming("", "", "", "", false) && errno == ENOTSUP,
+            "Local installation incorrectly accepted a remote streaming request");
         struct Library {
             void* module = OsLoadLibrary("/usr/lib/libSystem.B.dylib");
             ~Library() { OsFreeLibrary(module); }
