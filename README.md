@@ -365,13 +365,29 @@ packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against
 the three tiles' raw alpha/shadow data and verify that disabling shadows leaves
 material weights unchanged.
-The native Terrain/Terrain1 path now supports 32 vertex and 16 pixel variants:
+The native Terrain/Terrain1 surface path supports 32 vertex and 16 pixel variants:
 one to four layers plus their independent blend/shadow map, PN/PNC input,
 three point lights, specular, vertex fog and per-layer lighting masks. Old-alpha
 interpolation and big-alpha weighted sums retain their distinct semantics.
 256 GPU draws compare independent position/UV/light/fog/material references,
 including packed and RGBA blend maps. macOS ASan/UBSan and Metal validation pass;
 both iOS targets build and the simulator passes the checks and presents 120 frames.
+Terrain2/Terrain3 add 32 projected-shadow vertex and 64 pixel variants, with
+five-tap dynamic shadows, three distant bands, and the original nine-tap close
+map selection. Affine view-space coordinates, explicit LOD zero, equality-lit
+comparisons, baked-shadow combination and distinct edge fades are preserved.
+Sparse binding reaches texture slot 8; absent/unused blend maps remain optional.
+The shared CMap shader initialization/selection and ShadowCache matrix/offset/
+texture binding run with Services-owned R32F targets. The expanded probe makes
+1,280 independent reference draws, including band boundaries, out-of-range depth,
+packed/RGBA layer maps, and the existing surface permutations. Pipeline cache
+keys now use separate material fields instead of a nearly full packed bit word.
+At the original close-map edge near 0.99, float multiply/add rounding can change
+a nearly zero border test and select a different band across GPUs. The shader's
+threshold is preserved; original Windows behavior at this edge remains unverified.
+macOS ASan/UBSan and Metal validation pass; both iOS targets build and the
+simulator passes the GPU checks and presents 120 terrain frames. Full world
+shadow query/update integration and PCF depth textures remain pending.
 The native host can now draw a complete authored ADT surface with
 `WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
 This selection is mutually exclusive with the model/creature variables. It uses
@@ -405,8 +421,9 @@ checks pass through resource recreation, and the mixed tile presents 120 frames
 with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
-world loading. Terrain0/2/3, projected shadows, cube reflection and
-fixed-function terrain paths remain unsupported.
+world loading. Terrain0, TerrainSM, cube reflection and fixed-function terrain
+paths remain unsupported; the original CWorld initializer currently reaches
+Terrain0 after accepting Terrain2/Terrain3.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
 on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary

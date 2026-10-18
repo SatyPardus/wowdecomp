@@ -86,6 +86,8 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::WaterRipple: return "WaterRipples";
         case GxMetal::FragmentEffect::ShadowMap: return target == GxSh_Vertex ? "ShadowMap" : "ShadowMapSL";
         case GxMetal::FragmentEffect::Terrain: return target == GxSh_Vertex ? "Terrain" : "Terrain1";
+        case GxMetal::FragmentEffect::Terrain2: return "Terrain2";
+        case GxMetal::FragmentEffect::Terrain3: return "Terrain3";
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
         case GxMetal::FragmentEffect::Glow: return "FFXGlow";
@@ -136,10 +138,10 @@ void LoadShadowMapShader(EGxShTarget target) {
     GxMetal::ValidateShadowMapShader(ReadShader(path.c_str()), target);
 }
 
-void LoadTerrainShader(EGxShTarget target) {
+void LoadTerrainShader(EGxShTarget target, GxMetal::FragmentEffect effect) {
     const auto path = std::string(target == GxSh_Vertex ? "Shaders\\Vertex\\vs_3_0\\" : "Shaders\\Pixel\\ps_3_0\\") +
-        ShaderFamily(GxMetal::FragmentEffect::Terrain, target) + ".bls";
-    GxMetal::ValidateTerrainShader(ReadShader(path.c_str()), target);
+        ShaderFamily(effect, target) + ".bls";
+    GxMetal::ValidateTerrainShader(ReadShader(path.c_str()), target, effect);
 }
 
 void LoadLiquidShader(EGxShTarget target, GxMetal::FragmentEffect effect) {
@@ -833,6 +835,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     for (auto candidate : {Effect::LiquidWater, Effect::LiquidWaterNoSpec, Effect::LiquidMagma})
         if (SStrCmpI(name, GxMetal::LiquidShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::Terrain, target), STORM_MAX_STR) == 0) effect = Effect::Terrain;
+    if (target == GxSh_Pixel) for (auto candidate : {Effect::Terrain2, Effect::Terrain3})
+        if (SStrCmpI(name, ShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::ShadowMap, target), STORM_MAX_STR) == 0) effect = Effect::ShadowMap;
     if (SStrCmpI(name, "DetailDoodad", STORM_MAX_STR) == 0) effect = Effect::DetailDoodad;
     if (SStrCmpI(name, "WaterRipples", STORM_MAX_STR) == 0) effect = Effect::WaterRipple;
@@ -841,14 +845,14 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     const bool shadow = effect == Effect::ShadowMap;
     const bool wmo = GxMetal::IsWmoEffect(effect);
     const bool liquid = GxMetal::IsLiquidEffect(effect);
-    const bool terrain = effect == Effect::Terrain;
+    const bool terrain = GxMetal::IsTerrainEffect(effect);
     const bool model = GxMetal::IsModelEffect(effect);
     const char* family = ShaderFamily(effect, target, vertexEffect, wmoVertex);
     if (SStrCmpI(name, family, STORM_MAX_STR) != 0) {
         throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
     }
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (ripple ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? (target == GxSh_Vertex ? 128u : 32u) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
+        count == (ripple ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? GxMetal::TerrainPermutationCount(target, effect) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
         (terrain || model || wmo || liquid || shadow || detail || ripple || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
@@ -871,7 +875,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     else if (shadow) { LoadShadowMapShader(target); }
     else if (liquid) { LoadLiquidShader(target, effect); }
     else if (wmo) { LoadWmoShader(target, wmoVertex, effect); }
-    else if (terrain) { LoadTerrainShader(target); }
+    else if (terrain) { LoadTerrainShader(target, effect); }
     else if (model) { LoadModelShader(target, effect, vertexEffect); }
     else if (effect == GxMetal::FragmentEffect::Unlit) { ui = LoadUI(); } else { LoadPostProcess(effect); }
     for (uint32_t i = 0; i < count; ++i) {
@@ -908,7 +912,7 @@ void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const ch
     else if (native.effect == GxMetal::FragmentEffect::ShadowMap) { LoadShadowMapShader(EGxShTarget(shader->m_target)); }
     else if (GxMetal::IsLiquidEffect(native.effect)) { LoadLiquidShader(EGxShTarget(shader->m_target), native.effect); }
     else if (GxMetal::IsWmoEffect(native.effect)) { LoadWmoShader(EGxShTarget(shader->m_target), native.wmoVertex, native.effect); }
-    else if (native.effect == GxMetal::FragmentEffect::Terrain) { LoadTerrainShader(EGxShTarget(shader->m_target)); }
+    else if (GxMetal::IsTerrainEffect(native.effect)) { LoadTerrainShader(EGxShTarget(shader->m_target), native.effect); }
     else if (GxMetal::IsModelEffect(native.effect)) { LoadModelShader(EGxShTarget(shader->m_target), native.effect, native.vertexEffect); }
     else if (native.effect == GxMetal::FragmentEffect::Unlit) { native.ui = LoadUI(); } else { LoadPostProcess(native.effect); }
     IShaderCreate(shader);
@@ -929,7 +933,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool model = GxMetal::IsModelEffect(effect);
     const bool wmo = GxMetal::IsWmoEffect(effect);
     const bool liquid = GxMetal::IsLiquidEffect(effect);
-    const bool terrain = effect == GxMetal::FragmentEffect::Terrain;
+    const bool terrain = GxMetal::IsTerrainEffect(effect);
     const bool shadow = effect == GxMetal::FragmentEffect::ShadowMap;
     const bool ripple = effect == GxMetal::FragmentEffect::WaterRipple;
     const bool detail = effect == GxMetal::FragmentEffect::DetailDoodad;
@@ -955,8 +959,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     }
     if (terrain) {
         Require(GxMetal::SupportsTerrainPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
-            GxMetal::SupportsTerrainPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation),
-            "Metal terrain projected shadow or cube reflection permutation is not implemented");
+            GxMetal::SupportsTerrainPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation, effect),
+            "Metal terrain cube reflection permutation is not implemented");
     }
     CGxBuf* vertices = postProcess ? m_primVertexFormatBuf[GxVA_Position] : m_primVertexBuf;
     Require(vertices, "Gx draw requires vertices");
@@ -1076,7 +1080,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     } else if (terrain) {
         auto& native = terrainParameters.emplace(); draw.terrain = &native;
         native.vertexPermutation = m->shaders.at(vertex).permutation;
-        native.pixelPermutation = m->shaders.at(pixel).permutation;
+        native.pixelPermutation = GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation);
+        native.shadowMode = GxMetal::TerrainShadowMode(effect, m->shaders.at(pixel).permutation);
         const float* constants = s_shadowConstants[1].constants;
         auto vector = [&](uint32_t index) { simd_float4 value; std::memcpy(&value, constants + index * 4, sizeof(value)); return value; };
         // Terrain uses multiply/add columns, unlike Model2's dot-product rows.
@@ -1087,6 +1092,10 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertex.position = vector(23); native.vertex.sunDirection = vector(24);
         native.vertex.ambient = vector(25); native.vertex.diffuse = vector(26); native.vertex.specular = vector(27);
         for (unsigned i = 0; i < 3; ++i) native.vertex.lights[i] = {vector(28 + 3*i), vector(29 + 3*i), vector(30 + 3*i)};
+        if (native.shadowMode) {
+            std::memcpy(native.vertex.shadowRows, constants + 37 * 4, sizeof(native.vertex.shadowRows));
+            std::memcpy(native.fragment.pcfOffsets, s_shadowConstants[0].constants + 3 * 4, sizeof(native.fragment.pcfOffsets));
+        }
         std::memcpy(&native.fragment.layerLighting, s_shadowConstants[0].constants + 4, sizeof(simd_float4));
         std::memcpy(&native.fragment.fogColor, s_shadowConstants[0].constants + 8, sizeof(simd_float4));
     } else if (model) {
@@ -1148,9 +1157,10 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     state.blend = EGxBlend(integer(GxRs_BlendingMode)); state.alphaRef = integer(GxRs_AlphaRef);
     state.colorWrite = MasterEnable(GxMasterEnable_ColorWrite) ? integer(GxRs_ColorWrite) : 0;
     state.blendFactor = m_appRenderStates[Unk84].m_value.m_data.f[0];
-    std::array<id<MTLTexture>, 5> textures{};
-    std::array<GxMetal::TextureDrawState, 5> states;
-    for (unsigned i = 0; i < inputs; ++i) {
+    std::array<id<MTLTexture>, 9> textures{};
+    std::array<GxMetal::TextureDrawState, 9> states;
+    const uint32_t inputMask = terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : (1u << inputs) - 1;
+    for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
         Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");
         ITexMarkAsUpdated(texture);

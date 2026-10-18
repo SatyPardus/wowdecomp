@@ -93,18 +93,20 @@ struct TerrainVertexParameters {
     simd_float4 fog, texOffset[5], texScale[5];
     simd_float4 position, sunDirection, ambient, diffuse, specular;
     TerrainPointLight lights[3];
+    simd_float4 shadowRows[12];
 };
 struct TerrainFragmentParameters {
-    simd_float4 fogColor, layerLighting, decodeScale[5];
+    simd_float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8];
+    simd_float4 shadowDecodeScale = {1, 1, 1, 1};
     float stateAlphaRef;
     float padding[3]{};
 };
-static_assert(sizeof(TerrainVertexParameters) == 528 && sizeof(TerrainFragmentParameters) == 128,
+static_assert(sizeof(TerrainVertexParameters) == 720 && sizeof(TerrainFragmentParameters) == 272,
     "Native terrain constant layout");
 struct TerrainDrawParameters {
     TerrainVertexParameters vertex{};
     TerrainFragmentParameters fragment{};
-    uint32_t vertexPermutation = 0, pixelPermutation = 0;
+    uint32_t vertexPermutation = 0, pixelPermutation = 0, shadowMode = 0;
 };
 
 struct DetailDoodadVertexParameters {
@@ -220,8 +222,8 @@ public:
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
-    void DrawTerrain(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 5>& textures,
-        const GeometryDraw& geometry, const std::array<TextureDrawState, 5>& states, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawTerrain(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
@@ -246,8 +248,8 @@ private:
     id<MTLFunction> m_liquidFragment[3][2][2]{};
     id<MTLFunction> m_wmoVertex[7][10]{};
     id<MTLFunction> m_wmoFragment[7][2][2][2]{};
-    id<MTLFunction> m_terrainVertex[32]{};
-    id<MTLFunction> m_terrainFragment[16][2][2]{};
+    id<MTLFunction> m_terrainVertex[128]{};
+    id<MTLFunction> m_terrainFragment[4][16][2][2]{};
     id<MTLFunction> m_modelVertex[7][30]{};
     id<MTLFunction> m_modelFragment[8][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
@@ -260,14 +262,23 @@ private:
     id<MTLFunction> m_clearVertex, m_clearFragment;
     id<MTLRenderPipelineState> m_clearPipelines[2][2][2]{};
     id<MTLDepthStencilState> m_clearDepth[2]{};
-    std::unordered_map<uint64_t, id<MTLRenderPipelineState>> m_pipelines;
+    // Independent fields avoid collisions as material families and variants grow.
+    using PipelineKey = std::array<uint32_t, 9>;
+    struct PipelineHash {
+        size_t operator()(const PipelineKey& key) const {
+            size_t result = 0;
+            for (auto field : key) result ^= std::hash<uint32_t>{}(field) + size_t(0x9e3779b9) + (result << 6) + (result >> 2);
+            return result;
+        }
+    };
+    std::unordered_map<PipelineKey, id<MTLRenderPipelineState>, PipelineHash> m_pipelines;
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
-    id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse, const TerrainDrawParameters* terrain = nullptr, const WmoDrawParameters* wmo = nullptr, const LiquidDrawParameters* liquid = nullptr, const ShadowMapDrawParameters* shadow = nullptr, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm, const DetailDoodadDrawParameters* detail = nullptr, bool depthOffset = false);
+    id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, const GeometryDraw& geometry,
+        bool depthAttachment = false, bool decodePacked = false, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
-    void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 5>&,
-        const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 5>&, id<MTLRenderCommandEncoder>);
+    void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 9>&,
+        const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 9>&, id<MTLRenderCommandEncoder>);
 };
 }
 #endif

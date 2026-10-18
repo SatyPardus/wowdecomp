@@ -73,13 +73,13 @@ void GxMetal::TextureDevice::DrawWmo(id<MTLCommandBuffer> command, MTLRenderPass
     Require(IsWmoEffect(geometry.effect) && geometry.wmo, "Invalid native WMO effect");
     DrawGeometry(command, pass, {textures[0], textures[1], nil, nil, nil}, geometry, {}, {states[0], states[1], {}, {}, {}}, encoder);
 }
-void GxMetal::TextureDevice::DrawTerrain(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 5>& textures,
-    const GeometryDraw& geometry, const std::array<TextureDrawState, 5>& states, id<MTLRenderCommandEncoder> encoder) {
-    Require(geometry.effect == FragmentEffect::Terrain && geometry.terrain, "Invalid native terrain effect");
+void GxMetal::TextureDevice::DrawTerrain(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
+    Require(IsTerrainEffect(geometry.effect) && geometry.terrain, "Invalid native terrain effect");
     DrawGeometry(command, pass, textures, geometry, {}, states, encoder);
 }
-void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 5>& textures,
-    const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 5>& states, id<MTLRenderCommandEncoder> encoder) {
+void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+    const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
     const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
     const bool model = IsModelEffect(geometry.effect);
     const bool detail = geometry.effect == FragmentEffect::DetailDoodad;
@@ -90,11 +90,12 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     Require(!liquid || geometry.liquid, "Missing native liquid parameters");
     const bool wmo = IsWmoEffect(geometry.effect);
     Require(!wmo || geometry.wmo, "Missing native WMO parameters");
-    const bool terrain = geometry.effect == FragmentEffect::Terrain;
+    const bool terrain = IsTerrainEffect(geometry.effect);
     Require(!terrain || geometry.terrain, "Missing native terrain parameters");
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const unsigned inputs = shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
+    const uint32_t inputMask = terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : (1u << inputs) - 1;
     const auto& state = states[0];
     Require(command && pass && (!inputs || textures[0]) && geometry.vertices, "Missing Metal geometry resource");
     Require((filter || wave) ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
@@ -143,10 +144,10 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
             v.znear >= 0 && v.zfar <= 1 && v.znear <= v.zfar, "Invalid Metal geometry viewport");
     }
     bool decodePacked = false;
-    for (unsigned i = 0; i < inputs; ++i) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest, model ? geometry.model->vertexEffect : ModelVertexEffect::Diffuse, geometry.terrain, geometry.wmo, geometry.liquid, geometry.shadow, target.pixelFormat, geometry.detail, geometry.depthOffset != 0);
-    std::array<id<MTLSamplerState>, 5> samplers{};
-    for (unsigned i = 0; i < inputs; ++i) {
+    for (unsigned i = 0; i < states.size(); ++i) if (inputMask & (1u << i)) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry, hasDepth, decodePacked, target.pixelFormat);
+    std::array<id<MTLSamplerState>, 9> samplers{};
+    for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
         samplers[i] = Sampler(states[i]);
     }
@@ -224,13 +225,14 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         TerrainFragmentParameters material = geometry.terrain->fragment;
         material.stateAlphaRef = state.alphaRef / 255.0f;
         for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
+        for (unsigned i = 0; i < 4; ++i) material.shadowDecodeScale[i] = states[5 + i].decodeScale.x;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
     } else if (wave) {
         WaveParameters waveConstants{geometry.waveSceneScale, geometry.waveBlurScale, constants.texture.alphaRef};
         for (unsigned i = 0; i < 3; ++i) { waveConstants.decodeScale[i] = states[i].decodeScale; }
         [encoder setFragmentBytes:&waveConstants length:sizeof(waveConstants) atIndex:0];
     } else { [encoder setFragmentBytes:&constants.texture length:sizeof(constants.texture) atIndex:0]; }
-    for (unsigned i = 0; i < inputs; ++i) {
+    for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         [encoder setFragmentTexture:textures[i] atIndex:i];
         [encoder setFragmentSamplerState:samplers[i] atIndex:i];
     }

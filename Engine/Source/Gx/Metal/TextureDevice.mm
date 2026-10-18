@@ -83,13 +83,21 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     // Prepare common preview states at initialization. Other masks/states are
     // cached on demand; the full game will prewarm its material permutations.
     TextureDrawState state;
-    Pipeline(state); Sampler(state);
+    GeometryDraw quad; quad.format = GxVertexBufferFormats_Last;
+    Pipeline(state, quad); Sampler(state);
     state.blend = GxBlend_Alpha; state.alphaRef = 1;
-    Pipeline(state);
-    Pipeline(state, GxVBF_PCT);
+    Pipeline(state, quad);
+    quad.format = GxVBF_PCT; Pipeline(state, quad);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid, const ShadowMapDrawParameters* shadow, MTLPixelFormat colorFormat, const DetailDoodadDrawParameters* detail, bool depthOffset) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, const GeometryDraw& geometry, bool depthAttachment, bool decodePacked, MTLPixelFormat colorFormat) {
+    const auto format = geometry.format; const auto effect = geometry.effect;
+    const bool screenAtDepth = geometry.screenAtDepth, signedWave = geometry.signedWave, depthOffset = geometry.depthOffset != 0;
+    const auto* model = geometry.model; const auto* terrain = geometry.terrain; const auto* wmo = geometry.wmo;
+    const auto* liquid = geometry.liquid; const auto* shadow = geometry.shadow; const auto* detail = geometry.detail;
+    const uint32_t modelPermutation = model ? model->permutation : 0;
+    const bool shaderAlphaTest = model && model->shaderAlphaTest;
+    const auto vertexEffect = model ? model->vertexEffect : ModelVertexEffect::Diffuse;
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(colorFormat == MTLPixelFormatBGRA8Unorm || colorFormat == MTLPixelFormatR32Float, "Unsupported pipeline color format");
@@ -97,24 +105,22 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     Require(!IsModelEffect(effect) || SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect),
         "Unsupported native model vertex permutation");
-    Require(effect != FragmentEffect::Terrain || (terrain &&
+    Require(!IsTerrainEffect(effect) || (terrain &&
         SupportsTerrainPermutation(GxSh_Vertex, terrain->vertexPermutation) && SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
-        TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation)),
+        TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation) &&
+        terrain->shadowMode < 4 && bool(terrain->vertexPermutation & 1) == bool(terrain->shadowMode)),
         "Unsupported native terrain permutation or mismatched layer count");
     Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
     Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)), "Unsupported native liquid permutation");
     Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
     Require(effect != FragmentEffect::DetailDoodad || detail, "Missing detail-doodad parameters");
-    // Leave eight bits for effect families; a growing material set must not
-    // collide with the independent sampler/vertex specialization flags.
-    const uint64_t key = uint64_t(state.blend) | (uint64_t(state.alphaRef != 0) << 4) | (uint64_t(state.colorWrite) << 5) |
-        (uint64_t(format) << 9) | (uint64_t(depthAttachment) << 13) | (uint64_t(screenAtDepth) << 14) |
-        (uint64_t(effect) << 15) | (uint64_t(signedWave) << 23) | (uint64_t(decodePacked) << 24) |
-        (uint64_t(modelPermutation) << 25) | (uint64_t(shaderAlphaTest) << 30) | (uint64_t(vertexEffect) << 31) |
-        (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42) |
-        (uint64_t(wmo ? unsigned(wmo->vertexEffect) : 0) << 47) | (uint64_t(wmo ? wmo->permutation % 10 : 0) << 50) |
-        (uint64_t(wmo && wmo->shaderAlphaTest) << 54) | (uint64_t(liquid ? liquid->lightCount : 0) << 55) |
-        (uint64_t(shadow ? shadow->skinning : 0) << 57) | (uint64_t(shadow && shadow->cutout) << 59) | (uint64_t(colorFormat == MTLPixelFormatR32Float) << 60) | (uint64_t(detail && detail->pointLights) << 61) | (uint64_t(depthOffset) << 62);
+    const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
+        (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
+        (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) | (uint32_t(depthOffset) << 8);
+    const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
+        wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
+        terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
+        terrain ? terrain->pixelPermutation : 0, terrain ? terrain->shadowMode : 0};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -187,7 +193,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
+    if (decodePacked && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -328,19 +334,20 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
-    if (effect == FragmentEffect::Terrain) {
+    if (IsTerrainEffect(effect)) {
         const uint32_t vertexPermutation = terrain->vertexPermutation, pixelPermutation = terrain->pixelPermutation;
         const bool color = (vertexPermutation & 4) != 0;
         Require(!screenAtDepth && GxVertexHasAttrib(format, GxVA_Normal) && (!color || GxVertexHasAttrib(format, GxVA_Color0)),
             "Unsupported native terrain vertex layout");
-        auto& vertex = m_terrainVertex[vertexPermutation / 4];
-        auto& fragment = m_terrainFragment[pixelPermutation / 2][state.alphaRef != 0][decodePacked];
+        auto& vertex = m_terrainVertex[vertexPermutation];
+        auto& fragment = m_terrainFragment[terrain->shadowMode][pixelPermutation / 2][state.alphaRef != 0][decodePacked];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
         [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
         [constants setConstantValue:&vertexPermutation type:MTLDataTypeUInt atIndex:12];
         [constants setConstantValue:&pixelPermutation type:MTLDataTypeUInt atIndex:13];
+        [constants setConstantValue:&terrain->shadowMode type:MTLDataTypeUInt atIndex:24];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:color ? @"terrainColorVertex" : @"terrainVertex" constantValues:constants error:&error];
         if (!fragment) fragment = [m_library newFunctionWithName:@"terrainFragment" constantValues:constants error:&error];
@@ -567,7 +574,8 @@ id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forc
 void GxMetal::TextureDevice::Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport) {
     // Resolve/validate before opening an encoder so failures cannot leave a pass open.
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, GxVertexBufferFormats_Last, false, false, FragmentEffect::Unlit, false, simd_any(state.decodeScale != simd_make_float4(1)), 0, false, ModelVertexEffect::Diffuse, nullptr, nullptr, nullptr, nullptr, pass.colorAttachments[0].texture.pixelFormat);
+    GeometryDraw quad; quad.format = GxVertexBufferFormats_Last;
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, quad, false, simd_any(state.decodeScale != simd_make_float4(1)), pass.colorAttachments[0].texture.pixelFormat);
     id<MTLSamplerState> sampler = Sampler(state);
     Require(std::isfinite(state.blendFactor) && state.blendFactor >= 0 && state.blendFactor <= 1, "Invalid Gx blend factor");
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
