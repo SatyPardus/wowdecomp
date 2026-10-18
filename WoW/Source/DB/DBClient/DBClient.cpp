@@ -88,9 +88,6 @@ WowClientDB<CharTitlesRec> g_charTitlesDB;
 // STATIC: 0x00AD33BC
 WowClientDB<ChatChannelsRec> g_chatChannelsDB;
 
-// STATIC: 0x00AD33E0
-WowClientDB<ChatProfanityRec> g_chatProfanityDB;
-
 // STATIC: 0x00AD3404
 WowClientDB<ChrClassesRec> g_chrClassesDB;
 
@@ -356,17 +353,8 @@ WowClientDB<MovieFileDataRec> g_movieFileDataDB;
 // STATIC: 0x00AD4214
 WowClientDB<MovieVariationRec> g_movieVariationDB;
 
-// STATIC: 0x00AD4238
-WowClientDB<NameGenRec> g_nameGenDB;
-
 // STATIC: 0x00AD425C
 WowClientDB<NPCSoundsRec> g_npcSoundsDB;
-
-// STATIC: 0x00AD4280
-WowClientDB<NamesProfanityRec> g_namesProfanityDB;
-
-// STATIC: 0x00AD42A4
-WowClientDB<NamesReservedRec> g_namesReservedDB;
 
 // STATIC: 0x00AD42C8
 WowClientDB<OverrideSpellDataRec> g_overrideSpellDataDB;
@@ -457,9 +445,6 @@ WowClientDB<SoundSamplePreferencesRec> g_soundSamplePreferencesDB;
 
 // STATIC: 0x00AD4700
 WowClientDB<SoundWaterTypeRec> g_soundWaterTypeDB;
-
-// STATIC: 0x00AD4724
-WowClientDB<SpamMessagesRec> g_spamMessagesDB;
 
 // STATIC: 0x00AD4748
 WowClientDB<SpellCastTimesRec> g_spellCastTimesDB;

@@ -227,6 +227,14 @@ add_library(CharacterAppearance STATIC
     WoW/Source/DB/Rec/ItemVisualEffectsRec.cpp
     WoW/Source/DB/Rec/ItemVisualsRec.cpp)
 target_link_libraries(CharacterAppearance PUBLIC CharacterTextureCache CreatureAppearance Model2)
+add_subdirectory(Engine/Source/pcre)
+add_library(CharacterNames STATIC
+    WoW/Source/Game/ValidateName.cpp WoW/Source/Game/NameGen.cpp
+    WoW/Source/DB/DBClient/CharacterNames.cpp
+    WoW/Source/DB/Rec/ChatProfanityRec.cpp WoW/Source/DB/Rec/NameGenRec.cpp
+    WoW/Source/DB/Rec/NamesProfanityRec.cpp WoW/Source/DB/Rec/NamesReservedRec.cpp
+    WoW/Source/DB/Rec/SpamMessagesRec.cpp)
+target_link_libraries(CharacterNames PUBLIC AppleGameResources ConsoleBase pcreposix)
 
 add_subdirectory(Engine/Source/FrameScript)
 target_link_libraries(FrameScript PUBLIC AppleGameResources lua)
@@ -270,7 +278,7 @@ add_subdirectory(WoW/Source/Net)
 add_subdirectory(WoW/Source/Glue)
 add_subdirectory(WoW/Source/WowSvcs)
 target_link_libraries(Net PUBLIC ClientWorldSupport)
-target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin CharacterAppearance)
+target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin CharacterAppearance CharacterNames)
 target_link_libraries(WowSvcs PUBLIC Net AppleGameLogin Glue)
 target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/RealmConnection.cpp)
 add_library(AppleSessionServices STATIC
@@ -369,6 +377,8 @@ add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBoot
 target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore AppleLoginProbeCore AppleSessionProbeCore AppleRealmProbeCore)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CharacterTextureProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC CharacterTextureCache)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CharacterNameProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC CharacterNames)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

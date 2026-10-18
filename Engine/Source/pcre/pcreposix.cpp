@@ -122,6 +122,7 @@ static int32_t pcre_posix_error_code(const char* s) {
 // VERIFY: 086e456f manual
 // OFFSET: 0x0083DF20
 int32_t regcomp(regex_t* preg, const char* pattern, int32_t cflags) {
+    *preg = {};
     const char* errorptr;
     int erroffset;
     int options = PCRE_UTF8 | PCRE_NO_UTF8_CHECK;
@@ -145,6 +146,12 @@ int32_t regcomp(regex_t* preg, const char* pattern, int32_t cflags) {
     preg->re_nsub = pcre_info(static_cast<const pcre*>(preg->re_pcre), nullptr, nullptr);
 
     return 0;
+}
+
+void regfree(regex_t* preg) {
+    if (preg->re_extra) pcre_free(preg->re_extra);
+    if (preg->re_pcre) pcre_free(preg->re_pcre);
+    *preg = {};
 }
 
 // VERIFY: 50a3d188 manual

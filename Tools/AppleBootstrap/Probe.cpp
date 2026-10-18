@@ -58,6 +58,7 @@ void CheckGameSession();
 void CheckGameRealm();
 void CheckRealmMetadata(const ClientData& client, std::ostream& report);
 void CheckCharacterTextureCache(const ClientData* client);
+void CheckCharacterNames();
 
 namespace {
 struct ReleaseUnit { void operator()(IOUnit* unit) const { if (unit) { unit->Release(); } } };
@@ -774,6 +775,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         CheckM2Resources(client, out);
         CheckRealmMetadata(client, out);
         CheckCharacterTextureCache(&client);
+        CheckCharacterNames();
         CheckTerrainResources(client, out);
         CheckWorldData(client, out);
         CheckAudioResources(client, out);

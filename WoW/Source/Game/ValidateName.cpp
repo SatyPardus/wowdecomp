@@ -650,11 +650,16 @@ int32_t ValidateGuildBankTabName(uint32_t language, const char* name) {
 // VERIFY: e87ebce3 manual
 // OFFSET: 0x007E21B0
 void ValidateNameDestroy() {
+    auto release = [](TSFixedArray<regex_t>& patterns) {
+        for (uint32_t i = 0; i < patterns.Count(); ++i) regfree(&patterns[i]);
+        patterns.Clear();
+    };
     for (uint32_t i = 0; i < sizeof(g_profanityTokens) / sizeof(g_profanityTokens[0]); i++) {
-        g_profanityTokens[i].Clear();
-        g_chatProfanityTokens[i].Clear();
-        g_reservedNameTokens[i].Clear();
+        release(g_profanityTokens[i]);
+        release(g_chatProfanityTokens[i]);
+        release(g_reservedNameTokens[i]);
     }
+    release(g_chatSpamTokens);
 
     s_charsetCached = false;
 }
