@@ -4,6 +4,7 @@
 #include <malloc.h>
 #include <new>
 #include "ObjectMgrClient.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
@@ -290,6 +291,7 @@ void ClntObjMgrHideObject(WOWGUID guid) {
 void ClntObjMgrLinkInNewObject(CGObject_C* object) {
     WOWGUID guid = object->m_obj->m_guid;
     s_curMgr->m_objects.Insert(object, static_cast<uint32_t>(guid.m_guid), CHashKeyGUID(guid.m_guid));
+    ModCore::Manager().OnObjectCreate(guid.m_guid, object->m_typeId, object);
 }
 
 // VERIFY: be60d36c manual
@@ -1434,6 +1436,7 @@ static void ObjDelete(CGObject_C* object) {
     ClearMirrorLists(object);
 
     ObjectMgr* mgr = s_curMgr;
+    ModCore::Manager().OnObjectDestroy(object->m_obj->m_guid.m_guid, object->m_typeId, object);
     mgr->m_objects.Unlink(object);
 
     CHashKeyGUID key = object->m_key;

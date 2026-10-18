@@ -36,6 +36,9 @@ static float s_lastJoinTime;
 // VERIFY: 7da483d6 auto
 // OFFSET: 0x00552940
 uint8_t CGLookingForGroup::GetClassRoles(uint32_t classID) {
+    if (classID == 0 || classID > (sizeof(s_classRoles) / sizeof(s_classRoles[0]))) {
+        return 0x09;
+    }
     return s_classRoles[classID - 1];
 }
 
@@ -122,7 +125,7 @@ int32_t PushDungeonEncounterInfo(lua_State* L, int32_t mapId, int32_t difficulty
 // OFFSET: 0x00553B50
 uint32_t FilterRolesByClass(uint8_t roles) {
     ChrClassesRec* rec = g_chrClassesDB.GetRecord(ClientServices::GetCharacterClass());
-    return roles & s_classRoles[rec->m_id - 1];
+    return rec ? (roles & CGLookingForGroup::GetClassRoles(rec->m_id)) : roles;
 }
 
 // VERIFY: 49ccd8f7 manual

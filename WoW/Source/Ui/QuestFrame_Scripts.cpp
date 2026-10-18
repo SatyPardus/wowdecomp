@@ -18,6 +18,7 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/CharTitlesRec.h"
 #include "WoW/Source/DB/Rec/PageTextMaterialRec.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/DB/Rec/SpellIconRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Object/ItemStats.h"
@@ -479,6 +480,9 @@ static int32_t Script_SelectActiveQuest(lua_State* L) {
 // VERIFY: 6e2b3172 auto
 // OFFSET: 0x0058D5B0
 static int32_t Script_AcceptQuest(lua_State* L) {
+    if (ModCore::Manager().OnQuestAccept(CGQuestInfo::m_npc.m_guid)) {
+        return 0;
+    }
     CGQuestInfo::AcceptQuest();
     return 0;
 }
@@ -505,6 +509,9 @@ static int32_t Script_IsQuestCompletable(lua_State* L) {
 // VERIFY: 31b3cefe auto
 // OFFSET: 0x0058D610
 static int32_t Script_CompleteQuest(lua_State* L) {
+    if (ModCore::Manager().OnQuestComplete(CGQuestInfo::m_npc.m_guid)) {
+        return 0;
+    }
     CGQuestInfo::GiveQuestItems();
     return 0;
 }
@@ -516,6 +523,10 @@ static int32_t Script_GetQuestReward(lua_State* L) {
 
     if (lua_isnumber(L, 1)) {
         choice = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
+    }
+
+    if (ModCore::Manager().OnQuestReward(choice)) {
+        return 0;
     }
 
     if (!CGQuestInfo::GetReward(choice)) {

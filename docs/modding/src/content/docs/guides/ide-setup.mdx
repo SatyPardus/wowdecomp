@@ -1,0 +1,43 @@
+---
+title: IDE setup and API export
+description: Get autocompletion for ModCore in VS Code with Lua Language Server.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ModCore writes three files to `mods/api/` every time it exports the API:
+
+| File | Purpose |
+| --- | --- |
+| `wowdecomp.d.lua` | EmmyLua/LuaLS definitions (`---@meta wowdecomp`) |
+| `wowdecomp_api.json` | Machine-readable schema (modules, hooks, opcodes) |
+| `AI_MODDING_GUIDE.md` | Generated quick reference for assistants |
+
+Export runs at start-up when `aiExportOnBoot` is `true`, or on demand with `ModCore.ExportApi()`.
+
+## VS Code (Lua Language Server)
+
+Add the API folder as a library and select Lua 5.1:
+
+```json title=".vscode/settings.json"
+{
+  "Lua.runtime.version": "Lua 5.1",
+  "Lua.workspace.library": ["${workspaceFolder}/mods/api"],
+  "Lua.diagnostics.globals": ["ModCore", "LOG_DEBUG", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "OnCustomPacket", "CreateCustomPacket"]
+}
+```
+
+<Aside type="caution" title="Generated files are overwritten">
+Do not edit anything in `mods/api/`. The next export replaces it. The files are also generated from a registry that is partly ahead of the implementation; see [Known issues](/known-issues/#typings-that-do-not-match-the-implementation).
+</Aside>
+
+## Registering your own API surface
+
+Mods can add hooks and opcodes to the registry. They are picked up by the next export as category `Custom`:
+
+```lua
+ModCore.ApiExport.RegisterHook("MyMod_Event", "Fired by my mod", "fun(x: number)", "MyMod")
+ModCore.ExportApi()
+```
+
+Classes and functions registered from Lua (`RegisterClass`, `RegisterFunction`) are available through `ModCore.GetApiSchema()` at runtime, but the C++ exporter only imports Lua-side **hooks** and **opcodes** into the generated files. See [API export](/reference/api-export/).

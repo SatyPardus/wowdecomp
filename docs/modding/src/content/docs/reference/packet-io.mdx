@@ -1,0 +1,64 @@
+---
+title: Packet I/O and logging
+description: Global writer, reader, and logging helpers defined by the custom packet manager.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+These globals are defined by Lua source embedded in `CustomPacket.cpp` and executed when bindings are registered, so they exist whether or not `bootstrap.lua` runs.
+
+## Writer
+
+```lua
+local w = CreateCustomPacket(opcode, capacity)   -- capacity is an optional reserve hint
+```
+
+`CreateCustompacket` is an alias. The writer exposes chainable methods (each returns the writer):
+
+| Method | Encodes |
+| --- | --- |
+| `WriteUInt8(v)`, `WriteInt8(v)` | 1 byte |
+| `WriteUInt16(v)`, `WriteInt16(v)` | 2 bytes |
+| `WriteUInt32(v)`, `WriteInt32(v)` | 4 bytes |
+| `WriteUInt64(v)`, `WriteInt64(v)` | 8 bytes; `v` is a number or a decimal string |
+| `WriteFloat(v)`, `WriteDouble(v)` | 4 or 8 bytes |
+| `WriteString(s)` | `uint32` length followed by the bytes, no terminator |
+| `Size()` | Bytes written so far (not chainable) |
+| `Send()` | Sends the packet and invalidates the writer |
+
+<Aside type="note">
+A writer is a handle to native state. After `Send()`, further calls on it do nothing. Create a new writer for the next packet. Sending while disconnected silently drops the packet.
+</Aside>
+
+## Reader
+
+Readers are passed to handlers; you do not create them.
+
+| Method | Returns |
+| --- | --- |
+| `ReadUInt8()`, `ReadInt8()`, `ReadUInt16()`, `ReadInt16()`, `ReadUInt32()`, `ReadInt32()` | number |
+| `ReadFloat()`, `ReadDouble()` | number |
+| `ReadUInt64()`, `ReadInt64()` | decimal **string** |
+| `ReadString()` | string (`""` if the data is malformed or exhausted) |
+| `Size()` | Total payload size in bytes |
+
+Reading past the end returns `0` for numbers.
+
+## Registering handlers
+
+```lua
+OnCustomPacket(opcode, function(reader) ... end)
+```
+
+Handlers are stored per inner opcode, run in registration order, and each receives a reader positioned at the start of the payload.
+
+## Logging
+
+| Function | Level |
+| --- | --- |
+| `LOG_DEBUG(...)` | `[LUA DEBUG]` |
+| `LOG_INFO(...)` | `[LUA INFO]` |
+| `LOG_WARN(...)` | `[LUA WARN]` |
+| `LOG_ERROR(...)` | `[LUA ERROR]` |
+
+Arguments are concatenated without separators. Strings, numbers, and booleans are written as-is; tables are serialized inline; other types are written as their type name. Unlike `ModCore.Log*`, there is no format string.

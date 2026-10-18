@@ -19,6 +19,7 @@
 #include "WoW/Source/Object/ObjectClient/Bag_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "Engine/Source/FrameXML/LoadXML.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // VERIFY: 3dacc7a5 auto
 // OFFSET: 0x00564B90
@@ -222,8 +223,13 @@ static int32_t Script_RunMacroText(lua_State* L) {
         return 0;
     }
 
+    const char* text = lua_tolstring(L, 1, nullptr);
+    if (ModCore::Manager().OnMacroExecute(nullptr, text)) {
+        return 0;
+    }
+
     MACRONODE macro;
-    SStrCopy(macro.m_body, lua_tolstring(L, 1, nullptr), sizeof(macro.m_body));
+    SStrCopy(macro.m_body, text, sizeof(macro.m_body));
     CGUIMacros::RunMacro(&macro, lua_tolstring(L, 2, nullptr));
     return 0;
 }
@@ -268,6 +274,9 @@ static int32_t Script_RunMacro(lua_State* L) {
     MACRONODE* macro = GetMacroFromLua(L);
 
     if (macro) {
+        if (ModCore::Manager().OnMacroExecute(macro->m_name, macro->m_body)) {
+            return 0;
+        }
         CGUIMacros::RunMacro(macro, lua_tolstring(L, 2, nullptr));
     }
 

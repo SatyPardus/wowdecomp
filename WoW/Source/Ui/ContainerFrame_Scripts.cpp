@@ -23,6 +23,7 @@
 #include "WoW/Source/Ui/MerchantFrame.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
 #include "WoW/Source/Ui/TradeFrame.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
@@ -268,6 +269,12 @@ static int32_t Script_GetContainerItemCooldown(lua_State* L) {
 static int32_t Script_UseContainerItem(lua_State* L) {
     if (!lua_isnumber(L, 1) || !lua_isnumber(L, 2)) {
         luaL_error(L, "Usage: UseContainerItem(index, slot[, target])");
+        return 0;
+    }
+
+    int32_t bagIdx = static_cast<int32_t>(lua_tonumber(L, 1));
+    int32_t slotIdx = static_cast<int32_t>(lua_tonumber(L, 2));
+    if (ModCore::Manager().OnItemUse(bagIdx, slotIdx)) {
         return 0;
     }
 

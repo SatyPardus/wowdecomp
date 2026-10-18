@@ -23,6 +23,7 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/ReputationInfo.h"
 #include "WoW/Source/Ui/ScriptEvents.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/UIUtil/Tooltip.h"
 #include "WoW/Source/WowServices/WDataStore.h"
@@ -461,6 +462,10 @@ static int32_t Script_BuyMerchantItem(lua_State* L) {
         if (count >= 255) {
             count = 255;
         }
+    }
+
+    if (ModCore::Manager().OnMerchantBuy(index, count)) {
+        return 0;
     }
 
     if (index < 0 || index >= CGMerchantInfo::m_numMerchantItems || !CGMerchantInfo::m_merchant) {

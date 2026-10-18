@@ -1,0 +1,55 @@
+---
+title: Building
+description: CMake integration for ModCore, and how to build these docs.
+---
+
+## ModCore library
+
+`WoW/Source/ModCore/CMakeLists.txt` builds a static library from every `*.cpp` in the folder (`GLOB_RECURSE ... CONFIGURE_DEPENDS`):
+
+```cmake
+add_library(ModCore STATIC ${PRIVATE_SOURCES})
+target_link_libraries(ModCore PUBLIC lua Storm Base WowSvcs)
+```
+
+The root `CMakeLists.txt` adds it with `add_subdirectory(WoW/Source/ModCore)` before `WoW/Source`, and `Tools/WowClient` links it. Engine code includes `WoW/Source/ModCore/ModCore.h`.
+
+ModCore is Windows-only: it uses `windows.h`, `GetModuleFileNameW`, and `ReadDirectoryChangesW`.
+
+## Runtime files
+
+The client looks for `mods/` next to the executable (see [Directory layout](/getting-started/directory-layout/#mods-root)). Copy or link the repository's `mods/` folder to the build output directory.
+
+## These docs
+
+Requires Node.js 22.12 or newer.
+
+```sh
+cd docs/modding
+npm install
+npm run dev
+npm run build
+```
+
+Guides and internals are Markdown/MDX in `src/content/docs/`. The sidebar is defined in `astro.config.mjs`.
+
+## Writing API notes
+
+The **Reference** pages for hooks and modules are generated at build time from `mods/api/wowdecomp_api.json` (parameters, return types, descriptions) and combined with hand-written notes in `src/api-notes/`. Refresh the JSON (run the client, or call `ModCore.ExportApi()`) before building if the API changed. Set `MODCORE_API_JSON` to point at a different copy.
+
+| File | Format |
+| --- | --- |
+| `api-notes/hooks/*.md` | One `## HookName` section per hook. |
+| `api-notes/modules/<Module>.md` | Overview for the module with the given schema name, then one `## @MethodName` section per method. |
+| `api-notes/modules/entities.md` | One `## TypeName` section per engine type. |
+
+A section can start with metadata lines, followed by a blank line and Markdown:
+
+| Key | Meaning |
+| --- | --- |
+| `status` | `not-wired`, `partial`, `stub`, or `declared`. Adds a sidebar badge, and for `not-wired`, `declared`, and `stub` an automatic warning. |
+| `source` | Where the engine fires the hook (hooks only). |
+| `access` | How Lua reaches the module, for example `ModCore.DBC` (modules only). |
+| `title` | Overrides the page title (modules only). |
+
+Notes support `:::note`, `:::tip`, `:::caution`, and `:::danger` asides. The build warns about notes that no longer match a schema entry.

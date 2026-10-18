@@ -32,8 +32,7 @@
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/World.h"
 
-// STATIC: 0x00B24180
-static const char* s_raceFileNames[] = { nullptr, "Human", "Orc", "Dwarf", "NightElf", "Scourge", "Tauren", "Gnome", "Troll", "Goblin", "BloodElf", "Draenei" };
+
 
 // STATIC: 0x009F2010
 const char SI2::s_channelGroupNames[18][32] = {
@@ -1492,7 +1491,9 @@ int32_t SI2::GetChunkLocation(int32_t* mapId, int32_t* chunkX, int32_t* chunkY, 
 // OFFSET: 0x004CDA20
 void SI2::DK_GetPlayerFilterName(CGUnit_C* unit, char* name, uint32_t size) {
     uint8_t race = unit->m_unit->m_unitFieldBytes0[0];
-    SStrPrintf(name, size, "Death Knight %s %s", s_raceFileNames[race], unit->m_unit->m_unitFieldBytes0[2] ? "Female" : "Male");
+    ChrRacesRec* raceRec = g_chrRacesDB.GetRecord(race);
+    const char* raceName = (raceRec && raceRec->m_clientFileString && raceRec->m_clientFileString[0]) ? raceRec->m_clientFileString : "Human";
+    SStrPrintf(name, size, "Death Knight %s %s", raceName, unit->m_unit->m_unitFieldBytes0[2] ? "Female" : "Male");
 }
 
 // VERIFY: 8858e33e auto

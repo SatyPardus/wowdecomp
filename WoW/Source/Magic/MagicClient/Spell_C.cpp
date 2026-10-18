@@ -1,4 +1,5 @@
 #include "Spell_C.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/Magic/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -323,8 +324,13 @@ int32_t Spell_C_IsOverride(int32_t spellId, const OverrideSpellDataRec* rec) {
 // VERIFY: da3d51b4 manual
 // OFFSET: 0x008012F0
 int32_t Spell_C_GetPowerCost(const SpellRec* spell, const CGUnit_C* unit) {
-    if (!unit) {
+    if (!unit || !spell) {
         return -1;
+    }
+
+    int32_t overrideCost = 0;
+    if (ModCore::Manager().OnSpellQuery("PowerCost", spell->m_id, &overrideCost)) {
+        return overrideCost;
     }
 
     uint32_t rank = unit->GetSpellRank(spell);
@@ -1102,6 +1108,7 @@ void PendingSpellCast::OnSpellStartPacket(CDataStore* msg) {
 // VERIFY: ccbce7b4 manual
 // OFFSET: 0x0080FEE0
 int32_t Packet_Group_30(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
+    ModCore::Manager().OnSpellPacket(msgId, msg);
     SmartGUID castItem;
     SmartGUID caster;
     *msg >> castItem;
@@ -5756,6 +5763,8 @@ void Spell_C_Destroy() {
     s_periodicClientTriggers.Clear();
     s_destLocSpellCasts.InternalClear(0);
     s_enableErrorSpeechCVar = nullptr;
+
+    ModCore::Manager().OnSpellDestroy();
 }
 
 // VERIFY: f60bc498 manual
@@ -8178,6 +8187,8 @@ bool Spell_C_CastSpell(CGUnit_C* caster, int32_t spellId, const CGItem_C* item, 
         return false;
     }
 
+    ModCore::Manager().OnSpellCast(spellId, caster->m_obj->m_guid.m_guid, target.m_guid);
+
     if (spell.m_attributesExF & 0x40000) {
         CGUnitData* data = caster->m_unit;
         const WOWGUID* owner = &data->m_unitFieldCharmedby;
@@ -9081,6 +9092,7 @@ int32_t Packet_MSG_CHANNEL_START(void* param, NETMESSAGE msgId, uint32_t time, C
         }
     }
 
+    ModCore::Manager().OnChannelStart(msg);
     return 1;
 }
 
@@ -9095,6 +9107,7 @@ int32_t Packet_MSG_CHANNEL_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, 
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
+        ModCore::Manager().OnChannelUpdate(msg);
         return 1;
     }
 
@@ -9110,6 +9123,7 @@ int32_t Packet_MSG_CHANNEL_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, 
             unit->ClearUIChannel();
             WOWGUID signalGuid = guid;
             Script_SendUnitSpellSignal(signalGuid, 0, &spell, SCRIPT_EVENT_UNIT_SPELLCAST_CHANNEL_STOP);
+            ModCore::Manager().OnChannelStop();
         }
 
         if (!remaining) {
@@ -9117,6 +9131,7 @@ int32_t Packet_MSG_CHANNEL_UPDATE(void* param, NETMESSAGE msgId, uint32_t time, 
         }
     }
 
+    ModCore::Manager().OnChannelUpdate(msg);
     return 1;
 }
 

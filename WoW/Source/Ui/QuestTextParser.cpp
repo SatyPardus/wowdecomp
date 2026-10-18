@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/Ui/ChatFrame.h"
 #include "WoW/Source/DB/Rec/AchievementRec.h"
 #include "WoW/Source/Game/GameClient/NameCache.h"
@@ -689,6 +690,7 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
         }
     }
 
+
     char number[32];
     char duration[64];
     const char* output;
@@ -1117,6 +1119,17 @@ int32_t SpellParserParseText(const SpellRec* spell, char* buffer, uint32_t size,
     }
 
     const char* cursor = SStrChr(description, '$');
+    std::string evaluatedDesc;
+    if (description && ModCore::Manager().OnTooltipEvaluate(spell->m_id, ClntObjMgrGetActivePlayerObj(), description, evaluatedDesc)) {
+        if (!SStrChr(evaluatedDesc.c_str(), '$')) {
+            SStrCopy(buffer, evaluatedDesc.c_str(), size);
+            s_spellVariables.m_count = 0;
+            return 1;
+        }
+        description = evaluatedDesc.c_str();
+        cursor = SStrChr(description, '$');
+    }
+
     int32_t result = SpellParserParseSubText(spell, buffer, size, parsePet, parseUnit, spellLevel, scale, noModifiers, description, &cursor);
     s_spellVariables.m_count = 0;
     return result;

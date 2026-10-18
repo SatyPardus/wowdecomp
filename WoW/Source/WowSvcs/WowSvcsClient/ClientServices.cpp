@@ -980,7 +980,13 @@ void ClientServices::LoginServerStatus(LOGIN_STATE state, LOGIN_RESULT result, c
 // VERIFY: c43cea73 manual
 // OFFSET: 0x00406F40
 void ClientServices::SendPacket(CDataStore* msg) {
-    StaticSingleton<CommandManager>::Instance()->m_connection->Send(msg);
+    ClientConnection* conn = ClientServices::Connection();
+    if (!conn && StaticSingleton<CommandManager>::m_instance) {
+        conn = StaticSingleton<CommandManager>::Instance()->m_connection;
+    }
+    if (conn && conn->m_netState == NS_CONNECTED) {
+        conn->Send(msg);
+    }
 }
 
 // VERIFY: 89403ad4 manual

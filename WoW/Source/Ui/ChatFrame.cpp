@@ -1,4 +1,5 @@
 #include "ChatFrame.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -1039,6 +1040,10 @@ void CGChat::AddChatMessage(const char* text, int32_t type, const char* senderNa
 
     if (!text) {
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
+        return;
+    }
+
+    if (ModCore::Manager().OnChatMessage(type, senderName ? senderName : "", text, channelName ? channelName : "")) {
         return;
     }
 

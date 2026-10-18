@@ -8,6 +8,7 @@
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Gxu/GxuFontUtil.h"
 #include "Engine/Source/Gxu/IGxuFontGlyph.h"
+#include "Engine/Source/Gxu/GxuFontMsdf.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -72,6 +73,7 @@ int32_t CGxFont::UpdateDimensions() {
         pixelSize = 32;
     } else if (pixelSize == 0) {
         DebugLog("Error, font %s being created with height %g at screen res of %dx%d which is %d pixels!", this->m_fontName, height, g_widthPixels, g_heightPixels, pixelSize);
+        pixelSize = 1;
     }
 
     this->m_pixelSize = pixelSize;
@@ -112,6 +114,14 @@ bool CGxFont::GetGlyphData(GLYPHBITMAPDATA* data, uint32_t code) {
         padding = 4;
     } else if (this->m_fontFlags & 1) {
         padding = 2;
+    }
+
+    // Try MSDF path first
+    if (this->m_useMsdf && g_msdfEnabled) {
+        if (MsdfGenerateGlyph(face, this->m_pixelSize, code, this->m_baseline, data, padding)) {
+            return true;
+        }
+        // Fall back to bitmap if MSDF generation fails
     }
 
     return IGxuFontGlyphRenderGlyph(face, this->m_pixelSize, code, this->m_baseline, data, this->m_fontFlags & 2, padding);
@@ -198,7 +208,7 @@ void CGxFont::HandleScreenSizeChange() {
 
 // VERIFY: 4ab2e948 manual
 // OFFSET: 0x006C39A0
-CGxFont::CGxFont() : m_cellHeight(0), m_pixelsPerUnit(0.0f) {
+CGxFont::CGxFont() : m_cellHeight(0), m_pixelsPerUnit(0.0f), m_useMsdf(1) {
 }
 
 // VERIFY: b72018df manual
@@ -355,8 +365,8 @@ CHARCODEDESC* CGxFont::NewCodeDesc(uint32_t code) {
 
         if (!current->m_texture || !TextureGetGxTex(current->m_texture, 1, nullptr)) {
             cache = current;
-            cache->CreateTexture(this->m_fontFlags & 4);
             cache->Initialize(this, this->m_cellHeight);
+            cache->CreateTexture(this->m_fontFlags & 4);
             desc = cache->AllocateNewGlyph(&data);
             break;
         }
@@ -380,10 +390,10 @@ CHARCODEDESC* CGxFont::NewCodeDesc(uint32_t code) {
             cache = &this->m_textureCache[textureNumber];
             TEXTURECACHEROW* row = &cache->m_textureRows.m_data[rowNumber];
 
-            row->EvictGlyph(oldest);
+            row->EvictGlyph(oldest, cache->m_atlasSize);
             this->RegisterEvictNotice(textureNumber);
 
-            desc = row->CreateNewDesc(&data, rowNumber, this->m_cellHeight);
+            desc = row->CreateNewDesc(&data, rowNumber, this->m_cellHeight, cache->m_atlasSize);
 
             if (desc) {
                 desc->m_rowNumber = rowNumber;

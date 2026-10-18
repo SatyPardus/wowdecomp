@@ -1,4 +1,5 @@
 #include "CharacterSelection.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include <cstdint>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Frame/CScriptObject.h"
@@ -335,6 +336,7 @@ static int32_t Script_SelectCharacter(lua_State* L) {
     CCharacterSelection::s_selectionIndex = index;
     CCharacterSelection::ShowCharacter();
     FrameScript_SignalEvent(GLUE_EVENT_UPDATE_SELECTED_CHARACTER, "%d", CCharacterSelection::s_selectionIndex + 1);
+    ModCore::Manager().OnCharacterSelect(index);
     return 0;
 }
 

@@ -38,6 +38,7 @@
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
+#include "WoW/Source/ModCore/ModCore.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/AreaTableRec.h"
 #include "WoW/Source/DB/Rec/CharTitlesRec.h"
@@ -6565,6 +6566,7 @@ void LoadScriptFunctions() {
     EquipmentManagerRegisterScriptFunctions();
     GMTicketInfoRegisterScriptFunctions();
     BattlenetUI_RegisterScriptFunctions();
+    ModCore::Manager().RegisterLuaBindings(nullptr);
 }
 
 // VERIFY: ce499890 manual

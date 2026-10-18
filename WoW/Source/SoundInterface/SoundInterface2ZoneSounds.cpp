@@ -12,6 +12,7 @@
 #include "WoW/Source/Game/GameTime.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/Ui/GameUI.h"
+#include "WoW/Source/ModCore/ModCore.h"
 
 // STATIC: 0x00AC3878
 static int32_t s_zoneSoundTimeOfDay = 1;
@@ -397,6 +398,10 @@ void SI2::SetOverrideZoneSounds(int32_t soundAmbienceId, int32_t zoneMusicId) {
 // VERIFY: 039f2ed0 auto
 // OFFSET: 0x004C8FC0
 int32_t SI2::PlayUISound(int32_t soundKitId) {
+    if (ModCore::Manager().OnPlaySound(soundKitId)) {
+        return 0;
+    }
+
     static int32_t s_voiceChatOn = SI2::LookupSoundKitId("VoiceChatOn");
     static int32_t s_voiceChatOff = SI2::LookupSoundKitId("VoiceChatOff");
 
