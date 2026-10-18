@@ -97,7 +97,8 @@ enum INVENTORY_TYPES {
     INVTYPE_RELIC = 28,
 };
 
-enum ITEM_SLOT {
+// Hand attachments use -1 to mean no character texture/component slot.
+enum ITEM_SLOT : int32_t {
     ITEMSLOT_HEAD = 0,
     ITEMSLOT_SHOULDER = 1,
     ITEMSLOT_SHIRT = 2,
