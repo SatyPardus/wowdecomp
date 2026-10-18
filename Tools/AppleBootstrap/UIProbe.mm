@@ -3,6 +3,8 @@
 #include "UIComponents.h"
 #include "MoviePlayback.h"
 #include "NativeDisplayProbe.h"
+#include "NativeGuiProbe.h"
+#include "Engine/Source/Os/Gui.h"
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/Ui/CGCooldown.h"
 #include "WoW/Source/WowServices/ClientData.h"
@@ -156,6 +158,22 @@ public:
 @end
 
 int main(int argc, char** argv) {
+    if (argc == 2 && !std::strcmp(argv[1], "--gui-check")) {
+        @autoreleasepool {
+            try {
+                [NSApplication sharedApplication];
+                [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+                NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 480, 240)
+                    styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+                window.releasedWhenClosed = NO;
+                [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
+                OsGuiSetGxWindow((__bridge void*)window.contentView);
+                CheckNativeGui((__bridge void*)window.contentView, true);
+                OsGuiSetGxWindow(nullptr); [window close];
+                return 0;
+            } catch (const std::exception& error) { std::fprintf(stderr, "%s\n", error.what()); return 1; }
+        }
+    }
     if ((argc != 2 && argc != 3) || (argc == 3 && std::strcmp(argv[2], "--preview"))) {
         std::fprintf(stderr, "Usage: AppleUIProbe /path/to/Data [--preview]\n"); return 2;
     }
@@ -298,6 +316,8 @@ int main(int argc, char** argv) {
             }
             renderDevice = nullptr; renderPass = nil;
             PropSelectContext(nullptr); EventDestroy(); PropDestroy(); CVar::Destroy(); ConsoleCommandDestroy(); CStringManager::DestroyManager();
+            owner.reset();
+            Require(!OsGuiGetWindow(0), "Destroyed Gx device retained its still-live native view binding");
             std::puts("Original CSimpleTop/edit box: native Unicode and composition, layout, rendering and teardown passed");
             }
             return 0;

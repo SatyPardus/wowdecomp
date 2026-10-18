@@ -427,7 +427,7 @@ string(APPEND WOW_TEXTURE_QUAD_SOURCE "\n${WOW_SKINNING_SOURCE}\n${WOW_SHADOW_MA
 configure_file(Engine/Source/Gx/Metal/ShaderSource.h.in ${CMAKE_BINARY_DIR}/generated/MetalShaderSource.h @ONLY)
 add_library(AppleMetal STATIC Engine/Source/Gx/Metal/TextureDevice.mm Engine/Source/Gx/Metal/GeometryDraw.mm
     Engine/Source/Gx/Metal/CGxDeviceMetal.mm Engine/Source/Gx/Metal/ApplePlatform.mm
-    Engine/Source/Os/Apple/OsClipboard.mm Engine/Source/Os/OsClipboard.cpp)
+    Engine/Source/Os/Apple/OsClipboard.mm Engine/Source/Os/Apple/Gui.mm Engine/Source/Os/OsClipboard.cpp)
 target_include_directories(AppleMetal PRIVATE ${CMAKE_BINARY_DIR}/generated)
 target_compile_options(AppleMetal PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetal PUBLIC AppleTextureData Gx "-framework Metal" "-framework Foundation")
@@ -453,7 +453,7 @@ target_link_libraries(AppleMetalProbeCore PUBLIC AppleUIComponents AppleVideoOpt
 target_sources(AppleMetalProbeCore PRIVATE Tools/AppleBootstrap/CharacterSceneProbe.mm)
 target_link_libraries(AppleMetalProbeCore PUBLIC CharacterAppearance)
 add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/NativeView.mm Tools/AppleBootstrap/ModelPreview.cpp Tools/AppleBootstrap/WorldPreview.cpp)
-target_sources(AppleMetalView PRIVATE Tools/AppleBootstrap/NativeDisplayProbe.mm)
+target_sources(AppleMetalView PRIVATE Tools/AppleBootstrap/NativeDisplayProbe.mm Tools/AppleBootstrap/NativeGuiProbe.mm)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleUIComponents)
 target_link_libraries(AppleMetalView PUBLIC CharacterAppearance AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")

@@ -1,4 +1,5 @@
 #include "NativeDisplayProbe.h"
+#include "NativeGuiProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include <TargetConditionals.h>
@@ -50,7 +51,7 @@ bool NativeDisplayProbe::Step() { return m->Step(); }
 bool NativeDisplayProbe::Impl::Step() {
     Require(!device.FrameCommand(), "Native format check requires an idle host");
     device.XformSetViewport(0, 1, 0, 1, 0, 1);
-    if (!phase) { Request(sizes[phase++]); return false; }
+    if (!phase) { CheckNativeGui((__bridge void*)view); Request(sizes[phase++]); return false; }
     {
         const C2iVector size = sizes[phase - 1];
         CGxFormat requested = original; requested.m_size = size;

@@ -1008,6 +1008,14 @@ Three core lifetimes verify owned-region cleanup, command strings and flushed
 logs; two visible Mac lifetimes and iOS foreground recreation each render 120
 frames with sanitizer/Metal validation where available. Windows retains its
 original CRT exit handling and window-message registry.
+The original GUI window queries/title calls now use weak native view ownership;
+device shutdown clears the binding while the host view may still be alive.
+Mac prompts use actual AppKit alerts with the original OK/Yes/No/Cancel results.
+`AppleUIProbe --gui-check` exercises nine button choices, UTF-8 titles, invalid
+inputs and thread/lifetime boundaries. `WOW_DISPLAY_CHECK=1` also checks this
+binding during live Mac/iOS drawable resizing. UIKit synchronous prompts return
+the original failure/cancel result with `ENOTSUP`: asynchronous startup prompt
+continuations remain unimplemented and are never treated as user acceptance.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth
