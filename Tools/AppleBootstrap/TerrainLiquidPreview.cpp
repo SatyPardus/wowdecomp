@@ -4,6 +4,7 @@
 #include "WoW/Source/LiquidSystem/Liquid.h"
 #include "WoW/Source/WorldClient/CChunkLiquid.h"
 #include "WoW/Source/WorldClient/MapChunk.h"
+#include "WoW/Source/WorldClient/MapChunkLiquid.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/MapLight.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
@@ -43,8 +44,10 @@ struct TerrainLiquidPreview::Impl {
     }
 };
 TerrainLiquidPreview::TerrainLiquidPreview(const std::vector<uint8_t> &adt, const Terrain::Surface &surface, uint32_t tileX, uint32_t tileY,
-                                           float radius)
+                                           float radius, const std::string &mapName)
     : m(std::make_unique<Impl>()) {
+    std::array<std::vector<SMLiquidChunk>, 256> legacy;
+    size_t legacyLayers = 0;
     for (size_t at = 0; at + 8 <= adt.size();) {
         uint32_t token, size;
         std::memcpy(&token, adt.data() + at, 4);
@@ -56,11 +59,47 @@ TerrainLiquidPreview::TerrainLiquidPreview(const std::vector<uint8_t> &adt, cons
                 throw std::runtime_error("Duplicate MH2O chunk");
             m->data.SetData(adt.data() + at + 8, size);
         }
+        if (token == 0x4D434E4B) {
+            if (size < 128)
+                throw std::runtime_error("Truncated MCNK liquid header");
+            const auto *header = adt.data() + at + 8;
+            auto word = [&](size_t offset) {
+                uint32_t value;
+                std::memcpy(&value, header + offset, 4);
+                return value;
+            };
+            const auto x = word(4), y = word(8), offset = word(0x60), length = word(0x64);
+            if (x >= 16 || y >= 16)
+                throw std::runtime_error("Invalid MCNK liquid coordinates");
+            if (length > 8) {
+                if (offset > size_t(size) + 8 || length > size_t(size) + 8 - offset)
+                    throw std::runtime_error("MCLQ extent exceeds MCNK");
+                uint32_t tag;
+                std::memcpy(&tag, adt.data() + at + offset, 4);
+                if (tag != 0x4D434C51)
+                    throw std::runtime_error("Missing MCLQ at MCNK liquid offset");
+                legacy[y * 16 + x] = Liquid::ReadLegacyChunks(adt.data() + at + offset + 8, length - 8, word(0));
+                legacyLayers += legacy[y * 16 + x].size();
+            }
+        }
         at += size_t(size) + 8;
     }
-    if (!m->data.HasData())
+    if (!m->data.HasData() && !legacyLayers)
         return;
     m->context = std::make_unique<LiquidPreviewContext>();
+    int32_t mapId = -1;
+    g_mapDB.Load(__FILE__, __LINE__);
+    if (!g_mapDB.m_loaded)
+        throw std::runtime_error("Cannot load map database for liquid selection");
+    for (int32_t i = 0; i < g_mapDB.m_numRecords; ++i) {
+        const auto *record = g_mapDB.GetRecordByIndex(i);
+        if (!SStrCmpI(record->m_directory, mapName.c_str(), STORM_MAX_STR)) {
+            mapId = record->m_id;
+            break;
+        }
+    }
+    if (mapId < 0)
+        throw std::runtime_error("Terrain map is absent from original Map database");
     // Same explicit atmosphere as TerrainPreview, supplied to original materials.
     auto *info = DayNight::GetInfo();
     info->m_light1.m_diffuse = CImVector{153, 166, 179, 255};
@@ -72,8 +111,9 @@ TerrainLiquidPreview::TerrainLiquidPreview(const std::vector<uint8_t> &adt, cons
     // Match CChunkLiquid::Batch's adjacent 2x2 chunks, grouped by liquid type.
     std::map<std::tuple<unsigned, unsigned, unsigned>, std::vector<CChunkLiquid *>> batches;
     for (const auto &source : surface.chunks) {
-        const auto *descriptor = m->data.GetChunkDesc(source.x, source.y);
-        if (!descriptor->m_layerCount)
+        const auto *descriptor = m->data.HasData() ? m->data.GetChunkDesc(source.x, source.y) : nullptr;
+        auto &old = legacy[source.y * 16 + source.x];
+        if ((!descriptor || !descriptor->m_layerCount) && old.empty())
             continue;
         auto owner = std::make_unique<CMapChunk>();
         owner->m_cOffset = C2iVector{int32_t(tileX * 16 + source.x), int32_t(tileY * 16 + source.y)};
@@ -84,23 +124,28 @@ TerrainLiquidPreview::TerrainLiquidPreview(const std::vector<uint8_t> &adt, cons
         Terrain::CreateVerticesWorld(vertices.data(), geometry);
         owner->m_topLeftCoords = vertices[0].m_position;
         owner->m_topLeftCoords.z = source.origin.z;
-        for (unsigned j = 0; j < descriptor->m_layerCount; ++j) {
+        owner->m_nativeLiquidData = std::move(old);
+        owner->m_liquid = owner->m_nativeLiquidData.empty() ? nullptr : owner->m_nativeLiquidData.data();
+        unsigned legacyIndex = 0;
+        for (unsigned i = 0; i < 4 && owner->m_liquid; ++i)
+            if (source.flags & (4 << i)) {
+                const auto typeId = (mapId == 530 && i == 2) ? 15 : i + 1;
+                const auto *type = g_liquidTypeDB.GetRecord(typeId);
+                const auto *material = type ? g_liquidMaterialDB.GetRecord(type->m_materialID) : nullptr;
+                if (!material)
+                    throw std::runtime_error("Legacy liquid type/material is missing");
+                auto chunk = std::make_unique<CChunkLiquid>();
+                chunk->Initialize(*owner, typeId, material->m_lvf, owner->m_nativeLiquidData[legacyIndex++]);
+                batches[{source.y / 2, source.x / 2, typeId}].push_back(chunk.get());
+                m->chunks.push_back(std::move(chunk));
+            }
+        for (unsigned j = 0; descriptor && j < descriptor->m_layerCount; ++j) {
             const auto *record = m->data.GetInstanceDesc(descriptor, j);
             const auto *type = g_liquidTypeDB.GetRecord(record->m_liquidType);
             if (!type || !g_liquidMaterialDB.GetRecord(type->m_materialID))
                 throw std::runtime_error("Terrain liquid type/material is missing");
             auto chunk = std::make_unique<CChunkLiquid>();
-            chunk->m_owner = owner.get();
-            chunk->m_type = record->m_liquidType;
-            chunk->m_vertexFormat = record->m_vertexFormat;
-            chunk->m_topLeftCoords = owner->m_topLeftCoords;
-            chunk->m_height = C2Vector(record->m_minHeight, record->m_maxHeight);
-            chunk->m_tileBegin = C2iVector{record->m_yOffset, record->m_xOffset};
-            chunk->m_tileEnd = C2iVector{record->m_yOffset + record->m_height, record->m_xOffset + record->m_width};
-            chunk->m_vertexData = new Liquid::CInstanceVertexData(&m->data, record);
-            chunk->m_tileBits.SetRawData(const_cast<char *>(reinterpret_cast<const char *>(m->data.GetExistsTable(record))),
-                                         record->m_width * record->m_height, false);
-            chunk->CreateVertXY();
+            chunk->Initialize(*owner, m->data, *record);
             batches[{source.y / 2, source.x / 2, record->m_liquidType}].push_back(chunk.get());
             m->chunks.push_back(std::move(chunk));
         }
@@ -142,7 +187,8 @@ TerrainLiquidPreview::TerrainLiquidPreview(const std::vector<uint8_t> &adt, cons
         instance->m_bounds.r = std::sqrt((high - instance->m_bounds.c).SquaredMag());
         m->instances.push_back(instance);
     }
-    std::fprintf(stderr, "Original terrain MH2O: %zu layers, %zu adjacent-chunk liquid batches\n", m->chunks.size(), m->instances.size());
+    std::fprintf(stderr, "Original terrain liquids: %zu MH2O / %zu MCLQ layers, %zu adjacent-chunk liquid batches\n",
+                 m->chunks.size() - legacyLayers, legacyLayers, m->instances.size());
 }
 TerrainLiquidPreview::~TerrainLiquidPreview() = default;
 bool TerrainLiquidPreview::Ready(bool wait) {

@@ -1,4 +1,7 @@
 #include "MapChunk.h"
+#include "MapChunkLiquid.h"
+#include <stdexcept>
+#include <cstring>
 #include "WoW/Source/WorldClient/DetailDoodad.h"
 #include "WoW/Source/WorldClient/CDetailDoodadData.h"
 #include "Engine/Source/Tempest/CRandom.h"
@@ -213,13 +216,20 @@ void CMapChunk::ProcessIffChunks(bool a3) {
                 this->m_layers = reinterpret_cast<SMLayer*>(data);
                 break;
 
-            case 0x4D434C51:
-                if (this->m_header->m_sizeLiquid > 8) {
-                    this->m_liquid = reinterpret_cast<SMLiquidChunk*>(data);
-                    chunk->m_size = this->m_header->m_sizeLiquid - 8;
+            case 0x4D434C51: {
+                uint32_t liquidSize, flags;
+                std::memcpy(&liquidSize, reinterpret_cast<const uint8_t *>(m_header) + offsetof(SMChunk, m_sizeLiquid), 4);
+                std::memcpy(&flags, reinterpret_cast<const uint8_t *>(m_header) + offsetof(SMChunk, m_flags), 4);
+                if (liquidSize > 8) {
+                    const auto payloadSize = liquidSize - 8;
+                    if (remaining < 0 || payloadSize > uint32_t(remaining))
+                        throw std::runtime_error("MCLQ exceeds MCNK container");
+                    m_nativeLiquidData = Liquid::ReadLegacyChunks(data, payloadSize, flags);
+                    m_liquid = m_nativeLiquidData.empty() ? nullptr : m_nativeLiquidData.data();
+                    std::memcpy(reinterpret_cast<uint8_t *>(chunk) + offsetof(SIffChunk, m_size), &payloadSize, 4);
                 }
-
                 break;
+            }
 
             case 0x4D43414C:
                 this->m_additionalShadowmap = data;
@@ -628,25 +638,8 @@ void CMapChunk::CreateLiquids(bool a3) {
 
                 CChunkLiquid* chunkLiquid = CMap::AllocChunkLiquid();
                 this->m_liquidChunkLinkList.LinkToTail(chunkLiquid);
-                chunkLiquid->m_type = type;
-                chunkLiquid->m_owner = this;
-                chunkLiquid->m_vertexFormat = materialRec->m_lvf;
-                chunkLiquid->m_topLeftCoords = this->m_topLeftCoords;
-                chunkLiquid->m_height = *reinterpret_cast<C2Vector*>(&mclq->m_minHeight);
-
-                uint8_t* verts = reinterpret_cast<uint8_t*>(mclq->m_verts);
-                chunkLiquid->m_tileBegin.x = 0;
-                chunkLiquid->m_tileBegin.y = 0;
-                chunkLiquid->m_tileEnd.x = 8;
-                chunkLiquid->m_tileEnd.y = 8;
-
-                void* mem = SMemAlloc(sizeof(Liquid::CChunkVertexData), __FILE__, __LINE__, 0);
-                Liquid::CChunkVertexData* vertexData = mem ? new (mem) Liquid::CChunkVertexData(verts, chunkLiquid->m_vertexFormat) : nullptr;
-                chunkLiquid->m_tiles = reinterpret_cast<uint8_t*>(&mclq->m_tiles);
-                chunkLiquid->m_vertexData = vertexData;
+                chunkLiquid->Initialize(*this,type,materialRec->m_lvf,*mclq);
                 mclq++;
-
-                chunkLiquid->CreateVertXY();
             }
 
             flag *= 2;
@@ -665,25 +658,7 @@ void CMapChunk::CreateLiquids(bool a3) {
 
             CChunkLiquid* chunkLiquid = CMap::AllocChunkLiquid();
             this->m_liquidChunkLinkList.LinkToTail(chunkLiquid);
-            chunkLiquid->m_owner = this;
-            chunkLiquid->m_type = instance->m_liquidType;
-            chunkLiquid->m_vertexFormat = instance->m_vertexFormat;
-            chunkLiquid->m_topLeftCoords = this->m_topLeftCoords;
-            chunkLiquid->m_height = *reinterpret_cast<const C2Vector*>(&instance->m_minHeight);
-
-            uint8_t yOffset = instance->m_yOffset;
-            uint8_t xOffset = instance->m_xOffset;
-            chunkLiquid->m_tileBegin.x = yOffset;
-            chunkLiquid->m_tileBegin.y = xOffset;
-            chunkLiquid->m_tileEnd.x = yOffset + instance->m_height;
-            chunkLiquid->m_tileEnd.y = xOffset + instance->m_width;
-
-            void* mem = SMemAlloc(sizeof(Liquid::CInstanceVertexData), __FILE__, __LINE__, 0);
-            chunkLiquid->m_vertexData = mem ? new (mem) Liquid::CInstanceVertexData(area->m_liquid, instance) : nullptr;
-
-            uint32_t tileCount = instance->m_width * instance->m_height;
-            chunkLiquid->m_tileBits.SetRawData(const_cast<char*>(reinterpret_cast<const char*>(area->m_liquid->GetExistsTable(instance))), tileCount, false);
-            chunkLiquid->CreateVertXY();
+            chunkLiquid->Initialize(*this,*area->m_liquid,*instance);
         }
     }
 

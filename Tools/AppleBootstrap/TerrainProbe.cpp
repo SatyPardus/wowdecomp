@@ -69,9 +69,12 @@ void CheckBlend(const Terrain::Surface& surface, size_t index) {
 
 void CheckTerrainLiquids(const std::vector<uint8_t>& adt, std::ostream& report);
 
+void CheckMapDatabase(const ClientData& client, std::ostream& report);
+
 void CheckTerrainResources(const ClientData& client, std::ostream& report) {
+    CheckMapDatabase(client, report);
     struct Case { const char* map; uint32_t x, y; };
-    for (const auto test : {Case{"AhnQiraj", 26, 46}, Case{"Azeroth", 32, 48}, Case{"Northrend", 32, 32}}) {
+    for (const auto test : {Case{"AhnQiraj", 26, 46}, Case{"Azeroth", 32, 48}, Case{"Northrend", 32, 32}, Case{"Expansion01", 19, 31}, Case{"Expansion01", 28, 37}}) {
         const std::string base = std::string("World\\Maps\\") + test.map + "\\" + test.map;
         const auto map = client.Read(base + ".wdt", 1024 * 1024, true);
         Require(map.bytes.size() >= 52 && Word(map.bytes, 12) == 0x4D504844, "Terrain WDT header missing");

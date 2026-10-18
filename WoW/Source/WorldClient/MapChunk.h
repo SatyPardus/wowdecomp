@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include "WoW/Common/TerrainGeometry.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "WoW/Source/WorldClient/CChunkLiquid.h"
@@ -93,6 +94,7 @@ class CMapChunk : public CMapBaseObj {
     /* 0130 */ uint8_t* m_additionalShadowmap;
     /* 0134 */ uint8_t* m_mcrfPtr;
     /* 0138 */ SMLiquidChunk* m_liquid;
+    std::vector<SMLiquidChunk> m_nativeLiquidData;
     /* 013C */ CWSoundEmitter* m_soundEmitters;
     /* 0140 */ CBitArray m_deepBits;
     /* 014C */ CBitArray m_fishableBits;

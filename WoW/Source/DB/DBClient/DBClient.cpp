@@ -383,9 +383,6 @@ WowClientDB<LockTypeRec> g_lockTypeDB;
 // STATIC: 0x00AD413C
 WowClientDB<MailTemplateRec> g_mailTemplateDB;
 
-// STATIC: 0x00AD4160
-WowClientDB<MapRec> g_mapDB;
-
 // STATIC: 0x00AD4184
 WowClientDB<MapDifficultyRec> g_mapDifficultyDB;
 

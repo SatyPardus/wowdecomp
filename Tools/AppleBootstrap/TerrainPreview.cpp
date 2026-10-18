@@ -120,7 +120,7 @@ TerrainPreview::TerrainPreview(const std::string& selection) {
         m_indices = device.BufCreate(m_indexPool, sizeof(indices[0]), uint32_t(indices.size()), 0);
         GxBufData(m_vertices, vertices.data(), uint32_t(vertices.size()*sizeof(vertices[0])), 0);
         GxBufData(m_indices, indices.data(), uint32_t(indices.size()*sizeof(indices[0])), 0);
-        m_liquid = std::make_unique<TerrainLiquidPreview>(adt, m_surface, x, y, m_radius);
+        m_liquid = std::make_unique<TerrainLiquidPreview>(adt, m_surface, x, y, m_radius, map);
         std::fprintf(stderr, "Terrain surface %s: %zu chunks, %u triangles, %zu materials, %s alpha, specular textures enabled\n",
             selection.c_str(), m_chunks.size(), m_triangles, size_t(std::count(needed.begin(), needed.end(), true)), m_surface.bigAlpha ? "8-bit" : "4-bit");
     } catch (...) { Shutdown(); throw; }

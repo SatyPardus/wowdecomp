@@ -3,8 +3,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
+
+struct SMLiquidChunk;
+namespace Liquid {
+    // MCNK supplies the authoritative MCLQ extent; the MCLQ size word may be zero.
+    std::vector<SMLiquidChunk> ReadLegacyChunks(const void* data, size_t size, uint32_t chunkFlags);
+}
 
 struct CGxBuf;
 struct CGxPool;

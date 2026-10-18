@@ -63,6 +63,7 @@ target_compile_definitions(AppleFoundation PUBLIC WOW_LOCAL_FILES_ONLY=1)
 
 add_subdirectory(ThirdParty EXCLUDE_FROM_ALL)
 add_library(AppleArchives STATIC
+    WoW/Source/ClientLocale.cpp
     WoW/Source/WowServices/ClientData.cpp
     Engine/Source/BlizzardCore/SFile2-Core.cpp
     Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.cpp
@@ -131,6 +132,8 @@ add_library(AppleGameResources STATIC
     WoW/Source/DB/WowClientDB.cpp
     WoW/Source/DB/DBClient/AnimationData.cpp
     WoW/Source/DB/Rec/AnimationDataRec.cpp
+    WoW/Source/DB/DBClient/MapData.cpp
+    WoW/Source/DB/Rec/MapRec.cpp
     WoW/Source/DB/DBClient/LiquidData.cpp
     WoW/Source/DB/Rec/LiquidTypeRec.cpp
     WoW/Source/DB/Rec/LiquidMaterialRec.cpp

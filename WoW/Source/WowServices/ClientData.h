@@ -40,6 +40,7 @@ private:
     std::string m_previousBasePath;
     std::string m_previousDataPath;
     std::string m_previousAlternatePath;
+    int32_t m_previousDbLocale = 0;
     bool m_filePathsSelected = false;
     std::string Resolve(const std::string& relative) const;
     bool Open(const std::string& relative, int32_t priority, bool required);

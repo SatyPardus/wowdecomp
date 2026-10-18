@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include "WoW/Source/WowServices/ArchiveLayout.h"
 #include "WoW/Source/WowServices/ClientData.h"
+#include "WoW/Source/Client.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Include/Blizzard/Util/MD5.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.h"
@@ -33,6 +34,7 @@ void ClientData::CloseArchive::operator()(System_SFile::ARCHIVEREC* archive) con
 ClientData::~ClientData() {
     while (!m_mounts.empty()) { m_mounts.pop_back(); }
     if (m_filePathsSelected) {
+        s_locale = m_previousDbLocale;
         SFile::SetBasePath(m_previousBasePath.c_str());
         SFile::SetDataPath(m_previousDataPath.c_str());
         SFile::SetDataPathAlternate(m_previousAlternatePath.c_str());
@@ -172,6 +174,9 @@ ClientData::ClientData(const std::string& dataRoot, const std::string& requested
     SFile::SetDataPath(data.c_str());
     SFile::SetDataPathAlternate("");
     SFile::RebuildHash();
+    m_previousDbLocale = s_locale;
+    s_locale = 0; // Original enUS/enGB slot, also used by English alternate locales.
+    for (int32_t i = 0; i < 9; ++i) if (m_locale == s_iniLocaleNames[i]) { s_locale = i; break; }
     m_filePathsSelected = true;
 }
 

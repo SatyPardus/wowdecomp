@@ -309,8 +309,15 @@ recreation. Terrain MH2O now uses a bounded, owned payload with naturally aligne
 chunk/layer descriptors; rejected replacements retain the previous data. Authored
 heights, depths, UVs and existence/fishable/deep bitmaps retain their values,
 including implicit ocean defaults. Original MapArea uses the same bounded reader;
-legacy MCLQ height/UV access is alignment-safe. Full MCLQ loading, actor ripples,
-procedural-wave material 3 and fixed-function liquid paths remain to be connected.
+legacy MCLQ records now have bounded aligned ownership too. The original MCNK
+length remains authoritative when the MCLQ size word is zero. Original chunk
+creation and previews share the height/depth/UV initialization, while tile flags,
+strip holes and layer geometry remain in CChunkLiquid. Tile height queries
+reject the exclusive upper edge before indexing neighboring vertices. Original
+Map.dbc selects Outland's green magma type; its localized fields use the selected
+archive locale (zhCN slot 4 on the supplied installation), scoped to ClientData's
+lifetime. Actor ripples, procedural-wave material 3 and fixed-function liquid
+paths remain to be connected.
 Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against
@@ -331,7 +338,7 @@ material layers, WDT-selected vertex colors, hole indices and packed/RGBA blend
 maps. UV animation and per-layer lighting flags are preserved; cube-reflection
 materials fail explicitly. The preview supplies an orbiting camera and explicit
 lighting/fog; automatic World DayNight and WMO/doodad placement are not integrated.
-MH2O liquids now use original CChunkLiquid vertices/triangle strips, adjacent 2x2
+MH2O and MCLQ liquids now use original CChunkLiquid vertices/triangle strips, adjacent 2x2
 chunk batching, depth coordinates, original material/settings banks and animated
 MPQ textures. Elwynn's 42 layers become 19 draws; Northrend's 256 ocean layers
 become 64 draws. Their liquid-only views cover 1585/12195 pixels and show animation.
@@ -340,7 +347,16 @@ macOS ASan/UBSan and Metal validation pass through two resource/context cycles;
 Elwynn terrain/water and original audio run together for 120 frames. Both iOS
 targets build; the simulator runs Northrend terrain/water and audio for 120 frames,
 then repeats them after foreground resource/device recreation.
-These previews still do not perform full world loading. Terrain0/2/3, projected shadows, cube reflection and
+For legacy water use `WOW_TERRAIN=Expansion01:19:31`; for a water/green-magma
+mixture use `WOW_TERRAIN=Expansion01:28:37`. These contain 208 and 31 original
+MCLQ layers, including two chunks with both liquid types. Their 9292 visible
+tiles retain exact heights/UVs and original hole topology; liquid-only views draw
+62/16 batches and cover 12155/559 pixels with animation. Mac ASan/UBSan and Metal
+checks pass through resource recreation, and the mixed tile presents 120 frames
+with original streamed audio. Both iOS targets build; the simulator passes the
+checks and runs the mixed tile/audio for 120 frames, repeating both after
+foreground resource/device recreation. These previews still do not perform full
+world loading. Terrain0/2/3, projected shadows, cube reflection and
 fixed-function terrain paths remain unsupported.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build

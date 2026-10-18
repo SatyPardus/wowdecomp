@@ -1,5 +1,8 @@
 #include "MapChunkLiquid.h"
 #include <cmath>
+#include <cstring>
+#include <stdexcept>
+#include <memory>
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxPool.h"
@@ -20,6 +23,68 @@
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CFrustum.h"
 #include "Engine/Source/Tempest/CiRect.h"
+
+// Copy whole original records, including the authored flow records, to aligned
+// storage. Tile filtering and height/UV interpretation remain in CChunkLiquid.
+std::vector<SMLiquidChunk> Liquid::ReadLegacyChunks(const void *input, size_t size, uint32_t flags) {
+    static_assert(sizeof(SMLiquidChunk) == 804 && offsetof(SMLiquidChunk, m_tiles) == 656);
+    unsigned count = 0;
+    for (unsigned bit = 4; bit <= 32; bit *= 2)
+        count += (flags & bit) != 0;
+    if ((!input && size) || size < count * sizeof(SMLiquidChunk) || size > 4 * sizeof(SMLiquidChunk))
+        throw std::runtime_error("Invalid MCLQ payload extent");
+    std::vector<SMLiquidChunk> result(count);
+    if (count)
+        std::memcpy(result.data(), input, count * sizeof(SMLiquidChunk));
+    unsigned layer = 0;
+    for (unsigned type = 0; type < 4; ++type)
+        if (flags & (4 << type)) {
+            const auto &chunk = result[layer++];
+            if (!std::isfinite(chunk.m_minHeight) || !std::isfinite(chunk.m_maxHeight) || chunk.m_nFlowvs > 2)
+                throw std::runtime_error("Invalid MCLQ bounds or flow count");
+            // Ocean has implicit zero height. Other original formats store a float
+            // at byte 4 of each eight-byte vertex, independent of depth or magma UV.
+            if (type != 1)
+                for (const auto &vertex : chunk.m_verts) {
+                    float height;
+                    std::memcpy(&height, vertex.unused_0000 + 4, 4);
+                    if (!std::isfinite(height))
+                        throw std::runtime_error("Non-finite MCLQ vertex height");
+                }
+        }
+    return result;
+}
+void CChunkLiquid::Initialize(CMapChunk &owner, const Liquid::CAreaData &area, const SMLiquidInstance &instance) {
+    auto vertexData = std::make_unique<Liquid::CInstanceVertexData>(&area, &instance);
+    m_owner = &owner;
+    m_type = instance.m_liquidType;
+    m_vertexFormat = instance.m_vertexFormat;
+    m_topLeftCoords = owner.m_topLeftCoords;
+    m_height = C2Vector(instance.m_minHeight, instance.m_maxHeight);
+    m_tileBegin = {instance.m_yOffset, instance.m_xOffset};
+    m_tileEnd = {instance.m_yOffset + instance.m_height, instance.m_xOffset + instance.m_width};
+    m_tileBits.SetRawData(const_cast<char *>(reinterpret_cast<const char *>(area.GetExistsTable(&instance))),
+                          instance.m_width * instance.m_height, false);
+    m_tiles = nullptr;
+    delete m_vertexData;
+    m_vertexData = vertexData.release();
+    CreateVertXY();
+}
+void CChunkLiquid::Initialize(CMapChunk &owner, uint32_t type, uint32_t format, const SMLiquidChunk &data) {
+    auto vertexData = std::make_unique<Liquid::CChunkVertexData>(reinterpret_cast<const uint8_t *>(data.m_verts), format);
+    m_owner = &owner;
+    m_type = type;
+    m_vertexFormat = format;
+    m_topLeftCoords = owner.m_topLeftCoords;
+    m_height = C2Vector(data.m_minHeight, data.m_maxHeight);
+    m_tileBegin = {0, 0};
+    m_tileEnd = {8, 8};
+    m_tileBits.SetRawData(nullptr, 0, false);
+    m_tiles = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(&data.m_tiles));
+    delete m_vertexData;
+    m_vertexData = vertexData.release();
+    CreateVertXY();
+}
 
 // STATIC: 0x00AF0A0C
 TSList<CMapChunkLiquid, TSGetExplicitLink<CMapChunkLiquid> > CMapChunkLiquidBuf::s_freeLists = TSExplicitList<CMapChunkLiquid, offsetof(CMapChunkLiquid, m_link)>();
@@ -101,7 +166,7 @@ void CChunkLiquid::CreateVertXY() {
 // VERIFY: 6dc3ffdb manual
 // OFFSET: 0x007CE0B0
 bool CChunkLiquid::GetHeight(const C2Vector& frac, const C2iVector& tile, float& height) const {
-    if (tile.x < this->m_tileBegin.y || tile.y < this->m_tileBegin.x || tile.x > this->m_tileEnd.y || tile.y > this->m_tileEnd.x) {
+    if (tile.x < this->m_tileBegin.y || tile.y < this->m_tileBegin.x || tile.x >= this->m_tileEnd.y || tile.y >= this->m_tileEnd.x) {
         return false;
     }
 
@@ -123,7 +188,7 @@ bool CChunkLiquid::GetHeight(const C2Vector& frac, const C2iVector& tile, float&
 // VERIFY: cf242b03 manual
 // OFFSET: 0x007CE180
 bool CChunkLiquid::GetTileInfo(const C2iVector& tile, int32_t* type, int32_t* flag6, int32_t* flag7) const {
-    if (!this->m_tiles) {
+    if (!this->m_tiles || tile.x < 0 || tile.y < 0 || tile.x >= 8 || tile.y >= 8) {
         return false;
     }
 

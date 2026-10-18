@@ -181,12 +181,6 @@ static const char* s_dataDirectories[3] = { "Data\\", "..\\Data\\", "Data\\" };
 // STATIC: 0x00AB6350
 WowClientDB<Startup_StringsRec> g_startup_StringsDB;
 
-// STATIC: 0x00AD2FE0
-const char* s_iniLocaleNames[9] = { "enUS", "koKR", "frFR", "deDE", "zhCN", "zhTW", "esES", "esMX", "ruRU" };
-
-// STATIC: 0x00AD3004
-uint32_t s_localeIds[9] = { 'enUS', 'koKR', 'frFR', 'deDE', 'zhCN', 'zhTW', 'esES', 'esMX', 'ruRU' };
-
 // STATIC: 0x00B2F99C
 int32_t s_region;
 
@@ -233,9 +227,6 @@ static char s_installLocation[1024];
 
 // STATIC: 0x00C5DE90
 bool g_hasIsoLocale[12];
-
-// STATIC: 0x00C5DE9C
-int32_t s_locale;
 
 // STATIC: 0x00B2F040
 static const char* s_directory;

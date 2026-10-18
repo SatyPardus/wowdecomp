@@ -14,11 +14,14 @@
 #include "Engine/Source/Tempest/CAaSphere.h"
 
 class CMapChunk;
+struct SMLiquidInstance;
+struct SMLiquidChunk;
 
 namespace Liquid {
     class CInstance;
     class CWaveManager;
     class IVertexData;
+    class CAreaData;
 }
 
 namespace World { class TriData; }
@@ -51,6 +54,9 @@ class CChunkLiquid {
 
     CChunkLiquid();
     ~CChunkLiquid();
+    // Initializes freshly allocated geometry with data owned by its area/chunk.
+    void Initialize(CMapChunk& owner, const Liquid::CAreaData& area, const SMLiquidInstance& instance);
+    void Initialize(CMapChunk& owner, uint32_t type, uint32_t format, const SMLiquidChunk& data);
     void Batch();
     void BuildIndices(uint16_t* indices, uint16_t baseVertex, CGxBatch* batch) const;
     void BuildVertices(const C44Matrix* transform, uint32_t stride, C3Vector** position, C3Vector** normal, uint32_t** color, C2Vector** texCoord1, C2Vector** texCoord0) const;

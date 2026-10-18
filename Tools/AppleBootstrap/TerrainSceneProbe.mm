@@ -19,12 +19,12 @@ void CheckGameTerrain() {
     pass.depthAttachment.texture = [device.GPU().device newTextureWithDescriptor:descriptor];
     pass.depthAttachment.loadAction = MTLLoadActionClear;
     pass.depthAttachment.clearDepth = 1;
-    for (const char *name : {"Azeroth:32:48", "Northrend:32:32"}) {
+    for (const char *name : {"Azeroth:32:48", "Northrend:32:32", "Expansion01:19:31", "Expansion01:28:37"}) {
         TerrainPreview terrain(name);
         if (!terrain.Ready(true) || terrain.ChunkCount() != 256)
             throw std::runtime_error("Real terrain surface did not become ready");
-        if (terrain.LiquidLayerCount() != (name[0] == 'A' ? 42 : 256))
-            throw std::runtime_error("Terrain MH2O layers omitted");
+        if (terrain.LiquidLayerCount() != (name[0] == 'A' ? 42 : name[0] == 'N' ? 256 : std::strstr(name, "19:31") ? 208 : 31))
+            throw std::runtime_error("Terrain liquid layers omitted");
         TSGrowableArray<CImVector> first;
         unsigned changed = 0;
         for (unsigned frame = 0; frame < 6; ++frame) {

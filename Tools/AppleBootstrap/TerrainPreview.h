@@ -12,7 +12,7 @@ struct CGxPool;
 class CGxShader;
 
 // A complete ADT surface, using shared original geometry/alpha generation and
-// Services texture ownership, plus original MH2O liquids. World objects and
+// Services texture ownership, plus original MH2O/MCLQ liquids. World objects and
 // day/night selection are not supplied; camera and lighting are explicit inputs.
 class TerrainPreview {
 public:
