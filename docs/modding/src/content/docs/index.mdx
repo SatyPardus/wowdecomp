@@ -14,6 +14,9 @@ hero:
 ---
 
 import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+import { loadApi } from '../../lib/api-source.mjs';
+
+export const hookCount = loadApi().hooks.length;
 
 <Aside type="caution" title="Work in progress">
 ModCore was introduced as a WIP framework. Several advertised pieces are stubs or only declared in typings.
@@ -21,7 +24,7 @@ See [Known issues](/known-issues/) before relying on a feature.
 </Aside>
 
 <CardGrid stagger>
-  <Card title="63 documented hooks" icon="puzzle">
+  <Card title={`${hookCount} documented hooks`} icon="puzzle">
     Lifecycle, world, input, chat, spells, tooltips, quests, loot, and more. Listen, override a value, or consume the event.
   </Card>
   <Card title="Custom packets" icon="rocket">

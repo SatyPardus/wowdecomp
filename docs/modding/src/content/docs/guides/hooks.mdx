@@ -14,7 +14,7 @@ ModCore.On("OnKeyDown", handler, 100, "My key handler")        -- optional doc s
 ModCore.UnregisterHook("OnKeyDown", handler)                   -- unregister by function identity
 ```
 
-`ModCore.On`, `ModCore.RegisterHook`, `ModCore.Hooks.Register`, and the `ModCore.Hooks.OnXxx(fn, priority)` sugar all do the same thing. See [Hooks module](/reference/hooks-module/).
+`ModCore.On`, `ModCore.RegisterHook`, `ModCore.Hooks.Register`, and the `ModCore.Hooks.OnXxx(fn, priority)` sugar all do the same thing. See [Hooks module](/reference/api/hooks/).
 
 <Aside type="caution" title="Firing is not registering">
 `ModCore.OnWorldUpdate(...)` (a name starting with `On` on the `ModCore` table) **fires** the hook. Only `ModCore.Hooks.OnWorldUpdate(fn)` registers one. Use `ModCore.On(name, fn)` to avoid confusion.
@@ -45,7 +45,7 @@ Hook signatures use these conventions:
 ## Argument types
 
 - **GUIDs** are passed as Lua numbers (doubles). Values above $2^{53}$ lose precision. Compare them with each other, but do not do arithmetic on them. `ModCore.GetLastHitGuid()` also returns a hex string.
-- **Pointers** (`worldFrame`, `objectPtr`, `tooltip`, `reader`, `msg`, `namePlatePtr`, ...) are opaque light userdata. Lua cannot dereference them. See [Entity API](/reference/entity-api/).
+- **Pointers** (`worldFrame`, `objectPtr`, `tooltip`, `reader`, `msg`, `namePlatePtr`, ...) are opaque light userdata. Lua cannot dereference them. See [Engine types](/reference/api/cgobject-c/).
 - Points are tables `{ x = ..., y = ..., z = ... }`.
 - The `integer` type in the typings is an ordinary Lua number.
 

@@ -33,7 +33,7 @@ Net.DefinePacket("CMSG_PLACE_OBJECT", {
 Net.Send("CMSG_PLACE_OBJECT", { entry = 1234, position = { x = 1, y = 2, z = 3 } })
 ```
 
-`direction` is `"SERVER_TO_CLIENT"`, `"CLIENT_TO_SERVER"`, or `"BIDIRECTIONAL"`. A handler is wired only for server-to-client and bidirectional packets. See [Net](/reference/net/) for the field types.
+`direction` is `"SERVER_TO_CLIENT"`, `"CLIENT_TO_SERVER"`, or `"BIDIRECTIONAL"`. A handler is wired only for server-to-client and bidirectional packets. See [Net](/reference/api/net/) for the field types.
 
 <Aside type="caution">
 - Field types are read and written **in schema order**. An unknown type is skipped silently, which misaligns every later field.
@@ -73,4 +73,4 @@ A writer splits its buffer into fragments of at most 30000 bytes. Incoming fragm
 
 ## Observing the normal packet stream
 
-`OnPacketReceived` and `OnPacketSend` see all regular client messages. Carrier packets (`0x102`, `0x7A00`) are handled by the custom packet manager first and never reach `OnPacketReceived`. See [network hooks](/reference/hooks/network/).
+`OnPacketReceived` and `OnPacketSend` see all regular client messages. Carrier packets (`0x102`, `0x7A00`) are handled by the custom packet manager first and never reach `OnPacketReceived`. See [network hooks](/reference/hooks/network/onpacketreceived/).

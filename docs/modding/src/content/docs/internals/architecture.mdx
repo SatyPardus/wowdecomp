@@ -55,7 +55,7 @@ Hooks run synchronously inside engine code paths such as `NetClient::ProcessMess
 
 4. Register metadata so it appears in the typings: add a `RegisterHook({...})` entry in `AutoExport::PopulateDefaultMetadata` and a matching `ApiExport.RegisterHook(...)` line in `mods/system/api_export.lua`.
 
-5. Document it in the [hook catalog](/reference/hooks/).
+5. Re-run the client once so it re-exports `mods/api/wowdecomp_api.json`. The docs build turns the new hook into a [hook page](/reference/hooks/) automatically. Add a `## YourHook` section to a file in `docs/modding/src/api-notes/hooks/` to attach the source location and behavior notes (see [Writing API notes](/internals/building/#writing-api-notes)).
 
 </Steps>
 

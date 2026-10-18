@@ -1,36 +1,32 @@
 ---
-title: Hook catalog
+title: Hooks
 description: Conventions and an index of every ModCore hook.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import { loadApi } from '../../../../lib/api-source.mjs';
+import HookCatalog from '../../../../components/HookCatalog.astro';
 
-ModCore declares 63 hooks, plus two that fire but are not in the typings. Register any of them with `ModCore.On(name, fn, priority)`. How return values work is explained in [Hooks and return values](/guides/hooks/).
+ModCore declares {loadApi().hooks.length} hooks, plus two that fire but are not in the exported schema. Register any of them with `ModCore.On(name, fn, priority)`. How return values work is explained in [Hooks and return values](/guides/hooks/).
 
-## Reading the tables
+Each hook has its own page, generated from the exported API schema and combined with hand-written notes. The sidebar groups them by area.
 
-- **Returns** `boolean?` means *consume*; `T?` means *override*; `void` means *notification*.
-- **Status** `Fires` means the engine calls the hook in these commits. `Not wired` means a dispatcher exists but no engine code calls it, so listeners never run.
+## Reading the pages
 
-## Index
+- **Type** `Notification` means the return value is ignored, `Consume` (`boolean?`) means returning `true` consumes the event, and `Override` means a returned value replaces the engine's.
+- **Status** `Fires` means the engine calls the hook in the current source. `Not wired` means a dispatcher exists but nothing calls it, so listeners never run. `Partial` means it fires but behaves differently from its signature.
 
-| Category | Hooks |
-| --- | --- |
-| [Lifecycle, world, environment, camera](/reference/hooks/lifecycle-world/) | `OnEngineInit`, `OnEngineShutdown`, `OnGameInitialize`, `OnGameDestroy`, `OnFrameTick`, `OnEnterWorld`, `OnLeaveWorld`, `OnMapChange`, `OnWorldUpdate`, `OnWorldRender`, `OnWorldHitTest`, `OnTerrainTrack`, `OnTerrainClick`, `OnZoneChange`, `OnWeatherChange`, `OnCameraUpdate` |
-| [Glue screens](/reference/hooks/glue/) | `OnGlueResume`, `OnGlueIdle`, `OnGlueScreenChange`, `IsLoginBlocked`, `OnCharacterSelect`, `OnCharacterCreate` |
-| [Network](/reference/hooks/network/) | `OnPacketReceived`, `OnPacketSend`, `OnDisconnect` |
-| [Spells and tooltips](/reference/hooks/spells-tooltips/) | `OnSpellQuery`, `OnSpellCast`, `OnChannelStart`, `OnChannelUpdate`, `OnChannelStop`, `OnSpellDestroy`, `OnTooltipEvaluate`, `OnTooltipSetSpell`, `OnTooltipSetItem`, `OnTooltipSetUnit` |
-| [Objects](/reference/hooks/objects/) | `OnObjectCreate`, `OnObjectDestroy`, `OnTargetChanged` |
-| [Input and chat](/reference/hooks/input-chat/) | `OnKeyDown`, `OnKeyUp`, `OnMouseDown`, `OnMouseUp`, `OnMouseWheel`, `OnChatMessage`, `OnSendChatMessage` |
-| [Gameplay UI](/reference/hooks/gameplay-ui/) | `OnLootOpen`, `OnLootSlot`, `OnLootClose`, `OnMerchantBuy`, `OnQuestAccept`, `OnQuestComplete`, `OnQuestReward`, `OnGossipSelect`, `OnActionUse`, `OnMacroExecute`, `OnCooldownSet`, `OnPlaySound`, `OnPlayMusic`, `OnItemUse`, `OnTradeInitiate`, `OnTradeAccept`, `OnCombatFeedback`, `OnNamePlateCreate` |
-
-## Hooks fired but not in the typings
+## Hooks fired but not in the schema
 
 | Hook | Arguments | Fired when |
 | --- | --- | --- |
-| `OnSpellPacket` | `opcode: number, msg: lightuserdata` | A spell-related server message is handled in `Spell_C.cpp` |
-| `OnModMounted` | `modId: string, context: table` | After `ModCore.MountMod` finishes a mod |
+| `OnSpellPacket` | `opcode: number, msg: lightuserdata` | A spell-related server message is handled in `Spell_C.cpp`. |
+| `OnModMounted` | `modId: string, context: table` | After `ModCore.MountMod` finishes a mod. |
 
 <Aside type="note">
-Because the same dispatcher handles every name, listeners for hooks the engine never calls are harmless. They simply never run.
+The same dispatcher handles every name, so listeners for hooks the engine never calls are harmless. They simply never run.
 </Aside>
+
+## All hooks
+
+<HookCatalog />

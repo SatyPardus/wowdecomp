@@ -1,0 +1,42 @@
+---
+import { loadApi, hookCategories, hookDocId, slug } from '../lib/api-source.mjs';
+import { loadNotes } from '../lib/api-notes.mjs';
+
+const api = loadApi();
+const notes = loadNotes().hooks;
+const categories = hookCategories(api);
+
+const STATUS: Record<string, string> = { 'not-wired': 'Not wired', partial: 'Partial' };
+const kind = (returnType: string) =>
+  returnType === 'void' ? 'Notification' : returnType === 'boolean?' ? 'Consume' : 'Override';
+---
+
+<p>
+  {categories.map((c, i) => (
+    <>
+      {i > 0 && ' · '}
+      <a href={`#${slug(c)}`}>{c}</a>
+    </>
+  ))}
+</p>
+
+{categories.map((category) => (
+  <section>
+    <h3 id={slug(category)}>{category}</h3>
+    <table>
+      <thead>
+        <tr><th>Hook</th><th>Type</th><th>Status</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        {api.hooks.filter((h) => h.category === category).map((h) => (
+          <tr>
+            <td><a href={`/${hookDocId(h)}/`}><code>{h.name}</code></a></td>
+            <td>{kind(h.returnType)}</td>
+            <td>{STATUS[notes.get(h.name)?.meta.status ?? ''] ?? 'Fires'}</td>
+            <td>{h.description}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+))}

@@ -38,4 +38,4 @@ local id, name, value = DBC.GetRowUnpacked("MyTable", 1)
 This module is a self-contained Lua table store. No C++ code in these commits calls it, so it does **not** change what the client reads from real `.dbc` files, and `DBC.GetRow` cannot read the game's own tables. `_CDBC_GET` and `GetCDBCRow` exist as hooks for C++ or script callers that follow the same calling convention.
 </Aside>
 
-See [DBC reference](/reference/dbc/) for every function.
+See the [DBC reference](/reference/api/dbcengine/) for every function.

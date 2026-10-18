@@ -1,6 +1,9 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { hookSidebar, loadApi, moduleSidebar } from './src/lib/api-source.mjs';
+
+const api = loadApi();
 
 export default defineConfig({
   markdown: { gfm: true },
@@ -31,30 +34,22 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Hook Reference',
+          label: 'Reference',
           items: [
-            { slug: 'reference/hooks' },
-            { slug: 'reference/hooks/lifecycle-world' },
-            { slug: 'reference/hooks/glue' },
-            { slug: 'reference/hooks/network' },
-            { slug: 'reference/hooks/spells-tooltips' },
-            { slug: 'reference/hooks/objects' },
-            { slug: 'reference/hooks/input-chat' },
-            { slug: 'reference/hooks/gameplay-ui' },
-          ],
-        },
-        {
-          label: 'API Reference',
-          items: [
-            { slug: 'reference/modcore' },
-            { slug: 'reference/hooks-module' },
-            { slug: 'reference/net' },
-            { slug: 'reference/packet-io' },
-            { slug: 'reference/dbc' },
-            { slug: 'reference/visuals' },
-            { slug: 'reference/api-export' },
-            { slug: 'reference/configuration' },
-            { slug: 'reference/entity-api' },
+            {
+              label: 'Hooks',
+              items: [{ slug: 'reference/hooks', label: 'Overview' }, ...hookSidebar(api)],
+            },
+            {
+              label: 'Runtime API',
+              items: [
+                ...moduleSidebar(api, true),
+                { slug: 'reference/packet-io' },
+                { slug: 'reference/api-export' },
+                { slug: 'reference/configuration' },
+              ],
+            },
+            { label: 'Engine types', collapsed: true, items: moduleSidebar(api, false) },
           ],
         },
         {

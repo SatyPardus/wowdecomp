@@ -26,7 +26,7 @@ ModCore is a work in progress. This page lists behavior verified against the sou
 - `OnPacketSend` always receives `opcode = 0`.
 - `OnSpellQuery` supports only `"PowerCost"` and `"IsPassive"` and does not receive the caster.
 - `OnSpellPacket` and `OnModMounted` fire but are missing from the typings.
-- Pointer arguments are opaque. See [Entity API](/reference/entity-api/).
+- Pointer arguments are opaque. See [Engine types](/reference/api/cgobject-c/).
 - GUIDs are doubles and lose precision above $2^{53}$.
 
 ## Modules
@@ -43,7 +43,7 @@ The generated `mods/api/wowdecomp.d.lua`, `wowdecomp_api.json`, and `AI_MODDING_
 | Typings say | Reality |
 | --- | --- |
 | Globals `Hooks`, `Net`, `DbcEngine`, `Visuals` | The modules are `ModCore.Hooks`, `ModCore.Net`, `ModCore.DBC` (also global `DBC`), and `require("system.visuals")` |
-| `DbcEngine.GetTable` | Does not exist. See the [DBC reference](/reference/dbc/) for real functions |
+| `DbcEngine.GetTable` | Does not exist. See the [DBC reference](/reference/api/dbcengine/) for real functions |
 | `Visuals.CreateRibbonTrail` | Does not exist |
 | `CGObject_C`, `CGUnit_C`, `CGPlayer_C`, `ClntObjMgr`, `WOWGUID` methods | No bindings |
 | `ModCore.ClickTerrain(x?, y?, z?)` | Coordinates are effectively required |

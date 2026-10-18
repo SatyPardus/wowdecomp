@@ -3,7 +3,7 @@ title: API export
 description: The registry behind the generated typings, schema, and AI guide.
 ---
 
-`mods/system/api_export.lua` holds a Lua-side registry, available as `ModCore.ApiExport`. The C++ `AutoExport` class owns a second registry that is pre-populated with the 63 built-in hooks, the core classes, and sample opcodes. On export the two are merged and written to `mods/api/`.
+`mods/system/api_export.lua` holds a Lua-side registry, available as `ModCore.ApiExport`. The C++ `AutoExport` class owns a second registry that is pre-populated with the built-in hooks, the core classes, and sample opcodes. On export the two are merged and written to `mods/api/`.
 
 ## Registry functions
 
