@@ -86,6 +86,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::WaterRipple: return "WaterRipples";
         case GxMetal::FragmentEffect::ShadowMap: return target == GxSh_Vertex ? "ShadowMap" : "ShadowMapSL";
         case GxMetal::FragmentEffect::Terrain: return target == GxSh_Vertex ? "Terrain" : "Terrain1";
+        case GxMetal::FragmentEffect::Terrain0: return "Terrain0";
         case GxMetal::FragmentEffect::Terrain2: return "Terrain2";
         case GxMetal::FragmentEffect::Terrain3: return "Terrain3";
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
@@ -835,7 +836,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     for (auto candidate : {Effect::LiquidWater, Effect::LiquidWaterNoSpec, Effect::LiquidMagma})
         if (SStrCmpI(name, GxMetal::LiquidShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::Terrain, target), STORM_MAX_STR) == 0) effect = Effect::Terrain;
-    if (target == GxSh_Pixel) for (auto candidate : {Effect::Terrain2, Effect::Terrain3})
+    if (target == GxSh_Pixel) for (auto candidate : {Effect::Terrain0, Effect::Terrain2, Effect::Terrain3})
         if (SStrCmpI(name, ShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::ShadowMap, target), STORM_MAX_STR) == 0) effect = Effect::ShadowMap;
     if (SStrCmpI(name, "DetailDoodad", STORM_MAX_STR) == 0) effect = Effect::DetailDoodad;
@@ -940,7 +941,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool postProcess = !ripple && !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
-    const unsigned inputs = shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, m->shaders.at(pixel).permutation) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
+    const unsigned inputs = shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation)) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
     Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
         ((liquid || shadow || detail || ripple) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui)),
         "Unsupported native Gx vertex/pixel shader combination");
@@ -1082,6 +1083,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertexPermutation = m->shaders.at(vertex).permutation;
         native.pixelPermutation = GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation);
         native.shadowMode = GxMetal::TerrainShadowMode(effect, m->shaders.at(pixel).permutation);
+        if (effect == GxMetal::FragmentEffect::Terrain0) native.layerPass = GxMetal::TerrainLayerPass(1 + m->shaders.at(pixel).permutation);
+        std::memcpy(&native.fragment.layerChannel, s_shadowConstants[0].constants, sizeof(simd_float4));
         const float* constants = s_shadowConstants[1].constants;
         auto vector = [&](uint32_t index) { simd_float4 value; std::memcpy(&value, constants + index * 4, sizeof(value)); return value; };
         // Terrain uses multiply/add columns, unlike Model2's dot-product rows.

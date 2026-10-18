@@ -98,15 +98,17 @@ struct TerrainVertexParameters {
 struct TerrainFragmentParameters {
     simd_float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8];
     simd_float4 shadowDecodeScale = {1, 1, 1, 1};
+    simd_float4 layerChannel{};
     float stateAlphaRef;
     float padding[3]{};
 };
-static_assert(sizeof(TerrainVertexParameters) == 720 && sizeof(TerrainFragmentParameters) == 272,
+static_assert(sizeof(TerrainVertexParameters) == 720 && sizeof(TerrainFragmentParameters) == 288,
     "Native terrain constant layout");
 struct TerrainDrawParameters {
     TerrainVertexParameters vertex{};
     TerrainFragmentParameters fragment{};
     uint32_t vertexPermutation = 0, pixelPermutation = 0, shadowMode = 0;
+    TerrainLayerPass layerPass = TerrainLayerPass::Combined;
 };
 
 struct DetailDoodadVertexParameters {
@@ -249,7 +251,7 @@ private:
     id<MTLFunction> m_wmoVertex[7][10]{};
     id<MTLFunction> m_wmoFragment[7][2][2][2]{};
     id<MTLFunction> m_terrainVertex[128]{};
-    id<MTLFunction> m_terrainFragment[4][16][2][2]{};
+    id<MTLFunction> m_terrainFragment[4][4][16][2][2]{};
     id<MTLFunction> m_modelVertex[7][30]{};
     id<MTLFunction> m_modelFragment[8][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
@@ -263,7 +265,7 @@ private:
     id<MTLRenderPipelineState> m_clearPipelines[2][2][2]{};
     id<MTLDepthStencilState> m_clearDepth[2]{};
     // Independent fields avoid collisions as material families and variants grow.
-    using PipelineKey = std::array<uint32_t, 9>;
+    using PipelineKey = std::array<uint32_t, 10>;
     struct PipelineHash {
         size_t operator()(const PipelineKey& key) const {
             size_t result = 0;

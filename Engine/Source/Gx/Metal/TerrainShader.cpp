@@ -42,6 +42,11 @@ void GxMetal::ValidateTerrainShader(const std::vector<uint8_t>& bytes, EGxShTarg
         "f211588dbd800433a8ca90b6c19b4476", "ccf1fd2b2b4ec3a4fb3eba17820de48a", "36bcb485993c5de7b94d3be28a3478c6",
         "d8b55aa8df3ab18edcb95cb4181c9479", "84fba15e9490f3f4ae171b706b7a48ae",
     };
+    static const char* pixel0[] = {
+        "b5f307271a5eb17a12605d6062a096cc",
+        "1309fac04a0e5ff4038ae970412fdac7",
+        "b581ce81b3f663d1058de912c2bb1c40",
+    };
     static const char* pixel2[] = {
         "25df7bd05aee3bf2960b0148545c86e7", "86124181a44cc9ba06a1a4a2727ea1a5", "16bccd84cf8c509c46cf12d291423838",
         "3b58dc0775ac163158ac47b0072d145f", "56ede719cbda3168e3b697f80475b582", "3467c55944114d0af40ceb62423ccc13",
@@ -82,6 +87,7 @@ void GxMetal::ValidateTerrainShader(const std::vector<uint8_t>& bytes, EGxShTarg
             fingerprint += hex[byte & 15];
         }
         if (fingerprint != (target == GxSh_Vertex                ? ((i & 1) ? vertexShadow[i / 4] : vertex[i / 4])
+                            : effect == FragmentEffect::Terrain0 ? pixel0[i]
                             : effect == FragmentEffect::Terrain2 ? pixel2[i / 2]
                             : effect == FragmentEffect::Terrain3 ? pixel3[i / 2]
                                                                  : pixel[i / 2]))

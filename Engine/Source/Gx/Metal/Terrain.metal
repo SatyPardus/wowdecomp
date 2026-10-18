@@ -3,6 +3,7 @@
 constant uint terrainVertexPermutation [[function_constant(12)]];
 constant uint terrainPixelPermutation [[function_constant(13)]];
 constant uint terrainShadowMode [[function_constant(24)]];
+constant uint terrainLayerPass [[function_constant(25)]];
 struct TerrainPointLight {
     float4 position, color, attenuation;
 };
@@ -14,7 +15,7 @@ struct TerrainVertexParameters {
     float4 shadowRows[12];
 };
 struct TerrainFragmentParameters {
-    float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8], shadowDecodeScale;
+    float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8], shadowDecodeScale, layerChannel;
     float stateAlphaRef;
     float padding[3];
 };
@@ -171,7 +172,13 @@ fragment float4 terrainFragment(TerrainRaster v [[stage_in]], constant TerrainFr
         const float3 diffuse = (mixed.rgb * shadow) * v.diffuse;
         lit = fma(mixed.a * v.specular, visibility, diffuse + diffuse);
     }
-    if (alphaTest && 1.0f < p.stateAlphaRef)
+    float alpha = 1;
+    if (terrainLayerPass == 1) alpha = dot(blend.rgb, p.layerChannel.rgb);
+    // Terrain0 weights the fully lit color before fog. The old-alpha path
+    // instead exposes that layer's weight as output alpha for Gx blending.
+    if (terrainLayerPass == 2) lit *= 1 - saturate(dot(blend.rgb, float3(1)));
+    if (terrainLayerPass == 3) lit *= dot(blend.rgb, p.layerChannel.rgb);
+    if (alphaTest && alpha < p.stateAlphaRef)
         discard_fragment();
-    return float4(fma(float3(v.fog), lit - p.fogColor.rgb, p.fogColor.rgb), 1);
+    return float4(fma(float3(v.fog), lit - p.fogColor.rgb, p.fogColor.rgb), alpha);
 }

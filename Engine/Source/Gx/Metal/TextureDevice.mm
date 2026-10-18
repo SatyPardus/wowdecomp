@@ -108,7 +108,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(!IsTerrainEffect(effect) || (terrain &&
         SupportsTerrainPermutation(GxSh_Vertex, terrain->vertexPermutation) && SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
         TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation) &&
-        terrain->shadowMode < 4 && bool(terrain->vertexPermutation & 1) == bool(terrain->shadowMode)),
+        terrain->shadowMode < 4 && uint32_t(terrain->layerPass) < 4 &&
+        ((effect == FragmentEffect::Terrain0) == (terrain->layerPass != TerrainLayerPass::Combined)) && (terrain->layerPass != TerrainLayerPass::Combined || bool(terrain->vertexPermutation & 1) == bool(terrain->shadowMode))),
         "Unsupported native terrain permutation or mismatched layer count");
     Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
     Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)), "Unsupported native liquid permutation");
@@ -120,7 +121,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
-        terrain ? terrain->pixelPermutation : 0, terrain ? terrain->shadowMode : 0};
+        terrain ? terrain->pixelPermutation : 0, terrain ? terrain->shadowMode : 0, terrain ? uint32_t(terrain->layerPass) : 0};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -340,7 +341,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         Require(!screenAtDepth && GxVertexHasAttrib(format, GxVA_Normal) && (!color || GxVertexHasAttrib(format, GxVA_Color0)),
             "Unsupported native terrain vertex layout");
         auto& vertex = m_terrainVertex[vertexPermutation];
-        auto& fragment = m_terrainFragment[terrain->shadowMode][pixelPermutation / 2][state.alphaRef != 0][decodePacked];
+        auto& fragment = m_terrainFragment[uint32_t(terrain->layerPass)][terrain->shadowMode][pixelPermutation / 2][state.alphaRef != 0][decodePacked];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -348,6 +349,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&vertexPermutation type:MTLDataTypeUInt atIndex:12];
         [constants setConstantValue:&pixelPermutation type:MTLDataTypeUInt atIndex:13];
         [constants setConstantValue:&terrain->shadowMode type:MTLDataTypeUInt atIndex:24];
+        const uint32_t layerPass = uint32_t(terrain->layerPass);
+        [constants setConstantValue:&layerPass type:MTLDataTypeUInt atIndex:25];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:color ? @"terrainColorVertex" : @"terrainVertex" constantValues:constants error:&error];
         if (!fragment) fragment = [m_library newFunctionWithName:@"terrainFragment" constantValues:constants error:&error];

@@ -379,7 +379,7 @@ comparisons, baked-shadow combination and distinct edge fades are preserved.
 Sparse binding reaches texture slot 8; absent/unused blend maps remain optional.
 The shared CMap shader initialization/selection and ShadowCache matrix/offset/
 texture binding run with Services-owned R32F targets. The expanded probe makes
-1,280 independent reference draws, including band boundaries, out-of-range depth,
+1,472 independent reference draws, including band boundaries, out-of-range depth,
 packed/RGBA layer maps, and the existing surface permutations. Pipeline cache
 keys now use separate material fields instead of a nearly full packed bit word.
 At the original close-map edge near 0.99, float multiply/add rounding can change
@@ -388,6 +388,13 @@ threshold is preserved; original Windows behavior at this edge remains unverifie
 macOS ASan/UBSan and Metal validation pass; both iOS targets build and the
 simulator passes the GPU checks and presents 120 terrain frames. Full world
 shadow query/update integration and PCF depth textures remain pending.
+Terrain0 adds the three original non-environment multi-pass materials: layer
+alpha for old-alpha blending, remaining-weight base color, and selected-channel
+additive color. Weighting stays after lighting and before fog. Original
+GetPixelShader selection, packed/RGBA inputs and alpha equality/discard behavior
+pass 192 additional reference draws on Mac and iOS simulator; both iOS targets
+build and the simulator presents 120 terrain frames. Full world multi-pass
+submission is still pending.
 The native host can now draw a complete authored ADT surface with
 `WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
 This selection is mutually exclusive with the model/creature variables. It uses
@@ -421,9 +428,9 @@ checks pass through resource recreation, and the mixed tile presents 120 frames
 with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
-world loading. Terrain0, TerrainSM, cube reflection and fixed-function terrain
+world loading. Terrain0_env, TerrainSM, cube reflection and fixed-function terrain
 paths remain unsupported; the original CWorld initializer currently reaches
-Terrain0 after accepting Terrain2/Terrain3.
+Terrain0_env after accepting Terrain0/1/2/3.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
 on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary
