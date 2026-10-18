@@ -28,12 +28,10 @@ constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
 }
 const char* ModelVertexFamily(ModelVertexEffect effect);
 constexpr bool ModelShadowMaterial(FragmentEffect effect) {
-    return effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelOpaqueAddAlpha ||
-        effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod2x ||
-        effect == FragmentEffect::ModelOpaqueMod2xNAAlpha || effect == FragmentEffect::ModelModMod2x;
+    return IsModelEffect(effect);
 }
 // Original SM3 model materials, environment reflection and colored particles.
-// Diffuse, environment and dual UV support rigid/1/4 weights and R32F receivers;
+// Diffuse, environment, reflection and dual UV support rigid/1/4 weights and R32F receivers;
 // colored vertices currently support rigid streams. Other skinning/shadow
 // handles fail explicitly when drawn.
 void ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse);

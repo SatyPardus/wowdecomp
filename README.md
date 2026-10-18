@@ -616,9 +616,14 @@ added after the shadowed base, before fog. `Diffuse_T1_T2` adds its 60 shadow
 vertex variants; `Combiners_Mod_Mod`, `Combiners_Opaque_Mod2x`,
 `Combiners_Opaque_Mod2xNA_Alpha` and `Combiners_Mod_Mod2x` retain their independent
 UV matrices, layer multiplication, base-alpha interpolation and distinct alpha
-operators for all three R32F modes. The numeric fixture checks 45,990 independent
-outputs including all three vertex families, skinning, sampling/band transitions,
-fade order, layered color, independent reflection and shader alpha boundaries. The original wolf scene generates its R32F map from
+operators for all three R32F modes. The remaining six existing model material
+operators (Opaque_AddNA, Mod_AddNA, Mod_Add, Opaque_Add, Opaque_AddAlpha_Alpha and
+Opaque_Mod2xNA) also support their six R32F receiver variants: unweighted additions
+remain independent of shadowed base lighting; combined base-alpha layers are
+modulated together. `Diffuse_Env` adds 60 reflection-only shadow vertex variants
+without an authored UV stream. The numeric fixture checks 67,014 independent
+outputs including all four vertex families, skinning, sampling/band transitions,
+fade order, all 13 material operators, independent reflection and shader alpha boundaries. The original wolf scene generates its R32F map from
 both opaque/cutout batches, selects both receiver materials through the original
 scene/cache code, and produces 125/130/130 darker pixels in the three modes with
 unchanged alpha coverage across two resource lifetimes on Mac and iOS simulator.
@@ -626,12 +631,14 @@ The original motorcycle's walking and death poses select three shadow-receiving
 dual-texture batches, including two combined materials. All three modes darken
 43/48 pixels respectively while preserving alpha coverage, with the original
 particles included and time frozen for each comparison. Two resource lifetimes
-also verify disabling and selecting each shadow mode.
+also verify disabling and selecting each shadow mode. The original water elemental
+selects three dual-texture receivers in all three modes, with 41 darker pixels
+and unchanged alpha coverage; the checks retain its authored blending and layers.
 Numeric and scene checks pass with Metal validation (Mac also under
 ASan/UBSan); the Mac application and both iOS client targets build. These checks
 use explicit shadow/light inputs; they do not establish full world shadow behavior
-or Windows visual equivalence. Other model families/materials and hardware PCF
-remain unsupported.
+or Windows visual equivalence. Projected/colored shadow vertex families and
+hardware PCF remain unsupported.
 
 Native `DetailDoodad` rendering preserves sun and three-point-light paths,
 unnormalized terrain normals, vertex tint, distance fading, fog and independent

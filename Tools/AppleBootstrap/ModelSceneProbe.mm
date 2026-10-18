@@ -350,7 +350,7 @@ void CheckGameModels() {
                 : dualUVBatches != (pose.sequenceID == 1 ? 1u : 0u) || combinedBatches != 2))
                 throw std::runtime_error("Original layered model materials did not reach Metal drawing");
             device.ScenePresent();
-            if(displayID==25870) for(EShadowMode mode:{SHADOW_LOWEST,SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
+            for(EShadowMode mode:{SHADOW_LOWEST,SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
                 CShadowCache::s_shadowMode=mode;
                 const uint32_t expectedShadow=CShadowCache::s_shadowValues[mode];
                 device.BeginFrame(pass); layeredModel->m_fFlags|=0x10008; layeredModel->SetAnimating(1);
@@ -363,18 +363,18 @@ void CheckGameModels() {
                     if(element.m_type>2 || element.m_model!=layeredModel || !element.m_batch || element.m_batch->m_textureCount!=2 || element.m_shadowValue!=expectedShadow) continue;
                     ++receivers; combinedReceivers+=(element.m_batch->m_shader&0x8000)!=0;
                 }
-                if(expectedShadow && (receivers<2 || combinedReceivers!=2))
-                    throw std::runtime_error("Original motorcycle did not select its combined-material shadow receivers");
+                if(expectedShadow && (receivers!=3 || combinedReceivers!=(displayID==25870 ? 2u:0u)))
+                    throw std::runtime_error("Original layered model did not select its shadow receivers");
                 layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
                 TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received);
                 unsigned darker=0;
                 for(unsigned i=0;i<received.Count();++i) {
-                    if(received[i].a!=image[i].a) throw std::runtime_error("Motorcycle alpha mismatch mode "+std::to_string(expectedShadow)+" pixel "+std::to_string(i)+" got "+std::to_string(received[i].a)+" expected "+std::to_string(image[i].a));
+                    if(received[i].a!=image[i].a) throw std::runtime_error("Layered model alpha mismatch mode "+std::to_string(expectedShadow)+" pixel "+std::to_string(i)+" got "+std::to_string(received[i].a)+" expected "+std::to_string(image[i].a));
                     darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(image[i].r)+image[i].g+image[i].b;
                 }
-                if(expectedShadow && !darker) throw std::runtime_error("Generated R32F shadow did not reach the original motorcycle materials");
-                std::fprintf(stderr,"Original motorcycle sequence %u shadow mode %u: %u dual-texture receivers (%u combined), %u darker pixels, unchanged alpha coverage\n",
-                    pose.sequenceID,expectedShadow,receivers,combinedReceivers,darker);
+                if(expectedShadow && !darker) throw std::runtime_error("Generated R32F shadow did not reach the original layered materials");
+                std::fprintf(stderr,"Original layered model %u sequence %u shadow mode %u: %u dual-texture receivers (%u combined), %u darker pixels, unchanged alpha coverage\n",
+                    displayID,pose.sequenceID,expectedShadow,receivers,combinedReceivers,darker);
                 device.ScenePresent();
             }
         }
