@@ -52,6 +52,7 @@ struct CVar : public TSHashObject<CVar, HASHKEY_STRI> {
     /* 006C */ void* m_arg;
 
     CVar();
+    ~CVar();
     void Default();
     void InternalSet(const char* value, bool setValue, bool setReset, bool setDefault, bool setNeedsSave);
     void Reset();

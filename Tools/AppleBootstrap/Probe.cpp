@@ -529,6 +529,22 @@ void CheckCVars(const std::string& scratchDirectory) {
         "CVar BOM/config reload or registered default overwrote the saved setting");
     ConsoleCommandExecute("ffxGlow 1", 0);
     Require(glow->m_intValue == 1 && CVar::SaveAll(), "Direct CVar command failed");
+    // Logout removes character/account CVars while the command table survives.
+    // Re-registering must not compare or execute keys belonging to freed CVars.
+    for (int cycle = 0; cycle < 3; ++cycle) {
+        CVar::Register("probeAccount", "account lifetime", 0x10, "2", nullptr, CATEGORY_GAME, false, nullptr, false);
+        CVar::Register("probeCharacter", "character lifetime", 0x20, "3", nullptr, CATEGORY_GAME, false, nullptr, false);
+        CVar::DeleteCharacterCVars();
+        Require(!CVar::Lookup("probeCharacter") && !g_consoleCommandHash.Ptr("probeCharacter") &&
+            CVar::Lookup("probeAccount") && g_consoleCommandHash.Ptr("probeAccount"), "Character CVar deletion left a stale command or removed an account CVar");
+        CVar::DeleteAccountCVars();
+        Require(!CVar::Lookup("probeAccount") && !g_consoleCommandHash.Ptr("probeAccount") &&
+            CVar::Lookup("ffxGlow") == glow, "Account CVar deletion left a stale command or removed a global CVar");
+        auto* setting = CVar::Register("probeCharacter", "replacement lifetime", 0x20, "4", nullptr, CATEGORY_GAME, false, nullptr, false);
+        ConsoleCommandExecute("probeCharacter 5", 0);
+        Require(setting->m_intValue == 5, "Re-created CVar command did not reach its new instance");
+        CVar::DeleteCharacterCVars();
+    }
     // Exercise the safe fallback for an unhandled command, including the
     // original dispatcher's fixed-size argument buffer.
     g_defaultCommand = [](const char*, const char*) -> int32_t { return 0; };

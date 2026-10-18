@@ -578,6 +578,12 @@ bool CVarArrayWrapper::RawSetValue(uint32_t index, bool value) {
 CVar::CVar() {
 }
 
+CVar::~CVar() {
+    // Original CVar deletion (0x00767A00) unregisters the console command
+    // before releasing its hash key. The command borrows that name pointer.
+    if (this->m_key.m_str) ConsoleCommandUnregister(this->m_key.m_str);
+}
+
 // VERIFY: 5c888a55 manual
 // OFFSET: 0x00766F00
 void CVarIntListWrapper::UpdateFromVersion(int32_t version) {
