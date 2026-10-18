@@ -735,8 +735,22 @@ Each uses one resident render pass and reproduces static pixels after recreation
 macOS ASan/UBSan and Metal validation pass; both iOS targets build. Mac and iOS
 present 120 WMO frames alongside the original archive audio stream; the simulator
 repeats both after foreground resource/device recreation. The preview
-supplies explicit camera/light/fog inputs. Full world placement, portal traversal,
-doodads and WMO shadows remain to be connected.
+supplies explicit camera/light/fog inputs. Full placement/portal behavior and
+remaining shadow modes still need complete world validation.
+
+All seven WMO families also support their 210 dynamic-shadow vertex aliases and
+14 R32F receiver pixel variants. Shared native M2/WMO sampling retains five/nine
+LOD-zero taps, depth equality and border/distance/normal fades; WMO keeps its
+separate baked color, doubled diffuse contribution, environment layer and alpha
+semantics. `WOW_METAL_CHECK=wmo-shaders` runs 2,340 WMO numeric draws plus the
+13,140 shared M2 shadow references. Mac ASan/UBSan and Metal validation pass;
+the same references and subsequent 120 preview frames pass on iOS simulator.
+The Mac CLI/application and both iOS client targets build.
+The full Mac client entered Feral's Stormwind world with the original
+`extShadowQuality=1` option in a separate runtime, rendered 1,200 frames, captured
+the world and shut down normally. This removes the WMO receiver failure found
+on that real path; it does not establish every zone or Windows visual equivalence.
+WMO distant bands and PCF remain explicitly unsupported.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct

@@ -4,6 +4,7 @@ constant uint wmoPermutation [[function_constant(14)]];
 constant uint wmoVertexEffect [[function_constant(15)]];
 constant uint wmoMaterial [[function_constant(16)]];
 constant bool wmoShaderAlphaTest [[function_constant(17)]];
+constant bool wmoDynamicShadow [[function_constant(36)]];
 struct WmoVertexParameters {
     float4x4 projection;
     ModelAffine worldView;
@@ -17,16 +18,17 @@ struct WmoRaster {
     float2 uv, secondaryUV;
     float fog;
     float pointSize [[point_size]];
+    float3 viewPosition, normal, shadowCoordinate;
 };
 inline WmoRaster wmoTransform(float3 position, float3 normal, float4 color, float4 secondaryColor,
-    float2 uv, float2 secondaryUV, constant WmoVertexParameters& p) {
+    float2 uv, float2 secondaryUV, constant WmoVertexParameters& p, constant ShadowReceiverParameters& shadow) {
     const bool lit = wmoPermutation & 1;
     const bool environment = wmoVertexEffect == 2 || wmoVertexEffect == 5;
     const bool specular = wmoVertexEffect == 1 || wmoVertexEffect == 4;
     const float4 point = float4(position, 1);
     const float3 view = float3(dot(p.worldView.x, point), dot(p.worldView.y, point), dot(p.worldView.z, point));
     float3 direction = 0;
-    if (lit || environment) direction = normalize(float3(dot(p.worldView.x.xyz, normal),
+    if (wmoDynamicShadow || lit || environment) direction = normalize(float3(dot(p.worldView.x.xyz, normal),
         dot(p.worldView.y.xyz, normal), dot(p.worldView.z.xyz, normal)));
     if (lit) {
         float3 lighting = fma(saturate(dot(-p.sunDirection.xyz, direction)), p.sunDiffuse.rgb, p.ambient.rgb);
@@ -54,7 +56,13 @@ inline WmoRaster wmoTransform(float3 position, float3 normal, float4 color, floa
         secondaryUV = fma(direction.xy, float2(-(projection + projection)), incident.xy);
     }
     const float fog = min(pow(max(fma(view.z, p.fog.x, p.fog.y), 0.0f), p.fog.z), 1.0f);
-    return {p.projection * float4(view, 1), color, secondaryColor, uv, secondaryUV, fog, 1};
+    WmoRaster result{p.projection * float4(view, 1), color, secondaryColor, uv, secondaryUV, fog, 1};
+    if (wmoDynamicShadow) {
+        result.viewPosition=view; result.normal=direction;
+        result.shadowCoordinate=float3(dot(shadow.projection[0].x,float4(view,1)),
+            dot(shadow.projection[0].y,float4(view,1)),dot(shadow.projection[0].z,float4(view,1)));
+    }
+    return result;
 }
 struct WmoVertex { float3 position [[attribute(0)]]; float4 color [[attribute(2)]]; float2 uv [[attribute(3)]]; };
 struct WmoLitVertex { float3 position [[attribute(0)]]; float3 normal [[attribute(1)]]; float4 color [[attribute(2)]]; float2 uv [[attribute(3)]]; };
@@ -63,18 +71,23 @@ struct WmoCompositeVertex {
     float4 color [[attribute(2)]]; float2 uv [[attribute(3)]];
     float4 secondaryColor [[attribute(4)]]; float2 secondaryUV [[attribute(5)]];
 };
-vertex WmoRaster wmoVertex(WmoVertex v [[stage_in]], constant WmoVertexParameters& p [[buffer(0)]]) {
-    return wmoTransform(v.position, float3(0), v.color, float4(0), v.uv, float2(0), p);
+vertex WmoRaster wmoVertex(WmoVertex v [[stage_in]], constant WmoVertexParameters& p [[buffer(0)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
+    return wmoTransform(v.position, float3(0), v.color, float4(0), v.uv, float2(0), p, shadow);
 }
-vertex WmoRaster wmoLitVertex(WmoLitVertex v [[stage_in]], constant WmoVertexParameters& p [[buffer(0)]]) {
-    return wmoTransform(v.position, v.normal, v.color, float4(0), v.uv, float2(0), p);
+vertex WmoRaster wmoLitVertex(WmoLitVertex v [[stage_in]], constant WmoVertexParameters& p [[buffer(0)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
+    return wmoTransform(v.position, v.normal, v.color, float4(0), v.uv, float2(0), p, shadow);
 }
-vertex WmoRaster wmoCompositeVertex(WmoCompositeVertex v [[stage_in]], constant WmoVertexParameters& p [[buffer(0)]]) {
-    return wmoTransform(v.position, v.normal, v.color, v.secondaryColor, v.uv, v.secondaryUV, p);
+vertex WmoRaster wmoCompositeVertex(WmoCompositeVertex v [[stage_in]], constant WmoVertexParameters& p [[buffer(0)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
+    return wmoTransform(v.position, v.normal, v.color, v.secondaryColor, v.uv, v.secondaryUV, p, shadow);
 }
 fragment float4 wmoFragment(WmoRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
-    texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]]) {
+    texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
+    constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]]) {
+    if (wmoDynamicShadow) {
+        const float visibility=receiverDynamicVisibility(v.shadowCoordinate,v.viewPosition,shadow,shadowImage,shadowFiltering,1);
+        v.color.rgb*=receiverShadowModulation(visibility,v.normal,shadow.lightDirection.xyz);
+    }
     float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale[0]);
     float4 layer = 0;
     if (wmoMaterial >= 4) layer = decoded(layerTexture.sample(layerFiltering, v.secondaryUV), p.decodeScale[1]);
@@ -90,7 +103,7 @@ fragment float4 wmoFragment(WmoRaster v [[stage_in]], constant ModelFragmentPara
         shaded = fma(wmoMaterial == 5 ? texel.a * texel.rgb : float3(texel.a), layer.rgb, product + product) - p.fogColorAlphaRef.rgb;
     } else {
         // The mounted 3.3.5a Specular and Metal pixel programs share Opaque's
-        // no-shadow code: their vertex specular output is not consumed.
+        // color calculation: their vertex specular output is not consumed.
         shaded = fma(product, float3(2), -p.fogColorAlphaRef.rgb);
     }
     return float4(fma(float3(v.fog), shaded, p.fogColorAlphaRef.rgb), alpha);

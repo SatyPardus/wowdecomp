@@ -90,10 +90,10 @@ void GxMetal::TextureDevice::DrawLiquid(id<MTLCommandBuffer> command, MTLRenderP
     Require(IsLiquidEffect(geometry.effect) && geometry.liquid, "Invalid native liquid effect");
     DrawGeometry(command, pass, {textures[0], textures[1], nil, nil, nil}, geometry, {}, {states[0], states[1], {}, {}, {}}, encoder);
 }
-void GxMetal::TextureDevice::DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
-    const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder) {
+void GxMetal::TextureDevice::DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(IsWmoEffect(geometry.effect) && geometry.wmo, "Invalid native WMO effect");
-    DrawGeometry(command, pass, {textures[0], textures[1], nil, nil, nil}, geometry, {}, {states[0], states[1], {}, {}, {}}, encoder);
+    DrawGeometry(command, pass, textures, geometry, {}, states, encoder);
 }
 void GxMetal::TextureDevice::DrawTerrain(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
     const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
@@ -118,7 +118,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const bool terrainShadow = geometry.effect == FragmentEffect::TerrainShadowMap;
     const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : (filter || geometry.effect == FragmentEffect::NetherBlur) ? 4 : wave ? 3 : (geometry.effect == FragmentEffect::Glow || geometry.effect == FragmentEffect::Death || geometry.effect == FragmentEffect::NetherCombine || geometry.effect == FragmentEffect::FogCombine) ? 2 : 1;
-    const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ModelShadowTextureMask(geometry.model->shadowMode) : 0);
+    const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ModelShadowTextureMask(geometry.model->shadowMode) : wmo && geometry.wmo->permutation >= 30 ? 0x10u : 0);
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
             const bool cube = terrain && i == 0 && (geometry.terrain->pixelPermutation & 1);
@@ -246,7 +246,13 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         [encoder setVertexBytes:&geometry.model->vertex length:sizeof(ModelVertexParameters) atIndex:0];
         [encoder setVertexBytes:geometry.model->bones.data() length:geometry.model->boneCount * sizeof(ModelAffine) atIndex:2];
     } else if (liquid) { [encoder setVertexBytes:&geometry.liquid->vertex length:sizeof(LiquidVertexParameters) atIndex:0];
-    } else if (wmo) { [encoder setVertexBytes:&geometry.wmo->vertex length:sizeof(WmoVertexParameters) atIndex:0];
+    } else if (wmo) {
+        if (geometry.wmo->permutation >= 30) {
+            auto native = geometry.wmo->shadow; native.decodeScale[0] = states[4].decodeScale[0];
+            [encoder setVertexBytes:&native length:sizeof(native) atIndex:3];
+            [encoder setFragmentBytes:&native length:sizeof(native) atIndex:3];
+        }
+        [encoder setVertexBytes:&geometry.wmo->vertex length:sizeof(WmoVertexParameters) atIndex:0];
     } else if (terrain) { [encoder setVertexBytes:&geometry.terrain->vertex length:sizeof(TerrainVertexParameters) atIndex:0];
     } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
     if (geometry.effect == FragmentEffect::PropagateFog || geometry.effect == FragmentEffect::FogCombine)

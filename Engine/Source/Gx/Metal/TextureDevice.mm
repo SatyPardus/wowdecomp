@@ -135,7 +135,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
-        fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : modelShadowMode,
+        fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : wmo ? wmo->permutation / 30 : modelShadowMode,
         fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) : terrain ? uint32_t(terrain->layerPass) : 0};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
@@ -471,17 +471,18 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     if (IsWmoEffect(effect)) {
+        const bool dynamicShadow = wmo->permutation >= 30;
         const uint32_t permutation = wmo->permutation % 10, family = unsigned(wmo->vertexEffect);
         const uint32_t material = unsigned(effect) - unsigned(FragmentEffect::WmoDiffuse);
         const bool composite = wmo->vertexEffect == WmoVertexEffect::Composite;
-        const bool normal = (permutation & 1) || WmoEnvironment(wmo->vertexEffect) || composite;
+        const bool normal = dynamicShadow || (permutation & 1) || WmoEnvironment(wmo->vertexEffect) || composite;
         Require(family < 7 && !screenAtDepth && GxVertexHasAttrib(format, GxVA_Color0) && GxVertexHasAttrib(format, GxVA_TexCoord0) &&
             (!normal || GxVertexHasAttrib(format, GxVA_Normal)) &&
             (!composite || (GxVertexHasAttrib(format, GxVA_Color1) && GxVertexHasAttrib(format, GxVA_TexCoord1))) &&
             (WmoTextureCount(effect) == 1 || (effect == FragmentEffect::WmoComposite ? composite : WmoEnvironment(wmo->vertexEffect))),
             "Unsupported WMO vertex layout or shader pairing");
-        auto& vertex = m_wmoVertex[family][permutation];
-        auto& fragment = m_wmoFragment[material][wmo->shaderAlphaTest][state.alphaRef != 0][decodePacked];
+        auto& vertex = m_wmoVertex[family][permutation][dynamicShadow];
+        auto& fragment = m_wmoFragment[material][wmo->shaderAlphaTest][state.alphaRef != 0][decodePacked][dynamicShadow];
         const bool alpha = state.alphaRef != 0;
         auto constants = [MTLFunctionConstantValues new];
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -490,6 +491,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&family type:MTLDataTypeUInt atIndex:15];
         [constants setConstantValue:&material type:MTLDataTypeUInt atIndex:16];
         [constants setConstantValue:&wmo->shaderAlphaTest type:MTLDataTypeBool atIndex:17];
+        [constants setConstantValue:&dynamicShadow type:MTLDataTypeBool atIndex:36];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:composite ? @"wmoCompositeVertex" : normal ? @"wmoLitVertex" : @"wmoVertex" constantValues:constants error:&error];
         if (!fragment) fragment = [m_library newFunctionWithName:@"wmoFragment" constantValues:constants error:&error];

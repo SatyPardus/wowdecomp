@@ -1211,6 +1211,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     if (wmo) {
         Require(GxMetal::SupportsWmoPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
             GxMetal::SupportsWmoPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation), "Metal WMO shadow permutation is not implemented");
+        Require(m->shaders.at(vertex).permutation / 30 == (m->shaders.at(pixel).permutation & 3), "Mismatched WMO shadow coordinates and material");
     }
     if (terrain) {
         Require(GxMetal::SupportsTerrainPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
@@ -1387,6 +1388,13 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         for (unsigned i = 0; i < 4; ++i) { native.vertex.lightColor[i] = vector(17 + i); native.vertex.lightPosition[i] = vector(21 + i); }
         native.vertex.attenuationConstant = vector(25); native.vertex.attenuationLinear = vector(26); native.vertex.attenuationQuadratic = vector(27);
         std::memcpy(&native.fragment.fogColorAlphaRef, s_shadowConstants[0].constants + 8, sizeof(simd_float4));
+        if (native.permutation >= 30) {
+            native.shadow.projection[0] = {vector(224),vector(225),vector(226)};
+            const float* pixelConstants = s_shadowConstants[0].constants;
+            std::memcpy(&native.shadow.distanceFade,pixelConstants+3*4,sizeof(simd_float4));
+            std::memcpy(&native.shadow.lightDirection,pixelConstants+4*4,sizeof(simd_float4));
+            std::memcpy(native.shadow.offsets,pixelConstants+5*4,sizeof(native.shadow.offsets));
+        }
     } else if (terrain) {
         auto& native = terrainParameters.emplace(); draw.terrain = &native;
         native.vertexPermutation = m->shaders.at(vertex).permutation;
@@ -1503,7 +1511,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     std::array<id<MTLTexture>, 9> textures{};
     std::array<GxMetal::TextureDrawState, 9> states;
     states.fill(state);
-    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model ? GxMetal::ModelShadowTextureMask(modelParameters->shadowMode) : 0);
+    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model ? GxMetal::ModelShadowTextureMask(modelParameters->shadowMode) : wmo && wmoParameters->permutation >= 30 ? 0x10u : 0);
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
         Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");
@@ -1526,7 +1534,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     else if (shadow) { m->gpu.DrawShadowMap(m->command, m->pass, textures[0], draw, inputs ? states[0] : state, encoder); }
     else if (model) { m->gpu.DrawModel(m->command, m->pass, textures, draw, states, encoder); }
     else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
-    else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
+    else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, textures, draw, states, encoder); }
     else if (terrain) { m->gpu.DrawTerrain(m->command, m->pass, textures, draw, states, encoder); }
     else if (effect == GxMetal::FragmentEffect::PropagateFog || effect == GxMetal::FragmentEffect::FogCombine) { m->gpu.DrawFogEffect(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }
     else if (netherBlur || effect == GxMetal::FragmentEffect::NetherCombine) { m->gpu.DrawNether(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }

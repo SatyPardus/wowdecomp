@@ -80,6 +80,11 @@ struct ModelFragmentParameters {
 };
 static_assert(sizeof(ModelAffine) == 48 && sizeof(ModelVertexParameters) == 400 && sizeof(ModelFragmentParameters) == 64,
     "Native model constant layout");
+struct ShadowReceiverParameters {
+    ModelAffine projection[4];
+    simd_float4 distanceFade, lightDirection, offsets[8], decodeScale{1,1,1,1};
+};
+static_assert(sizeof(ShadowReceiverParameters) == 368, "Native shadow receiver layout");
 struct ModelDrawParameters {
     ModelVertexParameters vertex{};
     ModelFragmentParameters fragment{};
@@ -87,12 +92,8 @@ struct ModelDrawParameters {
     uint32_t permutation = 0, boneCount = 1, shadowMode = 0;
     ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse;
     bool shaderAlphaTest = false;
-    struct ShadowParameters {
-        ModelAffine projection[4];
-        simd_float4 distanceFade, lightDirection, offsets[8], decodeScale{1,1,1,1};
-    } shadow{};
+    ShadowReceiverParameters shadow{};
 };
-static_assert(sizeof(ModelDrawParameters::ShadowParameters) == 368, "Native model shadow layout");
 
 struct ShadowMapVertexParameters {
     simd_float4x4 projection;
@@ -167,6 +168,7 @@ struct WmoDrawParameters {
     uint32_t permutation = 0;
     WmoVertexEffect vertexEffect = WmoVertexEffect::Diffuse;
     bool shaderAlphaTest = false;
+    ShadowReceiverParameters shadow{};
 };
 
 struct LiquidUVTransform { simd_float4 x, y, translation; };
@@ -262,8 +264,8 @@ public:
         const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawLiquid(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
-    void DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
-        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawTerrain(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawFilter4(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
@@ -295,8 +297,8 @@ private:
     id<MTLFunction> m_shadowFragment[2][2][2]{};
     id<MTLFunction> m_liquidVertex[3][4]{};
     id<MTLFunction> m_liquidFragment[3][2][2]{};
-    id<MTLFunction> m_wmoVertex[7][10]{};
-    id<MTLFunction> m_wmoFragment[7][2][2][2]{};
+    id<MTLFunction> m_wmoVertex[7][10][2]{};
+    id<MTLFunction> m_wmoFragment[7][2][2][2][2]{};
     id<MTLFunction> m_terrainVertex[128]{};
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};

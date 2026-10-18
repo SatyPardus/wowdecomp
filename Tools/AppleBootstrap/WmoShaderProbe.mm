@@ -28,6 +28,9 @@ void Upload(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void 
         data = p;
     }
 }
+void UploadDepth(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void *p, uint32_t &stride, const void *&data) {
+    if (command == GxTex_Latch) { stride = 5*sizeof(uint32_t); data = p; }
+}
 V Color(uint32_t value) {
     return {((value >> 16) & 255) / 255.0f, ((value >> 8) & 255) / 255.0f, (value & 255) / 255.0f, (value >> 24) / 255.0f};
 }
@@ -48,7 +51,7 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
         CGxDeviceMetal &device;
         CGxShader *(*vs)[90];
         CGxShader *(*ps)[16];
-        CGxTex *textures[2]{};
+        CGxTex *textures[3]{};
         ~Cleanup() {
             if (device.FrameCommand())
                 device.ScenePresent();
@@ -77,6 +80,10 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
                          cleanup.textures[i]);
         device.RsSet(EGxRenderState(GxRs_Texture0 + i), cleanup.textures[i]);
     }
+    std::array<uint32_t,25> depth{};
+    for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x) depth[y*5+x]=0xFF000000u | ((64*(1+(x+2*y)%3))<<16);
+    device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Nearest),depth.data(),UploadDepth,"WMO shadow reference",cleanup.textures[2]);
+    GxRsSet(GxRs_Texture4,cleanup.textures[2]);
     GxRsSet(GxRs_DepthTest, 0);
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Culling, 0);
@@ -96,7 +103,7 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
     pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
-    std::array<V, 34> c{};
+    std::array<V, 227> c{};
     c[2] = {0.85f, 0.1f, 0, 0.02f};
     c[3] = {0, 0.8f, 0, -0.01f};
     c[4] = {0, 0, 1, 0.6f};
@@ -190,54 +197,81 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
                 second = Sample(images[1], directionToPoint[0] - 2 * projection * direction[0],
                                 directionToPoint[1] - 2 * projection * direction[1], true);
             }
-            for (unsigned choice = 0; choice < (composite ? 1u : 2u); ++choice)
-                for (unsigned alpha = 0; alpha < 3; ++alpha) {
-                    const unsigned material = materials[choice];
-                    V texel = Sample(images[0], uv[0], uv[1], false), expected{};
-                    if (composite)
-                        for (unsigned j = 0; j < 4; ++j)
-                            texel[j] = texel[j] * (96.0f / 255) + second[j] * (159.0f / 255);
-                    expected[3] = (material == 0 || composite) ? texel[3] * lighting[3] : lighting[3];
-                    for (unsigned j = 0; j < 3; ++j) {
-                        float rgb = 2 * texel[j] * lighting[j];
-                        if (environment)
-                            rgb += texel[3] * second[j] * (material == 5 ? texel[j] : 1);
-                        expected[j] = Sat(fog[j] + visibility * (rgb - fog[j]));
-                    }
-                    V fogAlpha = fog;
-                    fogAlpha[3] = alpha == 2 ? 0.9f : 0.05f;
-                    if (alpha == 2)
-                        expected = {0, 0, 0, 0};
-                    device.BeginFrame(pass);
-                    GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 34);
-                    GxShaderConstantsSet(GxSh_Pixel, 2, fogAlpha.data(), 1);
-                    // 10/20 are identical rigid world aliases, not skinning variants.
-                    device.RsSet(GxRs_VertexShader, vs[family][vp + 10 * alpha]);
-                    device.RsSet(GxRs_PixelShader, ps[material][alpha ? 8 : 0]);
-                    CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
-                    GxDraw(&batch, 0);
-                    CiRect rect(0, 0, 32, 32);
-                    TSGrowableArray<CImVector> pixels;
-                    device.DeviceReadPixels(rect, pixels);
-                    const auto &pixel = pixels[y * 32 + x];
-                    const uint8_t actual[] = {pixel.r, pixel.g, pixel.b, pixel.a};
-                    for (unsigned j = 0; j < 4; ++j)
-                        if (std::abs(int(actual[j]) - int(std::lround(expected[j] * 255))) > 2)
-                            throw std::runtime_error("WMO numeric mismatch family " + std::to_string(family) + " VS " + std::to_string(vp) +
-                                                     " material " + std::to_string(material) + " alpha " + std::to_string(alpha) +
-                                                     " channel " + std::to_string(j) + " actual " + std::to_string(actual[j]) +
-                                                     " expected " + std::to_string(expected[j] * 255));
-                    unsigned covered = 0;
-                    for (unsigned i = 0; i < pixels.Count(); ++i)
-                        covered += pixels[i].a != 0;
-                    if (covered != (alpha == 2 ? 0u : 1u))
-                        throw std::runtime_error("WMO transform or alpha discard coverage mismatch");
-                    device.ScenePresent();
-                    ++draws;
+            for (unsigned shadowCase = 0; shadowCase < 6; ++shadowCase) {
+                c[224]={.2,.3,0,shadowCase==5 ? .96f:.1f}; c[225]={-.1,.2,0,-.2};
+                c[226]={0,0,0,shadowCase==1 ? 128.0f/255:1};
+                std::array<V,10> shadowConstants{};
+                shadowConstants[0]={0,0,0,shadowCase==3 ? 1.0f:0.0f};
+                shadowConstants[1]=shadowCase==4 ? V{0,0,0,0}:direction;
+                const V offsets[]={{-.2,0,0,0},{-.2,-.2,0,0},{0,-.2,0,0},{.2,-.2,0,0},
+                    {.2,0,0,0},{.2,.2,0,0},{0,.2,0,0},{-.2,.2,0,0}};
+                std::copy_n(offsets,8,shadowConstants.begin()+2);
+                const float sx=Dot(c[224],view)+c[224][3],sy=Dot(c[225],view)+c[225][3];
+                auto sample=[&](float dx,float dy) {
+                    const unsigned tx=unsigned(std::clamp(int(std::floor((sx*.5f+.5f+dx)*5)),0,4));
+                    const unsigned ty=unsigned(std::clamp(int(std::floor((sy*.5f+.5f+dy)*5)),0,4));
+                    return Color(depth[ty*5+tx])[0]>=c[226][3] ? 1.0f:0.0f;
+                };
+                const float border=Sat(std::max(std::abs(sx),std::abs(sy))*(-3.4482758045196533f)+3.4137930870056152f);
+                float shadowVisibility=1;
+                if(border>.01f) {
+                    float taps=sample(0,0); for(unsigned i=0;i<8;i+=2) taps+=sample(offsets[i][0],offsets[i][1]);
+                    shadowVisibility=std::min(1.0f,1+border*(taps/5-1));
                 }
+                shadowVisibility+=shadowConstants[0][3]*(1-shadowVisibility);
+                const float normalFade=Sat(std::pow(1.2f-std::abs(Dot(direction,shadowConstants[1])),4));
+                shadowVisibility+=normalFade*(1-shadowVisibility);
+                const float modulation=shadowCase ? .7f+.3f*shadowVisibility:1;
+                for (unsigned choice = 0; choice < (composite ? 1u : 2u); ++choice)
+                    for (unsigned alpha = 0; alpha < 3; ++alpha) {
+                        const unsigned material = materials[choice];
+                        V texel = Sample(images[0], uv[0], uv[1], false), expected{};
+                        if (composite)
+                            for (unsigned j = 0; j < 4; ++j)
+                                texel[j] = texel[j] * (96.0f / 255) + second[j] * (159.0f / 255);
+                        expected[3] = (material == 0 || composite) ? texel[3] * lighting[3] : lighting[3];
+                        for (unsigned j = 0; j < 3; ++j) {
+                            float rgb = 2 * texel[j] * lighting[j] * modulation;
+                            if (environment)
+                                rgb += texel[3] * second[j] * (material == 5 ? texel[j] : 1);
+                            expected[j] = Sat(fog[j] + visibility * (rgb - fog[j]));
+                        }
+                        V fogAlpha = fog;
+                        fogAlpha[3] = alpha == 2 ? 0.9f : 0.05f;
+                        if (alpha == 2)
+                            expected = {0, 0, 0, 0};
+                        device.BeginFrame(pass);
+                        GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 227);
+                        GxShaderConstantsSet(GxSh_Pixel, 2, fogAlpha.data(), 1);
+                        GxShaderConstantsSet(GxSh_Pixel, 3, shadowConstants[0].data(), 10);
+                        // 10/20 are identical rigid world aliases, not skinning variants.
+                        device.RsSet(GxRs_VertexShader, vs[family][vp + 10 * alpha + (shadowCase ? 30:0)]);
+                        device.RsSet(GxRs_PixelShader, ps[material][(alpha ? 8:0) + unsigned(shadowCase!=0)]);
+                        CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
+                        GxDraw(&batch, 0);
+                        CiRect rect(0, 0, 32, 32);
+                        TSGrowableArray<CImVector> pixels;
+                        device.DeviceReadPixels(rect, pixels);
+                        const auto &pixel = pixels[y * 32 + x];
+                        const uint8_t actual[] = {pixel.r, pixel.g, pixel.b, pixel.a};
+                        for (unsigned j = 0; j < 4; ++j)
+                            if (std::abs(int(actual[j]) - int(std::lround(expected[j] * 255))) > 2)
+                                throw std::runtime_error("WMO numeric mismatch family " + std::to_string(family) + " VS " + std::to_string(vp) +
+                                                         " material " + std::to_string(material) + " alpha " + std::to_string(alpha) + " shadow " + std::to_string(shadowCase) +
+                                                         " channel " + std::to_string(j) + " actual " + std::to_string(actual[j]) +
+                                                         " expected " + std::to_string(expected[j] * 255));
+                        unsigned covered = 0;
+                        for (unsigned i = 0; i < pixels.Count(); ++i)
+                            covered += pixels[i].a != 0;
+                        if (covered != (alpha == 2 ? 0u : 1u))
+                            throw std::runtime_error("WMO transform or alpha discard coverage mismatch");
+                        device.ScenePresent();
+                        ++draws;
+                    }
+            }
         }
     std::fprintf(
         stderr,
-        "WMO native materials: 7 vertex families, 7 pixel families, %u numeric light/color/reflection/composite/fog/alpha draws passed\n",
+        "WMO native materials: 7 vertex families, 7 pixel families, %u numeric light/color/reflection/composite/fog/alpha/dynamic-shadow draws passed\n",
         draws);
 }
