@@ -11,7 +11,7 @@ class CSimpleColorSelect;
 // Requires the caller's selected Event context, CVar and Services lifetime.
 class UIComponents {
 public:
-    UIComponents();
+    explicit UIComponents(bool enableConsole = false);
     ~UIComponents();
     UIComponents(const UIComponents&) = delete;
     UIComponents& operator=(const UIComponents&) = delete;
@@ -26,7 +26,7 @@ private:
     CSimpleEditBox* m_edit = nullptr;
     CSimpleColorSelect* m_colorSelect = nullptr;
     bool m_ownsScript = false, m_screen = false, m_metatables = false;
-    bool m_resize = false;
+    bool m_resize = false, m_console = false, m_previousConsoleAccess = false;
     float m_previousAspect = 0;
 };
 #endif

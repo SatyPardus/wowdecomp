@@ -39,6 +39,11 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3);
 Hardware* ConsoleGetHardware();
 void ConsoleGxOverride(const char* list);
 int32_t IsConsoleEnabled();
+#if defined(__APPLE__)
+// Native hosts create the Gx device themselves before complete client startup.
+// This carries their explicit console-access choice into the original handlers.
+void ConsoleDeviceSetConsoleAccess(bool enabled);
+#endif
 void RegisterGxCVars();
 void RegisterStereoCVars();
 void RemoveConsoleDeviceDefaultCallback(void (*callback)(OPTION_PAGE page));

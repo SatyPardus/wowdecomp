@@ -1,4 +1,6 @@
 #include "UIComponents.h"
+#include "WoW/Source/Console/ConsoleClient.h"
+#include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -21,7 +23,7 @@
 namespace {
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 }
-UIComponents::UIComponents() {
+UIComponents::UIComponents(bool enableConsole) {
     Require(!CSimpleTop::s_instance && EventGetCurrentContext(), "UI components require their own selected Event context");
     m_previousAspect = CoordinateGetAspectRatio();
     try {
@@ -31,6 +33,9 @@ UIComponents::UIComponents() {
         CoordinateSetAspectRatio((bounds.maxX - bounds.minX) / (bounds.maxY - bounds.minY));
         if (!FrameScript_GetContext()) { FrameScript_Initialize(0); m_ownsScript = true; }
         ScrnInitialize(0); m_screen = true;
+        m_previousConsoleAccess = IsConsoleEnabled();
+        ConsoleDeviceSetConsoleAccess(enableConsole);
+        ConsoleScreenInitialize("WoW"); m_console = true;
         CSimpleFrame::CreateScriptMetaTable(); CSimpleTexture::CreateScriptMetaTable();
         CSimpleFont::CreateScriptMetaTable(); CSimpleFontString::CreateScriptMetaTable();
         CSimpleEditBox::CreateScriptMetaTable(); CSimpleButton::CreateScriptMetaTable();
@@ -99,6 +104,7 @@ int32_t UIComponents::Resize(const void* data, void* owner) {
     return 1;
 }
 void UIComponents::Shutdown() {
+    if (m_console) { ConsoleScreenDestroy(); ConsoleDeviceSetConsoleAccess(m_previousConsoleAccess); m_console = false; }
     if (m_resize) { EventUnregisterEx(EVENT_ID_SIZE, Resize, this, 7); m_resize = false; }
     m_top.reset(); m_button = nullptr; m_edit = nullptr; m_colorSelect = nullptr;
     if (m_metatables) {

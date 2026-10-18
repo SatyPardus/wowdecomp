@@ -1,6 +1,11 @@
 #include <cstdint>
 #include <cstdio>
+#if defined(__APPLE__)
+#include <alloca.h>
+#include "Engine/Source/ConsoleBase/Apple/Output.h"
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
@@ -54,6 +59,9 @@ int32_t ConsoleCommand_RepeatHandler(const char* command, const char* arguments)
 // VERIFY: cf5901b2 auto
 // OFFSET: 0x00764E80
 int32_t ConsoleCommand_ClearConsole(const char* command, const char* arguments) {
+#if defined(__APPLE__)
+    ConsoleDiscardOutput();
+#endif
     s_NumLines = 0;
     s_linelist.Clear();
 
@@ -196,7 +204,11 @@ int32_t ConsoleCommand_FontColor(const char* command, const char* arguments) {
     uint32_t green;
     uint32_t blue;
 
+#if defined(__APPLE__)
+    if (sscanf(arguments, "%63s %u %u %u", colorClass, &red, &green, &blue) != 4) {
+#else
     if (sscanf(arguments, "%s %d %d %d", colorClass, &red, &green, &blue) != 4) {
+#endif
         ConsoleWrite("Invalid number of parameters", ERROR_COLOR);
         ConsoleCommandWriteHelp(command);
 

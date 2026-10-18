@@ -235,7 +235,12 @@ Original Frame/FrameXML/Scrn now build on all Apple targets. On Mac,
 `build/macos-asan/bin/AppleUIProbe /path/to/Data --preview` opens an interactive
 component window using original Glue fonts/button templates, the original color
 wheel/value selector, Lua callbacks, CSimpleTop layout, Services textures and
-Scrn painting. The color selector uses its original generated textures, HSV/RGB
+Scrn painting. The original console overlay is available with the tilde key in
+this Mac component host. It retains command history/completion, colors and the
+256-line scrollback. Native Unicode scalars are encoded as UTF-8, with character
+boundaries preserved by cursor movement and deletion; worker diagnostics are queued for game-thread font creation.
+Its access flag is explicit in the component host; full client startup will
+continue to obtain it from the original `-console` option. The color selector uses its original generated textures, HSV/RGB
 methods and mouse tracking; the tabard/color texture callback is shared with
 the game UI. Its original edit box
 accepts native Unicode/composition and supplies the AppKit candidate rectangle.
@@ -243,7 +248,7 @@ Without `--preview`, it checks two full lifecycles, native button hit testing,
 composition replacement, caret movement and GPU output. `WOW_UI_FRAMES=120`
 closes the visible check after 120 frames. Set `WOW_WORLD=Azeroth:-9465:64:85`
 to compose the original world below the UI through Scrn. The viewer's movement
-and right-drag are suspended while the edit box has keyboard focus; clicking
+and right-drag are suspended while the console is open or the edit box has keyboard focus; clicking
 the button clears that focus. `WOW_UI_CAPTURE=/absolute/path/frame.ppm` reads
 the composed GPU frame at frame 120. This is an integration entry point;
 full Glue/game UI, name-cache declension, movie playback and login remain pending.
@@ -861,9 +866,11 @@ CVar registration and command dispatch, including default-framebuffer capture,
 both effect modes, enable/disable and target reallocation after resize. GPU
 checks exercise the original effect object across these transitions. Shared CVar
 configuration supports an explicit writable absolute path, bounded loading and
-retryable saves; native console output currently goes to startup diagnostics.
-Interactive console UI, persistent host configuration and other shader families
-remain to be connected.
+retryable saves. Native console output goes to startup diagnostics and, while
+the original console screen is alive, its game-thread display queue.
+`WOW_METAL_CHECK=ui` runs only the shared UI/console input and GPU checks;
+its result is explicitly labelled as a focused run. Full ConsoleDevice startup,
+host display-mode switching and remaining shader families are still pending.
 
 The Metal probe also checks the actual Gx factory, shader refcounts, streaming wrap,
 texture replacement, partial updates, immediate geometry, mid-frame pixel/depth

@@ -156,6 +156,14 @@ void Compare(const Image& actual, const Image& expected, unsigned tolerance) {
 
 void CheckGxFFXPasses(CGxDeviceMetal& device) {
     DayNightGlowScope dayNight;
+    // The pass checks intentionally use translated caller matrices. Restore
+    // them at the probe boundary too, before unrelated fixed-function UI draws.
+    C44Matrix previousProjection; GxXformProjection(previousProjection);
+    device.XformPush(GxXform_World); device.XformPush(GxXform_View);
+    struct Matrices {
+        CGxDeviceMetal& device; C44Matrix projection;
+        ~Matrices() { GxXformPop(GxXform_View); GxXformPop(GxXform_World); device.XformSetProjection(projection); }
+    } matrices{device, previousProjection};
     struct Scope {
         std::vector<CTexture*> textures;
         ~Scope() { for (auto* texture : textures) { HandleClose(reinterpret_cast<HOBJECT>(texture)); } FFX::s_quart[1] = {}; TextureGxCacheFlush(); }

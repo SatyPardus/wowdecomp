@@ -1,7 +1,13 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#if defined(__APPLE__)
+#include <alloca.h>
+#include "Engine/Source/ConsoleBase/Apple/Output.h"
+#include "Engine/Source/Base/ConvertUTF.h"
+#else
 #include <malloc.h>
+#endif
 #include <new>
 #include <typeinfo>
 #include "ConsoleClient.h"
@@ -287,6 +293,23 @@ static void MakeCommandCurrent(CONSOLELINE* line, const char* command) {
     line->m_chars = line->m_inputpos;
 }
 
+#if defined(__APPLE__)
+// Native CHAR events carry Unicode scalars; the original console stores UTF-8
+// bytes (as do pasted strings). Keep its cursor at encoded-character boundaries.
+static uint32_t PreviousCharacter(const CONSOLELINE* line) {
+    uint32_t position = line->m_inputpos;
+    if (position > line->m_inputstart) --position;
+    while (position > line->m_inputstart && (line->m_buffer[position] & 0xC0) == 0x80) --position;
+    return position;
+}
+static uint32_t NextCharacter(const CONSOLELINE* line) {
+    uint32_t position = line->m_inputpos;
+    if (position < line->m_chars) ++position;
+    while (position < line->m_chars && (line->m_buffer[position] & 0xC0) == 0x80) ++position;
+    return position;
+}
+#endif
+
 // VERIFY: db580041 manual
 // OFFSET: 0x00763AB0
 static void Backspace(CONSOLELINE* line) {
@@ -294,6 +317,12 @@ static void Backspace(CONSOLELINE* line) {
         return;
     }
 
+#if defined(__APPLE__)
+    const uint32_t previous = PreviousCharacter(line);
+    memmove(line->m_buffer + previous, line->m_buffer + line->m_inputpos, line->m_chars - line->m_inputpos + 1);
+    line->m_chars -= line->m_inputpos - previous;
+    line->m_inputpos = previous;
+#else
     if (line->m_inputpos < line->m_chars) {
         memmove(&line->m_buffer[line->m_inputpos - 1], &line->m_buffer[line->m_inputpos], line->m_chars - line->m_inputpos + 1);
     } else {
@@ -302,18 +331,31 @@ static void Backspace(CONSOLELINE* line) {
 
     line->m_inputpos--;
     line->m_chars--;
+#endif
     SetInputString(reinterpret_cast<const char*>(line->m_buffer));
 }
 
 // VERIFY: 4bfc942f auto
 // OFFSET: 0x00763B10
 static void Delete(CONSOLELINE* line) {
+#if defined(__APPLE__)
+    // At end-of-line there is no character to remove. The original comparison
+    // lets repeated Delete move the length before the prompt and underflow.
+    if (line->m_inputpos >= line->m_chars) {
+#else
     if (line->m_inputpos > line->m_chars) {
+#endif
         return;
     }
 
+#if defined(__APPLE__)
+    const uint32_t next = NextCharacter(line);
+    memmove(line->m_buffer + line->m_inputpos, line->m_buffer + next, line->m_chars - next + 1);
+    line->m_chars -= next - line->m_inputpos;
+#else
     memmove(&line->m_buffer[line->m_inputpos], &line->m_buffer[line->m_inputpos + 1], line->m_chars - line->m_inputpos);
     line->m_chars--;
+#endif
     SetInputString(reinterpret_cast<const char*>(line->m_buffer));
 }
 
@@ -512,7 +554,7 @@ static void EnforceMaxLines() {
     }
 
     node->~CONSOLELINE();
-    SMemFree(node, typeid(CONSOLELINE).raw_name(), SLOG_OBJECT, 0);
+    SMemFree(node, StormTypeName(typeid(CONSOLELINE)), SLOG_OBJECT, 0);
     s_NumLines--;
 }
 
@@ -676,9 +718,16 @@ static int32_t OnChar(const void* data, void* param) {
         return 1;
     }
 
+#if defined(__APPLE__)
+    const uint32_t scalar = static_cast<const EVENT_DATA_CHAR*>(data)->m_ch;
+    if (scalar < 0x20 || scalar == 0x7F) return 0;
+    char character[8];
+    sputu8(scalar > 0x10FFFF || (scalar >= 0xD800 && scalar <= 0xDFFF) ? 0xFFFD : scalar, character);
+#else
     char character[2];
     character[0] = static_cast<char>(static_cast<const EVENT_DATA_CHAR*>(data)->m_ch);
     character[1] = 0;
+#endif
 
     PasteInInputLine(character);
     ResetHighlight();
@@ -757,7 +806,11 @@ static int32_t OnKeyDownRepeat(const void* data, void* param) {
 
         case KEY_LEFT:
             if (line->m_inputpos > line->m_inputstart) {
+#if defined(__APPLE__)
+                line->m_inputpos = PreviousCharacter(line);
+#else
                 line->m_inputpos--;
+#endif
             }
 
             break;
@@ -768,7 +821,11 @@ static int32_t OnKeyDownRepeat(const void* data, void* param) {
 
         case KEY_RIGHT:
             if (line->m_inputpos < line->m_chars) {
+#if defined(__APPLE__)
+                line->m_inputpos = NextCharacter(line);
+#else
                 line->m_inputpos++;
+#endif
             }
 
             break;
@@ -857,8 +914,13 @@ static int32_t OnKeyDownRepeat(const void* data, void* param) {
 
 // VERIFY: ed71f29f manual
 // OFFSET: 0x00765270
+#if defined(__APPLE__)
+static void ConsoleScreenWrite(const char* str, COLOR_T color) {
+    if (!str || !*str || !g_theGxDevicePtr || !s_textFont) {
+#else
 void ConsoleWrite(const char* str, COLOR_T color) {
     if (!str || !*str || !ConsoleDeviceExists() || !s_textFont) {
+#endif
         return;
     }
 
@@ -887,6 +949,7 @@ void ConsoleWrite(const char* str, COLOR_T color) {
     s_critsect.Leave();
 }
 
+#if !defined(__APPLE__)
 // VERIFY: 7dcf8eb5 auto
 // OFFSET: 0x00765360
 void ConsoleWriteA(const char* format, COLOR_T color, ...) {
@@ -917,9 +980,14 @@ void ConsolePrintf(const char* format, ...) {
     va_end(args);
 }
 
+#endif
+
 // VERIFY: f39b7102 manual
 // OFFSET: 0x007659C0
 static int32_t OnIdle(const void* data, void* param) {
+#if defined(__APPLE__)
+    ConsoleDrainOutput(ConsoleScreenWrite);
+#endif
     float finalPos = s_active ? 1.0f - s_consoleHeight : 1.0f;
 
     if (finalPos > 1.0f) {
@@ -1010,7 +1078,11 @@ static int32_t OnKeyDown(const void* data, void* param) {
             if (!s_completionMode) {
                 s_completedCmd = nullptr;
                 s_completionMode = 1;
+#if defined(__APPLE__)
+                SStrCopy(s_partial, reinterpret_cast<const char*>(line->m_buffer) + line->m_inputstart, sizeof(s_partial));
+#else
                 SStrCopy(s_partial, reinterpret_cast<const char*>(line->m_buffer) + line->m_inputstart, STORM_MAX_STR);
+#endif
             }
 
             if (ConsoleCommandComplete(s_partial, &s_completedCmd, (key->m_metaKeyState & 3) != 0)) {
@@ -1022,7 +1094,11 @@ static int32_t OnKeyDown(const void* data, void* param) {
 
         case KEY_LEFT:
             if (line->m_inputpos > line->m_inputstart) {
+#if defined(__APPLE__)
+                line->m_inputpos = PreviousCharacter(line);
+#else
                 line->m_inputpos--;
+#endif
             }
 
             break;
@@ -1033,7 +1109,11 @@ static int32_t OnKeyDown(const void* data, void* param) {
 
         case KEY_RIGHT:
             if (line->m_inputpos < line->m_chars) {
+#if defined(__APPLE__)
+                line->m_inputpos = NextCharacter(line);
+#else
                 line->m_inputpos++;
+#endif
             }
 
             break;
@@ -1171,9 +1251,28 @@ static int32_t OnKeyDown(const void* data, void* param) {
     return 0;
 }
 
+#if defined(__APPLE__)
+static int32_t OnSize(const void* data, void*) {
+    const auto& size = *static_cast<const EVENT_DATA_SIZE*>(data);
+    if (size.m_w <= 0 || size.m_h <= 0) return 1;
+    s_caretpixwidth = 1.0f / size.m_w; s_caretpixheight = 1.0f / size.m_h;
+    auto font = TextBlockGenerateFont(s_fontName, 0, NDCToDDCHeight(s_fontHeight));
+    if (font) {
+        HandleClose(reinterpret_cast<HOBJECT>(s_textFont)); s_textFont = font;
+        for (auto* line = s_linelist.Head(); line; line = s_linelist.Next(line)) GenerateNodeString(line);
+        auto* input = s_linelist.Head();
+        if (input && input->m_inputpos) SetInputString(reinterpret_cast<const char*>(input->m_buffer));
+    }
+    return 1;
+}
+#endif
+
 // VERIFY: 8f2c32a0 auto
 // OFFSET: 0x00765FF0
 static void RegisterHandlers() {
+#if defined(__APPLE__)
+    EventRegisterEx(EVENT_ID_SIZE, OnSize, nullptr, 1.0f);
+#endif
     EventRegisterEx(EVENT_ID_CHAR, OnChar, nullptr, 7.0f);
     EventRegisterEx(EVENT_ID_IDLE, OnIdle, nullptr, 7.0f);
     EventRegisterEx(EVENT_ID_KEYDOWN, OnKeyDown, nullptr, 7.0f);
@@ -1187,6 +1286,9 @@ static void RegisterHandlers() {
 // VERIFY: 2345be12 auto
 // OFFSET: 0x007660D0
 static void UnregisterHandlers() {
+#if defined(__APPLE__)
+    EventUnregister(EVENT_ID_SIZE, OnSize);
+#endif
     EventUnregister(EVENT_ID_CHAR, OnChar);
     EventUnregister(EVENT_ID_IDLE, OnIdle);
     EventUnregister(EVENT_ID_KEYDOWN, OnKeyDown);
@@ -1222,6 +1324,9 @@ void ConsoleScreenInitialize(const char* title) {
     }
 
     EventSetConfirmCloseCallback(EventCloseCallback, nullptr);
+#if defined(__APPLE__)
+    ConsoleCaptureOutput(true);
+#endif
     ConsoleCommandExecute("ver", 1);
     s_batch = GxuFontCreateBatch(false, false);
 }
@@ -1229,6 +1334,10 @@ void ConsoleScreenInitialize(const char* title) {
 // VERIFY: ef444a6a auto
 // OFFSET: 0x007662A0
 void ConsoleScreenDestroy() {
+#if defined(__APPLE__)
+    ConsoleCaptureOutput(false);
+    for (const char* name : s_consoleCommandNames) ConsoleCommandUnregister(name);
+#endif
     EventSetConfirmCloseCallback(nullptr, nullptr);
     UnregisterHandlers();
     HandleClose(reinterpret_cast<HOBJECT>(s_textFont));
@@ -1247,6 +1356,12 @@ void ConsoleScreenDestroy() {
     }
 
     s_inputString = nullptr;
+#if defined(__APPLE__)
+    s_textFont = nullptr; s_layerBackground = nullptr; s_layerText = nullptr;
+    s_currlineptr = nullptr; s_NumLines = 0; s_active = 0; s_repeatCount = 0;
+    s_consoleResizeState = 0; s_historyIndex = -1; s_completionMode = 0; s_completedCmd = nullptr;
+    s_rect.bottom = 1.0f; ResetHighlight();
+#endif
 }
 
 // VERIFY: 0aea2766 auto

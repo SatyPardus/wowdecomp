@@ -1,6 +1,7 @@
 #include "NativeView.h"
 #include "WorldPreview.h"
 #include "UIComponents.h"
+#include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -41,7 +42,7 @@ class BackgroundWorld {
     HLAYER layer = nullptr;
 public:
     explicit BackgroundWorld(const char* selection) : world(selection) {
-        world.EnableInput([] { return CSimpleEditBox::s_currentFocus == nullptr; });
+        world.EnableInput([] { return !ConsoleGetActive() && CSimpleEditBox::s_currentFocus == nullptr; });
         ScrnLayerCreate(nullptr, 0.0f, 4, this, [](void* owner, const RECTF*, const RECTF*, float elapsed) {
             CRect drawable; g_theGxDevicePtr->CapsWindowSize(drawable);
             static_cast<BackgroundWorld*>(owner)->world.Draw(elapsed, uint32_t(drawable.maxX - drawable.minX), uint32_t(drawable.maxY - drawable.minY));
@@ -169,7 +170,7 @@ int main(int argc, char** argv) {
             renderPass.colorAttachments[0].loadAction = MTLLoadActionClear;
             renderDevice = &device;
             {
-                UIComponents components;
+                UIComponents components(true);
                 auto* button = components.Button();
                 auto* edit = components.Edit();
                 view.textInputRectProvider = ^NSRect {
@@ -216,6 +217,20 @@ int main(int argc, char** argv) {
                 Require(visible > 100, "Original UI did not produce visible glyphs");
                 std::printf("Original UI readback: %zu visible pixels, %zu red button pixels\n", visible, colored);
                 Require(colored > 100, "Original Glue button texture did not reach the GPU");
+                auto consoleKey = [&](NSEventType type) {
+                    return [NSEvent keyEventWithType:type location:NSZeroPoint modifierFlags:0 timestamp:0
+                        windowNumber:window.windowNumber context:nil characters:@"`" charactersIgnoringModifiers:@"`" isARepeat:NO keyCode:50];
+                };
+                [view keyDown:consoleKey(NSEventTypeKeyDown)]; [view keyUp:consoleKey(NSEventTypeKeyUp)]; Step();
+                Require(ConsoleGetActive(), "Native tilde did not reach the original console hotkey");
+                [view insertText:@"closeconsole" replacementRange:NSMakeRange(NSNotFound, 0)]; Step();
+                NSEvent* enter = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:0
+                    windowNumber:window.windowNumber context:nil characters:@"\r" charactersIgnoringModifiers:@"\r" isARepeat:NO keyCode:36];
+                [view keyDown:enter];
+                [view keyUp:[NSEvent keyEventWithType:NSEventTypeKeyUp location:NSZeroPoint modifierFlags:0 timestamp:0
+                    windowNumber:window.windowNumber context:nil characters:@"\r" charactersIgnoringModifiers:@"\r" isARepeat:NO keyCode:36]]; Step();
+                Require(!ConsoleGetActive(), "Native text/Enter did not execute closeconsole");
+
                 if (cycle == 1 && argc == 3) {
                     std::unique_ptr<BackgroundWorld> world;
                     if (NSString* selection = NSProcessInfo.processInfo.environment[@"WOW_WORLD"]) world = std::make_unique<BackgroundWorld>(selection.UTF8String);

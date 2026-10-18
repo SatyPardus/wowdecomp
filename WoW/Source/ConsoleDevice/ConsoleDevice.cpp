@@ -86,6 +86,9 @@ int32_t ConsoleDeviceExists() {
 int32_t IsConsoleEnabled() {
     return s_consoleAccessEnabled;
 }
+#if defined(__APPLE__)
+void ConsoleDeviceSetConsoleAccess(bool enabled) { s_consoleAccessEnabled = enabled; }
+#endif
 
 // VERIFY: e1f357be auto
 // OFFSET: 0x007696D0
