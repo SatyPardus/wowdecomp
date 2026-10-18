@@ -8,9 +8,13 @@
 #include "Engine/Source/Services/Texture.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/DB/Rec/AreaTableRec.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "WoW/Source/Object/ObjectClient/Item_C.h"
+#include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/Object/Unit.h"
 #include "WoW/Source/Object/Object.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
@@ -18,6 +22,7 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/GossipInfo.h"
 #include "WoW/Source/Ui/MerchantFrame.h"
+#include "WoW/Source/Ui/SpellBookFrame.h"
 #include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/Ui/UIBindings.h"
 #import <Carbon/Carbon.h>
@@ -301,6 +306,133 @@ bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant) {
     }
     return false;
 }
+
+bool CheckNativeWorldTravel() {
+    static unsigned phase,readyFrames,destinationFrames;
+    static uint32_t oldMap;
+    static WOWGUID character;
+    static C3Vector origin;
+    static std::chrono::steady_clock::time_point started;
+    if(phase==4) return true;
+    const auto now=std::chrono::steady_clock::now();
+    const double elapsed=std::chrono::duration<double>(now-started).count();
+    auto* player=ClntObjMgrGetActivePlayerObj();
+    if(!CGGameUI::s_inWorld || !player) {
+        Require(!phase || (phase>=2 && elapsed<90),"World left before the original teleport cast completed"); return false;
+    }
+    if(!phase && ++readyFrames<120) return false;
+    auto next=[&] { ++phase; started=now; };
+    if(!phase) {
+        const int32_t slot=GetSpellSlot(18960,0);
+        Require(slot>=0 && GetSpellIdBySlot(slot,0)==18960,"Travel check requires an already learned Teleport: Moonglade");
+        Require(ClntObjMgrGetMapID()==0,"Travel check starts on the Eastern Kingdoms");
+        Require(CGGameUI::GetCursorSpell()<=0,"Travel check requires an empty spell cursor");
+        oldMap=ClntObjMgrGetMapID(); character=ClntObjMgrGetActivePlayer(); origin=player->GetPosition();
+        std::fprintf(stderr,"Native world travel: learned spell 18960, original book slot %d, map %u, origin %.2f %.2f %.2f\n",slot,oldMap,origin.x,origin.y,origin.z);
+        CGSpellBook::CastSpell(slot,0,character); next();
+    } else if(phase==1) {
+        auto* bar=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("CastingBarFrame",CSimpleFrame::GetObjectType()));
+        if(player->m_castingSpellId==18960 && bar && bar->m_isVisible) { std::fputs("Native world travel: original teleport cast bar visible\n",stderr); next(); }
+        else Require(elapsed<5,"Known teleport spell did not start its original cast");
+    } else if(phase==2) {
+        if(ClntObjMgrGetMapID()!=oldMap) {
+            Require(ClntObjMgrGetMapID()==1 && ClntObjMgrGetActivePlayer()==character,"Server teleport reached an unexpected map or character"); next();
+        } else Require(elapsed<90,"Original teleport did not complete the server map transfer");
+    } else if(phase==3 && ++destinationFrames>=180) {
+        const auto position=player->GetPosition();
+        std::fprintf(stderr,"Native world travel: map %u -> %u, destination %.2f %.2f %.2f, same character and 180 destination frames\n",oldMap,ClntObjMgrGetMapID(),position.x,position.y,position.z);
+        next(); return true;
+    }
+    return false;
+}
+
+bool CheckNativeWorldHearthstone(WowNativeView* view) {
+    static unsigned phase, readyFrames, settledFrames, slot;
+    static uint32_t oldMap, bindArea;
+    static C3Vector origin;
+    static WOWGUID hearthstone;
+    static NSPoint itemPoint;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 8) return true;
+    const auto now=std::chrono::steady_clock::now();
+    const double elapsed=std::chrono::duration<double>(now-started).count();
+    auto* player=ClntObjMgrGetActivePlayerObj();
+    if(!CGGameUI::s_inWorld || !player) {
+        Require(!phase || (phase>=5 && elapsed<60),"World left before Hearthstone travel"); return false;
+    }
+    if(!phase && ++readyFrames<120) return false;
+    auto frame=[](const char* name) { return static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name,CSimpleFrame::GetObjectType())); };
+    auto key=[&](bool down) {
+        NSEvent* event=[NSEvent keyEventWithType:down ? NSEventTypeKeyDown:NSEventTypeKeyUp location:NSZeroPoint modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil
+            characters:@"b" charactersIgnoringModifiers:@"b" isARepeat:NO keyCode:kVK_ANSI_B];
+        if(down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto click=[&](bool down) {
+        CGEventRef event=CGEventCreateMouseEvent(nullptr,down ? kCGEventRightMouseDown:kCGEventRightMouseUp,
+            CGPointMake(itemPoint.x,NSMaxY(NSScreen.screens.firstObject.frame)-itemPoint.y),kCGMouseButtonRight);
+        Require(event!=nullptr,"Cannot create native item click"); NSEvent* native=[NSEvent eventWithCGEvent:event];
+        if(down) [view rightMouseDown:native]; else [view rightMouseUp:native]; CFRelease(event);
+    };
+    auto next=[&] { ++phase; started=now; };
+    if(!phase) {
+        Require(CGUIBindings::s_bindings,"Travel check requires character bindings");
+        const char* action=CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,"B",1);
+        Require(action && !std::strcmp(action,"TOGGLEBACKPACK"),"Travel check does not match backpack binding");
+        auto* bag=frame("ContainerFrame1"); Require(bag && !bag->m_isShown,"Travel check requires a closed backpack");
+        CGItem_C* item=nullptr;
+        for(unsigned i=23;i<=38;++i) {
+            auto* candidate=player->GetBag()->GetItemPointer(i);
+            if(candidate && candidate->m_obj->m_entryID==6948) { item=candidate; slot=i-22; break; }
+        }
+        Require(item!=nullptr,"Travel check requires the existing Hearthstone in the backpack");
+        uint32_t duration=0,start=0,enable=0; Spell_C_GetItemCooldown(item,&duration,&start,&enable);
+        Require(!duration || !start,"Existing Hearthstone is on cooldown");
+        hearthstone=item->m_obj->m_guid; oldMap=ClntObjMgrGetMapID(); origin=player->GetPosition(); bindArea=CGPlayer_C::GetBindAreaID();
+        const auto* area=g_areaTableDB.GetRecord(bindArea); Require(area,"Server bind area is missing");
+        std::fprintf(stderr,"Native world travel: existing Hearthstone slot %u, server bind %u (%s), map %u, origin %.2f %.2f %.2f\n",
+            slot,bindArea,area->m_areaName,oldMap,origin.x,origin.y,origin.z);
+        key(true); next();
+    } else if(phase==1 && elapsed>=.05) { key(false); next(); }
+    else if(phase==2 && elapsed>=.3) {
+        auto* bag=frame("ContainerFrame1"); Require(bag && bag->m_isVisible && bag->m_id==0,"Original backpack did not open");
+        CSimpleFrame* button=nullptr;
+        for(unsigned i=1;i<=16;++i) {
+            char name[48]; std::snprintf(name,sizeof(name),"ContainerFrame1Item%u",i); auto* candidate=frame(name);
+            if(candidate && candidate->m_isVisible && candidate->m_id==int32_t(slot)) { button=candidate; break; }
+        }
+        CRect rect; Require(button && button->GetRect(&rect),"Existing Hearthstone has no visible bag button");
+        float x,y; DDCToNDC((rect.minX+rect.maxX)*.5f,(rect.minY+rect.maxY)*.5f,&x,&y);
+        Require(x>0 && x<1 && y>0 && y<1,"Hearthstone button is outside the game view");
+        itemPoint=[view convertPoint:NSMakePoint(x*view.bounds.size.width,(view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        [view mouseMoved:[NSEvent mouseEventWithType:NSEventTypeMouseMoved location:itemPoint modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:0 pressure:0]];
+        next();
+    } else if(phase==3 && elapsed>=.1) { click(true); next(); }
+    else if(phase==4 && elapsed>=.05) { click(false); next(); }
+    else if(phase==5) {
+        auto* bar=frame("CastingBarFrame");
+        if(bar && bar->m_isVisible) { std::fputs("Native world travel: original item-use cast bar visible\n",stderr); next(); }
+        else Require(elapsed<5,"Native item click did not start the original Hearthstone cast");
+    } else if(phase==6) {
+        const auto position=player->GetPosition();
+        const auto delta=position-origin;
+        if(ClntObjMgrGetMapID()!=oldMap || delta.x*delta.x+delta.y*delta.y+delta.z*delta.z>625) {
+            Require(CGPlayer_C::GetBindAreaID()==bindArea,"Server bind changed during travel"); next();
+        } else Require(elapsed<45,"Hearthstone did not produce server-directed travel");
+    } else if(phase==7 && ++settledFrames>=120) {
+        auto* item=static_cast<CGItem_C*>(ClntObjMgrObjectPtr(hearthstone,TYPEMASK_ITEM,__FILE__,__LINE__));
+        Require(item && item->m_obj->m_entryID==6948,"Hearthstone did not survive original world travel");
+        uint32_t duration=0,start=0,enable=0; Spell_C_GetItemCooldown(item,&duration,&start,&enable);
+        Require(duration && start,"Server did not apply the original Hearthstone cooldown");
+        const auto p=player->GetPosition(); int32_t area=0; World::QueryAreaIdAtPosition(&p,&area);
+        std::fprintf(stderr,"Native world travel: map %u -> %u, destination %.2f %.2f %.2f, area %d, %u ms item cooldown, 120 destination frames\n",
+            oldMap,ClntObjMgrGetMapID(),p.x,p.y,p.z,area,duration);
+        next(); return true;
+    }
+    return false;
+}
+
 
 bool CheckNativeWorldCasting(WowNativeView* view) {
     static unsigned phase, readyFrames, button;

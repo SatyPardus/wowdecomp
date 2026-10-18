@@ -367,6 +367,18 @@ details. It leaves the merchant open, buys/sells nothing and checks that money
 is unchanged. Innkeeper Allison's 28-item list and the 1,000-frame session pass
 Mac ASan/UBSan and Metal validation.
 
+`--check-world-travel` requires an already learned Teleport: Moonglade and starts
+on the Eastern Kingdoms. It uses the original spellbook cast entry, checks its
+cast bar and the server's map transfer, then renders 180 destination frames.
+`--check-world-hearthstone` opens the existing backpack with B and right-clicks
+the existing, ready Hearthstone. It checks travel, the unchanged bind and item,
+and the server's normal cooldown after arrival. These checks do not learn spells,
+change coordinates or reset cooldowns. Both directions (Stormwind to Moonglade,
+then back to the bound inn) passed separate 2,400-frame Mac ASan/UBSan and Metal
+sessions, with normal shutdown; the return includes the original projected
+Hearthstone impact. Native movement/keyboard casting checks remain separate from
+the spellbook entry used for the outward journey.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;

@@ -9,6 +9,10 @@ bool CheckNativeWorldCasting(WowNativeView* view);
 bool CheckNativeWorldShadows();
 // Native picking and an existing nearby NPC's original server gossip dialog.
 bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant = false);
+// An already learned Teleport: Moonglade through the original spellbook entry.
+bool CheckNativeWorldTravel();
+// Existing backpack Hearthstone, native item click and server-directed travel.
+bool CheckNativeWorldHearthstone(WowNativeView* view);
 // Original game-menu logout and character-selection reentry, using native UI
 // events and the same character. No forced logout or object-manager reset.
 bool CheckNativeWorldReentry(WowNativeView* view);
