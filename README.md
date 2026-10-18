@@ -964,6 +964,14 @@ otherwise synthesize an address for this invalid hostname form). Localhost,
 numeric addresses and failure clearing run on Mac and iOS Simulator. The shared
 Blizzard file-version query uses the bounded PE/native bundle metadata reader;
 PE32/PE32+ and the original client components are checked without executing them.
+The separate `Blizzard::URL::DownloadURL` interface now uses native URLSession
+with the original asynchronous callback contract, GET/HEAD/POST, inclusive byte
+ranges, conditional requests, cookies, metadata and error statuses. A serial
+worker queue delivers bounded data chunks and one completion; cancellation and
+shutdown can drain callbacks before their owners are released. TLS validation
+uses the system defaults. Loopback checks cover exact request/body bytes, 64-bit
+range/length metadata, redirects, failures, truncation, timeout and restart. This
+does not enable the unfinished streaming filesystem or complete patch handling.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 The original `Wow.ini` profile reader now runs through SFile on Apple, retaining

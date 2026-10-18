@@ -64,6 +64,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
 void CheckGameNetwork();
 void CheckURLDownloads();
+void CheckBlizzardURLDownloads();
 void CheckKnowledgeBaseDownloads();
 void CheckCommandLine(const std::string& scratch);
 void CheckVersionInfo(const std::string& scratch);
@@ -700,6 +701,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckStormSynchronization();
         CheckGameNetwork();
         CheckURLDownloads();
+        CheckBlizzardURLDownloads();
         CheckKnowledgeBaseDownloads();
         CheckCommandLine(scratchDirectory);
         CheckVersionInfo(scratchDirectory);

@@ -402,7 +402,12 @@ set(CMAKE_OBJCXX_STANDARD 17)
 set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 target_sources(AppleFoundation PRIVATE Engine/Source/Os/Apple/OsURLDownload.mm Engine/Source/Os/Apple/OsFileVersionInfo.mm Engine/Source/Storm/Source/Apple/SCmd.mm)
 target_sources(AppleFoundation PRIVATE Engine/Source/Os/Apple/SystemInfo.mm)
+target_sources(AppleFoundation PRIVATE Engine/Source/BlizzardCore/Source/System/URL/URL.cpp
+    Engine/Source/BlizzardCore/Source/System/URL/Apple/URL.mm)
 target_compile_options(AppleFoundation PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
+# Xcode does not apply a language-dependent target option to this mixed C++ /
+# Objective-C++ library. Its native build setting must also enable ownership.
+set_target_properties(AppleFoundation PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
 target_link_libraries(AppleFoundation PUBLIC "-framework Foundation")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS Engine/Source/Gx/Metal/TextureQuad.metal Engine/Source/Gx/Metal/Skinning.metal Engine/Source/Gx/Metal/ShadowMap.metal Engine/Source/Gx/Metal/Model.metal Engine/Source/Gx/Metal/Terrain.metal Engine/Source/Gx/Metal/Wmo.metal Engine/Source/Gx/Metal/Liquid.metal Engine/Source/Gx/Metal/DetailDoodad.metal Engine/Source/Gx/Metal/WaterRipple.metal Engine/Source/Gx/Metal/FixedUnlit.metal)
 file(READ Engine/Source/Gx/Metal/TextureQuad.metal WOW_TEXTURE_QUAD_SOURCE)
@@ -464,6 +469,7 @@ target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/FileDownloadProbe.cpp
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/ProfileProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
+set_target_properties(AppleProbeCore PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames AppleKnowledgeBase)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")

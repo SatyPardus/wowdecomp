@@ -20,6 +20,7 @@ add_library(fmodex STATIC ${FMODEX_APPLE_SOURCES}
     ${FMODEX_DIR}/apple/Output.mm
 )
 target_compile_options(fmodex PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
+set_target_properties(fmodex PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
 target_link_libraries(fmodex PUBLIC "-framework AudioToolbox" "-framework Foundation")
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     target_link_libraries(fmodex PUBLIC "-framework AVFAudio")

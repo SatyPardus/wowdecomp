@@ -1,4 +1,5 @@
 #include "Engine/Source/Os/OsURLDownload.h"
+#include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
 #include "WoW/Source/WowServices/SocketPlatform.h"
 #include "WoW/Source/Ui/KnowledgeBase.h"
 #include "Engine/Source/FrameXML/XMLTree.h"
@@ -43,7 +44,7 @@ struct Server {
         Require(!getsockname(listener.fd, reinterpret_cast<sockaddr*>(&address), &size), "Cannot query HTTP fixture port");
         root = "http://127.0.0.1:" + std::to_string(ntohs(address.sin_port));
     }
-    Socket Accept(const char* path) {
+    Socket Accept(const char* path, const char* method = "GET", std::string* captured = nullptr) {
         Ready(listener.fd, POLLIN);
         Socket socket(accept(listener.fd, nullptr, nullptr));
         Require(WowSocketNonBlocking(socket.fd), "Cannot configure HTTP fixture peer");
@@ -56,9 +57,10 @@ struct Server {
             Require(size > 0 && request.size() + size <= 16384, "Invalid HTTP fixture request");
             request.append(bytes, size);
         }
-        Require(request.find(std::string("GET ") + path + " HTTP/1.1\r\n") == 0 &&
+        Require(request.find(std::string(method) + " " + path + " HTTP/1.1\r\n") == 0 &&
                     request.find("User-Agent: Blizzard Web Client\r\n") != std::string::npos,
                 "Native HTTP request lost its path/query or original user agent");
+        if (captured) *captured = request;
         return socket;
     }
 };
@@ -206,6 +208,177 @@ void CheckURLDownloads() {
         }
     }
     std::fprintf(stderr, "Native HTTP: exact streamed bytes, query/redirect, EOF/status, truncation, chained callback, stop, timeout and shutdown/restart passed twice\n");
+}
+
+namespace {
+struct BlizzardResult : Blizzard::URL::DownloadCallback {
+    std::mutex mutex;
+    std::condition_variable changed;
+    std::string bytes, modified, order, post, nextURL;
+    bool want = true, abort = false, stop = false, fail = false, headers = false;
+    unsigned completions = 0, chunks = 0;
+    bool valid = true, nextStarted = false;
+    int32_t code = 0, timeout = 2000;
+    int64_t length = -1;
+    ByteRange range{-1, -1};
+    Status status = DOWNLOAD_UNKNOWN_ERROR;
+    BlizzardResult* next = nullptr;
+    ~BlizzardResult() override { Blizzard::URL::CancelNativeDownloads(this); }
+    bool WantData() override { return want; }
+    int32_t GetTimeout() override { return timeout; }
+    ByteRange GetByteRange() override { return range; }
+    const char* GetPostData() override { return post.empty() ? nullptr : post.c_str(); }
+    const char* GetPostContentType() override { return "text/plain; charset=utf-8"; }
+    const char* WantIfModifiedSince() override { return headers ? "Wed, 21 Oct 2015 07:28:00 GMT" : nullptr; }
+    Cookie GetCookie() override { return headers ? Cookie{"wow_native_probe", "12340"} : Cookie{nullptr, nullptr}; }
+    void ConnectedOK() override { order += 'c'; }
+    void GetHTTPStatusCode(int32_t value) override { code = value; order += 's'; }
+    void GetLastModified(const char* value) override { modified = value; order += 'm'; }
+    void GetContentLength(int64_t value) override { length = value; order += 'l'; }
+    bool Stop() override { return stop; }
+    bool ReceivedData(const void* data, int32_t size) override {
+        if (fail) throw std::runtime_error("deliberate download callback failure");
+        valid &= !completions && data && size > 0 && size <= 16384;
+        bytes.append(static_cast<const char*>(data), size); ++chunks; order += 'd';
+        return !abort;
+    }
+    void Completed(Status value) override {
+        std::lock_guard<std::mutex> lock(mutex);
+        status = value; ++completions; order += 'f';
+        if (next) nextStarted = Blizzard::URL::DownloadURL(nextURL.c_str(), next);
+        changed.notify_all();
+    }
+    void Wait() {
+        std::unique_lock<std::mutex> lock(mutex);
+        Require(changed.wait_for(lock, std::chrono::seconds(6), [&] { return completions != 0; }), "Blizzard URL completion timed out");
+        Require(valid && completions == 1, "Blizzard URL delivered invalid chunks or duplicate completion");
+    }
+};
+}
+
+void CheckBlizzardURLDownloads() {
+    using Callback = Blizzard::URL::DownloadCallback;
+    using Blizzard::URL::DownloadURL;
+    {
+        BlizzardResult result;
+        for (const char* url : {"", "file:///tmp/unused", "ftp://localhost/test", "http://", "bad-url"})
+            Require(!DownloadURL(url, &result), "Blizzard URL accepted invalid/unsupported address");
+        Require(!DownloadURL(nullptr, &result) && !DownloadURL("http://localhost/", nullptr) && !result.completions,
+            "Invalid Blizzard URL start produced a completion or accepted null input");
+    }
+    for (unsigned cycle = 0; cycle != 2; ++cycle) {
+        Server server;
+        const std::string payload(100003, char('A' + cycle));
+        {
+            BlizzardResult result;
+            Require(DownloadURL((server.root + "/redirect").c_str(), &result), "Cannot start Blizzard URL");
+            {
+                auto peer = server.Accept("/redirect");
+                Send(peer, "HTTP/1.1 302 Found\r\nLocation: /bytes?locale=zhCN&build=12340\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            }
+            {
+                auto peer = server.Accept("/bytes?locale=zhCN&build=12340");
+                Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 100003\r\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\r\nConnection: close\r\n\r\n" + payload);
+            }
+            result.Wait();
+            Require(result.status == Callback::DOWNLOAD_SUCCESS && result.bytes == payload && result.length == 100003 &&
+                result.chunks >= 7 && result.order.find("csml") == 0 && result.order.back() == 'f' && !result.modified.empty(),
+                "Blizzard URL changed redirected bytes, callback order or response metadata");
+        }
+        {
+            BlizzardResult result; result.want = false;
+            Require(DownloadURL((server.root + "/head").c_str(), &result), "Cannot start Blizzard HEAD");
+            auto peer = server.Accept("/head", "HEAD");
+            Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 4294967313\r\nConnection: close\r\n\r\n");
+            result.Wait();
+            Require(result.status == Callback::DOWNLOAD_SUCCESS && result.length == INT64_C(4294967313) && !result.chunks,
+                "Blizzard HEAD truncated a 64-bit length or delivered body data");
+        }
+        {
+            BlizzardResult result; result.range = {INT64_C(4294967300), INT64_C(4294967303)};
+            Require(DownloadURL((server.root + "/range").c_str(), &result), "Cannot start Blizzard range");
+            std::string request;
+            auto peer = server.Accept("/range", "GET", &request);
+            Require(request.find("Range: bytes=4294967300-4294967303\r\n") != std::string::npos, "Blizzard range lost inclusive 64-bit offsets");
+            Send(peer, "HTTP/1.1 206 Partial Content\r\nContent-Length: 4\r\nContent-Range: bytes 4294967300-4294967303/4294967400\r\nConnection: close\r\n\r\npart");
+            result.Wait();
+            Require(result.status == Callback::DOWNLOAD_SUCCESS && result.code == 206 && result.bytes == "part", "Blizzard range response changed");
+        }
+        {
+            BlizzardResult result; result.post = "locale=zhCN&text=\xe4\xb8\xad\xe6\x96\x87"; result.headers = true;
+            Require(DownloadURL((server.root + "/post?build=12340").c_str(), &result), "Cannot start Blizzard POST");
+            std::string request;
+            auto peer = server.Accept("/post?build=12340", "POST", &request);
+            const size_t body = request.find("\r\n\r\n") + 4;
+            while (request.size() - body < result.post.size()) {
+                Ready(peer.fd, POLLIN); char buffer[1024]; const auto count = recv(peer.fd, buffer, sizeof(buffer), 0);
+                if (count < 0 && (errno == EINTR || errno == EAGAIN)) continue;
+                Require(count > 0, "Blizzard POST body truncated"); request.append(buffer, count);
+            }
+            Require(request.substr(body) == result.post && request.find("Content-Type: text/plain; charset=utf-8\r\n") != std::string::npos &&
+                request.find("If-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT\r\n") != std::string::npos &&
+                request.find("wow_native_probe=12340") != std::string::npos, "Blizzard POST/header/cookie bytes changed");
+            Send(peer, "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n");
+            result.Wait(); Require(result.status == Callback::DOWNLOAD_SUCCESS, "Blizzard POST failed");
+        }
+        for (int code : {304, 400, 403, 404, 500}) {
+            BlizzardResult result;
+            Require(DownloadURL((server.root + "/status").c_str(), &result), "Cannot start Blizzard status check");
+            auto peer = server.Accept("/status");
+            Send(peer, "HTTP/1.1 " + std::to_string(code) + " Status\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            result.Wait();
+            const auto expected = code == 304 ? Callback::DOWNLOAD_NOT_MODIFIED : code == 400 ? Callback::DOWNLOAD_BAD_REQUEST :
+                code == 403 ? Callback::DOWNLOAD_FORBIDDEN : code == 404 ? Callback::DOWNLOAD_NOT_FOUND : Callback::DOWNLOAD_FAILED;
+            Require(result.status == expected && result.code == code && !result.chunks, "Blizzard URL changed HTTP failure mapping");
+        }
+        for (int choice : {0, 1, 2}) {
+            BlizzardResult result; result.abort = choice == 0; result.stop = choice == 1; result.fail = choice == 2;
+            Require(DownloadURL((server.root + "/stop").c_str(), &result), "Cannot start Blizzard stop check");
+            auto peer = server.Accept("/stop");
+            Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 100003\r\n\r\n" + payload.substr(0, 20000));
+            result.Wait();
+            Require(result.status == (choice == 0 ? Callback::DOWNLOAD_ABORTED : choice == 1 ? Callback::DOWNLOAD_STOPPED : Callback::DOWNLOAD_FAILED) &&
+                result.chunks == (choice == 2 ? 0u : 1u), "Blizzard URL lost callback abort/stop/failure semantics");
+        }
+        {
+            BlizzardResult result;
+            Require(DownloadURL((server.root + "/truncated").c_str(), &result), "Cannot start Blizzard truncated download");
+            { auto peer = server.Accept("/truncated"); Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 100003\r\nConnection: close\r\n\r\nshort"); }
+            result.Wait(); Require(result.status == Callback::DOWNLOAD_FAILED, "Blizzard URL reported a truncated body as complete");
+        }
+        {
+            BlizzardResult result; result.timeout = 200;
+            Require(DownloadURL((server.root + "/timeout").c_str(), &result), "Cannot start Blizzard timeout");
+            auto peer = server.Accept("/timeout"); result.Wait();
+            Require(result.status == Callback::DOWNLOAD_TIMEOUT, "Blizzard URL lost timeout status");
+        }
+        {
+            BlizzardResult next, first; first.next = &next; first.nextURL = server.root + "/next";
+            Require(DownloadURL((server.root + "/first").c_str(), &first), "Cannot start chained Blizzard download");
+            { auto peer = server.Accept("/first"); Send(peer, "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n"); }
+            first.Wait(); Require(first.nextStarted, "Blizzard completion could not start a request");
+            auto peer = server.Accept("/next"); Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nnext");
+            next.Wait(); Require(next.status == Callback::DOWNLOAD_SUCCESS && next.bytes == "next", "Chained Blizzard download failed");
+        }
+        {
+            BlizzardResult first, second;
+            Require(DownloadURL((server.root + "/cancel").c_str(), &first), "Cannot start scoped Blizzard cancellation");
+            auto peer1 = server.Accept("/cancel");
+            Require(DownloadURL((server.root + "/survive").c_str(), &second), "Cannot start concurrent Blizzard request");
+            auto peer2 = server.Accept("/survive");
+            Blizzard::URL::CancelNativeDownloads(&first); first.Wait();
+            Send(peer2, "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n"); second.Wait();
+            Require(first.status == Callback::DOWNLOAD_STOPPED && second.status == Callback::DOWNLOAD_SUCCESS,
+                "Scoped Blizzard cancellation affected another request or returned before completion");
+        }
+        {
+            BlizzardResult result;
+            Require(DownloadURL((server.root + "/shutdown").c_str(), &result), "Cannot start Blizzard shutdown check");
+            auto peer = server.Accept("/shutdown"); Blizzard::URL::ShutdownNativeDownloads(); result.Wait();
+            Require(result.status == Callback::DOWNLOAD_STOPPED, "Blizzard shutdown lost its completion");
+        }
+    }
+    std::fputs("Blizzard URL: original callback order, exact GET/POST/HEAD/range/UTF-8/cookie metadata, HTTP errors, truncation, abort/stop/timeout, chained requests and cancellation/shutdown passed twice\n", stderr);
 }
 
 void CheckKnowledgeBaseDownloads() {
