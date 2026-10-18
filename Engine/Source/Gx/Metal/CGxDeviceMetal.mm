@@ -102,6 +102,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
         case GxMetal::FragmentEffect::Glow: return "FFXGlow";
+        case GxMetal::FragmentEffect::Death: return "FFXDeath";
         case GxMetal::FragmentEffect::GlowWave: return "FFXGlowWave";
         case GxMetal::FragmentEffect::ModelOpaque: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Opaque";
         case GxMetal::FragmentEffect::ModelMod: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Mod";
@@ -882,7 +883,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
             }
         }
     } else {
-        for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave,
+        for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave, Effect::Death,
             Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
             Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x, Effect::ModelOpaqueAdd, Effect::ModelOpaqueAddAlpha, Effect::ModelOpaqueAddAlphaAlpha}) {
             if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
@@ -1318,6 +1319,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     else if (terrain) { m->gpu.DrawTerrain(m->command, m->pass, textures, draw, states, encoder); }
     else if (filter) { m->gpu.DrawFilter4(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }
     else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}, encoder); }
+    else if (effect == GxMetal::FragmentEffect::Death) { m->gpu.DrawDeath(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (postProcess) { m->gpu.DrawGlow(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else { m->gpu.DrawUnlit(m->command, m->pass, textures[0], draw, {}, states[0], encoder); }
     ++m->statistics.geometryDraws;

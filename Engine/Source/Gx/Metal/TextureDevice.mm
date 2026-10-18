@@ -186,13 +186,26 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 48; descriptor.vertexDescriptor = layout;
     }
-    if (effect == FragmentEffect::Glow) {
-        Require(format == GxVBF_PCT2 && !screenAtDepth, "Invalid native FFX glow pipeline");
+    if (effect == FragmentEffect::Glow || effect == FragmentEffect::Death) {
+        Require(format == GxVBF_PCT2 && !screenAtDepth, "Invalid native FFX scene/blur pipeline");
         descriptor.vertexFunction = m_glowVertex;
         descriptor.fragmentFunction = m_glowFragment[state.alphaRef != 0];
         descriptor.vertexDescriptor.attributes[3].bufferIndex = 1;
         descriptor.vertexDescriptor.attributes[3].offset = GxVertexAttribOffset(format, GxVA_TexCoord1);
         descriptor.vertexDescriptor.attributes[3].format = MTLVertexFormatFloat2;
+        if (effect == FragmentEffect::Death) {
+            const bool alpha = state.alphaRef != 0;
+            auto& fragment = m_deathFragment[alpha][decodePacked];
+            if (!fragment) {
+                auto constants = [MTLFunctionConstantValues new];
+                [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+                [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+                NSError* error = nil;
+                fragment = [m_library newFunctionWithName:@"deathFragment" constantValues:constants error:&error];
+                if (!fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Death effect specialization failed");
+            }
+            descriptor.fragmentFunction = fragment;
+        }
     }
     if (effect == FragmentEffect::GlowWave) {
         Require(format == GxVertexBufferFormats_Last && !screenAtDepth, "Invalid native FFX wave pipeline");
@@ -220,7 +233,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         descriptor.fragmentFunction = fragment;
     }
-    if (decodePacked && effect != FragmentEffect::Desaturate && effect != FragmentEffect::FixedUnlit && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
+    if (decodePacked && effect != FragmentEffect::Death && effect != FragmentEffect::Desaturate && effect != FragmentEffect::FixedUnlit && effect != FragmentEffect::WaterRipple && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && !IsTerrainEffect(effect)) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;

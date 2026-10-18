@@ -254,6 +254,8 @@ public:
         const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlow(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawDeath(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
@@ -284,6 +286,7 @@ private:
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
     id<MTLFunction> m_desaturateFragment[2][2]{};
+    id<MTLFunction> m_deathFragment[2][2]{};
     id<MTLFunction> m_geometryVertex[2][4];
     id<MTLFunction> m_filterVertex, m_filterFragment[2][2];
     id<MTLFunction> m_glowVertex, m_glowFragment[2];

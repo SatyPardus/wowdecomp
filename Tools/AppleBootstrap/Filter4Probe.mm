@@ -80,6 +80,38 @@ void Compare(const std::vector<uint8_t>& actual, const std::vector<uint8_t>& exp
     Require(actual.size() == expected.size(), "FFX filter extent mismatch");
     for (size_t i = 0; i < actual.size(); ++i) { Require(std::abs(int(actual[i]) - expected[i]) <= tolerance, "Native FFX filter output differs from its original sampling equation"); }
 }
+void CheckDeath(GxMetal::TextureDevice& gpu, const std::array<BLP::Mip, 4>& inputs,
+    const std::array<id<MTLTexture>, 4>& textures, const std::array<GxMetal::TextureDrawState, 4>& states,
+    const std::array<simd_float2, 4>& offsets) {
+    GxMetal::GeometryDraw geometry;
+    geometry.effect = GxMetal::FragmentEffect::Death; geometry.format = GxVBF_PCT2;
+    geometry.batch = {GxPrim_TriangleStrip, 0, 4, 0, 3};
+    // Deliberately distinct RGB tint and alpha, including zero tint and zero
+    // glow. Alpha test at 1 must keep every pixel, regardless of either texture.
+    for (uint32_t color : {0u, 0x005393A8u, 0x805393A8u, 0xFF5393A8u, 0xFF0011FFu}) {
+        geometry.vertices = Quad(gpu, offsets, color, 2);
+        auto firstState = states[0]; firstState.alphaRef = 255;
+        auto pass = Target(gpu, 8, 8); auto command = [gpu.queue commandBuffer];
+        gpu.DrawDeath(command, pass, {textures[0], textures[1]}, geometry, {firstState, states[1]});
+        std::vector<uint8_t> expected(8 * 8 * 4);
+        for (unsigned y = 0; y < 8; ++y) for (unsigned x = 0; x < 8; ++x) {
+            double luminance = 0;
+            // Independent ps_2_0 DP3 reference in BGRA storage order.
+            const double weights[] = {0.144, 0.587, 0.299};
+            for (unsigned c = 0; c < 3; ++c) {
+                const double scene = Sample(inputs[0], (x + 0.5f) / 8 + offsets[0].x, (y + 0.5f) / 8 + offsets[0].y, c, states[0]) / 255.0;
+                const double blur = Sample(inputs[1], (x + 0.5f) / 8 + offsets[1].x, (y + 0.5f) / 8 + offsets[1].y, c, states[1]) / 255.0;
+                luminance += weights[c] * (scene + blur * blur * (color >> 24) / 255.0);
+            }
+            luminance = std::clamp(luminance, 0.0, 1.0);
+            const double tint = std::clamp(4 * luminance * (1 - luminance), 0.0, 1.0);
+            for (unsigned c = 0; c < 3; ++c)
+                expected[(y * 8 + x) * 4 + c] = std::clamp(std::lround(255 * luminance + ((color >> (c * 8)) & 255) * tint), 0l, 255l);
+            expected[(y * 8 + x) * 4 + 3] = 255;
+        }
+        Compare(Read(gpu, command, pass.colorAttachments[0].texture), expected, 1);
+    }
+}
 }
 
 void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
@@ -97,6 +129,14 @@ void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
         states[tap].wrapU = tap & 1 ? GxTex_Wrap : GxTex_Clamp;
         states[tap].wrapV = tap & 2 ? GxTex_Wrap : GxTex_Clamp;
     }
+    auto deathBytes = Asset("Shaders\\Pixel\\ps_2_0\\FFXDeath.bls");
+    GxMetal::PostProcessShader::FromBls(deathBytes, GxMetal::FragmentEffect::Death);
+    deathBytes.back() ^= 1;
+    bool rejectedDeath = false;
+    try { GxMetal::PostProcessShader::FromBls(deathBytes, GxMetal::FragmentEffect::Death); }
+    catch (const std::runtime_error&) { rejectedDeath = true; }
+    Require(rejectedDeath, "Modified FFXDeath silently selected the original effect");
+    CheckDeath(gpu, inputs, textures, states, offsets);
     GxMetal::GeometryDraw geometry;
     geometry.format = GxVertexBufferFormats_Last;
     geometry.batch = {GxPrim_TriangleStrip, 0, 4, 0, 3};
@@ -149,6 +189,7 @@ void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
         inputs[tap] = packed.DecodeBGRA(0); textures[tap] = gpu.Upload(packed);
         states[tap] = {}; states[tap].decodeScale = gpu.DecodeScale(packed.format);
     }
+    CheckDeath(gpu, inputs, textures, states, {});
     geometry.vertices = Quad(gpu, {}, 0x80000040);
     for (auto effect : {GxMetal::FragmentEffect::Box4, GxMetal::FragmentEffect::Gauss4}) {
         geometry.effect = effect;
@@ -170,5 +211,15 @@ void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
             expected[i * 4 + 3] = 255;
         }
         Compare(Read(gpu, command, pass.colorAttachments[0].texture), expected, 1);
+    }
+    // Black, white and each primary isolate both saturation boundaries and the
+    // original nonstandard blue coefficient from the tint and blur terms.
+    for (uint32_t color : {0u, 0x00FFFFFFu, 0x000000FFu, 0x0000FF00u, 0x00FF0000u}) {
+        BLP::Image image; image.format = BLP::Format::BGRA8;
+        image.mips.push_back({1, 1, 4, std::vector<uint8_t>(4)});
+        std::memcpy(image.mips[0].bytes.data(), &color, 4);
+        inputs[0] = inputs[1] = image.mips[0]; textures[0] = textures[1] = gpu.Upload(image);
+        states[0] = {}; states[1] = {};
+        CheckDeath(gpu, inputs, textures, states, {});
     }
 }

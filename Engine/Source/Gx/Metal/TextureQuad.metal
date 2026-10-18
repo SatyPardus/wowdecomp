@@ -131,6 +131,21 @@ fragment float4 glowFragment(GlowRaster v [[stage_in]], constant QuadParameters&
     return color;
 }
 
+fragment float4 deathFragment(GlowRaster v [[stage_in]], constant QuadParameters& p [[buffer(0)]],
+    texture2d<float> scene [[texture(0)]], texture2d<float> blurred [[texture(1)]],
+    sampler sceneSampling [[sampler(0)]], sampler blurSampling [[sampler(1)]]) {
+    const float3 sceneColor = decoded(scene.sample(sceneSampling, v.sceneUV), p.decodeScale[0]).rgb;
+    const float3 blurColor = decoded(blurred.sample(blurSampling, v.blurUV), p.decodeScale[1]).rgb;
+    // Original FFXDeath ps_2_0: the blue weight really is 0.144. Saturate
+    // luminance before the midtone tint; texture alpha is not an input.
+    const float3 lit = fma(blurColor * blurColor, v.color.a, sceneColor);
+    const float luminance = saturate(dot(lit, float3(0.299f, 0.587f, 0.144f)));
+    const float tintWeight = saturate((luminance * (1 - luminance)) * 4);
+    const float4 color = float4(fma(v.color.rgb, tintWeight, luminance), 1);
+    if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }
+    return color;
+}
+
 struct GlowWaveVertex {
     float3 position [[attribute(0)]]; float4 color [[attribute(1)]];
     float2 waveUV [[attribute(2)]]; float2 sceneUV [[attribute(3)]]; float2 blurUV [[attribute(4)]];

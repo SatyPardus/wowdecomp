@@ -171,6 +171,8 @@ add_library(AppleGameResources STATIC
     Engine/Source/FFX/PassBox4.cpp
     Engine/Source/FFX/PassGauss4.cpp
     Engine/Source/FFX/PassGlow.cpp
+    WoW/Source/Game/GameClient/PassDeath.cpp
+    WoW/Source/Game/GameClient/EffectDeath.cpp
 )
 target_link_libraries(AppleGameResources PUBLIC Gxu AppleArchives Images BLPFile ConsoleBase Event)
 

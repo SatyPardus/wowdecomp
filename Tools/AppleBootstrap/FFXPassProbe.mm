@@ -6,6 +6,9 @@
 #include "Engine/Source/FFX/PassGlow.h"
 #include "Engine/Source/FFX/PassGlowWave.h"
 #include "Engine/Source/FFX/EffectGlow.h"
+#include "WoW/Source/Game/GameClient/FFXEffects.h"
+#include "WoW/Source/Game/GameClient/PassDeath.h"
+#include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
@@ -88,6 +91,28 @@ Image WaveData() {
     texture->m_userFunc(GxTex_Unlock, 128, 128, 0, 0, texture->m_userArg, rowBytes, pixels);
     return image;
 }
+Image DeathReference(const Image& scene, const Image& blur, uint8_t glow) {
+    Image result = scene;
+    for (unsigned y = 0; y < scene.height; ++y) for (unsigned x = 0; x < scene.width; ++x) {
+        const auto filtered = Sample(blur, float(x * blur.width) / scene.width, float(y * blur.height) / scene.height);
+        const double weights[] = {0.144, 0.587, 0.299};
+        double intensity = 0;
+        for (unsigned c = 0; c < 3; ++c)
+            intensity += weights[c] * (scene.pixels[y * scene.width + x][c] / 255.0 +
+                filtered[c] * filtered[c] * glow / (255.0 * 255.0 * 255.0));
+        intensity = std::clamp(intensity, 0.0, 1.0);
+        const double tint = std::clamp(intensity * (1 - intensity) * 4, 0.0, 1.0);
+        const uint8_t color[] = {0xA8, 0x93, 0x53};
+        for (unsigned c = 0; c < 3; ++c)
+            result.pixels[y * scene.width + x][c] = std::clamp(std::lround(255 * intensity + color[c] * tint), 0l, 255l);
+        result.pixels[y * scene.width + x][3] = 255;
+    }
+    return result;
+}
+struct DayNightGlowScope {
+    float previous = DayNight::GetInfo()->m_bands.m_glow;
+    ~DayNightGlowScope() { DayNight::GetInfo()->m_bands.m_glow = previous; }
+};
 Image WaveReference(const Image& scene, const Image& blur, const Image& wave, const FFX::VertexPCT3* vertices, CImVector color) {
     Image result = scene;
     for (unsigned y = 0; y < scene.height; ++y) { for (unsigned x = 0; x < scene.width; ++x) {
@@ -130,6 +155,7 @@ void Compare(const Image& actual, const Image& expected, unsigned tolerance) {
 }
 
 void CheckGxFFXPasses(CGxDeviceMetal& device) {
+    DayNightGlowScope dayNight;
     struct Scope {
         std::vector<CTexture*> textures;
         ~Scope() { for (auto* texture : textures) { HandleClose(reinterpret_cast<HOBJECT>(texture)); } FFX::s_quart[1] = {}; TextureGxCacheFlush(); }
@@ -225,6 +251,16 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
         }
         GxScenePresent();
     }
+    PassDeath death(glowInputs, 2, &screen, GxBlend_Opaque, true);
+    PassDeath cachedDeath(glowInputs, 2, &screen, GxBlend_Opaque, true);
+    Require(death.Valid() && cachedDeath.Valid() && death.m_shaders[0] == cachedDeath.m_shaders[0] &&
+        death.m_shaders[1] == cachedDeath.m_shaders[1], "Death effect shader cache failed");
+    for (uint8_t glowAmount : {0, 173, 255}) {
+        DayNight::GetInfo()->m_bands.m_glow = glowAmount / 255.0f;
+        device.BeginFrame(frame); death.Execute(); checkRestore();
+        Compare(Read(device, screen), DeathReference(source, expected, glowAmount), 1);
+        GxScenePresent();
+    }
     FFX::Tex* waveInputs[] = {&PassGlowWave::s_waveTex, &input, &output};
     PassGlowWave wave(waveInputs, 3, &screen, GxBlend_Opaque, true);
     Require(wave.Valid() && wave.m_shaderIndex == 2, "FFX wave did not select the original RG-in-UNORM permutation");
@@ -249,6 +285,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
 
 
 void CheckGxFFXEffect(CGxDeviceMetal& device) {
+    DayNightGlowScope dayNight;
     std::string pattern = (std::filesystem::temp_directory_path() / "wow-ffx-XXXXXX").string();
     std::vector<char> directory(pattern.begin(), pattern.end()); directory.push_back(0);
     Require(mkdtemp(directory.data()) != nullptr, "Cannot create FFX config directory");
@@ -256,10 +293,11 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
         CGxDeviceMetal& device;
         std::string directory;
         std::unique_ptr<EffectGlow> effect;
+        std::unique_ptr<EffectDeath> death;
         CTexture* source = nullptr;
         CGxShader* vertex[2]{}, *pixel = nullptr;
         ~Scope() {
-            FFX::SetEffect(nullptr); effect.reset(); FFX::Destroy();
+            FFX::SetEffect(nullptr); effect.reset(); death.reset(); FFX::Destroy();
             if (source) { HandleClose(reinterpret_cast<HOBJECT>(source)); }
             TextureGxCacheFlush();
             for (auto& shader : vertex) { device.ShaderDestroy(shader); } device.ShaderDestroy(pixel);
@@ -270,15 +308,22 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
     CVar::Initialize((scope.directory + "/Config.wtf").c_str());
     CVar::Register("gxMultisample", "probe sample count", 1, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
     FFX::Init(); scope.effect = std::make_unique<EffectGlow>(); FFX::SetEffect(scope.effect.get());
+    scope.death = std::make_unique<EffectDeath>();
     device.ShaderCreate(scope.vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
     device.ShaderCreate(&scope.pixel, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
     const auto wave = WaveData();
     // The same effect instance survives enable/mode changes and a host resize.
-    struct Case { unsigned size; int mode; bool global, glow; };
+    struct Case { unsigned size; int mode; bool global, glow; bool death = false; uint8_t glowAmount = 173; };
     for (const auto test : {Case{32, 0, true, true}, Case{32, 1, true, true}, Case{32, 0, false, true},
-        Case{32, 0, true, false}, Case{64, 0, true, true}}) {
+        Case{32, 0, true, false}, Case{64, 0, true, true},
+        Case{32, 0, true, true, true, 0}, Case{32, 0, true, true, true, 255},
+        Case{32, 0, false, true, true}, Case{32, 0, true, false, true},
+        Case{64, 0, true, true, true}, Case{32, 0, true, true}}) {
+        FFX::SetEffect(test.death ? static_cast<FFX::Effect*>(scope.death.get()) : scope.effect.get());
+        DayNight::GetInfo()->m_bands.m_glow = test.glowAmount / 255.0f;
         ConsoleCommandExecute(test.global ? "set ffx 1" : "set ffx 0", 0);
         ConsoleCommandExecute(test.glow ? "set ffxGlow 1" : "set ffxGlow 0", 0);
+        ConsoleCommandExecute(test.glow ? "set ffxDeath 1" : "set ffxDeath 0", 0);
         const int parameters[] = {test.mode, 173, 85}; scope.effect->SetParameters(3, parameters);
         const bool enabled = test.global && test.glow;
         auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:test.size height:test.size mipmapped:NO];
@@ -313,7 +358,8 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
             Compare(Read(device, FFX::s_full[0]), source, 0);
             auto filtered = Read(device, FFX::s_quart[0]);
             const CImVector color(85, 85, 85, 173);
-            if (!test.mode) { Compare(actual, GlowReference(source, filtered, color), 1); }
+            if (test.death) { Compare(actual, DeathReference(source, filtered, test.glowAmount), 1); }
+            else if (!test.mode) { Compare(actual, GlowReference(source, filtered, color), 1); }
             else {
                 const auto* buffer = device.m_primVertexFormatBuf[GxVA_Position];
                 FFX::VertexPCT3 vertices[4];
