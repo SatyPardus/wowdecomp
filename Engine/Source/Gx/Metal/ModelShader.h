@@ -34,5 +34,5 @@ const char* ModelVertexFamily(ModelVertexEffect effect);
 void ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse);
 bool SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse,
     FragmentEffect effect = FragmentEffect::ModelOpaque);
-inline uint32_t ModelShadowTextureMask(uint32_t mode) { return mode >= 2 ? 0xF0u : mode ? 0x10u : 0u; }
+inline uint32_t ShadowReceiverTextureMask(uint32_t mode) { return mode >= 2 ? 0xF0u : mode ? 0x10u : 0u; }
 }

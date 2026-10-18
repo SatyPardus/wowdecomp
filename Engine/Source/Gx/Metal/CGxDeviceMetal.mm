@@ -1200,8 +1200,10 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         "Unsupported native Gx vertex/pixel shader combination");
     if (model && (!GxMetal::SupportsModelPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation, m->shaders.at(vertex).vertexEffect) ||
         !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation, m->shaders.at(vertex).vertexEffect, effect))) {
-        throw std::runtime_error("Metal model vertex/shadow permutation is not implemented (vertex " +
-            std::to_string(m->shaders.at(vertex).permutation) + ", pixel " + std::to_string(m->shaders.at(pixel).permutation) + ")");
+        throw std::runtime_error(std::string("Metal model vertex/shadow permutation is not implemented (") +
+            GxMetal::ModelVertexFamily(m->shaders.at(vertex).vertexEffect) + " vertex " +
+            std::to_string(m->shaders.at(vertex).permutation) + ", " + ShaderFamily(effect) + " pixel " +
+            std::to_string(m->shaders.at(pixel).permutation) + ")");
     }
     if (model) Require(m->shaders.at(vertex).permutation / 30 == std::min(m->shaders.at(pixel).permutation & 3, 2u), "Mismatched model shadow coordinates and material");
     if (detail) {
@@ -1211,7 +1213,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     if (wmo) {
         Require(GxMetal::SupportsWmoPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
             GxMetal::SupportsWmoPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation), "Metal WMO shadow permutation is not implemented");
-        Require(m->shaders.at(vertex).permutation / 30 == (m->shaders.at(pixel).permutation & 3), "Mismatched WMO shadow coordinates and material");
+        Require(m->shaders.at(vertex).permutation / 30 == std::min(m->shaders.at(pixel).permutation & 3, 2u), "Mismatched WMO shadow coordinates and material");
     }
     if (terrain) {
         Require(GxMetal::SupportsTerrainPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
@@ -1377,6 +1379,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     } else if (wmo) {
         auto& native = wmoParameters.emplace(); draw.wmo = &native;
         native.permutation = m->shaders.at(vertex).permutation;
+        native.shadowMode = m->shaders.at(pixel).permutation & 3;
         native.vertexEffect = m->shaders.at(vertex).wmoVertex;
         native.shaderAlphaTest = (m->shaders.at(pixel).permutation & 8) != 0;
         const float* constants = s_shadowConstants[1].constants;
@@ -1389,7 +1392,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertex.attenuationConstant = vector(25); native.vertex.attenuationLinear = vector(26); native.vertex.attenuationQuadratic = vector(27);
         std::memcpy(&native.fragment.fogColorAlphaRef, s_shadowConstants[0].constants + 8, sizeof(simd_float4));
         if (native.permutation >= 30) {
-            native.shadow.projection[0] = {vector(224),vector(225),vector(226)};
+            for (unsigned i = 0; i < (native.shadowMode >= 2 ? 4u : 1u); ++i)
+                native.shadow.projection[i] = {vector(224+3*i),vector(225+3*i),vector(226+3*i)};
             const float* pixelConstants = s_shadowConstants[0].constants;
             std::memcpy(&native.shadow.distanceFade,pixelConstants+3*4,sizeof(simd_float4));
             std::memcpy(&native.shadow.lightDirection,pixelConstants+4*4,sizeof(simd_float4));
@@ -1511,7 +1515,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     std::array<id<MTLTexture>, 9> textures{};
     std::array<GxMetal::TextureDrawState, 9> states;
     states.fill(state);
-    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model ? GxMetal::ModelShadowTextureMask(modelParameters->shadowMode) : wmo && wmoParameters->permutation >= 30 ? 0x10u : 0);
+    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model ? GxMetal::ShadowReceiverTextureMask(modelParameters->shadowMode) : wmo ? GxMetal::ShadowReceiverTextureMask(wmoParameters->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
         Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");

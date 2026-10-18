@@ -118,7 +118,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const bool terrainShadow = geometry.effect == FragmentEffect::TerrainShadowMap;
     const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : (filter || geometry.effect == FragmentEffect::NetherBlur) ? 4 : wave ? 3 : (geometry.effect == FragmentEffect::Glow || geometry.effect == FragmentEffect::Death || geometry.effect == FragmentEffect::NetherCombine || geometry.effect == FragmentEffect::FogCombine) ? 2 : 1;
-    const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ModelShadowTextureMask(geometry.model->shadowMode) : wmo && geometry.wmo->permutation >= 30 ? 0x10u : 0);
+    const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ShadowReceiverTextureMask(geometry.model->shadowMode) : wmo ? ShadowReceiverTextureMask(geometry.wmo->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
             const bool cube = terrain && i == 0 && (geometry.terrain->pixelPermutation & 1);
@@ -248,7 +248,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else if (liquid) { [encoder setVertexBytes:&geometry.liquid->vertex length:sizeof(LiquidVertexParameters) atIndex:0];
     } else if (wmo) {
         if (geometry.wmo->permutation >= 30) {
-            auto native = geometry.wmo->shadow; native.decodeScale[0] = states[4].decodeScale[0];
+            auto native = geometry.wmo->shadow;
+            for (unsigned i = 0; i < 4; ++i) native.decodeScale[i] = states[4+i].decodeScale[0];
             [encoder setVertexBytes:&native length:sizeof(native) atIndex:3];
             [encoder setFragmentBytes:&native length:sizeof(native) atIndex:3];
         }

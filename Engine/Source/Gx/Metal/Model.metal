@@ -159,17 +159,6 @@ vertex ModelRaster modelProjectedSkinVertex(ModelProjectedSkin v [[stage_in]], c
     constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
     return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), skinTransform(v.weights, v.bones, palette, modelPermutation >= 20), p, shadow);
 }
-inline float modelBandedShadow(ModelRaster v, constant ShadowReceiverParameters& p,
-    texture2d<float> nearImage, sampler nearSampler, texture2d<float> middleImage, sampler middleSampler,
-    texture2d<float> farImage, sampler farSampler) {
-    if (max(abs(v.nearShadow.x),abs(v.nearShadow.y)) < 1)
-        return receiverShadowSamples(v.nearShadow,p,nearImage,nearSampler,1,false);
-    if (max(abs(v.middleShadow.x),abs(v.middleShadow.y)) < 1)
-        return receiverShadowSamples(v.middleShadow,p,middleImage,middleSampler,2,false);
-    const float visible = receiverShadowSamples(v.farShadow,p,farImage,farSampler,3,false);
-    const float border = saturate(fma(max(abs(v.farShadow.x),abs(v.farShadow.y)), -11.11111068725586f, 11.0f));
-    return fma(border,visible-1,1.0f);
-}
 // Dynamic distance fade precedes the minimum with distant bands. Normal fade
 // then applies to that combined visibility, before RGB-only modulation.
 inline float modelShadowVisibility(ModelRaster v, constant ShadowReceiverParameters& p,
@@ -177,7 +166,7 @@ inline float modelShadowVisibility(ModelRaster v, constant ShadowReceiverParamet
     texture2d<float> middleImage, sampler middleSampler, texture2d<float> farImage, sampler farSampler) {
     float visibility = receiverDynamicVisibility(v.shadowCoordinate,v.viewPosition,p,image,filtering,modelShadowMode);
     if (modelShadowMode >= 2)
-        visibility = min(visibility,modelBandedShadow(v,p,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
+        visibility = min(visibility,receiverBandedVisibility(v.nearShadow,v.middleShadow,v.farShadow,p,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
     return receiverShadowModulation(visibility,v.normal,p.lightDirection.xyz);
 }
 fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],

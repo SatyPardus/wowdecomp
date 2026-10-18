@@ -4,7 +4,7 @@ constant uint wmoPermutation [[function_constant(14)]];
 constant uint wmoVertexEffect [[function_constant(15)]];
 constant uint wmoMaterial [[function_constant(16)]];
 constant bool wmoShaderAlphaTest [[function_constant(17)]];
-constant bool wmoDynamicShadow [[function_constant(36)]];
+constant uint wmoShadowMode [[function_constant(36)]];
 struct WmoVertexParameters {
     float4x4 projection;
     ModelAffine worldView;
@@ -18,7 +18,7 @@ struct WmoRaster {
     float2 uv, secondaryUV;
     float fog;
     float pointSize [[point_size]];
-    float3 viewPosition, normal, shadowCoordinate;
+    float3 viewPosition, normal, shadowCoordinate, nearShadow, middleShadow, farShadow;
 };
 inline WmoRaster wmoTransform(float3 position, float3 normal, float4 color, float4 secondaryColor,
     float2 uv, float2 secondaryUV, constant WmoVertexParameters& p, constant ShadowReceiverParameters& shadow) {
@@ -28,7 +28,7 @@ inline WmoRaster wmoTransform(float3 position, float3 normal, float4 color, floa
     const float4 point = float4(position, 1);
     const float3 view = float3(dot(p.worldView.x, point), dot(p.worldView.y, point), dot(p.worldView.z, point));
     float3 direction = 0;
-    if (wmoDynamicShadow || lit || environment) direction = normalize(float3(dot(p.worldView.x.xyz, normal),
+    if (wmoShadowMode || lit || environment) direction = normalize(float3(dot(p.worldView.x.xyz, normal),
         dot(p.worldView.y.xyz, normal), dot(p.worldView.z.xyz, normal)));
     if (lit) {
         float3 lighting = fma(saturate(dot(-p.sunDirection.xyz, direction)), p.sunDiffuse.rgb, p.ambient.rgb);
@@ -57,10 +57,15 @@ inline WmoRaster wmoTransform(float3 position, float3 normal, float4 color, floa
     }
     const float fog = min(pow(max(fma(view.z, p.fog.x, p.fog.y), 0.0f), p.fog.z), 1.0f);
     WmoRaster result{p.projection * float4(view, 1), color, secondaryColor, uv, secondaryUV, fog, 1};
-    if (wmoDynamicShadow) {
+    if (wmoShadowMode) {
         result.viewPosition=view; result.normal=direction;
         result.shadowCoordinate=float3(dot(shadow.projection[0].x,float4(view,1)),
             dot(shadow.projection[0].y,float4(view,1)),dot(shadow.projection[0].z,float4(view,1)));
+        if (wmoShadowMode >= 2) {
+            result.nearShadow=float3(dot(shadow.projection[1].x,float4(view,1)),dot(shadow.projection[1].y,float4(view,1)),dot(shadow.projection[1].z,float4(view,1)));
+            result.middleShadow=float3(dot(shadow.projection[2].x,float4(view,1)),dot(shadow.projection[2].y,float4(view,1)),dot(shadow.projection[2].z,float4(view,1)));
+            result.farShadow=float3(dot(shadow.projection[3].x,float4(view,1)),dot(shadow.projection[3].y,float4(view,1)),dot(shadow.projection[3].z,float4(view,1)));
+        }
     }
     return result;
 }
@@ -83,9 +88,14 @@ vertex WmoRaster wmoCompositeVertex(WmoCompositeVertex v [[stage_in]], constant 
 fragment float4 wmoFragment(WmoRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
-    constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]]) {
-    if (wmoDynamicShadow) {
-        const float visibility=receiverDynamicVisibility(v.shadowCoordinate,v.viewPosition,shadow,shadowImage,shadowFiltering,1);
+    constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]],
+    texture2d<float> nearImage [[texture(5)]], sampler nearSampler [[sampler(5)]],
+    texture2d<float> middleImage [[texture(6)]], sampler middleSampler [[sampler(6)]],
+    texture2d<float> farImage [[texture(7)]], sampler farSampler [[sampler(7)]]) {
+    if (wmoShadowMode) {
+        float visibility=receiverDynamicVisibility(v.shadowCoordinate,v.viewPosition,shadow,shadowImage,shadowFiltering,wmoShadowMode);
+        if (wmoShadowMode >= 2)
+            visibility=min(visibility,receiverBandedVisibility(v.nearShadow,v.middleShadow,v.farShadow,shadow,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
         v.color.rgb*=receiverShadowModulation(visibility,v.normal,shadow.lightDirection.xyz);
     }
     float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale[0]);

@@ -32,3 +32,15 @@ inline float receiverShadowModulation(float visibility, float3 normal, float3 li
     visibility = mix(visibility,1.0f,saturate(square*square));
     return fma(visibility,0.3f,0.7f);
 }
+
+inline float receiverBandedVisibility(float3 nearShadow, float3 middleShadow, float3 farShadow, constant ShadowReceiverParameters& p,
+    texture2d<float> nearImage, sampler nearSampler, texture2d<float> middleImage, sampler middleSampler,
+    texture2d<float> farImage, sampler farSampler) {
+    if (max(abs(nearShadow.x),abs(nearShadow.y)) < 1)
+        return receiverShadowSamples(nearShadow,p,nearImage,nearSampler,1,false);
+    if (max(abs(middleShadow.x),abs(middleShadow.y)) < 1)
+        return receiverShadowSamples(middleShadow,p,middleImage,middleSampler,2,false);
+    const float visible = receiverShadowSamples(farShadow,p,farImage,farSampler,3,false);
+    const float border = saturate(fma(max(abs(farShadow.x),abs(farShadow.y)), -11.11111068725586f, 11.0f));
+    return fma(border,visible-1,1.0f);
+}

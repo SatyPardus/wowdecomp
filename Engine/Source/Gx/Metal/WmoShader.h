@@ -9,11 +9,11 @@ constexpr bool WmoEnvironment(WmoVertexEffect effect) { return effect == WmoVert
 constexpr bool WmoSpecular(WmoVertexEffect effect) { return effect == WmoVertexEffect::Specular || effect == WmoVertexEffect::UnifiedSpecular; }
 constexpr unsigned WmoTextureCount(FragmentEffect effect) { return effect >= FragmentEffect::WmoEnvironment ? 2 : 1; }
 constexpr bool SupportsWmoPermutation(EGxShTarget target, uint32_t permutation) {
-    return target == GxSh_Vertex ? permutation < 60 : permutation < 16 && (!(permutation & 3) || (permutation & 7) == 1);
+    return target == GxSh_Vertex ? permutation < 90 : permutation < 16 && (!(permutation & 3) || (permutation & 4) == 0);
 }
 const char* WmoVertexFamily(WmoVertexEffect effect);
 const char* WmoPixelFamily(FragmentEffect effect);
 // Validate the exact supported permutations from the mounted D3D9 assets;
-// R32F dynamic shadows are supported; remaining shadow variants fail explicitly.
+// R32F dynamic/banded shadows are supported; hardware PCF fails explicitly.
 void ValidateWmoShader(const std::vector<uint8_t>& bytes, EGxShTarget target, WmoVertexEffect vertex, FragmentEffect pixel);
 }

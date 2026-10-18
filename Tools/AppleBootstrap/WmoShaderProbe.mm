@@ -51,7 +51,7 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
         CGxDeviceMetal &device;
         CGxShader *(*vs)[90];
         CGxShader *(*ps)[16];
-        CGxTex *textures[3]{};
+        CGxTex *textures[6]{};
         ~Cleanup() {
             if (device.FrameCommand())
                 device.ScenePresent();
@@ -80,10 +80,13 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
                          cleanup.textures[i]);
         device.RsSet(EGxRenderState(GxRs_Texture0 + i), cleanup.textures[i]);
     }
-    std::array<uint32_t,25> depth{};
-    for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x) depth[y*5+x]=0xFF000000u | ((64*(1+(x+2*y)%3))<<16);
-    device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Nearest),depth.data(),UploadDepth,"WMO shadow reference",cleanup.textures[2]);
-    GxRsSet(GxRs_Texture4,cleanup.textures[2]);
+    std::array<std::array<uint32_t,25>,4> depth{};
+    for(unsigned band=0;band<4;++band) {
+        for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x)
+            depth[band][y*5+x]=0xFF000000u | ((64*(1+(x+2*y+band)%3))<<16);
+        device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Nearest),depth[band].data(),UploadDepth,"WMO shadow reference",cleanup.textures[2+band]);
+        GxRsSet(EGxRenderState(GxRs_Texture4+band),cleanup.textures[2+band]);
+    }
     GxRsSet(GxRs_DepthTest, 0);
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Culling, 0);
@@ -103,7 +106,7 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
     pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
-    std::array<V, 227> c{};
+    std::array<V, 236> c{};
     c[2] = {0.85f, 0.1f, 0, 0.02f};
     c[3] = {0, 0.8f, 0, -0.01f};
     c[4] = {0, 0, 1, 0.6f};
@@ -197,9 +200,16 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
                 second = Sample(images[1], directionToPoint[0] - 2 * projection * direction[0],
                                 directionToPoint[1] - 2 * projection * direction[1], true);
             }
-            for (unsigned shadowCase = 0; shadowCase < 6; ++shadowCase) {
+            for (unsigned shadowMode = 0; shadowMode < 4; ++shadowMode)
+            for (unsigned shadowCase = shadowMode ? 1:0; shadowCase < (shadowMode >= 2 ? 10u:shadowMode ? 6u:1u); ++shadowCase) {
                 c[224]={.2,.3,0,shadowCase==5 ? .96f:.1f}; c[225]={-.1,.2,0,-.2};
-                c[226]={0,0,0,shadowCase==1 ? 128.0f/255:1};
+                c[226]={0,0,0,shadowCase>=6 ? 0:shadowCase==1 ? 128.0f/255:1};
+                for(unsigned band=0;band<3;++band) {
+                    const bool selected=shadowCase==6+band || (shadowCase==9 && band==2);
+                    c[227+band*3]={selected && shadowCase==6 ? .1f:0,0,0,selected ? shadowCase==9 ? -.95f:0:1};
+                    c[228+band*3]={0,selected && shadowCase==6 ? .2f:0,0,0};
+                    c[229+band*3]={0,0,0,shadowCase==9 ? 1:128.0f/255};
+                }
                 std::array<V,10> shadowConstants{};
                 shadowConstants[0]={0,0,0,shadowCase==3 ? 1.0f:0.0f};
                 shadowConstants[1]=shadowCase==4 ? V{0,0,0,0}:direction;
@@ -207,21 +217,32 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
                     {.2,0,0,0},{.2,.2,0,0},{0,.2,0,0},{-.2,.2,0,0}};
                 std::copy_n(offsets,8,shadowConstants.begin()+2);
                 const float sx=Dot(c[224],view)+c[224][3],sy=Dot(c[225],view)+c[225][3];
-                auto sample=[&](float dx,float dy) {
-                    const unsigned tx=unsigned(std::clamp(int(std::floor((sx*.5f+.5f+dx)*5)),0,4));
-                    const unsigned ty=unsigned(std::clamp(int(std::floor((sy*.5f+.5f+dy)*5)),0,4));
-                    return Color(depth[ty*5+tx])[0]>=c[226][3] ? 1.0f:0.0f;
+                auto sample=[&](float cx,float cy,float cz,unsigned band,float dx,float dy) {
+                    const unsigned tx=unsigned(std::clamp(int(std::floor((cx*.5f+.5f+dx)*5)),0,4));
+                    const unsigned ty=unsigned(std::clamp(int(std::floor((cy*.5f+.5f+dy)*5)),0,4));
+                    return Color(depth[band][ty*5+tx])[0]>=cz ? 1.0f:0.0f;
                 };
                 const float border=Sat(std::max(std::abs(sx),std::abs(sy))*(-3.4482758045196533f)+3.4137930870056152f);
                 float shadowVisibility=1;
-                if(border>.01f) {
-                    float taps=sample(0,0); for(unsigned i=0;i<8;i+=2) taps+=sample(offsets[i][0],offsets[i][1]);
-                    shadowVisibility=std::min(1.0f,1+border*(taps/5-1));
+                if(border>(shadowMode==3 ? 0:.01f)) {
+                    float taps=sample(sx,sy,c[226][3],0,0,0); for(unsigned i=0;i<8;i+=2) taps+=sample(sx,sy,c[226][3],0,offsets[i][0],offsets[i][1]);
+                    shadowVisibility=shadowMode==3 ? taps/5:std::min(1.0f,1+border*(taps/5-1));
                 }
                 shadowVisibility+=shadowConstants[0][3]*(1-shadowVisibility);
+                if(shadowMode>=2) for(unsigned band=0;band<3;++band) {
+                    const float bx=Dot(c[227+band*3],view)+c[227+band*3][3];
+                    const float by=Dot(c[228+band*3],view)+c[228+band*3][3];
+                    const float bz=Dot(c[229+band*3],view)+c[229+band*3][3];
+                    const float edge=std::max(std::abs(bx),std::abs(by));
+                    if(band<2 && edge>=1) continue;
+                    float taps=sample(bx,by,bz,band+1,0,0);
+                    for(unsigned i=0;i<8;i+=2) taps+=sample(bx,by,bz,band+1,offsets[i][0],offsets[i][1]);
+                    const float distant=band==2 ? 1+Sat(edge*(-11.11111068725586f)+11)*(taps/5-1):taps/5;
+                    shadowVisibility=std::min(shadowVisibility,distant); break;
+                }
                 const float normalFade=Sat(std::pow(1.2f-std::abs(Dot(direction,shadowConstants[1])),4));
                 shadowVisibility+=normalFade*(1-shadowVisibility);
-                const float modulation=shadowCase ? .7f+.3f*shadowVisibility:1;
+                const float modulation=shadowMode ? .7f+.3f*shadowVisibility:1;
                 for (unsigned choice = 0; choice < (composite ? 1u : 2u); ++choice)
                     for (unsigned alpha = 0; alpha < 3; ++alpha) {
                         const unsigned material = materials[choice];
@@ -241,12 +262,12 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
                         if (alpha == 2)
                             expected = {0, 0, 0, 0};
                         device.BeginFrame(pass);
-                        GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 227);
+                        GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 236);
                         GxShaderConstantsSet(GxSh_Pixel, 2, fogAlpha.data(), 1);
                         GxShaderConstantsSet(GxSh_Pixel, 3, shadowConstants[0].data(), 10);
                         // 10/20 are identical rigid world aliases, not skinning variants.
-                        device.RsSet(GxRs_VertexShader, vs[family][vp + 10 * alpha + (shadowCase ? 30:0)]);
-                        device.RsSet(GxRs_PixelShader, ps[material][(alpha ? 8:0) + unsigned(shadowCase!=0)]);
+                        device.RsSet(GxRs_VertexShader, vs[family][vp + 10 * alpha + 30*std::min(shadowMode,2u)]);
+                        device.RsSet(GxRs_PixelShader, ps[material][(alpha ? 8:0) + shadowMode]);
                         CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
                         GxDraw(&batch, 0);
                         CiRect rect(0, 0, 32, 32);
@@ -257,7 +278,7 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
                         for (unsigned j = 0; j < 4; ++j)
                             if (std::abs(int(actual[j]) - int(std::lround(expected[j] * 255))) > 2)
                                 throw std::runtime_error("WMO numeric mismatch family " + std::to_string(family) + " VS " + std::to_string(vp) +
-                                                         " material " + std::to_string(material) + " alpha " + std::to_string(alpha) + " shadow " + std::to_string(shadowCase) +
+                                                         " material " + std::to_string(material) + " alpha " + std::to_string(alpha) + " shadow " + std::to_string(shadowMode) + "/" + std::to_string(shadowCase) +
                                                          " channel " + std::to_string(j) + " actual " + std::to_string(actual[j]) +
                                                          " expected " + std::to_string(expected[j] * 255));
                         unsigned covered = 0;
@@ -272,6 +293,6 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
         }
     std::fprintf(
         stderr,
-        "WMO native materials: 7 vertex families, 7 pixel families, %u numeric light/color/reflection/composite/fog/alpha/dynamic-shadow draws passed\n",
+        "WMO native materials: 7 vertex families, 7 pixel families, %u numeric light/color/reflection/composite/fog/alpha/dynamic-banded-shadow draws passed\n",
         draws);
 }
