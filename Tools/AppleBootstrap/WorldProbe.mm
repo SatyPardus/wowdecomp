@@ -8,7 +8,10 @@
 #include "WoW/Source/WorldClient/MapDoodadDef.h"
 #include "WoW/Source/UIUtil/CSimpleCamera.h"
 #include "Engine/Source/Gx/Gx.h"
-#include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "WoW/Source/WorldClient/DayNight__DNInfo.h"
+#include "WoW/Source/WorldClient/FrameTime.h"
+#include "WoW/Source/Game/GameTime.h"
 #include "Engine/Source/Tempest/CRect.h"
 #include <array>
 #include "WoW/Source/DB/DBClient/DBClient.h"
@@ -49,23 +52,30 @@ int32_t DestroyServices(const void*, void*) {
 }
 unsigned portraitRefreshes;
 std::array<unsigned, 5> CheckLoadedMap() {
-    auto& device = *g_theGxDevicePtr;
-    const auto projection = device.m_projNative;
+    auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
+    const auto projection = device.m_projection;
     device.XformPush(GxXform_View);
+    device.RsPush();
     struct Restore {
-        CGxDevice& device;
+        CGxDeviceMetal& device;
         C44Matrix projection;
         ~Restore() {
-            device.m_projNative = projection;
+            if (device.FrameCommand()) device.ScenePresent();
+            device.RsPop();
+            device.XformSetProjection(projection);
             GxXformPop(GxXform_View);
         }
     } restore{device, projection};
-    C3Vector position(-9000, 0, 80);
+    C3Vector position(-9000, 0, 180);
     CSimpleCamera camera(0.2f, 500, 1);
     CRect viewport;
     viewport.minX = viewport.minY = 0;
     viewport.maxX = viewport.maxY = 1;
+    camera.m_position = position;
+    C3Vector direction(1, 0.3f, -0.2f); direction.Normalize();
+    camera.SetFacing(direction);
     camera.SetGxProjectionAndView(viewport);
+    World::ViewCameraScope cameraScope(camera);
     CWorld::LoadMap("Azeroth", &position, 0, 0, camera);
     Require(CMap::bActive && !CMap::bPreload && CMap::s_mapLight, "Original map activation did not complete");
     std::array<unsigned, 5> counts{};
@@ -86,6 +96,51 @@ std::array<unsigned, 5> CheckLoadedMap() {
     std::fprintf(stderr,
                  "Original Azeroth map: %u areas, %u terrain chunks, %u WMO placements, %u loaded doodad models, %u horizon tiles\n",
                  counts[0], counts[1], counts[2], counts[3], counts[4]);
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:128 height:128 mipmapped:NO];
+    descriptor.usage = MTLTextureUsageRenderTarget;
+    descriptor.storageMode = MTLStorageModePrivate;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    descriptor.pixelFormat = MTLPixelFormatDepth32Float;
+    pass.depthAttachment.texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.depthAttachment.loadAction = MTLLoadActionClear;
+    pass.depthAttachment.clearDepth = 1;
+    g_clientGameTime.SetHourAndMinutes(720);
+    for (unsigned frame = 0; frame < 3; ++frame) {
+        FrameTime::Update(1.0f / 60, 1000 + frame * 17);
+        auto& lighting = *DayNight::GetInfo();
+        lighting.m_dayProgression = 0.5f;
+        lighting.m_timeOfDay = 720;
+        lighting.m_timeSec = frame / 60.0f;
+        lighting.m_deltaSec = 1.0f / 60;
+        lighting.m_farClip = camera.m_farZ;
+        lighting.m_playerPos = lighting.m_lightRefPos = lighting.m_cameraPos = position;
+        lighting.m_cameraDir = camera.Forward();
+        C3Vector target = position + camera.Forward();
+        camera.SetGxProjectionAndView(viewport);
+        CWorld::Update(&position, &target, &position, camera);
+        AsyncFileReadWaitAll();
+        device.BeginFrame(pass);
+        GxXformSetViewport(0, 1, 0, 1, 0, CWorld::s_unk_ADEEE4);
+        CWorldScene::Render(position, 1.0f / 60, camera);
+        CMap::RenderFootprints();
+        CWorldScene::RenderScenePasses(1.0f / 60);
+        CiRect rect(0, 0, 128, 128);
+        TSGrowableArray<CImVector> pixels;
+        device.DeviceReadPixels(rect, pixels);
+        TSGrowableArray<float> depths;
+        device.DeviceReadDepths(rect, depths);
+        unsigned scenePixels = 0;
+        for (uint32_t i = 0; i < depths.Count(); ++i) scenePixels += depths[i] < CWorld::s_unk_ADEEE4;
+        Require(scenePixels > 1024, "Original scene geometry is occluded by the horizon/sky depth bands");
+        unsigned varied = 0;
+        for (uint32_t i = 0; i < pixels.Count(); ++i) varied += pixels[i].r != pixels[0].r || pixels[i].g != pixels[0].g || pixels[i].b != pixels[0].b;
+        Require(varied > 1024 && CWorldScene::s_chunksRendered && CWorldScene::nDoodadsRendered,
+                "Original world frame omitted terrain/models or produced a flat image");
+        std::fprintf(stderr, "Original world frame %u: %u varied / %u main-scene pixels, %u chunks, %u doodads\n", frame, varied, scenePixels, CWorldScene::s_chunksRendered, CWorldScene::nDoodadsRendered);
+        device.ScenePresent();
+    }
     return counts;
 }
 } // namespace
@@ -136,6 +191,9 @@ void CheckGameWorldLifecycle() {
         g_animationDataDB.Load(__FILE__, __LINE__);
     Require(ModelBlobLoad("World\\model.blob"), "World model bounds index did not load");
     CheckDayNightData();
+    if (!g_areaTableDB.m_loaded) g_areaTableDB.Load(__FILE__, __LINE__);
+    if (!g_wmoAreaTableDB.m_loaded) g_wmoAreaTableDB.Load(__FILE__, __LINE__);
+    if (!g_groundEffectTextureDB.m_loaded) g_groundEffectTextureDB.Load(__FILE__, __LINE__);
     if (!g_mapDB.m_loaded)
         g_mapDB.Load(__FILE__, __LINE__);
     std::array<unsigned, 5> firstMap{};

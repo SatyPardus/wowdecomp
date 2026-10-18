@@ -60,5 +60,15 @@ bool CGWorldFrame::HitTestModelList(const C3Vector& start, const C3Vector& end) 
 // VERIFY: 0b3308f3 manual
 // OFFSET: 0x004F6650
 void CGWorldFrame::GetCameraPosition(C3Vector* position) {
-    *position = CGWorldFrame::s_currentWorldFrame->m_camera->m_position;
+    *position = World::ViewCamera().m_position;
+}
+
+// VERIFY: d8525c88 auto
+// OFFSET: 0x004F5960
+CGCamera* CGWorldFrame::GetActiveCamera() {
+    if (CGWorldFrame::s_currentWorldFrame) {
+        return CGWorldFrame::s_currentWorldFrame->m_camera;
+    }
+
+    return nullptr;
 }

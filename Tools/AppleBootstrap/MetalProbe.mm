@@ -221,7 +221,8 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             out << "Original Services TextureCreate: cached handles, bounded BLP mips, oversized asynchronous palette uploads, cancellation and mip recreation passed.\n";
             out << "Gx packed UNORM: RGB565/ARGB1555/ARGB4444, original BGRA truncation, point/linear filtering, partial uploads and Services palette mips passed.\n";
             out << "Original Event scheduler: native nonblocking steps, dispatch order, timers, queued messages, input state and context recreation passed.\n";
-            out << "Original CWorld lifecycle: Azeroth map loading/destruction twice, terrain/WMO/doodad/horizon population and complete teardown, live/detached weather callbacks and portrait notifications passed; full world rendering remains pending.\n";
+            out << "Original CWorld lifecycle: Azeroth map loading/destruction twice, terrain/WMO/doodad/horizon population, original world update/scene rendering and complete teardown, live/detached weather callbacks and portrait notifications passed; player/network/UI integration remains pending.\n";
+            out << "Native unlit fixed-function: six independent RGB/alpha operations, up to four textures, UV selection/transforms, diffuse color, vertex fog interpolation and alpha boundaries passed.\n";
             out << "Native Gx factory, UI shader creation/binding, streaming-buffer wrap, immutable texture updates, partial-origin callbacks, pixel/depth readback, screenshots and exact ARGB4444 font textures passed.\n";
             out << "Gx color render targets: offscreen draw/sample ordering, default clear preservation, scratch depth reuse, target destruction and host resize passed.\n";
             out << "Gx surface copies: default versus explicit source, exact partial RGBA copies, nearest/linear scaling, offset destination, invalid bounds and same-frame mip sampling passed.\n";

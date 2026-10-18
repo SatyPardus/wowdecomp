@@ -447,8 +447,32 @@ because 545 authored 16-bit heights leave the next header only two-byte aligned;
 height, hole and geometry algorithms are unchanged. Original object-manager lookup,
 object-effect state and the UI's chat/movie sound state now link on Apple; no active
 player or network session is synthesized. Mac ASan/UBSan, Metal validation and
-iOS simulator checks pass, and both iOS targets build. Full world rendering and
-application ownership of the loaded world remain pending.
+iOS simulator checks pass, and both iOS targets build.
+The native host now owns that world and enters the original `CWorld::Update` and
+`CWorldScene::Render` with an explicit camera. The Windows entry retains its
+WorldFrame camera, loading-screen, cursor and targeting callbacks. No fake player
+or loading-screen UI is inserted into the native core. The Elwynn fixture renders
+61 terrain chunks and prepares 23 doodad models, with 16,382 varied pixels and
+7,096 main-scene depth pixels in a 128x128 readback, through two complete world
+lifetimes. The original WorldFrame continuation is shared too: M2 pass order,
+detail doodads, liquid, weather, barriers, particulate and glare retain their
+original ordering, including the submerged-camera branch. Windows UI callbacks
+remain at their original positions. The main scene retains WorldFrame's depth
+range ending at 0.94, before the separate horizon and sky bands.
+
+Use `WOW_WORLD=Azeroth:-9465:64:85` with the existing Mac `--preview` command or
+as an iOS environment variable. The format is `Map:worldX:worldY:worldZ`; the
+viewer uses an explicit stationary camera (near 0.2, far 500, FOV 1 radian).
+`WOW_TIME_MINUTES` sets the initial time, then advances in real time; authored
+map time overrides are retained. This selection uses the full view for the world
+and is mutually exclusive with terrain/WMO/model previews. Mac and iOS simulator
+both present 120 world frames; the 900x600 Goldshire-area frame selects 125 terrain
+chunks and 182 doodads, with trees, roads, fences and lights visible in GPU
+readback. Mac ASan/UBSan and Metal validation pass, and both iOS targets build.
+The native host still has no active player, login/network
+session, input-controlled camera or complete game UI. All-map materials, interior
+portal traversal, dynamic shadows and the complete WorldFrame/FFX/audio policy
+remain to be integrated or validated.
 
 Original DayNight selection/interpolation now links on all Apple targets with
 715 lights, 850 parameter sets, 124 skyboxes, and 15,300 color / 5,100 float bands.
@@ -462,8 +486,8 @@ world/model-cache lifetimes. Bone-sequence queries now use the original signed
 wrapping clock delta, preserving future starts, reverse playback and integer
 precision; unsigned float conversion previously triggered UB for these skies.
 The model cache follows the application's teardown order before a new world
-starts, since world destruction also frees shader effects. Complete procedural
-sky/cloud/planet rendering and world camera fog queries remain pending.
+starts, since world destruction also frees shader effects. The original procedural sky/cloud/planet and world camera-fog calls are now
+reached by the native world scene; broader map/time coverage remains pending.
 Mac ASan/UBSan and Metal validation, both iOS target builds, and simulator GPU
 checks followed by 120 visible terrain frames pass.
 Fog calculation now also accepts explicit camera-volume query results; the
@@ -524,8 +548,8 @@ checks pass through resource recreation, and the mixed tile presents 120 frames
 with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
-world loading. Non-base cube layers remain explicitly unsupported. Fixed-function terrain, complete world drawing
-and the application world lifecycle remain pending.
+world loading. Non-base cube layers remain explicitly unsupported. Lit fixed-function terrain and complete world effect/state coverage remain
+pending; the native world scene entry is described above.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
 on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary
@@ -598,6 +622,17 @@ updated region. Original Gx base-mip/filter selection is retained (the standalon
 BLP probe separately checks every authored mip). Frames are limited to three in
 flight and drained on suspension. Native hosts still own window/view creation;
 full client startup and input/event integration remain pending.
+The native fixed-function unlit path supports zero to four contiguous texture
+stages, all six original Gx RGB/alpha operations independently, per-stage
+saturation, UV set selection, affine/projective texture transforms, vertex or
+material color, linear vertex fog and independent alpha testing. It uses typed
+Metal constants and function specialization. Forty-seven numerical draws cover
+stage order, disabled cascades, all RGB/alpha pairs, transforms, fog interpolation
+and alpha boundaries on Mac and iOS simulator. SM3 terrain/model/world shaders
+keep their own fog even when the retained Gx fog-enable state is set, as required
+by the original profile. Lighting, generated fixed-function coordinates and
+mixed programmable/fixed-function pairs still fail explicitly.
+
 The native unlit geometry primitive now links the shared Gx vertex-layout tables
 and consumes packed vertex buffers and 16-bit indexed/nonindexed batches directly.
 It maps Tempest matrices, BGRA vertex colors, Gx depth comparisons/write control,

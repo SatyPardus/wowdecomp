@@ -3080,7 +3080,8 @@ float DayNight::DNGlare::GetPointOcclusion() {
         return 0.0f;
     }
 
-    return !CGWorldFrame::s_currentWorldFrame->HitTestModelList(start, end);
+    // A host without WorldFrame has no extra UI-owned models to test.
+    return !CGWorldFrame::s_currentWorldFrame || !CGWorldFrame::s_currentWorldFrame->HitTestModelList(start, end);
 }
 
 // VERIFY: 5f4e0628 manual

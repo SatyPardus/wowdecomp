@@ -1178,7 +1178,7 @@ void World::ObjectDestroy(CMapEntity* entity) {
 // VERIFY: a4bfc150 manual
 // OFFSET: 0x00780860
 void World::PrepareAreaOfInterest(const C3Vector& position) {
-    PrepareAreaOfInterest(position, *CGWorldFrame::GetActiveCamera());
+    PrepareAreaOfInterest(position, World::ViewCamera());
 }
 
 void World::PrepareAreaOfInterest(const C3Vector& position, const CSimpleCamera& camera) {
@@ -1364,7 +1364,7 @@ void World::SetFarClip(float farClip) {
 // VERIFY: 833d137a auto
 // OFFSET: 0x00781430
 void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4) {
-    LoadMap(mapName, position, zoneID, unused_a4, *CGWorldFrame::GetActiveCamera());
+    LoadMap(mapName, position, zoneID, unused_a4, World::ViewCamera());
 }
 
 void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4, const CSimpleCamera& camera) {
@@ -1494,6 +1494,12 @@ void World::UnloadMap() {
 // VERIFY: 940255f7 manual
 // OFFSET: 0x007831A0
 void CWorld::Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position) {
+    Update(camPos, camTarget, position, World::ViewCamera(), {LoadingScreenEnable, LoadingScreenWorldCallback, LoadingScreenDisable});
+}
+
+void CWorld::Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position, const CSimpleCamera& camera,
+    const World::LoadNotifications& notifications) {
+    World::ViewCameraScope cameraScope(camera);
     CWorld::UpdateTextureCacheBudget();
 
     profTimes[profIdx] = FrameTime::s_tickTimeSec;
@@ -1549,9 +1555,9 @@ void CWorld::Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position) {
     World::s_prevFarClip = World::s_farClip;
 
     if (preload) {
-        World::s_loadProgressCallback = LoadingScreenWorldCallback;
+        World::s_loadProgressCallback = notifications.progress;
         World::s_loadProgressParam = nullptr;
-        LoadingScreenEnable(s_mapId, true);
+        if (notifications.begin) notifications.begin(s_mapId, true);
         CMap::bPreload = 1;
     }
 
@@ -1562,7 +1568,7 @@ void CWorld::Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position) {
         World::s_loadProgressCallback = nullptr;
         World::s_loadProgressParam = nullptr;
         AsyncFileReadSetProgressCallback(nullptr, nullptr);
-        LoadingScreenDisable();
+        if (notifications.end) notifications.end();
     }
 
     CWorldScene::LocateViewer3();
@@ -2051,10 +2057,10 @@ int32_t CWorldScene::FrustumCull(const C3Vector& center, float radius) {
 // VERIFY: e94a022f auto
 // OFFSET: 0x00791170
 void CWorldScene::BuildHorizonProjection(C44Matrix* projection) {
-    CGCamera* camera = CGWorldFrame::GetActiveCamera();
-    float farZ = camera->m_farZ;
-    float fov = camera->FOV();
-    GxuXformCreateProjection_Exact(fov * 0.60000002f, camera->m_aspect, farZ - 50.0f, World::s_horizonFarClipScale * World::s_farClip, *projection);
+    const auto& camera = World::ViewCamera();
+    float farZ = camera.m_farZ;
+    float fov = camera.FOV();
+    GxuXformCreateProjection_Exact(fov * 0.60000002f, camera.m_aspect, farZ - 50.0f, World::s_horizonFarClipScale * World::s_farClip, *projection);
 }
 
 // VERIFY: 6cb64bd1 manual

@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WorldViewContext.h"
 #include "Engine/Source/Tempest/CBoundingBox.h"
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/CAaBox.h"
@@ -268,6 +269,9 @@ class CWorldScene {
     static void CullEntitysInterior(TSList<CMapBaseObjLink, TSGetExplicitLink<CMapBaseObjLink> >* linkList, CWFrustum* frustum, int32_t force, int32_t interior);
     static void CullChunks(CSortEntry* entry, int32_t index);
     static void Render(const C3Vector& cameraPos, float time);
+    static void Render(const C3Vector& cameraPos, float time, const CSimpleCamera& camera,
+        void (*updateTargeting)() = nullptr, void (*releaseCursorMips)() = nullptr);
+    static void RenderScenePasses(float time, const World::ScenePassCallbacks& callbacks = {});
     static void RenderChunks();
     static void RenderMapObjDefGroups();
     static void RenderDetailDoodads();
@@ -568,6 +572,8 @@ class CWorld {
     static void ObjectDestroy(CMapBaseObj* object);
     static CMapBaseObj* ObjectCreate(const char* name, const C3Vector& position, float facing, int32_t waitLoad, int32_t snap, uint64_t guid, uint32_t doodadSetCount, const int16_t* doodadSets, float* radius, uint32_t id);
     static void Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position);
+    static void Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position, const CSimpleCamera& camera,
+        const World::LoadNotifications& notifications = {});
 };
 
 extern float s_viewerLiquidDepth;

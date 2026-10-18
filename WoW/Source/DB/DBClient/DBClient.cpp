@@ -46,9 +46,6 @@ WowClientDB<AreaGroupRec> g_areaGroupDB;
 // STATIC: 0x00AD3110
 WowClientDB<AreaPOIRec> g_areaPOIDB;
 
-// STATIC: 0x00AD3134
-WowClientDB<AreaTableRec> g_areaTableDB;
-
 // STATIC: 0x00AD3158
 WowClientDB<AreaTriggerRec> g_areaTriggerDB;
 
@@ -240,9 +237,6 @@ WowClientDB<GMSurveySurveysRec> g_gmSurveySurveysDB;
 
 // STATIC: 0x00AD3AA0
 WowClientDB<GMTicketCategoryRec> g_gmTicketCategoryDB;
-
-// STATIC: 0x00AD3AE8
-WowClientDB<GroundEffectTextureRec> g_groundEffectTextureDB;
 
 // STATIC: 0x00AD3B0C
 WowClientDB<gtBarberShopCostBaseRec> g_gtBarberShopCostBaseDB;
@@ -640,9 +634,6 @@ WowClientDB<VehicleUIIndSeatRec> g_vehicleUIIndSeatDB;
 
 // STATIC: 0x00AD4E08
 WowClientDB<VocalUISoundsRec> g_vocalUISoundsDB;
-
-// STATIC: 0x00AD4E2C
-WowClientDB<WMOAreaTableRec> g_wmoAreaTableDB;
 
 // STATIC: 0x00AD4E50
 WowClientDB<WeaponImpactSoundsRec> g_weaponImpactSoundsDB;

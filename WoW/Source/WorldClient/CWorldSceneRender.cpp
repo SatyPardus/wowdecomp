@@ -69,6 +69,12 @@ void CWorldScene::RenderCollisionDebug() {
 // VERIFY: cd492c82 manual
 // OFFSET: 0x0079A870
 void CWorldScene::Render(const C3Vector& cameraPos, float time) {
+    Render(cameraPos, time, World::ViewCamera(), CGUnit_C::UpdateMissileTrajectoryTargeting, CursorReleaseItemMips);
+}
+
+void CWorldScene::Render(const C3Vector& cameraPos, float time, const CSimpleCamera& camera,
+    void (*updateTargeting)(), void (*releaseCursorMips)()) {
+    World::ViewCameraScope cameraScope(camera);
     if (!CWorldScene::s_viewerMapObjDef) {
         CWorldScene::ComputeExteriorSortDistances();
     }
@@ -85,8 +91,7 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
     CWorldScene::s_occlusionFarDepth = World::s_farClip - 33.333332f;
     CWorldScene::s_hasPendingExteriorGroups = CWorldScene::sortTable.m_pendingExteriorGroupList.Head() != nullptr;
 
-    CGCamera* camera = CGWorldFrame::GetActiveCamera();
-    CWorldScene::s_fogFovPadding = CWorld::farFog / cosf(camera->FOV() * 0.5f) - CWorld::farFog;
+    CWorldScene::s_fogFovPadding = CWorld::farFog / cosf(camera.FOV() * 0.5f) - CWorld::farFog;
 
     World::UpdateObjectFadeouts();
     CMapRenderChunk::UpdatePools();
@@ -190,7 +195,7 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
         scene->m_flags &= ~0x1;
     }
 
-    CGUnit_C::UpdateMissileTrajectoryTargeting();
+    if (updateTargeting) updateTargeting();
     CShadowQuery::Update();
     CShaderEffect::UpdateProjMatrix();
     CWorldScene::ApplyFogState();
@@ -241,7 +246,7 @@ void CWorldScene::Render(const C3Vector& cameraPos, float time) {
 
     GxXformPop(GxXform_World);
     g_theGxDevicePtr->RsPop();
-    CursorReleaseItemMips();
+    if (releaseCursorMips) releaseCursorMips();
 
     if (CWorld::enables & 0x200000) {
         CWorldScene::RenderCollisionDebug();
@@ -269,4 +274,41 @@ void CWorldScene::BuildViewMatrices(const C3Vector& position) {
     CShadowCache::s_cutoffPlane.z = normal.z;
     CShadowCache::s_cutoffPlane.w = -(normal.x * projected.x + normal.y * projected.y + normal.z * projected.z);
     CShadowQuery::s_cutoffHeight = position.z + 2.0f;
+}
+
+// Shared continuation of WorldFrame::OnWorldRender after scene preparation.
+// The UI retains its spell/cursor callbacks at the same points. Core pass order
+// depends on submersion, including models, terrain detail, liquid and weather.
+void CWorldScene::RenderScenePasses(float time, const World::ScenePassCallbacks& callbacks) {
+    CM2Scene* scene = World::s_m2Scene;
+    if (!scene) return;
+    scene->SetFloat18(-CWorld::s_unk_CD7758);
+    scene->m_passMask = CWorld::m_M2PassMask;
+    scene->Draw(M2PASS_0);
+
+    if (callbacks.afterOpaque) callbacks.afterOpaque(callbacks.context);
+
+    GxuSortDrawList(GxuCat_0, GxuSort_VtxStream, *World::GetCamPos());
+    GxuFlushDrawList(GxuCat_0, *World::GetCamPos());
+    CWorldScene::RenderDetailDoodads();
+
+    if (World::SceneCamLiquidStatus(nullptr)) {
+        CWorldScene::RenderBarriers(time);
+        scene->Draw(M2PASS_1);
+        CWorldScene::RenderWeather();
+        CWorldScene::RenderLiquidPass();
+        scene->Draw(M2PASS_2);
+    } else {
+        scene->Draw(M2PASS_2);
+        CWorldScene::RenderLiquidPass();
+        CWorldScene::RenderWeather();
+        CWorldScene::RenderBarriers(time);
+        scene->Draw(M2PASS_1);
+    }
+
+    if (callbacks.afterTranslucent) callbacks.afterTranslucent(callbacks.context);
+    CWorldScene::RenderParticulate();
+    GxuSortDrawList(GxuCat_1, GxuSort_B2F, *World::GetCamPos());
+    GxuFlushDrawList(GxuCat_1, *World::GetCamPos());
+    DayNight::RenderGlares();
 }

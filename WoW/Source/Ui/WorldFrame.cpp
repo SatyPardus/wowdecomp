@@ -131,16 +131,6 @@ CDataAllocator CGWorldFrame::s_worldFrameHeap(sizeof(CGWorldFrame), 1);
 // STATIC: 0x00B743A8
 static char s_keyNameBuffer[8];
 
-// VERIFY: d8525c88 auto
-// OFFSET: 0x004F5960
-CGCamera* CGWorldFrame::GetActiveCamera() {
-    if (CGWorldFrame::s_currentWorldFrame) {
-        return CGWorldFrame::s_currentWorldFrame->m_camera;
-    }
-
-    return nullptr;
-}
-
 // VERIFY: 407a59b7 manual
 // OFFSET: 0x004F59F0
 void __stdcall CGWorldFrame::CursorTrackObject(CGGameObject_C* object) {
@@ -1683,44 +1673,17 @@ void CGWorldFrame::OnWorldRender() {
         return;
     }
 
-    scene->SetFloat18(-CWorld::s_unk_CD7758);
-    scene->m_passMask = CWorld::m_M2PassMask;
-    scene->Draw(M2PASS_0);
-
-    if (s_spellShadowStyle < 2) {
-        DrawSpellCursorShadow(0x200122);
-    }
-
-    GxuSortDrawList(GxuCat_0, GxuSort_VtxStream, *World::GetCamPos());
-    GxuFlushDrawList(GxuCat_0, *World::GetCamPos());
-    CWorldScene::RenderDetailDoodads();
-
-    if (World::SceneCamLiquidStatus(nullptr)) {
-        CWorldScene::RenderBarriers(this->m_elapsedSec);
-        scene->Draw(M2PASS_1);
-        CWorldScene::RenderWeather();
-        CWorldScene::RenderLiquidPass();
-        scene->Draw(M2PASS_2);
-    } else {
-        scene->Draw(M2PASS_2);
-        CWorldScene::RenderLiquidPass();
-        CWorldScene::RenderWeather();
-        CWorldScene::RenderBarriers(this->m_elapsedSec);
-        scene->Draw(M2PASS_1);
-    }
-
-    if (s_spellShadowStyle < 2) {
-        DrawSpellCursorShadow(0x20000);
-    }
-
-    SpellVisualsTick();
-    SpellVisualsRender();
-    CGUnit_C::RenderMissileTrajectoryTargetingTexture();
-    this->ClearTrackedObjects();
-    CWorldScene::RenderParticulate();
-    GxuSortDrawList(GxuCat_1, GxuSort_B2F, *World::GetCamPos());
-    GxuFlushDrawList(GxuCat_1, *World::GetCamPos());
-    DayNight::RenderGlares();
+    CWorldScene::RenderScenePasses(this->m_elapsedSec, {this,
+        [](void*) {
+            if (s_spellShadowStyle < 2) DrawSpellCursorShadow(0x200122);
+        },
+        [](void* context) {
+            if (s_spellShadowStyle < 2) DrawSpellCursorShadow(0x20000);
+            SpellVisualsTick();
+            SpellVisualsRender();
+            CGUnit_C::RenderMissileTrajectoryTargetingTexture();
+            static_cast<CGWorldFrame*>(context)->ClearTrackedObjects();
+        }});
     PlayerNameUpdateLate();
 
     if (CWorld::enables & 0x20000000) {

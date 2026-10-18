@@ -138,6 +138,9 @@ add_library(AppleGameResources STATIC
     WoW/Source/DB/DBClient/WorldEffectData.cpp
     WoW/Source/DB/Rec/FootprintTexturesRec.cpp
     WoW/Source/DB/Rec/GroundEffectDoodadRec.cpp
+    WoW/Source/DB/Rec/GroundEffectTextureRec.cpp
+    WoW/Source/DB/Rec/AreaTableRec.cpp
+    WoW/Source/DB/Rec/WMOAreaTableRec.cpp
     WoW/Source/DB/Rec/LightRec.cpp
     WoW/Source/DB/DBClient/DayNightData.cpp
     WoW/Source/DB/DBClient/Lights.cpp
@@ -185,7 +188,8 @@ add_library(WorldSupport STATIC WoW/Common/AaBsp.cpp)
 target_link_libraries(WorldSupport PUBLIC Tempest)
 add_library(ClientWorldSupport STATIC WoW/Source/ObjectMgrClient/ObjectMgrClient.cpp
     WoW/Source/Object/ObjectClient/ObjectEffect.cpp WoW/Source/UIUtil/CSimpleCamera.cpp
-    WoW/Source/Ui/SoundPlaybackState.cpp
+    WoW/Source/Ui/SoundPlaybackState.cpp WoW/Source/Object/ObjectClient/UnitWorldQueries_C.cpp
+    WoW/Common/WowTime.cpp WoW/Source/Game/GameTime.cpp
     WoW/Source/Object/Object.cpp WoW/Source/Object/Item.cpp WoW/Source/Object/Container.cpp
     WoW/Source/Object/Unit.cpp WoW/Source/Object/Player.cpp WoW/Source/Object/GameObject.cpp
     WoW/Source/Object/DynamicObject.cpp WoW/Source/Object/Corpse.cpp)
@@ -239,7 +243,7 @@ target_compile_options(AppleMetalProbeCore PRIVATE -fobjc-arc)
 add_library(AppleWorldProbe STATIC Tools/AppleBootstrap/WmoProbe.cpp)
 target_link_libraries(AppleWorldProbe PUBLIC WorldClient AppleMetal)
 target_link_libraries(AppleMetalProbeCore PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWorldProbe AppleWmoView)
-add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/ModelPreview.cpp)
+add_library(AppleMetalView STATIC Tools/AppleBootstrap/MetalView.mm Tools/AppleBootstrap/ModelPreview.cpp Tools/AppleBootstrap/WorldPreview.cpp)
 target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
 

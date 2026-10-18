@@ -2,6 +2,7 @@
 #include "Tools/AppleBootstrap/ModelPreview.h"
 #include "Tools/AppleBootstrap/TerrainPreview.h"
 #include "Tools/AppleBootstrap/WmoPreview.h"
+#include "Tools/AppleBootstrap/WorldPreview.h"
 #include "Tools/AppleBootstrap/GameAudioPreview.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -166,6 +167,7 @@ public:
     std::unique_ptr<ModelPreview> _model;
     std::unique_ptr<TerrainPreview> _terrain;
     std::unique_ptr<WmoPreview> _wmo;
+    std::unique_ptr<WorldPreview> _world;
     CGxBuf* _vertices;
     CGxBuf* _indices;
     CGxShader* _vertexShaders[2];
@@ -256,6 +258,18 @@ public:
         auto* texture = _image->Get();
         NSString* terrain = NSProcessInfo.processInfo.environment[@"WOW_TERRAIN"];
         NSString* wmo = NSProcessInfo.processInfo.environment[@"WOW_WMO"];
+        NSString* world = NSProcessInfo.processInfo.environment[@"WOW_WORLD"];
+        if (world && !_world) {
+            if (wmo || terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
+                throw std::runtime_error("WOW_WORLD cannot be combined with other scene selections");
+            _world = std::make_unique<WorldPreview>(world.UTF8String);
+            NSString* time = NSProcessInfo.processInfo.environment[@"WOW_TIME_MINUTES"];
+            if (time) {
+                NSScanner* scanner = [NSScanner scannerWithString:time]; double minutes;
+                if (![scanner scanDouble:&minutes] || !scanner.isAtEnd) throw std::runtime_error("WOW_TIME_MINUTES must be a number");
+                _world->SetTime(float(minutes));
+            }
+        }
         if (wmo && !_wmo) {
             if (terrain || NSProcessInfo.processInfo.environment[@"WOW_MODEL"] || NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"])
                 throw std::runtime_error("WOW_WMO cannot be combined with other scene selections");
@@ -273,7 +287,7 @@ public:
                 _terrain->SetTime(float(minutes));
             }
         }
-        if (!terrain && !wmo && !_model) {
+        if (!world && !terrain && !wmo && !_model) {
             NSString* name = NSProcessInfo.processInfo.environment[@"WOW_MODEL"];
             NSString* display = NSProcessInfo.processInfo.environment[@"WOW_CREATURE_DISPLAY"];
             uint32_t displayID = name ? 0 : 165; // Original timber wolf display.
@@ -288,7 +302,7 @@ public:
         }
         _device->BeginFrame(pass, drawable);
         GxXformSetViewport(0, 1, 0, 1, 0, 1);
-        if (texture) {
+        if (texture && !_world) {
             GxRsSet(GxRs_VertexShader, _vertexShaders[0]); GxRsSet(GxRs_PixelShader, _pixelShader);
             GxRsSet(GxRs_Texture0, texture);
             GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_Culling, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0);
@@ -302,13 +316,13 @@ public:
             GxPrimVertexPtr(_vertices, GxVBF_PCT); _device->PrimIndexPtr(_indices);
             CGxBatch batch{GxPrim_Triangles, 0, 6, 0, 3}; GxDraw(&batch, 1);
         }
-        const bool sceneReady = _wmo ? _wmo->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) : _terrain ? _terrain->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) :
+        const bool sceneReady = _world ? _world->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) : _wmo ? _wmo->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) : _terrain ? _terrain->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height)) :
             _model->Draw(elapsedSeconds, uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         if (!_text) { _text = std::make_unique<GameText>(); }
         _text->Draw(uint32_t(view.drawableSize.width), uint32_t(view.drawableSize.height));
         GxScenePresent();
         if (texture && sceneReady && ++_presentedFrames == 120) {
-            NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate and %@ rendered", _wmo ? @"original WMO group" : _terrain ? @"original ADT terrain surface" : @"original M2 scene");
+            NSLog(@"Original Event native frame loop: 120 frames presented; Services TextureCreate and %@ rendered", _world ? @"original world scene" : _wmo ? @"original WMO group" : _terrain ? @"original ADT terrain surface" : @"original M2 scene");
             if (_audio) {
                 const auto stats = _audio->Stats();
                 NSLog(@"Original SESound archive stream: %llu frames, %llu nonzero samples, playing=%d", stats.frames, stats.nonzeroSamples, _audio->IsPlaying());
