@@ -215,6 +215,12 @@ boundaries. The original motorcycle (display 25870) draws two combined material
 batches; its dual-UV death effect is exercised at 1137 ms, following the authored
 color-alpha track instead of forcing visibility.
 
+`Combiners_Mod_Mod2x`, used by authored Northrend sky models, now preserves
+double-modulated RGB and alpha from both textures and vertex color. Its four
+unshadowed BLS variants are verified; 246 additional GPU checks cover layered
+coordinates, lighting/fog, and independent shader/state alpha boundaries on Mac
+and iOS simulator. Mac ASan/UBSan and Metal validation pass; both iOS targets build.
+
 Native `ShadowMap` / `ShadowMapSL` generation preserves rigid, single-bone and
 four-weight transforms, separate light-view transforms, linear depth and alpha
 cutouts. All 90 vertex and 16 pixel handles are validated against the mounted
@@ -465,8 +471,7 @@ checks pass through resource recreation, and the mixed tile presents 120 frames
 with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
-world loading. The current ADT preview still rejects cube layers pending their
-material binding integration. Fixed-function terrain, complete world drawing
+world loading. Non-base cube layers remain explicitly unsupported. Fixed-function terrain, complete world drawing
 and the application world lifecycle remain pending.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build

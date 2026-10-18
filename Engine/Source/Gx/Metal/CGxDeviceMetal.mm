@@ -107,6 +107,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::ModelModAddNA: return "Combiners_Mod_AddNA";
         case GxMetal::FragmentEffect::ModelModMod: return "Combiners_Mod_Mod";
         case GxMetal::FragmentEffect::ModelModAdd: return "Combiners_Mod_Add";
+        case GxMetal::FragmentEffect::ModelModMod2x: return "Combiners_Mod_Mod2x";
         case GxMetal::FragmentEffect::ModelOpaqueMod2xNAAlpha: return "Combiners_Opaque_Mod2xNA_Alpha";
         case GxMetal::FragmentEffect::ModelOpaqueMod2x: return "Combiners_Opaque_Mod2x";
         default: return "UI";
@@ -879,7 +880,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     } else {
         for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave,
             Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
-            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd}) {
+            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x}) {
             if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
         }
     }

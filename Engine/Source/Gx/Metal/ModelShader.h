@@ -18,7 +18,7 @@ constexpr unsigned ModelColorMode(ModelVertexEffect effect) {
 enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate, AddAlpha };
 constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
     return effect == FragmentEffect::ModelModAdd ? ModelLayerOperation::AddAlpha :
-        effect == FragmentEffect::ModelOpaqueMod2x ? ModelLayerOperation::DoubleModulate :
+        (effect == FragmentEffect::ModelOpaqueMod2x || effect == FragmentEffect::ModelModMod2x) ? ModelLayerOperation::DoubleModulate :
         effect == FragmentEffect::ModelModMod ? ModelLayerOperation::Multiply :
         effect == FragmentEffect::ModelOpaqueMod2xNAAlpha ? ModelLayerOperation::BlendDoubleModulate :
         ModelTextureCount(effect) == 2 ? ModelLayerOperation::Add : ModelLayerOperation::None;

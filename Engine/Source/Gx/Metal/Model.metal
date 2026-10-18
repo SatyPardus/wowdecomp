@@ -150,7 +150,7 @@ fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelF
     // Preserve the original MUL then MAD alpha-test order for Mod_Mod.
     const float baseAlpha = modelTextureAlpha ? texel.a * v.color.a : v.color.a;
     // Original DP2ADD sums two alpha products before the scalar threshold.
-    const float doubledAlpha = dot(float2(v.color.a), float2(layer.a));
+    const float doubledAlpha = dot(float2(baseAlpha), float2(layer.a));
     const float projectedAlpha = fma(v.color.a, texel.a, layer.a);
     const float alpha = modelLayerOperation == LayerAddAlpha ? projectedAlpha : modelLayerOperation == LayerDoubleModulate ? doubledAlpha : modelLayerOperation == LayerMultiply ? baseAlpha * layer.a : baseAlpha;
     const float shaderAlpha = modelLayerOperation == LayerAddAlpha ? projectedAlpha - p.fogColorAlphaRef.a : modelLayerOperation == LayerDoubleModulate ? doubledAlpha - p.fogColorAlphaRef.a :

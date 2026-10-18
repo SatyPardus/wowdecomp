@@ -203,7 +203,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         {"5ae2fdbfbdecb3864fa1a4f665ab4069", "753a6bc77766be7de0240f1456909607"},
         {"a700448d7b2acfa0090cc20e403f20a0", "aadd717cd5eb4835808976befaae5c37"},
         {"a0d3210786631ecd99e5f217fe76153e", "08d2d53838ad3d5a70573d5f76d0fba3"},
-        {"cab1b81fa97d3f61e4a57fd1fad15f8f", "992c4b1bd94c87b9e0e07045471d12b9"}
+        {"cab1b81fa97d3f61e4a57fd1fad15f8f", "992c4b1bd94c87b9e0e07045471d12b9"},
+        {"104f8e57582256fa22cbe5e0837c178e", "071e4b850ad8e6e2b0c824572c87f7e2"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i, vertexEffect)) continue;
