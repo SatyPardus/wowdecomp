@@ -207,6 +207,8 @@ add_subdirectory(Engine/Source/Model2)
 target_link_libraries(Model2 PUBLIC AppleGameResources ShaderEffect)
 add_library(CreatureAppearance STATIC WoW/Common/ComponentCore/MonsterAppearance.cpp)
 target_link_libraries(CreatureAppearance PUBLIC Model2)
+add_library(CharacterTextureCache STATIC WoW/Common/TextureCache.cpp)
+target_link_libraries(CharacterTextureCache PUBLIC AppleGameResources)
 
 add_subdirectory(Engine/Source/FrameScript)
 target_link_libraries(FrameScript PUBLIC AppleGameResources lua)
@@ -345,6 +347,8 @@ target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp Tools/AppleBootstrap/LiquidDataProbe.cpp)
 target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore AppleLoginProbeCore AppleSessionProbeCore AppleRealmProbeCore)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CharacterTextureProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC CharacterTextureCache)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

@@ -268,6 +268,17 @@ resources in app-owned directories. Real cached texture mip reloads and a 2048
 square palette upload are checked through GPU readback. Remaining texture formats,
 atlases, complete model rendering and full client startup are still being connected.
 
+The original character-composition source texture cache now runs through the
+native Services worker. It preserves authored palette/mip bytes and shared
+ownership, validates the complete BLP before publishing it, and handles worker
+failure, cancellation and retry. Native entries retain the full file size instead
+of the original 20-bit field, accept client-length paths, and reuse their empty
+ObjectAlloc heap across lifetimes. Files have an explicit 64 MiB input budget.
+Two lifetimes check a >1 MiB source, all palette alpha formats, long paths and
+failure/cleanup; twelve real CharSections skins retain all reachable mip and
+palette bytes. This is the source cache needed by character composition; the
+complete character assembly and texture-composition pipeline remain pending.
+
 The original Model2 and ShaderEffect sources now compile for all Apple targets.
 The data probe relocates the original camera and NorthrendSkeleton M2 arrays,
 loads a real external animation through `CM2Shared`, and checks bounded nested

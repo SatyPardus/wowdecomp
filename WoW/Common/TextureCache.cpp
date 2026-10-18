@@ -1,6 +1,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#if defined(__APPLE__)
+#include <stdexcept>
+#endif
 #include "WoW/Common/TextureCache.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/BLPFile/blp.h"
@@ -30,6 +33,19 @@ static void FreeRequest(CAsyncObject* object) {
     SMemFree(buffer, __FILE__, __LINE__, 0);
 }
 
+#if defined(__APPLE__)
+static void LoadFailureCallback(void* param) {
+    auto* entry = static_cast<CACHEENTRY*>(param);
+    if (entry->m_asyncObject) AsyncFileReadDestroyObject(entry->m_asyncObject);
+    entry->m_asyncObject = nullptr;
+    if (entry->m_data) SMemFree(entry->m_data, __FILE__, __LINE__, 0);
+    entry->m_data = nullptr;
+    entry->m_size = 0;
+    entry->m_loadFailed = 1;
+    entry->m_info = {};
+}
+#endif
+
 // VERIFY: d664e324 manual
 // OFFSET: 0x004F2B70
 static void LoadSuccessCallback(void* param) {
@@ -38,13 +54,26 @@ static void LoadSuccessCallback(void* param) {
     AsyncFileReadDestroyObject(entry->m_asyncObject);
     BLPHeader* header = entry->m_data;
     entry->m_asyncObject = nullptr;
+#if defined(__APPLE__)
+    CBLPFile source;
+    if (!source.Source(header, entry->m_size)) {
+        DebugLog("Rejected malformed character texture: %s\n", entry->m_fileName);
+        LoadFailureCallback(entry);
+        return;
+    }
+#else
     CBLPFile::ValidateHeader(*header);
+#endif
 
     entry->m_info.m_alphaSize = header->m_alphaSize;
     entry->m_info.m_opaque = header->m_alphaSize == 0;
     entry->m_info.m_width = header->m_width;
     entry->m_info.m_height = header->m_height;
+#if defined(__APPLE__)
+    entry->m_info.m_mipCount = source.m_numLevels;
+#else
     entry->m_info.m_mipCount = TextureCalcMipCount(entry->m_info.m_width, entry->m_info.m_height);
+#endif
 }
 
 // VERIFY: ca8c7168 manual
@@ -64,9 +93,23 @@ int32_t CACHEENTRY::LoadTexture() {
         return 0;
     }
 
+#if defined(__APPLE__)
+    uint32_t high = 0;
+    const uint32_t size = SFileGetFileSize(file, &high);
+    if (high || size < offsetof(BLPHeader, m_extended) || size > 64 * 1024 * 1024) {
+        SFileCloseFile(file);
+        this->m_loadFailed = 1;
+        DebugLog("Character texture exceeds the native file bounds: %s\n", this->m_fileName);
+        return 0;
+    }
+#endif
+
     this->m_asyncObject = AsyncFileReadAllocObject();
     this->m_asyncObject->m_userArg = this;
     this->m_asyncObject->m_userPostloadCallback = reinterpret_cast<void*>(&LoadSuccessCallback);
+#if defined(__APPLE__)
+    this->m_asyncObject->m_userPostUnloadCallback = reinterpret_cast<void*>(&LoadFailureCallback);
+#endif
     this->m_asyncObject->m_file = file;
     this->m_asyncObject->m_size = SFileGetFileSize(file, nullptr);
     this->m_asyncObject->m_priority = 130;
@@ -107,7 +150,11 @@ void* TextureCacheGetMip(void* handle, uint32_t mipLevel) {
 BlpPalPixel* TextureCacheGetPal(void* handle) {
     CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
 
-    if (!entry || entry->m_loadFailed || !entry->m_data || entry->m_data->m_colorEncoding != 1) {
+    if (!entry || entry->m_loadFailed || !entry->m_data
+#if defined(__APPLE__)
+        || entry->m_asyncObject || !entry->m_info.m_mipCount
+#endif
+        || entry->m_data->m_colorEncoding != 1) {
         return nullptr;
     }
 
@@ -119,7 +166,11 @@ BlpPalPixel* TextureCacheGetPal(void* handle) {
 int32_t TextureCacheHasMips(void* handle) {
     CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
 
-    return entry && entry->m_data && !entry->m_loadFailed;
+    return entry && entry->m_data && !entry->m_loadFailed
+#if defined(__APPLE__)
+        && !entry->m_asyncObject && entry->m_info.m_mipCount
+#endif
+        ;
 }
 
 // VERIFY: 195da797 auto
@@ -152,8 +203,14 @@ void TextureCacheComputeLoadProgress(void* handle, int64_t& local, int64_t& tota
 // VERIFY: 89bf2f8e manual
 // OFFSET: 0x004F2E20
 void TextureCacheDestroy() {
+#if defined(__APPLE__)
+    if (s_cacheTable.m_fulllist.Head()) throw std::logic_error("Character texture cache still has owners at shutdown");
+    // ObjectAlloc heap identities live for the process. Keep the empty heap
+    // reusable instead of registering another identity on every world reload.
+#else
     delete s_entryHeap;
     s_entryHeap = nullptr;
+#endif
 }
 
 // VERIFY: 65c3dd55 auto
@@ -235,7 +292,13 @@ CACHEENTRY::CACHEENTRY() {
 // OFFSET: 0x004F3110
 static CACHEENTRY* TextureCacheAllocEntry() {
     if (!s_entryHeap) {
+#if defined(__APPLE__)
+        static uint32_t heap;
+        heap = ObjectAllocAddHeap(sizeof(CACHEENTRY), 1024, "TCACHEENTRY", true);
+        s_entryHeap = &heap;
+#else
         s_entryHeap = new (__FILE__, __LINE__) uint32_t(ObjectAllocAddHeap(sizeof(CACHEENTRY), 1024, "TCACHEENTRY", true));
+#endif
     }
 
     uint32_t memHandle;
@@ -263,14 +326,21 @@ void TextureCacheDestroyTexture(void* handle) {
     if (--entry->m_refCount <= 0) {
         s_cacheTable.Unlink(entry);
         uint32_t* heap = s_entryHeap;
+        const uint32_t memHandle = entry->m_memHandle;
         entry->~CACHEENTRY();
-        ObjectFree(*heap, entry->m_memHandle);
+        ObjectFree(*heap, memHandle);
     }
 }
 
 // VERIFY: 1e1d17fd auto
 // OFFSET: 0x004F3930
 void* TextureCacheCreateTexture(const char* fileName) {
+#if defined(__APPLE__)
+    if (!fileName || !*fileName || SStrLen(fileName) >= sizeof(CACHEENTRY::m_fileName)) {
+        DebugLog("Invalid character texture path\n");
+        return nullptr;
+    }
+#endif
     uint32_t hashval = SStrHash(fileName, 0, 0);
     CACHEENTRY* entry = s_cacheTable.Ptr(hashval, s_cacheKey);
 
@@ -280,6 +350,7 @@ void* TextureCacheCreateTexture(const char* fileName) {
     }
 
     entry = TextureCacheAllocEntry();
+    if (!entry) return nullptr;
     s_cacheTable.Insert(entry, hashval, s_cacheKey);
     SStrCopy(entry->m_fileName, fileName, sizeof(entry->m_fileName));
     entry->m_refCount++;
