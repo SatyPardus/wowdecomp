@@ -152,6 +152,87 @@ bool CheckNativeWorldActions(WowNativeView* view) {
     return false;
 }
 
+bool CheckNativeWorldCasting(WowNativeView* view) {
+    static unsigned phase, readyFrames, button;
+    static int32_t spell;
+    static uint32_t mana, castDuration;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 12) return true;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) {
+        Require(!phase,"World left during native casting check"); return false;
+    }
+    if (!phase && ++readyFrames < 120) return false;
+    const unsigned short codes[] = {kVK_ANSI_1,kVK_ANSI_2,kVK_ANSI_3,kVK_ANSI_4,kVK_ANSI_5,kVK_ANSI_6,
+        kVK_ANSI_7,kVK_ANSI_8,kVK_ANSI_9,kVK_ANSI_0,kVK_ANSI_Minus,kVK_ANSI_Equal};
+    NSString* const texts[] = {@"1",@"2",@"3",@"4",@"5",@"6",@"7",@"8",@"9",@"0",@"-",@"="};
+    auto key = [&](unsigned short code,NSString* text,bool down) {
+        NSEvent* event = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp
+            location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:code];
+        if (down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto binding = [&](const char* key,const char* expected) {
+        Require(CGUIBindings::s_bindings,"Native casting check requires character bindings");
+        const char* action = CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,key,1);
+        Require(action && !std::strcmp(action,expected),"Native casting check does not match current character bindings");
+    };
+    auto castBar = [&] {
+        auto* frame = static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("CastingBarFrame",CSimpleFrame::GetObjectType()));
+        return frame && frame->m_isVisible;
+    };
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now-started).count();
+    auto next = [&] { ++phase; started=now; };
+    if (!phase) {
+        binding("F1","TARGETSELF"); binding("ESCAPE","TOGGLEGAMEMENU");
+        Require(!CGActionBar::m_bonusBarOffset && !CGActionBar::m_tempPageActiveFlags && CGActionBar::m_currentPage < 6,
+            "Native casting check requires a regular action bar");
+        SpellRec base; Require(g_spellDB.GetRecord(5185,&base),"Original Healing Touch record is missing");
+        const unsigned first=CGActionBar::m_currentPage*12;
+        for (unsigned i=0;i<12;++i) {
+            if (!CGActionBar::IsSpell(first+i)) continue;
+            int32_t pet=0; const int32_t id=CGActionBar::GetSpell(first+i,pet); SpellRec candidate;
+            if (!pet && g_spellDB.GetRecord(id,&candidate) && !std::strcmp(candidate.m_name,base.m_name)) { spell=id; button=i; }
+        }
+        Require(spell,"Native casting check requires Healing Touch on the existing action bar");
+        char command[32]; std::snprintf(command,sizeof(command),"ACTIONBUTTON%u",button+1); binding(texts[button].UTF8String,command);
+        key(kVK_F1,@"\uF704",true); next();
+    } else if (phase == 1 && elapsed >= .05) { key(kVK_F1,@"\uF704",false); next(); }
+    else if (phase == 2 && elapsed >= .3) {
+        Require(CGGameUI::m_lockedTarget == ClntObjMgrGetActivePlayer(),"Native F1 did not select the healing target");
+        mana=player->m_unit->m_unitFieldPower[0]; key(codes[button],texts[button],true); next();
+    } else if (phase == 3 && elapsed >= .05) { key(codes[button],texts[button],false); next(); }
+    else if (phase == 4 || phase == 10) {
+        if (player->m_castingSpellId == uint32_t(spell) && castBar()) {
+            castDuration=player->m_castEndTime-player->m_castStartTime;
+            Require(castDuration >= 1000,"Healing Touch check requires a noninstant cast");
+            std::fprintf(stderr,"Native world casting: spell %d, %u ms original cast bar, mana %u\n",spell,castDuration,mana);
+            next();
+        } else Require(elapsed < 3,"Native action button did not start the original cast bar");
+    } else if (phase == 5 && elapsed >= .3) { key(kVK_Escape,@"\x1b",true); next(); }
+    else if (phase == 6 && elapsed >= .05) { key(kVK_Escape,@"\x1b",false); next(); }
+    else if (phase == 7) {
+        if (!player->m_castingSpellId && !player->m_castSpellId) next();
+        else Require(elapsed < 2,"Native Escape did not cancel the original cast");
+    } else if (phase == 8 && elapsed >= castDuration/1000.0 + .5) {
+        Require(!player->m_castingSpellId && player->m_unit->m_unitFieldPower[0] >= mana,
+            "Cancelled healing cast consumed server mana or resumed");
+        std::fputs("Native world casting: Escape cancellation retained server mana\n",stderr);
+        mana=player->m_unit->m_unitFieldPower[0]; key(codes[button],texts[button],true); next();
+    } else if (phase == 9 && elapsed >= .05) { key(codes[button],texts[button],false); next(); }
+    else if (phase == 11) {
+        if (!player->m_castingSpellId && !player->m_castSpellId && player->m_unit->m_unitFieldPower[0] < mana) {
+            Require(elapsed >= castDuration/1000.0-.5,"Healing cast completed before its original duration");
+            std::fprintf(stderr,"Native world casting: completed spell %d after %.3f s, server mana %u -> %u; cancellation/completion passed\n",
+                spell,elapsed,mana,player->m_unit->m_unitFieldPower[0]);
+            next(); return true;
+        }
+        Require(elapsed < castDuration/1000.0+5,"Healing cast did not finish with the server mana update");
+    }
+    return false;
+}
+
 bool CheckNativeWorldReentry(WowNativeView* view) {
     static unsigned phase, stableFrames;
     static WOWGUID character;

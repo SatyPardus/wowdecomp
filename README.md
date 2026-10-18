@@ -332,6 +332,13 @@ regular action bar and the existing F1/B/number bindings; it applies or refreshe
 and then cancels the buff. It does not change bindings or action slots. Allow
 1200 frames, or 1800 when combined with `--check-world-input`.
 
+`--check-world-casting` uses the existing Healing Touch action and F1/Escape/number
+bindings to cancel one cast, wait beyond its cast time without spending server
+mana, then complete a second cast. The original two-second cast bar and server
+mana change (449 to 401) passed with spell 5186 in a 1500-frame local session,
+including normal shutdown, Mac ASan/UBSan and Metal validation. This check heals
+the selected player; it does not validate hostile combat or damage.
+
 `--check-world-reentry` additionally opens the original game menu, clicks Logout,
 waits for the server and character-selection screen, then clicks Enter World for
 the same selected character. It never forces a logout or resets game objects.
