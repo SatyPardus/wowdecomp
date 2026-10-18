@@ -932,13 +932,17 @@ saturation, UV set selection, affine/projective texture transforms, vertex or
 material color, linear vertex fog and independent alpha testing. It uses typed
 Metal constants and function specialization. Polygon offset keeps the original
 normalized depth adjustment after clipping and viewport mapping, using a separate
-fragment-depth variant only when enabled. Seventy-six numerical draws cover stage
+fragment-depth variant only when enabled. One hundred thirteen numerical draws cover stage
 order, disabled cascades, all RGB/alpha pairs, transforms, fog interpolation,
 alpha boundaries, signed offsets, depth write/compare, clamping, clip boundaries
 and consecutive state restoration. `WOW_METAL_CHECK=fixed` runs these checks and
-the existing water-ripple regression. SM3 terrain/model/world shaders
+the existing water-ripple regression. Linear generated coordinates preserve the
+original object/world/camera sources, transform flags and Gx state update timing;
+324 independent pixel references cover transforms, projection, missing authored
+UVs and changing cameras. These checks pass on Mac with ASan/UBSan and Metal
+validation and on the iOS simulator. SM3 terrain/model/world shaders
 keep their own fog even when the retained Gx fog-enable state is set, as required
-by the original profile. Lighting, generated fixed-function coordinates and
+by the original profile. Lighting, normal/reflection fixed-function coordinates and
 mixed programmable/fixed-function pairs still fail explicitly.
 
 The native unlit geometry primitive now links the shared Gx vertex-layout tables

@@ -130,7 +130,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
                            (uint32_t(depthOffset) << 8);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
-        wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
+        fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
         fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : 0,
@@ -543,6 +543,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&color type:MTLDataTypeBool atIndex:30];
         [constants setConstantValue:&uv0 type:MTLDataTypeBool atIndex:31];
         [constants setConstantValue:&uv1 type:MTLDataTypeBool atIndex:32];
+        [constants setConstantValue:&fixed->positionCoords type:MTLDataTypeUInt atIndex:34];
         NSError* error = nil;
         descriptor.vertexFunction = [m_library newFunctionWithName:@"fixedUnlitVertex" constantValues:constants error:&error];
         descriptor.fragmentFunction = [m_library newFunctionWithName:depthOffset ? @"fixedUnlitBiasedFragment" : @"fixedUnlitFragment" constantValues:constants error:&error];

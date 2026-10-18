@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <stdexcept>
 
 namespace {
@@ -190,5 +191,68 @@ void CheckFixedUnlit(CGxDeviceMetal& device) {
     device.DeviceReadDepths(rect, depth); device.ScenePresent();
     if (std::abs(depth[8 * 16 + 8] - 0.5f) > 1e-6f) throw std::runtime_error("Fixed-function depth bias leaked across consecutive draws");
     GxRsSet(GxRs_PolygonOffset, 0.0f);
+    // Generated coordinates must use position even when unrelated UVs exist.
+    // Keep clip geometry unchanged while varying camera/model transforms.
+    for (unsigned i = 0; i < 4; ++i) device.TexSetFlags(cleanup.textures[i], CGxTexFlags(GxTex_Linear));
+    GxRsSet(GxRs_DepthWrite, 0);
+    auto transform = [](const std::array<double,4>& v, const C44Matrix& m) {
+        std::array<double,4> out{}; const float* a = &m.a0;
+        for (unsigned c=0;c<4;++c) for (unsigned r=0;r<4;++r) out[c] += v[r] * a[r*4+c];
+        return out;
+    };
+    auto sample = [&](unsigned image, double u, double v) {
+        u = std::clamp(u*2-0.5, 0.0, 1.0); v = std::clamp(v*2-0.5, 0.0, 1.0);
+        const auto a=Unpack(texels[image][0]), b=Unpack(texels[image][1]), c=Unpack(texels[image][2]), d=Unpack(texels[image][3]);
+        Color out{};
+        for (unsigned k=0;k<4;++k) out[k]=(1-v)*((1-u)*a[k]+u*b[k])+v*((1-u)*c[k]+u*d[k]);
+        return out;
+    };
+    C44Matrix world(1), view(1), textureMatrix(1);
+    world.a0=0.8f; world.a1=0.6f; world.b0=-0.6f; world.b1=0.8f; world.d0=0.37f; world.d1=-0.21f;
+    view.a0=0; view.a1=-1; view.b0=1; view.b1=0; view.d0=0.11f; view.d1=0.43f;
+    textureMatrix.a0=0.45f; textureMatrix.b0=0.12f; textureMatrix.c0=0.19f; textureMatrix.d0=0.42f;
+    textureMatrix.a1=-0.17f; textureMatrix.b1=0.38f; textureMatrix.c1=0.09f; textureMatrix.d1=0.51f;
+    textureMatrix.a2=0.13f; textureMatrix.b2=-0.07f; textureMatrix.c2=0.21f; textureMatrix.d2=0.86f;
+    GxXformSet(GxXform_World, world);
+    unsigned generatedSamples=0;
+    for (unsigned camera=0;camera<2;++camera) {
+        view.d0 += 0.19f; view.d1 -= 0.23f;
+        device.XformSetView(view);
+        device.m_projNative=(world*view).Inverse();
+        for (unsigned gen=1;gen<=3;++gen) for (unsigned mode=0;mode<=2;++mode) for (bool withUV : {false,true}) {
+            device.RsSet(GxRs_Texture0, cleanup.textures[0]);
+            GxRsSet(GxRs_TexGen0, int(gen)); GxRsSet(GxRs_TextureShader0, int(mode));
+            GxRsSet(GxRs_ColorOp0, 0); GxRsSet(GxRs_AlphaOp0, 0);
+            GxXformSet(GxXform_Tex0, textureMatrix);
+            device.BeginFrame(pass);
+            GxPrimVertexPtr(4, positions, sizeof(C3Vector), nullptr, 0, &color, 0, withUV ? &uv0 : nullptr, 0, nullptr, 0);
+            device.Draw(&batch, 0);
+            TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels); device.ScenePresent(); ++draws;
+            for (unsigned y : {4u,8u,12u}) for (unsigned x : {4u,8u,12u}) {
+                std::array<double,4> coord{(x+0.5)/8-1, 1-(y+0.5)/8, 0.5, 1};
+                if (gen>=2) coord=transform(coord,world);
+                if (gen==3) coord=transform(coord,view);
+                if (mode) coord=transform(coord,textureMatrix);
+                const double divisor=mode==2 ? coord[2] : 1;
+                const auto want=Stage(diffuse,sample(0,coord[0]/divisor,coord[1]/divisor),0,0,diffuse[3]);
+                const auto& p=pixels[y*16+x]; const unsigned got[]{p.r,p.g,p.b,p.a};
+                for (unsigned c=0;c<4;++c) if (std::abs(int(got[c])-int(std::lround(want[c]*255)))>1)
+                    throw std::runtime_error("Generated fixed-function coordinate mismatch: mode " + std::to_string(gen) + "/" + std::to_string(mode) + " sample " + std::to_string(generatedSamples));
+                ++generatedSamples;
+            }
+        }
+    }
+    // Original render-state synchronization retains the inverse-model matrix
+    // until TexGen is resent; moving only the world matrix must not refresh it.
+    GxRsSet(GxRs_TexGen0, GxTexGen_ObjectLinear); device.IRsSync(0);
+    const auto savedInverse = device.m_texGen[0].m_mtx[device.m_texGen[0].m_level];
+    world.d0+=0.6f; GxXformSet(GxXform_World, world); device.IRsSync(0);
+    const auto& retained = device.m_texGen[0].m_mtx[device.m_texGen[0].m_level];
+    if (std::memcmp(&savedInverse,&retained,sizeof(C44Matrix))) throw std::runtime_error("Generated coordinates did not preserve original state timing");
+    GxRsSet(GxRs_TexGen0, GxTexGen_Disabled);
+    GxRsSet(GxRs_TextureShader0, 0); GxXformSet(GxXform_Tex0,C44Matrix(1));
+    device.XformSetView(C44Matrix(1)); GxXformSet(GxXform_World,C44Matrix(1)); device.m_projNative=C44Matrix(1);
+    draw(Stage(diffuse,Unpack(texels[0][0]),0,0,diffuse[3]));
+    std::fprintf(stderr,"Generated linear texture coordinates: %u independent pixel references, object/world/camera source, disabled/affine/projected transforms, missing UVs and view/state changes passed\n",generatedSamples);
     std::fprintf(stderr, "Native fixed-function: %u numerical draws, six independent RGB/alpha operations, four stages, disabled cascade, UV sets/transforms, material color, vertex fog, alpha boundary and normalized post-raster depth offset passed\n", draws);
 }

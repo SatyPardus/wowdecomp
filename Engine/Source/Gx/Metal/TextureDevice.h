@@ -18,7 +18,7 @@
 namespace GxMetal {
 // Typed native parameters for the original unlit texture-stage pipeline.
 struct FixedUnlitVertexParameters {
-    simd_float4x4 clipFromModel;
+    simd_float4x4 clipFromModel, viewFromModel;
     simd_float4 viewDepth, materialColor, fog;
     simd_float4 textureRows[4][3];
     simd_uint4 uvSet{}, projected{};
@@ -27,12 +27,12 @@ struct FixedUnlitFragmentParameters {
     simd_float4 fogColor, decodeScale[4];
     float alphaRef, depthOffset = 0, padding[2]{};
 };
-static_assert(sizeof(FixedUnlitVertexParameters) == 336 && sizeof(FixedUnlitFragmentParameters) == 96,
+static_assert(sizeof(FixedUnlitVertexParameters) == 400 && sizeof(FixedUnlitFragmentParameters) == 96,
               "Native fixed-function constant layout");
 struct FixedUnlitDrawParameters {
     FixedUnlitVertexParameters vertex{};
     FixedUnlitFragmentParameters fragment{};
-    uint32_t stages = 0, colorOps = 0, alphaOps = 0;
+    uint32_t stages = 0, colorOps = 0, alphaOps = 0, positionCoords = 0;
     bool fog = false;
 };
 

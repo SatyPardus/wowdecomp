@@ -7,12 +7,13 @@ constant bool fixedFog [[function_constant(29)]];
 constant bool fixedHasColor [[function_constant(30)]];
 constant bool fixedHasUV0 [[function_constant(31)]];
 constant bool fixedHasUV1 [[function_constant(32)]];
+constant uint fixedPositionCoords [[function_constant(34)]];
 constant bool fixedTexture0 = fixedStages > 0;
 constant bool fixedTexture1 = fixedStages > 1;
 constant bool fixedTexture2 = fixedStages > 2;
 constant bool fixedTexture3 = fixedStages > 3;
 struct FixedUnlitVertexParameters {
-    float4x4 clipFromModel;
+    float4x4 clipFromModel, viewFromModel;
     float4 viewDepth, materialColor, fog;
     float4 textureRows[4][3];
     uint4 uvSet, projected;
@@ -42,12 +43,13 @@ vertex FixedUnlitRaster fixedUnlitVertex(FixedUnlitVertex v [[stage_in]], consta
     out.color = fixedHasColor ? v.color : p.materialColor;
     out.fog = fixedFog ? saturate((p.fog.y - abs(dot(p.viewDepth, position))) * p.fog.z) : 1;
     out.pointSize = 1;
+    float4 viewPosition = fixedPositionCoords ? p.viewFromModel * position : float4(0);
     float3 coords[4];
     for (uint stage = 0; stage < 4; ++stage) {
         float2 uv = float2(0);
         if (p.uvSet[stage] == 0 && fixedHasUV0) uv = v.uv0;
         if (p.uvSet[stage] == 1 && fixedHasUV1) uv = v.uv1;
-        float4 input = float4(uv, 1, 0);
+        float4 input = (fixedPositionCoords & (1u << stage)) ? viewPosition : float4(uv, 1, 0);
         coords[stage] = float3(dot(input, p.textureRows[stage][0]), dot(input, p.textureRows[stage][1]),
                               p.projected[stage] ? dot(input, p.textureRows[stage][2]) : 1);
     }

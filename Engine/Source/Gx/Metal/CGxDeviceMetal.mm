@@ -624,6 +624,26 @@ void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
 }
 void CGxDeviceMetal::IRsSendToHw(EGxRenderState which) {
     if (which == GxRs_ScissorTest) { m->scissorEnabled = m_appRenderStates[which].m_value.m_data.u[0] != 0; }
+    if (which >= GxRs_TexGen0 && which <= GxRs_TexGen7) {
+        const auto mode = m_appRenderStates[which].m_value.m_data.u[0];
+        auto& generated = m_texGen[which - GxRs_TexGen0];
+        C44Matrix matrix(1);
+        if (mode == GxTexGen_ObjectLinear || mode == GxTexGen_EyeLinear) {
+            const auto& view = m_xforms[GxXform_View];
+            matrix = view.m_mtx[view.m_level].AffineInverse();
+            if (mode == GxTexGen_ObjectLinear) {
+                const auto& world = m_xforms[GxXform_World];
+                matrix = matrix * world.m_mtx[world.m_level].Inverse();
+            }
+        } else if (mode == GxTexGen_SphereMap) {
+            matrix.a0 = matrix.b1 = matrix.d0 = matrix.d1 = 0.5f;
+        }
+        generated.m_mtx[generated.m_level] = matrix;
+        generated.m_dirty = 1;
+        if (mode == GxTexGen_ObjectLinear || mode == GxTexGen_EyeLinear || mode == GxTexGen_SphereMap)
+            generated.m_flags[generated.m_level] &= ~CGxMatrixStack::F_Identity;
+        else generated.m_flags[generated.m_level] |= CGxMatrixStack::F_Identity;
+    }
     // Other pipeline/state snapshots are bound at Draw.
 }
 
@@ -1171,6 +1191,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         const C44Matrix worldView = world.m_mtx[world.m_level] * view.m_mtx[view.m_level];
         draw.clipFromModel = worldView * m_projNative;
         std::memcpy(&native.vertex.clipFromModel, &draw.clipFromModel, sizeof(C44Matrix));
+        std::memcpy(&native.vertex.viewFromModel, &worldView, sizeof(C44Matrix));
         native.vertex.viewDepth = {worldView.a2, worldView.b2, worldView.c2, worldView.d2};
         auto color = [&](EGxRenderState state) {
             const uint32_t value = integer(state);
@@ -1192,20 +1213,11 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             const unsigned rgb = integer(EGxRenderState(GxRs_ColorOp0 + i)), alpha = integer(EGxRenderState(GxRs_AlphaOp0 + i));
             Require(rgb < 6 && alpha < 6, "Invalid fixed-function texture operation");
             native.colorOps |= rgb << (3 * i); native.alphaOps |= alpha << (3 * i);
-            Require(!integer(EGxRenderState(GxRs_TexGen0 + i)), "Generated fixed-function texture coordinates are not implemented");
+            const unsigned texGen = integer(EGxRenderState(GxRs_TexGen0 + i));
+            Require(texGen <= GxTexGen_Unk3, "Normal/reflection fixed-function coordinates are not implemented");
+            if (texGen) native.positionCoords |= 1u << i;
             native.vertex.uvSet[i] = integer(EGxRenderState(GxRs_TextureCoord0 + i));
             Require(native.vertex.uvSet[i] < 8, "Invalid fixed-function coordinate set");
-            const unsigned mode = integer(EGxRenderState(GxRs_TextureShader0 + i));
-            Require(mode <= 2, "Invalid fixed-function texture transform");
-            const auto& gen = m_texGen[i]; const auto& xform = m_xforms[i];
-            C44Matrix matrix = mode ? gen.m_mtx[gen.m_level] * xform.m_mtx[xform.m_level] : gen.m_mtx[gen.m_level];
-            // D3D's two-component input is extended with (1, 0). Gx moves
-            // affine translation into the third row for COUNT2 transforms.
-            if (mode == 1) { matrix.c0 = matrix.d0; matrix.c1 = matrix.d1; }
-            native.vertex.textureRows[i][0] = {matrix.a0, matrix.b0, matrix.c0, matrix.d0};
-            native.vertex.textureRows[i][1] = {matrix.a1, matrix.b1, matrix.c1, matrix.d1};
-            native.vertex.textureRows[i][2] = {matrix.a2, matrix.b2, matrix.c2, matrix.d2};
-            native.vertex.projected[i] = mode == 2;
         }
     } else if (netherBlur) {
         const float* constants = s_shadowConstants[1].constants;
@@ -1358,6 +1370,23 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     draw.viewport = Viewport();
     m->scissor = Scissor(); m_scissorRectDirty = 0;
     IRsSync(0);
+    if (fixed) {
+        auto& native = *fixedParameters;
+        for (unsigned i = 0; i < inputs; ++i) {
+            const auto& generated = m_texGen[i]; const auto& xform = m_xforms[i];
+            const unsigned mode = integer(EGxRenderState(GxRs_TextureShader0 + i));
+            Require(mode <= 2, "Invalid fixed-function texture transform");
+            C44Matrix matrix = generated.m_mtx[generated.m_level];
+            if (mode) matrix = matrix * xform.m_mtx[xform.m_level];
+            // A generated camera-space position uses all four components.
+            // Authored UVs instead use D3D's (u, v, 1, 0) COUNT2 input.
+            if (mode == 1 && !(native.positionCoords & (1u << i))) { matrix.c0 = matrix.d0; matrix.c1 = matrix.d1; }
+            native.vertex.textureRows[i][0] = {matrix.a0, matrix.b0, matrix.c0, matrix.d0};
+            native.vertex.textureRows[i][1] = {matrix.a1, matrix.b1, matrix.c1, matrix.d1};
+            native.vertex.textureRows[i][2] = {matrix.a2, matrix.b2, matrix.c2, matrix.d2};
+            native.vertex.projected[i] = mode == 2;
+        }
+    }
     if (!draw.viewport.width || !draw.viewport.height) { return; }
     draw.scissorEnabled = integer(GxRs_ScissorTest);
     if (draw.scissorEnabled) {
