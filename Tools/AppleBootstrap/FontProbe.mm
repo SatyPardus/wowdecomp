@@ -1,6 +1,8 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gxu/GxuFont.h"
+#include "Engine/Source/Gxu/GxuFontFace.h"
+#include "Engine/Source/Gxu/GxuFontFont.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Services/Texture.h"
 #include <freetype/internal/ftstream.h>
@@ -8,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 void CheckFontIntegerReads() {
@@ -47,6 +50,39 @@ struct FontScope {
         GxuFontShutdown();
     }
 };
+
+void CheckLocalizedAdvances() {
+    // Authored ZYKai_T hmtx values, unitsPerEm=256. The font sets isFixedPitch
+    // despite proportional Latin metrics; hhea.advanceWidthMax=524 must not
+    // replace them. Both original glyph modes use the same advances.
+    for (uint32_t flags : {0u, 2u}) {
+        FontScope sample;
+        if (!GxuFontCreateFont("Fonts\\ZYKai_T.TTF", .1f, sample.font, flags)) {
+            throw std::runtime_error("Cannot load the original localized UI font");
+        }
+        auto* face = FontFaceGetFace(sample.font->m_fontFaceHandle);
+        if (face->units_per_EM != 256 || !(face->face_flags & FT_FACE_FLAG_FIXED_WIDTH)) {
+            throw std::runtime_error("Localized font metric reference does not match mounted Data");
+        }
+        for (unsigned size : {12u, 24u, 32u}) {
+            sample.font->ClearGlyphs(); sample.font->m_pixelSize = size;
+            for (auto metric : {std::pair<uint32_t, unsigned>{'A', 176}, {'p', 133}, {0x4f60, 256}}) {
+                const float expected = (metric.second * size / 256) + 1;
+                GLYPHBITMAPDATA glyph{};
+                if (!sample.font->GetGlyphData(&glyph, metric.first)) {
+                    throw std::runtime_error("Cannot render original localized glyph");
+                }
+                const float advance = glyph.m_glyphAdvance;
+                if (advance != expected || face->glyph->linearHoriAdvance != metric.second) {
+                    std::fprintf(stderr, "Localized metrics: flags=%u size=%u code=%x advance=%g expected=%g linear=%ld expected=%u\n",
+                        flags, size, metric.first, advance, expected,
+                        face->glyph->linearHoriAdvance, metric.second);
+                    throw std::runtime_error("Original localized per-glyph advance was replaced by a global width");
+                }
+            }
+        }
+    }
+}
 
 uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:512 height:256 mipmapped:NO];
@@ -131,6 +167,7 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
 
 void CheckGxFont(CGxDeviceMetal& device) {
     CheckFontIntegerReads();
+    CheckLocalizedAdvances();
     struct CacheScope { ~CacheScope() { TextureGxCacheFlush(); } } cache;
     device.PoolSizeSet(device.m_vertexPool, 1024 * 1024);
     device.PoolSizeSet(device.m_indexPool, 64 * 1024);

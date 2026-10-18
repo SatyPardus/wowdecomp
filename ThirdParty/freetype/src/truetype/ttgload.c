@@ -113,26 +113,6 @@
 
   /*************************************************************************/
   /*                                                                       */
-  /* Returns the horizontal metrics in font units for a given glyph.  If   */
-  /* `check' is true, take care of monospaced fonts by returning the       */
-  /* advance width maximum.                                                */
-  /*                                                                       */
-  static
-  void Get_HMetrics( TT_Face     face,
-                     FT_UInt     index,
-                     FT_Bool     check,
-                     FT_Short*   lsb,
-                     FT_UShort*  aw )
-  {
-    TT_Get_Metrics( &face->horizontal, index, lsb, aw );
-
-    if ( check && face->postscript.isFixedPitch )
-      *aw = face->horizontal.advance_Width_Max;
-  }
-
-
-  /*************************************************************************/
-  /*                                                                       */
   /*    Returns the advance width table for a given pixel size if it is    */
   /*    found in the font's `hdmx' table (if any).                         */
   /*                                                                       */
@@ -709,11 +689,11 @@
       FT_UShort  advance_width;
 
 
-      Get_HMetrics( face, index,
-                    (FT_Bool)!(loader->load_flags &
-                                FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH),
-                    &left_bearing,
-                    &advance_width );
+      /* 3.3.5a 0x009971A8..0x009971F6 reads the per-glyph hmtx value
+       * without replacing it with advance_Width_Max for fixed-pitch fonts.
+       * ZYKai_T advertises fixed pitch but has proportional Latin metrics. */
+      TT_Get_Metrics( &face->horizontal, index, &left_bearing,
+                      &advance_width );
 
       loader->left_bearing = left_bearing;
       loader->advance      = advance_width;
@@ -1149,23 +1129,8 @@
 
     /* get the device-independent horizontal advance.  It is scaled later */
     /* by the base layer.                                                 */
-    {
-      FT_Pos  advance = loader->advance;
-
-
-      /* the flag FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH was introduced to */
-      /* correctly support DynaLab fonts, which have an incorrect       */
-      /* `advance_Width_Max' field!  It is used, to my knowledge,       */
-      /* exclusively in the X-TrueType font server.                     */
-      /*                                                                */
-      if ( face->postscript.isFixedPitch                                    &&
-           ( loader->load_flags & FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH ) == 0 )
-        advance = face->horizontal.advance_Width_Max;
-
-      /* we need to return the advance in font units in linearHoriAdvance, */
-      /* it will be scaled later by the base layer.                        */
-      glyph->linearHoriAdvance = advance;
-    }
+    /* 3.3.5a 0x00997630 also preserves the same per-glyph linear advance. */
+    glyph->linearHoriAdvance = loader->advance;
 
     glyph->metrics.horiBearingX = bbox.xMin;
     glyph->metrics.horiBearingY = bbox.yMax;
