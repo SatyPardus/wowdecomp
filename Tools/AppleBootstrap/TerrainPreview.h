@@ -4,14 +4,16 @@
 #include "Engine/Source/Tempest/C2Vector.h"
 #include <array>
 #include <string>
+#include <memory>
 class CTexture;
+class TerrainLiquidPreview;
 struct CGxBuf;
 struct CGxPool;
 class CGxShader;
 
 // A complete ADT surface, using shared original geometry/alpha generation and
-// Services texture ownership. World objects, liquids and day/night selection
-// are not supplied by this preview; its camera and lighting are explicit inputs.
+// Services texture ownership, plus original MH2O liquids. World objects and
+// day/night selection are not supplied; camera and lighting are explicit inputs.
 class TerrainPreview {
 public:
     explicit TerrainPreview(const std::string& selection); // Map:tileX:tileY
@@ -19,7 +21,9 @@ public:
     TerrainPreview(const TerrainPreview&) = delete;
     TerrainPreview& operator=(const TerrainPreview&) = delete;
     bool Ready(bool wait = false);
-    bool Draw(float elapsedSeconds, uint32_t width, uint32_t height, bool fullViewport = false);
+    bool Draw(float elapsedSeconds, uint32_t width, uint32_t height, bool fullViewport = false, bool liquidOnly = false);
+    size_t LiquidLayerCount() const;
+    size_t LiquidBatchCount() const;
     size_t ChunkCount() const { return m_chunks.size(); }
     uint32_t TriangleCount() const { return m_triangles; }
 private:
@@ -31,6 +35,7 @@ private:
         uint32_t vertexPermutation = 0, pixelPermutation = 0;
     };
     void Shutdown();
+    std::unique_ptr<TerrainLiquidPreview> m_liquid;
     Terrain::Surface m_surface;
     std::vector<Chunk> m_chunks;
     std::vector<CTexture*> m_textures;

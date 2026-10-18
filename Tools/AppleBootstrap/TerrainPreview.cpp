@@ -1,4 +1,5 @@
 #include "Tools/AppleBootstrap/TerrainPreview.h"
+#include "Tools/AppleBootstrap/TerrainLiquidPreview.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -119,12 +120,16 @@ TerrainPreview::TerrainPreview(const std::string& selection) {
         m_indices = device.BufCreate(m_indexPool, sizeof(indices[0]), uint32_t(indices.size()), 0);
         GxBufData(m_vertices, vertices.data(), uint32_t(vertices.size()*sizeof(vertices[0])), 0);
         GxBufData(m_indices, indices.data(), uint32_t(indices.size()*sizeof(indices[0])), 0);
+        m_liquid = std::make_unique<TerrainLiquidPreview>(adt, m_surface, x, y, m_radius);
         std::fprintf(stderr, "Terrain surface %s: %zu chunks, %u triangles, %zu materials, %s alpha, specular textures enabled\n",
             selection.c_str(), m_chunks.size(), m_triangles, size_t(std::count(needed.begin(), needed.end(), true)), m_surface.bigAlpha ? "8-bit" : "4-bit");
     } catch (...) { Shutdown(); throw; }
 }
 TerrainPreview::~TerrainPreview() { Shutdown(); }
+size_t TerrainPreview::LiquidLayerCount() const { return m_liquid ? m_liquid->LayerCount() : 0; }
+size_t TerrainPreview::LiquidBatchCount() const { return m_liquid ? m_liquid->BatchCount() : 0; }
 void TerrainPreview::Shutdown() {
+    m_liquid.reset();
     auto& device = *g_theGxDevicePtr;
     for (auto& chunk : m_chunks) CloseTexture(chunk.texture);
     for (auto& texture : m_textures) CloseTexture(texture);
@@ -140,9 +145,10 @@ bool TerrainPreview::Ready(bool wait) {
         CStatus status; ready &= TextureGetGxTex(texture, wait, &status) != nullptr;
         if (!status.IsEmpty() || !texture->m_status.IsEmpty()) throw std::runtime_error(std::string("Terrain texture failed: ") + texture->m_filename);
     }
+    if (m_liquid) ready &= m_liquid->Ready(wait);
     return ready;
 }
-bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, bool fullViewport) {
+bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, bool fullViewport, bool liquidOnly) {
     if (!Ready()) return false;
     auto& device = *g_theGxDevicePtr;
     device.RsPush(); struct Pop { CGxDevice& device; ~Pop() { device.RsPop(); } } pop{device};
@@ -174,7 +180,7 @@ bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height,
     GxPrimVertexPtr(m_vertices, GxVBF_PNC); device.PrimIndexPtr(m_indices);
     const float geoToTex = 1.0f/4.1666665f;
     const float animationRate[] = {64,48,32,16,8,4,2,1};
-    for (size_t i = 0; i < m_chunks.size(); ++i) {
+    if (!liquidOnly) for (size_t i = 0; i < m_chunks.size(); ++i) {
         auto& chunk = m_chunks[i]; if (!chunk.batch.m_count) continue;
         const auto& layers = m_surface.chunks[i].layers;
         std::array<float, 4> lighting{1,1,1,1};
@@ -196,6 +202,13 @@ bool TerrainPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height,
         GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 37); GxShaderConstantsSet(GxSh_Pixel, 1, lighting.data(), 1);
         device.RsSet(GxRs_VertexShader, m_vertexShaders[chunk.vertexPermutation]); device.RsSet(GxRs_PixelShader, m_pixelShaders[chunk.pixelPermutation]);
         GxDraw(&chunk.batch, 1);
+    }
+    if (m_liquid) {
+        GxXformPush(GxXform_View);
+        const auto previousProjection = device.m_projNative;
+        struct Restore { CGxDevice& device; C44Matrix projection; ~Restore() {device.m_projNative=projection;GxXformPop(GxXform_View);} } restore{device,previousProjection};
+        device.m_projNative = projection; GxXformSetView(view);
+        m_liquid->Draw(C3Vector(0,0,0));
     }
     GxXformSetViewport(0, 1, 0, 1, 0, 1);
     return true;
