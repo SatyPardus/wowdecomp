@@ -263,6 +263,16 @@ and version invalidation, and rejects truncated addon policy records.
 Full AddOns/UI startup and real executable version checks remain pending.
 Warden cache serialization is shared; native execution of Windows
 Warden modules is not implemented.
+The combined native client now links the original Glue initialization. Native
+URL requests go through AppKit/UIKit; remote streaming scheduling hints are
+inactive in a full local installation. Windows patch execution reports failure.
+Executable challenges raise an explicit unsupported error. Encrypted integrity
+modules and armed scans log the unsupported request and disconnect without
+emitting a digest or fabricated result, or unwinding through the original network
+queue's locks. Warden initialization reports unavailable and installs a rejecting
+message handler; its idle processing owns no module runtime. These boundaries
+enable startup integration without claiming those services are implemented.
+The separate local realm command above remains the explicit development policy.
 
 The original account-settings synchronization now runs on the native Realm
 session too. `AccountDataHost` supplies the session and selected identity; the

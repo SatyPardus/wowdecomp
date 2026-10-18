@@ -388,7 +388,7 @@ target_link_libraries(ObjectMgrClient PUBLIC Object Game)
 add_subdirectory(WoW/Source/Minigame)
 target_link_libraries(Minigame PUBLIC Game)
 add_library(AppleClientCore STATIC WoW/Source/Client.cpp WoW/Source/Client_CVar.cpp
-    WoW/Source/Client_Console.cpp WoW/Source/WowSysMessageOutput.cpp)
+    WoW/Source/Client_Console.cpp WoW/Source/WowSysMessageOutput.cpp WoW/Source/Apple/ClientIntegrity.cpp)
 target_link_libraries(AppleClientCore PUBLIC Glue WowSvcs UIUtil Game Object DB AppleLoadingScreen Magic WoWCommon ObjectMgrClient Minigame)
 add_library(AppleRealmProbeCore STATIC Tools/AppleBootstrap/RealmProbe.cpp Tools/AppleBootstrap/CacheProbe.cpp Tools/AppleBootstrap/AccountDataProbe.cpp)
 target_link_libraries(AppleRealmProbeCore PUBLIC AppleGameLogin AppleSessionServices AppleMetal)
@@ -434,7 +434,8 @@ string(APPEND WOW_TEXTURE_QUAD_SOURCE "\n${WOW_SKINNING_SOURCE}\n${WOW_SHADOW_MA
 configure_file(Engine/Source/Gx/Metal/ShaderSource.h.in ${CMAKE_BINARY_DIR}/generated/MetalShaderSource.h @ONLY)
 add_library(AppleMetal STATIC Engine/Source/Gx/Metal/TextureDevice.mm Engine/Source/Gx/Metal/GeometryDraw.mm
     Engine/Source/Gx/Metal/CGxDeviceMetal.mm Engine/Source/Gx/Metal/ApplePlatform.mm
-    Engine/Source/Os/Apple/OsClipboard.mm Engine/Source/Os/Apple/Gui.mm Engine/Source/Os/OsClipboard.cpp)
+    Engine/Source/Os/Apple/OsClipboard.mm Engine/Source/Os/Apple/Gui.mm
+    Engine/Source/Os/Apple/LaunchURL.mm Engine/Source/Os/OsClipboard.cpp)
 target_include_directories(AppleMetal PRIVATE ${CMAKE_BINARY_DIR}/generated)
 target_compile_options(AppleMetal PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetal PUBLIC AppleTextureData Gx "-framework Metal" "-framework Foundation")

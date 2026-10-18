@@ -25,8 +25,15 @@ static bool UnsupportedDownload() {
 bool MakeLocalAsync(File::StreamRecord*, int64_t, int32_t, int32_t, const char*) { return UnsupportedDownload(); }
 bool MakeLocalBlocking(File::StreamRecord*, int64_t, int32_t, int32_t, const char*) { return UnsupportedDownload(); }
 bool InitializeStreaming(const char*, const char*, const char*, const char*, bool) { return UnsupportedDownload(); }
+// These are scheduling hints for the remote manifest/preload manager. Full
+// local installations have no such manager, worker or pending remote requests.
+void SetZone(int32_t, int32_t) {}
 }
 bool CheckIfStreamingAndTrial() { return false; }
+void SetClientInitialized(uint8_t) {}
+void SetActiveDataSource(bool) {}
+void ShutdownStreamingIfTrial() {}
+void StopStreaming() {}
 // These queries gate Glue character selection and the loading screen. The
 // original StreamingManager returns ready / 1.0 and ignores state, enable and
 // preload requests when CheckIfStreamingAndTrial() is false. This describes
