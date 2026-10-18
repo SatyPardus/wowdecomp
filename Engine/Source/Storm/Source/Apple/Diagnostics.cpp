@@ -39,6 +39,11 @@ void SErrDisplayAppFatal(const char* format, ...) {
     StormExitProcess(1);
 }
 
+void SErrDisplayAppFatalMessage(const char* message, const char* file, int32_t line) {
+    SErrDisplayError(STORM_ERROR_FATAL_CONDITION, file, line, message, 0, 1, 0);
+    StormExitProcess(1);
+}
+
 void SErrDisplayAppFatalCustomV(uint32_t error, const char* format, va_list args) {
     SErrSetLastError(error);
     std::fprintf(stderr, "Storm fatal error 0x%08x: ", error);

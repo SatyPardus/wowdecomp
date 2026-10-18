@@ -1,5 +1,7 @@
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "WoW/Source/Game/GameClient/CDrawBowString.h"
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
@@ -43,6 +45,26 @@ void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) 
     Load(g_charHairGeosetsDB); Load(g_charSectionsDB); Load(g_characterFacialHairStylesDB);
     Load(g_chrRacesDB); Load(g_helmetGeosetVisDataDB); Load(g_itemDisplayInfoDB);
     Load(g_itemVisualEffectsDB); Load(g_itemVisualsDB);
+    Load(g_charBaseInfoDB); Load(g_charStartOutfitDB); Load(g_chrClassesDB);
+    unsigned identities = 0;
+    for (int i = 0; i < g_chrRacesDB.m_numRecords; ++i) {
+        const auto& race = g_chrRacesDB.m_records[i];
+        for (int sex = 0; sex < 2; ++sex) {
+            const auto id = GetDisplayIdFromRaceAndGender(race.m_id, sex);
+            Require(id == (sex ? race.m_femaleDisplayID : race.m_maleDisplayID), "Original character display lookup changed");
+            int displaySex = -1;
+            const char* name = CGUnit_C::GetDisplayRaceNameFromRecord(&race, sex, &displaySex);
+            Require(name && *name && displaySex >= 0 && displaySex <= 1, "Original localized race name is missing");
+            if (id) Require(GetModelDataRec(race.m_id, sex) != nullptr, "Original character model lookup failed");
+            ++identities;
+        }
+    }
+    for (int i = 0; i < g_chrClassesDB.m_numRecords; ++i) for (int sex = 0; sex < 2; ++sex) {
+        const char* name = CGUnit_C::GetDisplayClassNameFromRecord(&g_chrClassesDB.m_records[i], sex, nullptr);
+        Require(name && *name, "Original localized class name is missing");
+    }
+    Require(!GetDisplayIdFromRaceAndGender(0, 0) && !GetModelDataRec(0, 0) && !GetModelDataRec(1, 2), "Original missing/neutral character identity changed");
+    std::fprintf(stderr, "Original character identity: %u race/sex entries, %d classes, %d starting outfits\n", identities, g_chrClassesDB.m_numRecords, g_charStartOutfitDB.m_numRecords);
     const auto context = PropGetSelectedContext();
     Require(context != nullptr, "Character composition requires the original Event context");
     Require(CCharacterComponent::Initialize(GxTex_Rgb565, 8, 1, 1), "Character component initialization failed");
@@ -55,14 +77,14 @@ void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) 
         if (*chest.m_texture[SECTION_TORSO_UPPER] && *chest.m_texture[SECTION_TORSO_LOWER]) break;
     }
     Require(*chest.m_texture[SECTION_TORSO_UPPER], "No original chest texture layers found");
-    for (unsigned sex = 0; sex < 2; ++sex) {
-        const auto* race = g_chrRacesDB.GetRecord(1);
-        const auto* display = g_creatureDisplayInfoDB.GetRecord(sex ? race->m_femaleDisplayID : race->m_maleDisplayID);
-        const auto* modelRec = display ? g_creatureModelDataDB.GetRecord(display->m_modelID) : nullptr;
+    const unsigned cases[][3] = {{1, 0, 1}, {1, 1, 1}, {4, 0, 3}, {6, 1, 7}};
+    for (const auto& entry : cases) {
+        const unsigned raceID = entry[0], sex = entry[1], classID = entry[2];
+        const auto* modelRec = GetModelDataRec(raceID, sex);
         Require(modelRec != nullptr, "Original human character model record is missing");
         ComponentData data;
         data.m_flags = sex ? 2 : 0; // Original selection high quality and world compressed paths.
-        data.m_preferences.m_raceID = 1; data.m_preferences.m_sexID = sex; data.m_preferences.m_classId = 1;
+        data.m_preferences.m_raceID = raceID; data.m_preferences.m_sexID = sex; data.m_preferences.m_classId = classID;
         CCharacterComponent::ValidateComponentData(&data, COMPONENT_CONTEXT_0);
         data.m_model = scene->CreateModel(modelRec->m_modelName, 0);
         Require(data.m_model && data.m_model->IsLoaded(1, 0), "Original character model failed to load");
@@ -94,6 +116,7 @@ void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) 
             light->SetFog(C3Vector(0, 0, 0), 10, 20);
         };
         auto draw = [&] {
+            const auto before = device.EncodingStats();
             device.BeginFrame(pass);
             struct Frame { CGxDeviceMetal& device; ~Frame() { if (device.FrameCommand()) device.ScenePresent(); } } frame{device};
             GxXformSetViewport(0, 1, 0, 1, 0, 1);
@@ -103,9 +126,12 @@ void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) 
             scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
             CiRect rect(0, 0, 128, 128);
             TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect, pixels);
+            const auto after = device.EncodingStats();
             unsigned covered = 0; for (unsigned i = 0; i < pixels.Count(); ++i) covered += pixels[i].a != 0;
             std::fprintf(stderr, "Original character sex %u: threaded format %u, %u batches, %u visible pixels\n", sex, component->m_gxTexFormat, scene->m_elements.Count(), covered);
             Require(covered > 32, "Original composed character did not reach Metal output");
+            Require(after.renderPasses - before.renderPasses == 1, "Character geometry uploads interrupted the scene pass");
+            Require(after.bufferUploadPasses - before.bufferUploadPasses <= 1, "Character geometry uploads did not batch together");
             return std::vector<CImVector>(pixels.Ptr(), pixels.Ptr() + pixels.Count());
         };
         const auto bare = draw();
@@ -127,6 +153,30 @@ void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) 
         const auto recomposed = draw();
         Require(std::memcmp(bare.data(), recomposed.data(), bare.size() * sizeof(CImVector)) == 0, "Canceled character recomposition changed the original pixels");
         std::fprintf(stderr, "Original character equipment %d: %u changed pixels; removal and canceled recomposition restored exact output\n", chest.m_id, changed);
+        component->DressStartingOutfit(classID, &CDrawBowString::ModelLoadedCallback); compose();
+        unsigned attachments = 0, bows = 0, shields = 0;
+        for (auto* attached = model->m_attachList; attached; attached = attached->m_attachNext) {
+            Require(attached->IsDrawable(1, 0), "Original starting equipment did not load");
+            Require(model->HasAttachment(attached->m_attachmentId), "Equipment attached to a missing character bone");
+            ++attachments;
+            bows += attached->m_drawCallback == &CDrawBowString::GlueDrawBowStringCB;
+            shields += attached->m_attachmentId == ATTACH_SHIELD;
+            std::fprintf(stderr, "Starting attachment %u: %s, bow %d\n", attached->m_attachmentId, attached->m_shared->m_fileNameWithoutPath, attached->m_drawCallback != nullptr);
+        }
+        Require(attachments > 0 && (classID != 3 || bows > 0), "Original starting weapon/bow attachment is missing");
+        Require(classID != 7 || shields == 1, "Original shaman starting shield is missing");
+        const auto outfit = draw();
+        unsigned outfitChanged = 0;
+        for (size_t i = 0; i < bare.size(); ++i) outfitChanged += std::memcmp(&bare[i], &outfit[i], sizeof(CImVector)) != 0;
+        Require(outfitChanged > 4, "Original starting outfit did not change the rendered character");
+        const auto steady = draw();
+        Require(std::memcmp(outfit.data(), steady.data(), outfit.size() * sizeof(CImVector)) == 0, "Unchanged starting outfit is not stable");
+        component->DressStartingOutfit(classID, &CDrawBowString::ModelLoadedCallback); compose();
+        for (auto* attached = model->m_attachList; attached; attached = attached->m_attachNext)
+            Require(attached->IsDrawable(1, 0), "Replaced starting equipment did not load");
+        const auto replaced = draw();
+        Require(std::memcmp(outfit.data(), replaced.data(), outfit.size() * sizeof(CImVector)) == 0, "Replacing the same starting outfit changed its output");
+        std::fprintf(stderr, "Original starting outfit race %u sex %u class %u: %u attachments, %u bows, %u changed pixels; replacement exact\n", raceID, sex, classID, attachments, bows, outfitChanged);
         component->SetTexturesDirty(); component->RenderPrep(0);
         EventProcessPending(); PropSelectContext(context);
     }

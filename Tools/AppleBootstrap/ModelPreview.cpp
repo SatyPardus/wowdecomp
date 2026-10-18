@@ -10,16 +10,20 @@
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Services/Texture.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "WoW/Source/Game/GameClient/CDrawBowString.h"
 #include <cmath>
 #include <stdexcept>
 #include <charconv>
 #include <cstring>
 #include <climits>
+#include <cstdlib>
 
 ModelPreview::ModelPreview(const char* name, uint32_t creatureDisplay, const char* character) : m_name(name ? name : "") {
     try {
         ComponentData characterData;
         uint32_t chestDisplay = 0;
+        uint32_t outfitClass = 0;
         if (character) {
             uint32_t fields[8]{};
             unsigned count = 0;
@@ -39,12 +43,26 @@ ModelPreview::ModelPreview(const char* name, uint32_t creatureDisplay, const cha
             load(g_itemVisualEffectsDB); load(g_itemVisualsDB);
             const auto* race = g_chrRacesDB.GetRecord(fields[0]);
             if (!race) throw std::runtime_error("WOW_CHARACTER race is absent from ChrRaces.dbc");
-            creatureDisplay = fields[1] ? race->m_femaleDisplayID : race->m_maleDisplayID;
+            creatureDisplay = GetDisplayIdFromRaceAndGender(fields[0], fields[1]);
             characterData.m_preferences.m_raceID = fields[0]; characterData.m_preferences.m_sexID = fields[1];
             characterData.m_preferences.m_classId = 1;
             characterData.m_preferences.m_skinID = fields[2]; characterData.m_preferences.m_faceId = fields[3];
             characterData.m_preferences.m_hairStyleId = fields[4]; characterData.m_preferences.m_hairColorId = fields[5];
             characterData.m_preferences.m_facialHairId = fields[6]; chestDisplay = fields[7];
+            if (const char* outfit = std::getenv("WOW_CHARACTER_OUTFIT")) {
+                const char* end = outfit + std::strlen(outfit);
+                auto parsed = std::from_chars(outfit, end, outfitClass);
+                if (parsed.ec != std::errc() || parsed.ptr != end || !outfitClass || outfitClass > INT_MAX)
+                    throw std::runtime_error("WOW_CHARACTER_OUTFIT requires an original class ID");
+                load(g_charBaseInfoDB); load(g_charStartOutfitDB); load(g_chrClassesDB);
+                bool allowed = false;
+                for (int i = 0; i < g_charBaseInfoDB.m_numRecords; ++i) {
+                    const auto& combination = g_charBaseInfoDB.m_records[i];
+                    allowed |= combination.m_raceID == fields[0] && combination.m_classID == outfitClass;
+                }
+                if (!allowed) throw std::runtime_error("WOW_CHARACTER_OUTFIT class is unavailable for this race");
+                characterData.m_preferences.m_classId = outfitClass;
+            }
         }
         if (!g_animationDataDB.m_loaded) g_animationDataDB.Load(__FILE__, __LINE__);
         CreatureDisplayInfoRec* display = nullptr;
@@ -82,6 +100,7 @@ ModelPreview::ModelPreview(const char* name, uint32_t creatureDisplay, const cha
             if (!m_character) throw std::runtime_error("Cannot allocate original character component");
             characterData.m_model = m_model;
             if (!m_character->Init(&characterData, nullptr)) throw std::runtime_error("Original character preferences are invalid");
+            if (outfitClass) m_character->DressStartingOutfit(outfitClass, &CDrawBowString::ModelLoadedCallback);
             if (chestDisplay) {
                 ItemDisplayInfoRec chest;
                 if (!g_itemDisplayInfoDB.GetRecord(chestDisplay, &chest)) throw std::runtime_error("Character chest display is absent from ItemDisplayInfo.dbc");

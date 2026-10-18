@@ -10,6 +10,7 @@ class CM2Model;
 
 class CDrawBowString {
     public:
+    static void ModelLoadedCallback(CM2Model* model, void* arg);
     static void DrawBowString(CM2Model* model, const CM2Lighting* lighting, CGUnit_C* unit);
     static void GlueDrawBowStringCB(CM2Model* model, const CM2Lighting* lighting, void* arg);
     static void UnitDrawBowStringCB(CM2Model* model, const CM2Lighting* lighting, void* arg);

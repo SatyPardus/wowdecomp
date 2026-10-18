@@ -217,6 +217,12 @@ add_library(CharacterAppearance STATIC
     WoW/Common/ComponentCore/CharacterComponent_CVar.cpp
     WoW/Common/ComponentCore/ComponentUtils.cpp
     WoW/Common/ComponentCore/PlayerComponentState.cpp
+    WoW/Common/ComponentCore/CharacterIdentity.cpp
+    WoW/Common/ComponentCore/CharacterStartingOutfit.cpp
+    WoW/Source/Game/GameClient/CDrawBowString.cpp
+    WoW/Source/DB/Rec/CharBaseInfoRec.cpp
+    WoW/Source/DB/Rec/CharStartOutfitRec.cpp
+    WoW/Source/DB/Rec/ChrClassesRec.cpp
     WoW/Source/DB/DBClient/CharacterAppearance.cpp
     WoW/Source/DB/Rec/CharHairGeosetsRec.cpp
     WoW/Source/DB/Rec/CharSectionsRec.cpp
@@ -282,6 +288,7 @@ target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin CharacterAppe
 target_link_libraries(WowSvcs PUBLIC Net AppleGameLogin Glue)
 target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/RealmConnection.cpp)
 add_library(AppleSessionServices STATIC
+    WoW/Source/Game/GameClient/GuildTabard.cpp
     Engine/Source/Storm/Source/SCrc.cpp
     Engine/Source/Storm/Source/SSignature.cpp
     Engine/Source/Storm/Source/Sha1.cpp

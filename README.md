@@ -399,6 +399,15 @@ creation rules; sex is 0 or 1. For example, `WOW_CHARACTER=1:1:0:0:0:0:0:220`
 shows a human female wearing the real chest display 220. This scene selection is
 exclusive with the other scene environment options. It is a character preview,
 not a player session or a replacement for the unfinished Glue/character UI.
+Set `WOW_CHARACTER_OUTFIT` to an original class ID to apply its starting outfit
+through the shared character-creation dress routine. For example,
+`WOW_CHARACTER=4:0 WOW_CHARACTER_OUTFIT=3` selects a night elf male hunter,
+including its bow and quiver; `WOW_CHARACTER=1:1 WOW_CHARACTER_OUTFIT=1` selects
+a human female warrior. Race/class combinations come from CharBaseInfo.dbc;
+the optional chest display overrides the outfit's chest afterward.
+For focused local iteration, `WOW_METAL_CHECK=models` runs the original model and
+character checks twice through the Services/Event lifecycle; the result explicitly
+identifies this subset. Omit it for the full Metal probe.
 The arm64 compressor uses native NEON while retaining the original SIMD path's
 integer mean, covariance order, power iterations and ties-to-even DXT1 quantization.
 Native division/square root differ from x86 approximate reciprocals at some
@@ -407,8 +416,7 @@ For a local compressor comparison, the Metal probe can append composed four-by-f
 BGRA blocks to a derived file selected by `WOW_CHARACTER_BLOCK_DUMP`. This optional
 diagnostic includes the real bare/equipped character mip inputs and does not write
 to the original Data directory.
-These options are mutually exclusive. Character composition is not integrated;
-an unsupported shader reports its name and stops rendering.
+An unsupported shader reports its name and stops rendering.
 `WOW_MODEL='Spells\Fireball_Missile_Low.m2'` exercises original particle emission
 and drawing; `WOW_MODEL='Spells\Rejuvenation_Impact_Base.m2'` also exercises ribbons
 and sphere emitters. The view owns depth,

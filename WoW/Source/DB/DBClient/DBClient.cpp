@@ -76,20 +76,11 @@ WowClientDB<Cfg_CategoriesRec> g_cfg_CategoriesDB;
 // STATIC: 0x00AD32C0
 WowClientDB<Cfg_ConfigsRec> g_cfg_ConfigsDB;
 
-// STATIC: 0x00AD32E4
-WowClientDB<CharBaseInfoRec> g_charBaseInfoDB;
-
-// STATIC: 0x00AD3350
-WowClientDB<CharStartOutfitRec> g_charStartOutfitDB;
-
 // STATIC: 0x00AD3374
 WowClientDB<CharTitlesRec> g_charTitlesDB;
 
 // STATIC: 0x00AD33BC
 WowClientDB<ChatChannelsRec> g_chatChannelsDB;
-
-// STATIC: 0x00AD3404
-WowClientDB<ChrClassesRec> g_chrClassesDB;
 
 // STATIC: 0x00AD344C
 WowClientDB<CinematicCameraRec> g_cinematicCameraDB;

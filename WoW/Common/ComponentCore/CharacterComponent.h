@@ -174,6 +174,7 @@ class CCharacterComponent {
 
     CCharacterComponent();
     ~CCharacterComponent();
+    void DressStartingOutfit(int32_t classID, void (*modelLoaded)(CM2Model*, void*));
     void AddCape();
     void AddHelm(int32_t itemVisual);
     void AddItem(ITEM_SLOT itemSlot, const ItemDisplayInfoRec* displayRec, int32_t itemVisual);
