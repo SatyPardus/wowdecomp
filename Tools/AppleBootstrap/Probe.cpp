@@ -61,6 +61,7 @@ void CheckKnowledgeBaseDownloads();
 void CheckCommandLine(const std::string& scratch);
 void CheckVersionInfo(const std::string& scratch);
 void CheckInstalledVersions(const std::string& dataRoot);
+void CheckMovieResources(const std::string& dataRoot, std::ostream& report);
 void CheckGameLogin();
 void CheckGameSession();
 void CheckGameRealm();
@@ -852,6 +853,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
         CheckCharacterTextureCache(&client);
         CheckCharacterNames();
         CheckInstalledVersions(dataRoot);
+        CheckMovieResources(dataRoot, out);
         CheckTerrainResources(client, out);
         CheckWorldData(client, out);
         CheckAudioResources(client, out);

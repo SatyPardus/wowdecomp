@@ -107,6 +107,7 @@ add_library(AppleArchives STATIC
     Engine/Source/Storm/Source/Apple/SLog.cpp
 )
 target_link_libraries(AppleArchives PUBLIC AppleFoundation blast bzip2 lzma zlib)
+include(cmake/AppleVideo.cmake)
 
 add_subdirectory(Engine/Source/Tempest)
 target_link_libraries(Tempest PUBLIC AppleFoundation)
@@ -411,6 +412,8 @@ target_link_libraries(AppleProbeCore PUBLIC CharacterTextureCache)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CharacterNameProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/URLDownloadProbe.cpp)
 target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/CommandLineProbe.cpp Tools/AppleBootstrap/VersionInfoProbe.mm)
+target_sources(AppleProbeCore PRIVATE Tools/AppleBootstrap/MovieProbe.cpp)
+target_link_libraries(AppleProbeCore PUBLIC AppleMovie)
 target_compile_options(AppleProbeCore PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames AppleKnowledgeBase)
 

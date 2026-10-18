@@ -76,6 +76,15 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
 ### Apple foundation and Metal Gx builds
 
+Apple configuration downloads the pinned Xvid 1.3.7 source release from Xvid's
+official server and verifies its SHA-256. It builds the portable codec for the
+selected SDK; Homebrew and the Windows decoder DLL are not used. The source
+and build cache live under `build/`. For offline configuration, supply an
+already extracted release with `-DFETCHCONTENT_SOURCE_DIR_APPLE_XVID=/path/to/xvidcore`.
+Xvid's GPLv2-or-later license remains in the fetched source and
+`ThirdParty/xvidcore/licenses/xvid.txt`. The movie reader keeps the original
+AVI video packets, MP3 bytes and stream timing; it does not transcode Data.
+
 The native port currently builds **foundation, graphics and audio probes**, not a playable client. They
 link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
