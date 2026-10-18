@@ -256,7 +256,7 @@ private:
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
     id<MTLFunction> m_modelVertex[7][30]{};
-    id<MTLFunction> m_modelFragment[9][2][2][2]{};
+    id<MTLFunction> m_modelFragment[12][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];

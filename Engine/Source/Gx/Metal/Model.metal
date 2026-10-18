@@ -8,7 +8,7 @@ constant bool modelEnvironment [[function_constant(9)]];
 constant uint modelLayerOperation [[function_constant(10)]];
 constant bool modelDualUV [[function_constant(11)]];
 constant bool modelProjected [[function_constant(20)]];
-enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha };
+enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd };
 struct ModelVertexParameters {
     float4x4 projection;
     float4 uv[4];
@@ -151,9 +151,10 @@ fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelF
     const float baseAlpha = modelTextureAlpha ? texel.a * v.color.a : v.color.a;
     // Original DP2ADD sums two alpha products before the scalar threshold.
     const float doubledAlpha = dot(float2(baseAlpha), float2(layer.a));
-    const float projectedAlpha = fma(v.color.a, texel.a, layer.a);
-    const float alpha = modelLayerOperation == LayerAddAlpha ? projectedAlpha : modelLayerOperation == LayerDoubleModulate ? doubledAlpha : modelLayerOperation == LayerMultiply ? baseAlpha * layer.a : baseAlpha;
-    const float shaderAlpha = modelLayerOperation == LayerAddAlpha ? projectedAlpha - p.fogColorAlphaRef.a : modelLayerOperation == LayerDoubleModulate ? doubledAlpha - p.fogColorAlphaRef.a :
+    // Opaque_Add ignores texture 0 alpha; Mod_Add uses the original MAD.
+    const float additiveAlpha = modelTextureAlpha ? fma(v.color.a, texel.a, layer.a) : layer.a + v.color.a;
+    const float alpha = modelLayerOperation == LayerAddAlpha ? additiveAlpha : modelLayerOperation == LayerDoubleModulate ? doubledAlpha : modelLayerOperation == LayerMultiply ? baseAlpha * layer.a : baseAlpha;
+    const float shaderAlpha = modelLayerOperation == LayerAddAlpha ? additiveAlpha - p.fogColorAlphaRef.a : modelLayerOperation == LayerDoubleModulate ? doubledAlpha - p.fogColorAlphaRef.a :
         modelLayerOperation == LayerMultiply ? fma(baseAlpha, layer.a, -p.fogColorAlphaRef.a) :
         modelTextureAlpha ? fma(texel.a, v.color.a, -p.fogColorAlphaRef.a) : v.color.a - p.fogColorAlphaRef.a;
     if (modelShaderAlphaTest && shaderAlpha < 0) discard_fragment();
@@ -162,6 +163,13 @@ fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelF
     if (modelLayerOperation == LayerAdd || modelLayerOperation == LayerAddAlpha) {
         // AddNA contributes RGB independently of either texture's alpha.
         shaded = fma(texel.rgb, v.color.rgb, layer.rgb) - p.fogColorAlphaRef.rgb;
+    } else if (modelLayerOperation == LayerAlphaWeightedAdd) {
+        shaded = fma(texel.rgb, v.color.rgb, layer.rgb * layer.a) - p.fogColorAlphaRef.rgb;
+    } else if (modelLayerOperation == LayerBlendAlphaWeightedAdd) {
+        // The combined pass applies lighting after the authored base-alpha LRP.
+        const float3 combined = fma(layer.rgb, float3(layer.a), texel.rgb);
+        const float3 base = fma(float3(texel.a), texel.rgb - combined, combined);
+        shaded = fma(base, v.color.rgb, -p.fogColorAlphaRef.rgb);
     } else if (modelLayerOperation == LayerMultiply || modelLayerOperation == LayerDoubleModulate) {
         const float3 product = texel.rgb * layer.rgb;
         shaded = fma(modelLayerOperation == LayerDoubleModulate ? product + product : product, v.color.rgb, -p.fogColorAlphaRef.rgb);
