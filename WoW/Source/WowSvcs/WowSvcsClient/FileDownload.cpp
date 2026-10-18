@@ -19,6 +19,13 @@ int32_t BattlenetFileDownload::GetStatus() {
         bool done = true;
 
         for (int32_t i = 0; i < this->m_numDownloads; i++) {
+#if defined(__APPLE__)
+            // A completed request is immutable. Do not combine size/progress
+            // observations from different points in a concurrent transfer, or
+            // accept an HTTP failure merely because the received sizes match.
+            if (!m_downloads[i]->Done()) done = false;
+            else if (!m_downloads[i]->Succeeded()) complete = false;
+#else
             int64_t size = this->m_downloads[i]->Size();
 
             if (this->m_downloads[i]->Progress() != size) {
@@ -28,6 +35,7 @@ int32_t BattlenetFileDownload::GetStatus() {
             if (!this->m_downloads[i]->Done()) {
                 done = false;
             }
+#endif
         }
 
         if (done) {
@@ -76,6 +84,13 @@ void BattlenetFileDownload::StopDownload() {
 // VERIFY: 94e03e84 auto
 // OFFSET: 0x006BAC30
 void BattlenetFileDownload::CompleteDownload() {
+#if defined(__APPLE__)
+    for (int32_t i = 0; i < m_numDownloads; ++i) {
+        if (!m_downloads[i]->Succeeded()) {
+            m_reason = 1; m_status = 3; return;
+        }
+    }
+#endif
     for (int32_t i = 0; i < this->m_numDownloads; i++) {
         const char* name = this->m_downloads[i]->TargetName();
 

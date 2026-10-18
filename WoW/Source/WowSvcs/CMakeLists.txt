@@ -4,6 +4,7 @@ if (APPLE)
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/AccountData(_CVar)?\\.cpp$")
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/ClientConnectionState\\.cpp$")
     list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/GruntFileDownload\\.cpp$")
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/HttpDownload\\.cpp$")
 endif ()
 
 add_library(WowSvcs STATIC

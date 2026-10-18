@@ -972,6 +972,13 @@ shutdown can drain callbacks before their owners are released. TLS validation
 uses the system defaults. Loopback checks cover exact request/body bytes, 64-bit
 range/length metadata, redirects, failures, truncation, timeout and restart. This
 does not enable the unfinished streaming filesystem or complete patch handling.
+The original `HttpDownload` consumer now runs on this transport with synchronized
+state and an owner-held callback that is drained before destruction. Failed,
+cancelled and truncated responses cannot be exposed as successful patch bytes;
+the Battle.net patch caller checks success before writing any output. Buffer
+growth follows received data, with an explicit rejection of responses exceeding
+the consumer's existing signed 32-bit storage limit. Mac sanitizer and simulator
+checks exercise fixed/chunked bodies, live progress, errors and active teardown.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 The original `Wow.ini` profile reader now runs through SFile on Apple, retaining

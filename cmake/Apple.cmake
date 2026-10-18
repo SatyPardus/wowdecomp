@@ -327,6 +327,7 @@ target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin CharacterAppe
 target_link_libraries(WowSvcs PUBLIC Net AppleGameLogin Glue)
 target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/RealmConnection.cpp)
 add_library(AppleSessionServices STATIC
+    WoW/Source/WowSvcs/WowSvcsClient/HttpDownload.cpp
     WoW/Source/Game/GameClient/GuildTabard.cpp
     Engine/Source/Storm/Source/SCrc.cpp
     Engine/Source/Storm/Source/SSignature.cpp

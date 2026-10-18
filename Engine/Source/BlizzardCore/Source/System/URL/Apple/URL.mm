@@ -194,11 +194,12 @@ bool Blizzard::URL::DownloadURL(const char* address, DownloadCallback* callback)
     }
 }
 
-void Blizzard::URL::CancelNativeDownloads(DownloadCallback* callback) {
+void Blizzard::URL::CancelNativeDownloads(DownloadCallback* callback, bool wait) {
     if (inCallback) throw std::logic_error("Cancel native downloads outside their callbacks");
     @autoreleasepool {
         auto& state = State(); std::unique_lock<std::mutex> lock(state.mutex);
         for (BlizzardURLRequest* item in state.active) if (item->owner == callback) [item->task cancel];
+        if (!wait) return;
         state.changed.wait(lock, [&] {
             for (BlizzardURLRequest* item in state.active) if (item->owner == callback) return false;
             return true;

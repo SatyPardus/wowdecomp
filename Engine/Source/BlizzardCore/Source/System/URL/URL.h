@@ -75,8 +75,8 @@ bool DownloadURL(const char* url, DownloadCallback* callback);
 
 #if defined(__APPLE__)
 // Call from the owning thread, never from a download callback. Completion may
-// delete the callback; these calls drain its final delivery before returning.
-void CancelNativeDownloads(DownloadCallback* callback);
+// delete the callback; wait=true drains its final delivery before returning.
+void CancelNativeDownloads(DownloadCallback* callback, bool wait = true);
 void ShutdownNativeDownloads();
 #endif
 

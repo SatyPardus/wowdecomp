@@ -1,5 +1,6 @@
 #include "Engine/Source/Os/OsURLDownload.h"
 #include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
+#include "WoW/Source/WowSvcs/WowSvcsClient/HttpDownload.h"
 #include "WoW/Source/WowServices/SocketPlatform.h"
 #include "WoW/Source/Ui/KnowledgeBase.h"
 #include "Engine/Source/FrameXML/XMLTree.h"
@@ -379,6 +380,82 @@ void CheckBlizzardURLDownloads() {
         }
     }
     std::fputs("Blizzard URL: original callback order, exact GET/POST/HEAD/range/UTF-8/cookie metadata, HTTP errors, truncation, abort/stop/timeout, chained requests and cancellation/shutdown passed twice\n", stderr);
+}
+
+void CheckClientHTTPDownloads() {
+    const char* phase = "Client HTTP request";
+    const auto wait = [&](const auto& ready) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!ready()) {
+            Require(std::chrono::steady_clock::now() < deadline, phase);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    };
+    for (unsigned cycle = 0; cycle != 2; ++cycle) {
+        for (const char* url : {static_cast<const char*>(nullptr), "", "file:///tmp/unused", "http://"}) {
+            HttpDownload file(url, "unused");
+            Require(file.Done() && !file.Succeeded() && !file.GetBytes() && file.Cancel(), "Invalid client HTTP request acquired a success state");
+        }
+        Server server;
+        std::string payload(100003, '\0');
+        for (size_t i = 0; i < payload.size(); ++i) payload[i] = char(i * 13 + cycle);
+        for (bool chunked : {false, true}) {
+            phase = chunked ? "Client HTTP chunked live progress timed out" : "Client HTTP fixed-length live progress timed out";
+            HttpDownload file((server.root + "/file").c_str(), "native-\xe6\x96\x87\xe4\xbb\xb6");
+            Require(!file.Done() && !file.Succeeded() && !file.GetBytes(), "Client HTTP published data before response");
+            auto peer = server.Accept("/file");
+            Send(peer, std::string("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n") +
+                (chunked ? "Transfer-Encoding: chunked\r\n\r\n11\r\n" : "Content-Length: 100003\r\n\r\n") +
+                payload.substr(0, 17) + (chunked ? "\r\n" : ""));
+            wait([&] { return file.Progress() == 17; });
+            Require(!file.Done() && !file.GetBytes() && file.Size() >= 17 &&
+                std::string(file.TargetName()) == "native-\xe6\x96\x87\xe4\xbb\xb6", "Partial client HTTP data escaped its owner or target name changed");
+            if (chunked) {
+                char length[32]; std::snprintf(length, sizeof(length), "%zx\r\n", payload.size() - 17);
+                Send(peer, std::string(length) + payload.substr(17) + "\r\n0\r\n\r\n");
+            } else Send(peer, payload.substr(17));
+            wait([&] { (void)file.Size(); (void)file.Progress(); return file.Done(); });
+            Require(file.Succeeded() && file.Size() == int64_t(payload.size()) && file.Progress() == file.Size() &&
+                file.GetBytes() && !std::memcmp(file.GetBytes(), payload.data(), payload.size()) && file.Cancel(),
+                "Original client HTTP collector changed bytes, progress or successful completion");
+        }
+        for (int failure : {0, 1, 2}) {
+            phase = "Client HTTP failure completion timed out";
+            HttpDownload file((server.root + "/failed").c_str(), nullptr);
+            {
+                auto peer = server.Accept("/failed");
+                if (failure == 0) Send(peer, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                else if (failure == 1) Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 100003\r\nConnection: close\r\n\r\nshort");
+                else Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 4294967313\r\nConnection: close\r\n\r\n");
+            }
+            wait([&] { return file.Done(); });
+            Require(!file.Succeeded() && !file.GetBytes() && file.Cancel(), "Client HTTP published error/truncation/oversized response as a patch");
+            if (failure == 2) Require(file.Progress() == 0 && !file.m_state->m_capacity && !file.m_state->m_data,
+                "Client HTTP allocated or narrowed an oversized advertised body");
+        }
+        {
+            phase = "Client HTTP idle cancellation timed out";
+            HttpDownload file((server.root + "/cancel").c_str(), "cancel");
+            auto peer = server.Accept("/cancel");
+            Require(!file.Cancel(), "Pending client HTTP cancellation changed its return convention");
+            wait([&] { return file.Done(); });
+            Require(!file.Succeeded() && !file.GetBytes() && file.Cancel(), "Idle client HTTP cancellation did not complete as failure");
+        }
+        for (unsigned index = 0; index != 8; ++index) {
+            phase = "Client HTTP teardown partial receipt timed out";
+            auto file = std::make_unique<HttpDownload>((server.root + "/destroy").c_str(), "destroy");
+            auto peer = server.Accept("/destroy");
+            if (index & 1) {
+                Send(peer, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 100003\r\n\r\npartial");
+                wait([&] { return file->Progress() > 0; });
+            }
+            // Teardown must drain reception and the final callback before the
+            // state/callback allocation is reused by the next download.
+            file.reset();
+        }
+        Blizzard::URL::ShutdownNativeDownloads();
+    }
+    std::fputs("Original HttpDownload: known/chunked exact bytes, live progress, immutable completion, failure/oversize rejection, idle cancel and 16 active teardown/reuse checks passed\n", stderr);
 }
 
 void CheckKnowledgeBaseDownloads() {

@@ -3,6 +3,9 @@
 
 #include <cstdint>
 #include <string>
+#if defined(__APPLE__)
+#include <mutex>
+#endif
 #include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
 
 struct HttpDownloadState {
@@ -14,6 +17,10 @@ struct HttpDownloadState {
     /* 0048 */ uint8_t* m_data;
     /* 004C */ int32_t m_capacity;
     /* 0050 */ int32_t m_received;
+#if defined(__APPLE__)
+    std::mutex m_nativeMutex;
+    Blizzard::URL::DownloadCallback::Status m_nativeStatus = Blizzard::URL::DownloadCallback::DOWNLOAD_UNKNOWN_ERROR;
+#endif
 };
 
 class DownloadFileCallback : public Blizzard::URL::DownloadCallback {
@@ -41,6 +48,9 @@ class HttpDownload {
     ~HttpDownload();
     bool Cancel();
     bool Done();
+#if defined(__APPLE__)
+    bool Succeeded();
+#endif
     uint8_t* GetBytes();
     int64_t Progress();
     int64_t Size();
