@@ -1,6 +1,10 @@
 #include <cstdint>
 #include <cstring>
+#if defined(_MSC_VER)
 #include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Base/Coordinate.h"

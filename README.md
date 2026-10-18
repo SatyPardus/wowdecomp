@@ -923,6 +923,10 @@ including player/unit objects, movement, world text and game callbacks. The
 unfinished Win64 Warden platform source is excluded from Apple. Guild money
 messages use a portable 64-bit hexadecimal scan with the original 16-digit
 width; malformed input is rejected before changing the stored balance.
+Original `UIUtil`, `DB`, loading screens and `AppleClientCore` now compile on all
+three targets as well. This includes the original client startup/game transition,
+client commands/CVars, camera/input control, tooltips and full DBC registration.
+Achievement tooltip links retain their 64-bit GUID through a portable scan.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 

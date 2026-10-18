@@ -1,5 +1,6 @@
 #include "Tooltip.h"
 #include <cstdint>
+#include <cinttypes>
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
@@ -655,7 +656,7 @@ static int32_t Script_SetHyperlink(lua_State* L) {
 
         if (field) {
             field++;
-            sscanf(field, "%I64X:", &guid.m_guid);
+            sscanf(field, "%" SCNx64 ":", &guid.m_guid);
         }
 
         if ((field = SStrChr(field, ':')) != nullptr) {
