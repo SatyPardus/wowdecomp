@@ -413,3 +413,94 @@ void CheckModelShaders(CGxDeviceMetal& device) {
     device.ScenePresent();
     CheckModelShadows(device,vertex[0],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[3],cleanup.texture[2],cleanup.texture+4);
 }
+
+// Independent homogeneous-plane references: no shader equations are reused.
+void CheckModelClipPlanes(CGxDeviceMetal& device) {
+    CGxShader* vertices[4][90]{}; CGxShader* pixels[16]{}; CGxTex* texture=nullptr;
+    const GxMetal::ModelVertexEffect families[]={GxMetal::ModelVertexEffect::Diffuse,GxMetal::ModelVertexEffect::DiffuseEnvironment,
+        GxMetal::ModelVertexEffect::DiffuseDualUV,GxMetal::ModelVertexEffect::DiffuseReflection};
+    struct Cleanup {
+        CGxDeviceMetal& device; CGxShader* (*vertices)[90]; CGxShader** pixels; CGxTex*& texture;
+        ~Cleanup() {
+            GxRsSet(GxRs_ClipPlaneMask,0); if(device.FrameCommand()) device.ScenePresent();
+            for(unsigned family=0;family<4;++family) for(auto* shader:vertices[family]) device.ShaderDestroy(shader);
+            for(unsigned i=0;i<16;++i) device.ShaderDestroy(pixels[i]);
+            if(texture) device.TexDestroy(texture);
+        }
+    } cleanup{device,vertices,pixels,texture};
+    for(unsigned family=0;family<4;++family)
+        device.ShaderCreate(vertices[family],GxSh_Vertex,"Shaders\\Vertex",GxMetal::ModelVertexFamily(families[family]),90);
+    device.ShaderCreate(pixels,GxSh_Pixel,"Shaders\\Pixel","Combiners_Opaque",16);
+    device.TexCreate(GxTex_2d,2,2,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Linear),nullptr,
+        EnvironmentPattern,"Model clip reference",texture);
+    GxRsSet(GxRs_Texture0,texture); GxRsSet(GxRs_PixelShader,pixels[0]);
+    GxRsSet(GxRs_BlendingMode,GxBlend_Opaque); GxRsSet(GxRs_AlphaRef,0); GxRsSet(GxRs_ColorWrite,15);
+    GxRsSet(GxRs_DepthTest,0); GxRsSet(GxRs_DepthWrite,0); GxRsSet(GxRs_Culling,0);
+    GxRsSet(GxRs_Fog,0); GxRsSet(GxRs_ScissorTest,0); GxRsSet(GxRs_PolygonOffset,0); GxRsSet(GxRs_PointSprite,0);
+    GxXformSetViewport(0,1,0,1,0,1);
+    auto descriptor=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:32 height:32 mipmapped:NO];
+    descriptor.usage=MTLTextureUsageRenderTarget; descriptor.storageMode=MTLStorageModePrivate;
+    auto pass=[MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture=[device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction=MTLLoadActionClear; pass.colorAttachments[0].clearColor=MTLClearColorMake(0,0,0,0);
+    std::array<Vec,256> c{};
+    c[2]={1,0,0,0}; c[3]={0,1,0,0}; c[4]={0,0,1,0}; c[5]={0,0,0,1};
+    c[6]={1,0,0,0}; c[7]={0,1,0,0}; c[8]=c[6]; c[9]=c[7];
+    c[10]={1,1,1,0}; c[12]={0,0,-1,0}; c[25]={1,1,1,1}; c[28]={1,1,1,1}; c[30]={0,1,1,0};
+    for(unsigned i=0;i<5;++i) { c[31+3*i]={1,0,0,i*.0625f}; c[32+3*i]={0,1,0,i*-.0625f}; c[33+3*i]={0,0,1,0}; }
+    const Vec pixelConstants{}; GxShaderConstantsSet(GxSh_Pixel,2,pixelConstants.data(),1);
+    M2Vertex source{}; source.m_position={.125f,-.125f,.5f}; source.m_normal={0,0,1};
+    const uint8_t weights[]={255,0,0,0}, bones[]={4,3,2,1};
+    std::memcpy(&source.m_weights,weights,4); std::memcpy(&source.m_indices,bones,4);
+    auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(source),1);
+    std::memcpy(device.BufLock(buffer),&source,sizeof(source)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PBNT2);
+    CGxBatch point{GxPrim_Points,0,1,0,0}; unsigned checks=0;
+    auto setPlane=[&](unsigned index,const Vec& coefficients) {
+        C4Plane plane; plane.n={coefficients[0],coefficients[1],coefficients[2]}; plane.d=coefficients[3]; device.ClipPlaneSet(index,plane);
+    };
+    // Alternate enabled/disabled keys and repeatedly replace the same plane.
+    for(unsigned family=0;family<4;++family) for(unsigned permutation:{0u,1u,10u,11u,20u,21u}) for(float w:{1.0f,2.0f}) {
+        const float x=permutation<10 ? .125f:.375f;
+        c[5][3]=w; GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),256);
+        GxRsSet(GxRs_VertexShader,vertices[family][permutation]);
+        for(unsigned plane=0;plane<6;++plane) for(unsigned side=0;side<4;++side) {
+            const float boundary=side==2 ? std::nextafter(x/w,1.0f):x/w;
+            setPlane(plane,{1,0,0,-boundary});
+            GxRsSet(GxRs_ClipPlaneMask,side==0 || side==3 ? 0:int32_t(1u<<plane));
+            device.BeginFrame(pass); GxDraw(&point,0); CiRect rect(0,0,32,32); TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect,image);
+            unsigned covered=0; for(unsigned i=0;i<image.Count();++i) covered+=image[i].a!=0;
+            Require(covered==unsigned(side!=2),"Model clip plane equality, replacement or disabled state mismatch");
+            device.ScenePresent(); ++checks;
+        }
+    }
+    // Full triangles reveal intersection clipping and plane conjunction. All
+    // boundaries lie between sample centers, independent of edge fill rules.
+    std::array<M2Vertex,4> quad{};
+    for(unsigned i=0;i<4;++i) { quad[i]=source; quad[i].m_position={i&1 ? 1.0f:-1.0f,i&2 ? 1.0f:-1.0f,.5f}; quad[i].m_texcoord[0]={i&1 ? 1.0f:0.0f,i&2 ? 1.0f:0.0f}; }
+    buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(source),4);
+    std::memcpy(device.BufLock(buffer),quad.data(),sizeof(quad)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PBNT2);
+    for(unsigned i=0;i<5;++i) { c[31+3*i][3]=0; c[32+3*i][3]=0; }
+    c[5][3]=1; GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),256);
+    const Vec planes[]={{1,0,0,.25},{0,-1,0,.5},{1,1,0,.03125},{-1,0,0,.75},{0,1,0,.75},{0,0,-1,.75}};
+    CGxBatch triangles{GxPrim_TriangleStrip,0,4,0,0};
+    for(unsigned i=0;i<6;++i) setPlane(i,planes[i]);
+    std::vector<CImVector> reference;
+    for(unsigned family=0;family<4;++family) for(unsigned permutation:{0u,11u,21u}) for(unsigned mask:{0u,1u,2u,4u,8u,16u,32u,3u,63u,0u}) {
+        GxRsSet(GxRs_VertexShader,vertices[family][permutation]); GxRsSet(GxRs_ClipPlaneMask,int32_t(mask));
+        device.BeginFrame(pass); GxDraw(&triangles,0); CiRect rect(0,0,32,32); TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect,image);
+        for(unsigned y=0;y<32;++y) for(unsigned x=0;x<32;++x) {
+            const Vec position{(x+.5f)/16-1,1-(y+.5f)/16,.5,1}; bool visible=true;
+            for(unsigned i=0;i<6;++i) if(mask&(1u<<i)) visible&=Dot(planes[i],position)>=0;
+            Require(bool(image[y*32+x].a)==visible,"Model multiple-plane triangle coverage mismatch");
+            if(mask && visible) {
+                const auto* expected=reinterpret_cast<const uint8_t*>(&reference[y*32+x]);
+                const auto* actual=reinterpret_cast<const uint8_t*>(&image[y*32+x]);
+                for(unsigned channel=0;channel<4;++channel)
+                    Require(std::abs(int(actual[channel])-int(expected[channel]))<=2,"Model clipping changed interpolated material RGBA");
+            }
+        }
+        if(!mask) reference.assign(image.Ptr(),image.Ptr()+image.Count());
+        device.ScenePresent(); ++checks;
+    }
+    std::fprintf(stderr,"Model clipping: %u draws, six independent homogeneous planes, rigid/one/four weights, plane equality, nonunit W, intersections and disabled-state restoration passed\n",checks);
+}

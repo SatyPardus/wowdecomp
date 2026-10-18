@@ -249,6 +249,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
             [encoder setVertexBytes:&native length:sizeof(native) atIndex:3];
             [encoder setFragmentBytes:&native length:sizeof(native) atIndex:3];
         }
+        if (geometry.model->clip.mask)
+            [encoder setVertexBytes:&geometry.model->clip length:sizeof(ModelClipParameters) atIndex:4];
         [encoder setVertexBytes:&geometry.model->vertex length:sizeof(ModelVertexParameters) atIndex:0];
         [encoder setVertexBytes:geometry.model->bones.data() length:geometry.model->boneCount * sizeof(ModelAffine) atIndex:2];
     } else if (liquid) { [encoder setVertexBytes:&geometry.liquid->vertex length:sizeof(LiquidVertexParameters) atIndex:0];

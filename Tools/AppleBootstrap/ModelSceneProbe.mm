@@ -377,6 +377,66 @@ void CheckGameModels() {
                     displayID,pose.sequenceID,expectedShadow,receivers,combinedReceivers,darker);
                 device.ScenePresent();
             }
+            if(displayID==110) {
+                // Explicit model fade and liquid plane exercise the original M2
+                // above/below-water selection. No batch or shader is forced.
+                struct RestoreLiquid {
+                    CM2Model* model; float alpha, baseAlpha; decltype(CM2Model::m_lightingCallback) lighting;
+                    uint32_t cacheFlags=M2GetCacheFlags(); CGxDeviceMetal& device;
+                    ~RestoreLiquid() { model->m_alpha=alpha; model->m_baseAlpha=baseAlpha; model->m_lightingCallback=lighting; M2SetCacheFlags(cacheFlags); device.XformSetProjection(C44Matrix(1)); }
+                } restoreLiquid{layeredModel,layeredModel->m_alpha,layeredModel->m_baseAlpha,layeredModel->m_lightingCallback,M2GetCacheFlags(),device};
+                CShadowCache::s_shadowMode=SHADOW_LOWEST;
+                layeredModel->m_baseAlpha=.65f;
+                C44Matrix projection(1); projection.a0=.875f; projection.b1=.75f;
+                device.XformSetProjection(projection);
+                // Original particles are assigned as whole billboards to a pass;
+                // this comparison isolates the mesh that uses liquid clipping.
+                auto prepare=[&] { layeredModel->m_fFlags|=8; layeredModel->SetAnimating(1); layeredScene->AdvanceTime(0); layeredScene->Animate(C3Vector(0,0,0)); };
+                prepare(); device.BeginFrame(pass);
+                layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
+                TSGrowableArray<CImVector> baseline; device.DeviceReadPixels(rect,baseline); device.ScenePresent();
+                prepare(); device.BeginFrame(pass);
+                layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
+                TSGrowableArray<CImVector> repeated; device.DeviceReadPixels(rect,repeated); device.ScenePresent();
+                for(unsigned i=0;i<baseline.Count();++i) if(std::memcmp(&baseline[i],&repeated[i],sizeof(CImVector)))
+                    throw std::runtime_error("Unclipped water mesh changed before plane selection at pixel "+std::to_string(i));
+                M2SetCacheFlags(M2GetCacheFlags()|2);
+                layeredModel->m_lightingCallback=[](CM2Model*,CM2Lighting* lighting,void*) {
+                    lighting->AddAmbient(C3Vector(.4f,.4f,.4f)); lighting->AddDiffuse(C3Vector(.6f,.6f,.6f),C3Vector(0,0,-1));
+                    lighting->SetFog(C3Vector(.1f,.2f,.3f),1,20);
+                    lighting->m_flags|=0x60; lighting->m_liquidPlane.n={0,1,0}; lighting->m_liquidPlane.d=-.125f;
+                };
+                prepare(); unsigned clipped=0;
+                for(unsigned i=0;i<layeredScene->m_elements.Count();++i) clipped+=(layeredScene->m_elements[i].m_flags&2)!=0;
+                if(!clipped || !layeredScene->m_passElements[1].Count() || !layeredScene->m_passElements[2].Count())
+                    throw std::runtime_error("Original water-crossing scene did not select both clipped passes");
+                device.BeginFrame(pass); layeredScene->Draw(M2PASS_1);
+                TSGrowableArray<CImVector> above,combined,below; device.DeviceReadPixels(rect,above);
+                layeredScene->Draw(M2PASS_2); device.DeviceReadPixels(rect,combined); device.ScenePresent();
+                device.BeginFrame(pass); layeredScene->Draw(M2PASS_2); device.DeviceReadPixels(rect,below); device.ScenePresent();
+                unsigned upper=0,lower=0,rgbDifferences=0,maxRGBDifference=0;
+                for(unsigned i=0;i<baseline.Count();++i) {
+                    const bool a=above[i].a!=0,b=below[i].a!=0,full=baseline[i].a!=0;
+                    upper+=a; lower+=b;
+                    const float y=1-(float(i/128)+.5f)/64;
+                    if((a && y<.09375f) || (b && y>.09375f) || (a && b) || (a||b)!=full)
+                        throw std::runtime_error("Original liquid-plane split mismatch pixel "+std::to_string(i)+" y "+std::to_string(y)+" above/below/full "+std::to_string(above[i].a)+"/"+std::to_string(below[i].a)+"/"+std::to_string(baseline[i].a));
+                    const uint8_t* wanted=reinterpret_cast<const uint8_t*>(&baseline[i]);
+                    const uint8_t* actual=reinterpret_cast<const uint8_t*>(&combined[i]);
+                    const uint8_t* separate=reinterpret_cast<const uint8_t*>(a ? &above[i]:&below[i]);
+                    for(unsigned channel=0;channel<4;++channel)
+                        if(actual[channel]!=separate[channel]) throw std::runtime_error("Water-crossing passes changed RGBA when composed in one frame");
+                    if(combined[i].a!=baseline[i].a) throw std::runtime_error("Water-crossing passes changed model alpha");
+                    // Clipping changes rasterization at the generated edges.
+                    // Record the uncut RGB comparison separately: it is not a
+                    // Windows reference or a promise of identical derivatives.
+                    unsigned difference=0;
+                    for(unsigned channel=0;channel<3;++channel) difference=std::max(difference,unsigned(std::abs(int(actual[channel])-int(wanted[channel]))));
+                    rgbDifferences+=difference>2; maxRGBDifference=std::max(maxRGBDifference,difference);
+                }
+                if(!upper || !lower) throw std::runtime_error("Original liquid plane did not split visible model geometry");
+                std::fprintf(stderr,"Original water-crossing M2 scene: %u clipped batches, %u above / %u below pixels, exact disjoint coverage/alpha and independent-pass RGBA; uncut reference RGB >2 at %u pixels, maximum %u/255\n",clipped,upper,lower,rgbDifferences,maxRGBDifference);
+            }
         }
     }
     {

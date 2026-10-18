@@ -640,6 +640,22 @@ use explicit shadow/light inputs; they do not establish full world shadow behavi
 or Windows visual equivalence. Projected/colored shadow vertex families and
 hardware PCF remain unsupported.
 
+M2 user clip planes now use native vertex `clip_distance` outputs. The original
+scene transforms liquid planes into homogeneous clip space and selects opposite
+planes for its above/below-water passes; the Metal backend preserves those
+planes, all six mask bits, and equality at the plane. A function constant removes
+the outputs and plane upload when clipping is disabled. `WOW_METAL_CHECK=model-clipping`
+checks 1,272 draws with independent planes, nonunit W, rigid/skinned vertices,
+textured intersections and state restoration. The `models` fixture passes an
+explicit liquid plane and fade to the original water elemental scene, retaining
+its mesh materials and testing both resource lifetimes. Its six clipped batches
+have disjoint coverage, unchanged alpha, and exact RGBA agreement between
+independent passes and their same-frame composition. Compared with the uncut
+model on M2 Pro, one pixel at the cut boundary differs by up to 10/255 in RGB;
+depth-test and invariance diagnostics did not remove it. This remains a Windows
+rasterization/sampling comparison gap; the original mip chain and filters are
+preserved. Other shader families still reject user clip planes.
+
 Native `DetailDoodad` rendering preserves sun and three-point-light paths,
 unnormalized terrain normals, vertex tint, distance fading, fog and independent
 state alpha testing. Sixty numeric GPU draws cover both non-shadow vertex and

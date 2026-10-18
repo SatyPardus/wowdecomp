@@ -10,6 +10,8 @@ constant bool modelDualUV [[function_constant(11)]];
 constant bool modelProjected [[function_constant(20)]];
 constant bool modelReflectionOnly [[function_constant(33)]];
 constant uint modelShadowMode [[function_constant(35)]];
+constant bool modelClipping [[function_constant(38)]];
+struct ModelClipParameters { float4 planes[6]; uint mask; uint padding[3]; };
 enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB };
 struct ModelVertexParameters {
     float4x4 projection;
@@ -34,12 +36,21 @@ struct ModelSkinVertex {
     float4 weights [[attribute(3)]];
     uint4 bones [[attribute(4)]];
 };
-struct ModelRaster {
+// Clip distances are rasterizer outputs, not fragment inputs. Keep the
+// fragment signature limited to the interpolated material data.
+struct ModelVaryings {
     float4 position [[position]]; float4 color; float2 uv, secondaryUV; float fog; float pointSize [[point_size]];
     float3 viewPosition, normal, shadowCoordinate, nearShadow, middleShadow, farShadow;
 };
+struct ModelRaster {
+    float4 position [[position]]; float4 color; float2 uv, secondaryUV; float fog; float pointSize [[point_size]];
+    float3 viewPosition, normal, shadowCoordinate, nearShadow, middleShadow, farShadow;
+    // Metal 2 optional return fields omit all clipping outputs when disabled.
+    // https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf
+    float clipDistance [[clip_distance, function_constant(modelClipping)]] [6];
+};
 inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, float2 uv2, float4 vertexColor,
-    ModelAffine viewFromModel, constant ModelVertexParameters& p, constant ShadowReceiverParameters& shadow) {
+    ModelAffine viewFromModel, constant ModelVertexParameters& p, constant ShadowReceiverParameters& shadow, constant ModelClipParameters& clip) {
     const float4 point = float4(position, 1);
     const float3 view = float3(dot(viewFromModel.x, point), dot(viewFromModel.y, point), dot(viewFromModel.z, point));
     float3 direction = 0;
@@ -97,16 +108,18 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
                 dot(shadow.projection[3].y, float4(view,1)), dot(shadow.projection[3].z, float4(view,1)));
         }
     }
+    if (modelClipping) for (uint i = 0; i < 6; ++i)
+        result.clipDistance[i] = (clip.mask & (1u << i)) ? dot(clip.planes[i], result.position) : 1.0f;
     return result;
 }
 vertex ModelRaster modelRigidVertex(ModelVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), palette[0], p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), palette[0], p, shadow, clip);
 }
 vertex ModelRaster modelSkinVertex(ModelSkinVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
     const auto transform = skinTransform(v.weights, v.bones, palette, modelPermutation >= 20);
-    return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), transform, p, shadow);
+    return modelTransform(v.position, v.normal, v.uv, v.uv2, float4(1), transform, p, shadow, clip);
 }
 struct ModelColorVertex {
     float3 position [[attribute(0)]];
@@ -121,16 +134,16 @@ struct ModelColorLitVertex {
 };
 struct ModelWhiteVertex { float3 position [[attribute(0)]]; float2 uv [[attribute(2)]]; };
 vertex ModelRaster modelColorVertex(ModelColorVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, float3(0, 0, 1), v.uv, float2(0), v.color, palette[0], p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, float3(0, 0, 1), v.uv, float2(0), v.color, palette[0], p, shadow, clip);
 }
 vertex ModelRaster modelColorLitVertex(ModelColorLitVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, v.normal, v.uv, float2(0), v.color, palette[0], p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, v.normal, v.uv, float2(0), v.color, palette[0], p, shadow, clip);
 }
 vertex ModelRaster modelWhiteVertex(ModelWhiteVertex v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, float3(0, 0, 1), v.uv, float2(0), float4(1), palette[0], p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, float3(0, 0, 1), v.uv, float2(0), float4(1), palette[0], p, shadow, clip);
 }
 // Projected and reflection-only geometry have no authored UV stream. These entry points match the
 // original PN/PC/P world batches and the existing packed skinned M2 layout.
@@ -144,24 +157,24 @@ struct ModelProjectedSkin {
     uint4 bones [[attribute(4)]];
 };
 vertex ModelRaster modelProjectedPositionVertex(ModelProjectedPosition v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, float3(0,0,1), float2(0), float2(0), float4(1), palette[0], p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, float3(0,0,1), float2(0), float2(0), float4(1), palette[0], p, shadow, clip);
 }
 vertex ModelRaster modelProjectedNormalVertex(ModelProjectedNormal v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), palette[0], p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), palette[0], p, shadow, clip);
 }
 vertex ModelRaster modelProjectedColorVertex(ModelProjectedColor v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, float3(0,0,1), float2(0), float2(0), v.color, palette[0], p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, float3(0,0,1), float2(0), float2(0), v.color, palette[0], p, shadow, clip);
 }
 vertex ModelRaster modelProjectedSkinVertex(ModelProjectedSkin v [[stage_in]], constant ModelVertexParameters& p [[buffer(0)]],
-    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
-    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), skinTransform(v.weights, v.bones, palette, modelPermutation >= 20), p, shadow);
+    constant ModelAffine* palette [[buffer(2)]], constant ShadowReceiverParameters& shadow [[buffer(3)]], constant ModelClipParameters& clip [[buffer(4)]]) {
+    return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), skinTransform(v.weights, v.bones, palette, modelPermutation >= 20), p, shadow, clip);
 }
 // Dynamic distance fade precedes the minimum with distant bands. Normal fade
 // then applies to that combined visibility, before RGB-only modulation.
-inline float modelShadowVisibility(ModelRaster v, constant ShadowReceiverParameters& p,
+inline float modelShadowVisibility(ModelVaryings v, constant ShadowReceiverParameters& p,
     texture2d<float> image, sampler filtering, texture2d<float> nearImage, sampler nearSampler,
     texture2d<float> middleImage, sampler middleSampler, texture2d<float> farImage, sampler farSampler) {
     float visibility = receiverDynamicVisibility(v.shadowCoordinate,v.viewPosition,p,image,filtering,modelShadowMode);
@@ -169,7 +182,7 @@ inline float modelShadowVisibility(ModelRaster v, constant ShadowReceiverParamet
         visibility = min(visibility,receiverBandedVisibility(v.nearShadow,v.middleShadow,v.farShadow,p,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
     return receiverShadowModulation(visibility,v.normal,p.lightDirection.xyz);
 }
-fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
+fragment float4 modelDiffuseFragment(ModelVaryings v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
     constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]],

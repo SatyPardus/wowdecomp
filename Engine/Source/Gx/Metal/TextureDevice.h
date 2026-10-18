@@ -85,8 +85,15 @@ struct ShadowReceiverParameters {
     simd_float4 distanceFade, lightDirection, offsets[8], decodeScale{1,1,1,1};
 };
 static_assert(sizeof(ShadowReceiverParameters) == 368, "Native shadow receiver layout");
+// Gx/D3D9 programmable planes are already in homogeneous clip space.
+struct ModelClipParameters {
+    simd_float4 planes[6]{};
+    uint32_t mask = 0, padding[3]{};
+};
+static_assert(sizeof(ModelClipParameters) == 112, "Native model clip-plane layout");
 struct ModelDrawParameters {
     ModelVertexParameters vertex{};
+    ModelClipParameters clip{};
     ModelFragmentParameters fragment{};
     std::array<ModelAffine, 75> bones{};
     uint32_t permutation = 0, boneCount = 1, shadowMode = 0;
@@ -304,7 +311,7 @@ private:
     id<MTLFunction> m_terrainVertex[128]{};
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
-    id<MTLFunction> m_modelVertex[8][90]{};
+    id<MTLFunction> m_modelVertex[8][90][2]{};
     id<MTLFunction> m_modelFragment[13][2][2][2][4]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;

@@ -1249,7 +1249,9 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     auto unsupportedState = [&](const char* message) { throw std::runtime_error(std::string(message) + " in " + ShaderFamily(effect)); };
     if (!fixed && !shaderFog && MasterEnable(GxMasterEnable_Fog) && integer(GxRs_Fog))
         unsupportedState("Fixed-function fog is not implemented");
-    if (integer(GxRs_ClipPlaneMask)) unsupportedState("User clip planes are not implemented");
+    const uint32_t clipMask = uint32_t(integer(GxRs_ClipPlaneMask));
+    if (clipMask && !model) unsupportedState("User clip planes are not implemented");
+    Require((clipMask & ~0x3Fu) == 0, "Gx clip-plane mask exceeds six planes");
     if (integer(GxRs_PointSprite)) unsupportedState("Point sprites are not implemented");
     if (!ripple && !fixed && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
         unsupportedState("Depth bias is not implemented");
@@ -1442,6 +1444,11 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.shadowMode = m->shaders.at(pixel).permutation & 3;
         native.vertexEffect = m->shaders.at(vertex).vertexEffect;
         native.shaderAlphaTest = (m->shaders.at(pixel).permutation & 8) != 0;
+        native.clip.mask = clipMask;
+        for (unsigned i = 0; i < 6; ++i) if (clipMask & (1u << i)) {
+            const auto& plane = m_clipPlane[i];
+            native.clip.planes[i] = {plane.n.x, plane.n.y, plane.n.z, plane.d};
+        }
         const float* constants = s_shadowConstants[1].constants;
         auto vector = [&](uint32_t index) { simd_float4 value; std::memcpy(&value, constants + index * 4, sizeof(value)); return value; };
         // Gx stores dot-product rows. Metal uses column-vector matrices.

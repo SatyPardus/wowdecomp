@@ -223,6 +223,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
                     report = "Original detail-doodad lighting, baked colors and dynamic/banded R32F shadows passed (focused run).\n";
                     return true;
                 }
+                if (!std::strcmp(selection, "model-clipping")) {
+                    CheckGxDevice(selection);
+                    report = "Original model homogeneous clip planes and clipped geometry passed (focused run).\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "model-shaders")) {
                     CheckGxDevice(selection);
                     report = "Original model shader variants/materials and reflection-only coordinates passed (focused run).\n";
