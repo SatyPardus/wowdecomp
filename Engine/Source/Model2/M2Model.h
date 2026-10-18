@@ -222,6 +222,9 @@ class CM2Model {
     /* 02E8 */ uint32_t m_handle;
     /* 02EC */ uint32_t unused_02EC;
 
+    // Own the native instance arena independently of its optional bone view.
+    void* m_internalMemory = nullptr;
+
     static void (*s_transformVertices[5])(CM2Model*, M2SkinSection*, uint8_t*, int32_t);
     static TSGrowableArray<M2ModelCallback> s_sequenceCallbacks;
     static TSGrowableArray<C3Vector> s_collisionPositions;

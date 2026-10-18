@@ -1,6 +1,7 @@
 #include "Engine/Source/Model2/M2Cache.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Model.h"
+#include "Engine/Source/Model2/M2Memory.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "Engine/Source/Services/Camera.h"
@@ -16,7 +17,36 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <memory>
 #include <stdexcept>
+
+namespace {
+void CheckEmptySkeleton(CM2Scene* scene) {
+    // Exercise a valid zero-bone instance with other arena-backed arrays. The
+    // legacy release path used the absent bone view as its allocation owner.
+    struct Data { M2Data header{}; M2Sequence sequence{}; M2Loop loops[2]{}; };
+    auto shared = std::make_unique<CM2Shared>(nullptr);
+    auto* data = new (M2AllocData(sizeof(Data))) Data();
+    shared->m_data = &data->header;
+    shared->m_skinData = new (SIMD::AllocA16(sizeof(M2SkinProfile), __FILE__, __LINE__)) M2SkinProfile();
+    data->header.m_sequences.m_count = 1;
+    data->header.m_sequences.Set(&data->sequence);
+    data->sequence.m_flags = 0x20;
+    data->header.m_loops.m_count = 2;
+    data->header.m_loops.Set(data->loops);
+    shared->m_flags = 3;
+    CM2Model model;
+    if (!model.Initialize(scene, shared.get(), nullptr, 0) || !(model.m_fFlags & 1) || model.m_bones || !model.m_loops ||
+        model.m_loops[0] || model.m_loops[1])
+        throw std::runtime_error("Zero-bone instance did not initialize its independent arrays");
+    model.FreeExternalResources();
+    model.FreeInternalResources();
+    if (model.m_internalMemory || model.m_loops || model.m_textures || model.m_ribbonEmitters || model.m_particleEmitters)
+        throw std::runtime_error("Zero-bone instance retained its arena or dangling views");
+    model.FreeInternalResources();
+    std::fprintf(stderr, "M2 zero-bone instance: independent arrays initialized and released\n");
+}
+}
 
 void CheckGameModels() {
     if (!g_animationDataDB.m_loaded) g_animationDataDB.Load(__FILE__, __LINE__);
@@ -31,10 +61,15 @@ void CheckGameModels() {
     auto* scene = M2CreateScene();
     if (!scene) throw std::runtime_error("M2 scene creation failed");
     struct Release { CM2Scene* scene; ~Release() { scene->Release(); } } release{scene};
+    CheckEmptySkeleton(scene);
     auto* model = scene->CreateModel("Cameras\\FlyByDwarf.m2", 0);
     if (!model || !model->IsLoaded(1, 0)) throw std::runtime_error("M2 camera instance failed to load");
     if (!model->m_bones || model->m_shared->m_data->m_cameras.m_count != 1)
         throw std::runtime_error("M2 camera instance is incomplete");
+    auto* arena = model->m_internalMemory;
+    auto* camera = model->m_cameras[0].m_camera;
+    if (!model->InitializeLoaded() || model->m_internalMemory != arena || model->m_cameras[0].m_camera != camera)
+        throw std::runtime_error("Repeated M2 initialization replaced live instance resources");
     C3Vector first, last;
     for (uint32_t frame = 0; frame < 4; ++frame) {
         scene->AdvanceTime(frame ? 1000 : 0);

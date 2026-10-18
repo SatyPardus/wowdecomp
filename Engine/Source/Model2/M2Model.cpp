@@ -3734,14 +3734,18 @@ CM2Model::CM2Model() {
 // VERIFY: 6ff1ddfd manual
 // OFFSET: 0x0082C1C0
 void CM2Model::FreeInternalResources() {
-    M2ModelBone* bones = this->m_bones;
+    void* memory = this->m_internalMemory;
 
-    if (!bones) {
+    if (!memory) {
         return;
     }
 
     M2Data* data = this->m_shared->m_data;
+    this->m_internalMemory = nullptr;
     this->m_bones = nullptr;
+    this->m_textures = nullptr;
+    this->m_ribbonEmitters = nullptr;
+    this->m_particleEmitters = nullptr;
 
     if (this->m_loops) {
         this->m_loops = nullptr;
@@ -3787,7 +3791,7 @@ void CM2Model::FreeInternalResources() {
         this->m_particles = nullptr;
     }
 
-    SMemFree(bones, __FILE__, __LINE__, 0);
+    SMemFree(memory, __FILE__, __LINE__, 0);
 }
 
 // VERIFY: 1f601c7d manual
@@ -6854,6 +6858,7 @@ void CModelBatchList::Optimize() {
 // VERIFY: 0f5f3316 manual
 // OFFSET: 0x00832EA0
 int32_t CM2Model::InitializeLoaded() {
+    if (this->m_fFlags & 1) return 1;
     CM2Shared* shared = this->m_shared;
 
     if (!(shared->m_flags & 1) || !(shared->m_flags & 2)) {
@@ -6905,6 +6910,23 @@ int32_t CM2Model::InitializeLoaded() {
     uint8_t* memory = static_cast<uint8_t*>(SMemAlloc(arenaSize, __FILE__, __LINE__, 0));
     if (!memory) return 0;
 
+    // Acquire arena and matrix storage before constructing objects or
+    // duplicating texture/camera handles. A failed allocation leaves no partial
+    // arena behind and can be retried by the ordinary load path.
+    auto* boneMatrices = data->m_bones.m_count
+        ? static_cast<C44Matrix*>(SIMD::AllocA16(data->m_bones.m_count * sizeof(C44Matrix), __FILE__, __LINE__)) : nullptr;
+    auto* textureMatrices = data->m_textureTransforms.m_count
+        ? static_cast<C44Matrix*>(SIMD::AllocA16(data->m_textureTransforms.m_count * sizeof(C44Matrix), __FILE__, __LINE__)) : nullptr;
+    if ((data->m_bones.m_count && !boneMatrices) || (data->m_textureTransforms.m_count && !textureMatrices)) {
+        SIMD::FreeA16(boneMatrices);
+        SIMD::FreeA16(textureMatrices);
+        SMemFree(memory, __FILE__, __LINE__, 0);
+        return 0;
+    }
+    this->m_internalMemory = memory;
+    this->m_boneMatrices = boneMatrices;
+    this->m_textureMatrices = textureMatrices;
+
     if (data->m_bones.m_count) {
         this->m_bones = reinterpret_cast<M2ModelBone*>(memory + bonesOffset);
 
@@ -6914,12 +6936,6 @@ int32_t CM2Model::InitializeLoaded() {
 
         for (uint32_t i = 0; i < data->m_bones.m_count; i++) {
             this->m_bones[i].m_flags = data->m_bones[i].m_flags;
-        }
-
-        this->m_boneMatrices = static_cast<C44Matrix*>(SIMD::AllocA16(data->m_bones.m_count * sizeof(C44Matrix), __FILE__, __LINE__));
-
-        if (!this->m_boneMatrices) {
-            return 0;
         }
 
         for (uint32_t i = 0; i < data->m_bones.m_count; i++) {
@@ -6978,12 +6994,6 @@ int32_t CM2Model::InitializeLoaded() {
 
         for (uint32_t i = 0; i < data->m_textureTransforms.m_count; i++) {
             new (&this->m_textureTransforms[i]) M2ModelTextureTransform();
-        }
-
-        this->m_textureMatrices = static_cast<C44Matrix*>(SIMD::AllocA16(data->m_textureTransforms.m_count * sizeof(C44Matrix), __FILE__, __LINE__));
-
-        if (!this->m_textureMatrices) {
-            return 0;
         }
     }
 
