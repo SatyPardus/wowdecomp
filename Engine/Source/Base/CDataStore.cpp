@@ -3,6 +3,9 @@
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
 
+// Wire fields have byte alignment. Scalar copies preserve the original native
+// little-endian bytes without creating misaligned typed references on arm64.
+
 // VERIFY: f8214604 auto
 // OFFSET: 0x00401050
 CDataStore::CDataStore() {
@@ -146,7 +149,7 @@ CDataStore& CDataStore::Set(uint32_t pos, uint8_t val) {
 // OFFSET: 0x0047AF40
 CDataStore& CDataStore::Set(uint32_t pos, uint16_t val) {
     this->FetchWrite(pos, sizeof(val), nullptr, 0);
-    *reinterpret_cast<uint16_t*>(&this->m_data[pos - this->m_base]) = val;
+    memcpy(&this->m_data[pos - this->m_base], &val, sizeof(val));
 
     return *this;
 }
@@ -155,7 +158,7 @@ CDataStore& CDataStore::Set(uint32_t pos, uint16_t val) {
 // OFFSET: 0x0047AF90
 CDataStore& CDataStore::Set(uint32_t pos, uint32_t val) {
     this->FetchWrite(pos, sizeof(val), nullptr, 0);
-    *reinterpret_cast<uint32_t*>(&this->m_data[pos - this->m_base]) = val;
+    memcpy(&this->m_data[pos - this->m_base], &val, sizeof(val));
 
     return *this;
 }
@@ -174,7 +177,7 @@ CDataStore& CDataStore::Put(uint8_t val) {
 // OFFSET: 0x0047B040
 CDataStore& CDataStore::Put(uint16_t val) {
     this->FetchWrite(this->m_size, sizeof(val), nullptr, 0);
-    *reinterpret_cast<uint16_t*>(&this->m_data[this->m_size - this->m_base]) = val;
+    memcpy(&this->m_data[this->m_size - this->m_base], &val, sizeof(val));
     this->m_size += sizeof(val);
 
     return *this;
@@ -184,7 +187,7 @@ CDataStore& CDataStore::Put(uint16_t val) {
 // OFFSET: 0x0047B0A0
 CDataStore& CDataStore::Put(uint32_t val) {
     this->FetchWrite(this->m_size, sizeof(val), nullptr, 0);
-    *reinterpret_cast<uint32_t*>(&this->m_data[this->m_size - this->m_base]) = val;
+    memcpy(&this->m_data[this->m_size - this->m_base], &val, sizeof(val));
     this->m_size += sizeof(val);
 
     return *this;
@@ -194,7 +197,7 @@ CDataStore& CDataStore::Put(uint32_t val) {
 // OFFSET: 0x0047B100
 CDataStore& CDataStore::Put(uint64_t val) {
     this->FetchWrite(this->m_size, sizeof(val), nullptr, 0);
-    *reinterpret_cast<uint64_t*>(&this->m_data[this->m_size - this->m_base]) = val;
+    memcpy(&this->m_data[this->m_size - this->m_base], &val, sizeof(val));
     this->m_size += sizeof(val);
 
     return *this;
@@ -204,7 +207,7 @@ CDataStore& CDataStore::Put(uint64_t val) {
 // OFFSET: 0x0047B160
 CDataStore& CDataStore::Put(float val) {
     this->FetchWrite(this->m_size, sizeof(val), nullptr, 0);
-    *reinterpret_cast<float*>(&this->m_data[this->m_size - this->m_base]) = val;
+    memcpy(&this->m_data[this->m_size - this->m_base], &val, sizeof(val));
     this->m_size += sizeof(val);
 
     return *this;
@@ -234,7 +237,8 @@ CDataStore& CDataStore::PutArray(const uint8_t* pval, uint32_t count) {
         uint8_t* dest = &this->m_data[this->m_size - this->m_base];
 
         if (dest != pval) {
-            memcpy(dest, pval, bytes);
+            // Grunt compacts a partial next message into this same allocation.
+            memmove(dest, pval, bytes);
         }
 
         pval += bytes;
@@ -298,7 +302,7 @@ CDataStore& CDataStore::Get(uint8_t& val) {
 // OFFSET: 0x0047B380
 CDataStore& CDataStore::Get(uint16_t& val) {
     if (this->FetchRead(this->m_read, sizeof(val))) {
-        val = *reinterpret_cast<uint16_t*>(&this->m_data[this->m_read - this->m_base]);
+        memcpy(&val, &this->m_data[this->m_read - this->m_base], sizeof(val));
         this->m_read += sizeof(val);
     }
 
@@ -309,7 +313,7 @@ CDataStore& CDataStore::Get(uint16_t& val) {
 // OFFSET: 0x0047B3C0
 CDataStore& CDataStore::Get(uint32_t& val) {
     if (this->FetchRead(this->m_read, sizeof(val))) {
-        val = *reinterpret_cast<uint32_t*>(&this->m_data[this->m_read - this->m_base]);
+        memcpy(&val, &this->m_data[this->m_read - this->m_base], sizeof(val));
         this->m_read += sizeof(val);
     }
 
@@ -320,7 +324,7 @@ CDataStore& CDataStore::Get(uint32_t& val) {
 // OFFSET: 0x0047B400
 CDataStore& CDataStore::Get(uint64_t& val) {
     if (this->FetchRead(this->m_read, sizeof(val))) {
-        val = *reinterpret_cast<uint64_t*>(&this->m_data[this->m_read - this->m_base]);
+        memcpy(&val, &this->m_data[this->m_read - this->m_base], sizeof(val));
         this->m_read += sizeof(val);
     }
 
@@ -331,7 +335,7 @@ CDataStore& CDataStore::Get(uint64_t& val) {
 // OFFSET: 0x0047B440
 CDataStore& CDataStore::Get(float& val) {
     if (this->FetchRead(this->m_read, sizeof(val))) {
-        val = *reinterpret_cast<float*>(&this->m_data[this->m_read - this->m_base]);
+        memcpy(&val, &this->m_data[this->m_read - this->m_base], sizeof(val));
         this->m_read += sizeof(val);
     }
 

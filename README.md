@@ -100,6 +100,8 @@ build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data --loca
 
 # Check original packet/stream networking using local loopback only.
 build/macos-arm64/bin/AppleNetworkProbe
+# Check original SRP and Grunt login against synthetic loopback credentials.
+build/macos-arm64/bin/AppleLoginProbe
 
 # Draw and read back every authored mip; add --preview for a native window.
 build/macos-arm64/bin/AppleMetalProbe --data-root /path/to/client335a/Data \
@@ -143,8 +145,16 @@ local loopback: it checks split 2/3-byte headers, queued sends, independent ciph
 reference bytes, immediate reconnect, refusal, active shutdown and repeated
 initialization. The iOS core check runs the same cases. Network shutdown joins
 workers before closing retained sockets; queued message buffers can outlive it.
-The original login/realm protocol and game-thread session integration remain
-to be connected; these checks do not log in to an external server.
+The original Grunt login and realm-list protocol also run on this transport.
+`AppleLoginProbe` checks SRP against independently computed public/session keys
+and proofs, then exchanges the original hello, authentication/version proofs and
+realm-list messages with a synthetic loopback peer. Split and combined replies,
+account rejection, invalid SRP keys/proofs and teardown are checked. The probe
+supplies an explicit test version checksum; the application's real checksum,
+signature policy and game-thread session integration remain to be connected.
+No external login service is contacted by these checks. Apple uses its system
+secure random source and retains the reference 12340 Windows/x86 protocol IDs;
+these legacy wire IDs do not describe the native arm64 hardware.
 
 The shared Event scheduler now has a nonblocking native-host step. Mac/iOS
 previews render continuously from the original paint event, preserving update,

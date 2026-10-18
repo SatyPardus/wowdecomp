@@ -2,7 +2,11 @@
 #include "Engine/Source/Os/OsSecureRandom.h"
 #include "WoW/Source/Net/NetClient/NetClient.h"
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Os/OsTcp.h"
 #include "Engine/Source/Os/System.h"
@@ -115,6 +119,16 @@ void GruntLogin::Logon(const char* loginServer, const char* portal) {
 // VERIFY: 1563533a manual
 // OFFSET: [0x008CAB80, 0x008CAC20]
 GruntLogin::~GruntLogin() {
+#if defined(__APPLE__)
+    // Quiesce the timer and network callbacks before releasing security input
+    // owned by the response object.
+    if (this->m_clientLink) {
+        this->m_clientLink->m_timer.Shutdown();
+        this->m_clientLink->Shutdown();
+        delete this->m_clientLink;
+        this->m_clientLink = nullptr;
+    }
+#endif
     if (this->m_matrixCoordinates) {
         delete[] this->m_matrixCoordinates;
     }

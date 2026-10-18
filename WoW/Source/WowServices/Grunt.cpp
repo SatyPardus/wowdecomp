@@ -1,7 +1,11 @@
 #include "Grunt.h"
 #include <cstdio>
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/Os/OsSecureRandom.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/Source/MD5.h"
@@ -9,6 +13,17 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.h"
 #include "WoW/Source/Client.h"
+
+#if defined(__APPLE__)
+namespace {
+struct NativeCallback {
+    SCritSect* lock;
+    explicit NativeCallback(Grunt::ClientLink& link) : lock(&link.m_nativeCallbackLock) { lock->Enter(); }
+    void Release() { if (lock) { lock->Leave(); lock = nullptr; } }
+    ~NativeCallback() { Release(); }
+};
+}
+#endif
 
 // STATIC: 0x00B24D00
 static Grunt::Command<Grunt::ClientLink> s_authCmds[] = {
@@ -96,7 +111,21 @@ void Grunt::ClientLink::Send(CDataStore& msg) {
 // OFFSET: 0x008CBA90
 void Grunt::ClientLink::Shutdown() {
     this->m_lock.Enter();
-
+#if defined(__APPLE__)
+    auto* connection = this->m_connection;
+    this->m_connection = nullptr;
+    this->m_lock.Leave();
+    if (connection) {
+        // An in-flight callback can need m_lock. Waiting for it while holding
+        // that lock deadlocks a native app closing its login connection.
+        connection->SetResponse(nullptr, false);
+        connection->Disconnect();
+        connection->Release();
+    }
+    // A callback can detach m_connection itself before notifying the login
+    // response. Keep that entire notification alive until shutdown has joined it.
+    { NativeCallback callbacks(*this); }
+#else
     if (this->m_connection) {
         this->m_connection->Disconnect();
         this->m_connection->SetResponse(nullptr, false);
@@ -105,6 +134,7 @@ void Grunt::ClientLink::Shutdown() {
     }
 
     this->m_lock.Leave();
+#endif
 }
 
 // VERIFY: 08907387 auto
@@ -149,6 +179,9 @@ void Grunt::ClientLink::Connect(const char* address) {
 // VERIFY: 8c632a8e auto
 // OFFSET: 0x008CCCB0
 void Grunt::ClientLink::WCConnected(WowConnection* connection, WowConnection* inbound, uint32_t timeStamp, const NETCONNADDR* addr) {
+#if defined(__APPLE__)
+    NativeCallback callback(*this);
+#endif
     this->m_lock.Enter();
     this->SetState(2);
     bool failed = !this->m_clientResponse->Connected(addr->peerAddr);
@@ -163,12 +196,18 @@ void Grunt::ClientLink::WCConnected(WowConnection* connection, WowConnection* in
 // VERIFY: 1c69ff99 manual
 // OFFSET: 0x008CCD40
 void Grunt::ClientLink::WCDisconnected(WowConnection* connection, uint32_t timeStamp, const NETCONNADDR* addr) {
+#if defined(__APPLE__)
+    NativeCallback callback(*this);
+#endif
     this->m_lock.Enter();
     this->Shutdown();
     this->SetState(0);
     this->m_lock.Leave();
 
     if (this->m_clientResponse->Disconnected()) {
+#if defined(__APPLE__)
+        callback.Release();
+#endif
         delete this;
     }
 }
@@ -176,12 +215,18 @@ void Grunt::ClientLink::WCDisconnected(WowConnection* connection, uint32_t timeS
 // VERIFY: bc4a5436 manual
 // OFFSET: 0x008CCDA0
 void Grunt::ClientLink::WCCantConnect(WowConnection* connection, uint32_t timeStamp, const NETCONNADDR* addr) {
+#if defined(__APPLE__)
+    NativeCallback callback(*this);
+#endif
     this->m_lock.Enter();
     this->Shutdown();
     this->SetState(0);
     this->m_lock.Leave();
 
     if (this->m_clientResponse->CantConnect()) {
+#if defined(__APPLE__)
+        callback.Release();
+#endif
         delete this;
     }
 }
@@ -760,6 +805,9 @@ int32_t Grunt::ClientLink::CmdAuthLogonProof(CDataStore& msg) {
 // VERIFY: ea70b617 manual
 // OFFSET: 0x008CD710
 void Grunt::ClientLink::WCDataReady(WowConnection* connection, uint32_t timeStamp, uint8_t* data, int32_t length) {
+#if defined(__APPLE__)
+    NativeCallback callback(*this);
+#endif
     this->m_datastore.PutArray(data, length);
     this->m_datastore.Finalize();
 

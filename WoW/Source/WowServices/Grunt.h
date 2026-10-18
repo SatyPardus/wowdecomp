@@ -143,6 +143,9 @@ class ClientLink : public WowConnectionResponse, public Grunt::Pending, public G
     /* 01D0 */ char m_accountName [1280];
     /* 06D0 */ uint8_t m_serverChallenge [32];
     /* 06F0 */ uint8_t m_reconnectKey [40];
+#if defined(__APPLE__)
+    SCritSect m_nativeCallbackLock;
+#endif
 
     ~ClientLink() override;
     void WCMessageReady(WowConnection* connection, uint32_t timeStamp, CDataStore* msg) override;
