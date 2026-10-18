@@ -96,6 +96,13 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const unsigned inputs = shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
     const uint32_t inputMask = terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : (1u << inputs) - 1;
+    for (unsigned i = 0; i < textures.size(); ++i)
+        if (inputMask & (1u << i)) {
+            const bool cube = terrain && i == 0 && (geometry.terrain->pixelPermutation & 1);
+            Require(textures[i] && textures[i].textureType == (cube ? MTLTextureType2DArray : MTLTextureType2D) &&
+                        (!cube || textures[i].arrayLength == 6),
+                    "Native shader texture type mismatch");
+        }
     const auto& state = states[0];
     Require(command && pass && (!inputs || textures[0]) && geometry.vertices, "Missing Metal geometry resource");
     Require((filter || wave) ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,

@@ -93,7 +93,7 @@ struct TerrainVertexParameters {
     simd_float4 fog, texOffset[5], texScale[5];
     simd_float4 position, sunDirection, ambient, diffuse, specular;
     TerrainPointLight lights[3];
-    simd_float4 shadowRows[12];
+    simd_float4 shadowRows[12], environmentRotation[3];
 };
 struct TerrainFragmentParameters {
     simd_float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8];
@@ -102,7 +102,7 @@ struct TerrainFragmentParameters {
     float stateAlphaRef;
     float padding[3]{};
 };
-static_assert(sizeof(TerrainVertexParameters) == 720 && sizeof(TerrainFragmentParameters) == 288,
+static_assert(sizeof(TerrainVertexParameters) == 768 && sizeof(TerrainFragmentParameters) == 288,
     "Native terrain constant layout");
 struct TerrainDrawParameters {
     TerrainVertexParameters vertex{};
@@ -206,6 +206,7 @@ public:
     id<MTLDevice> device;
     id<MTLCommandQueue> queue;
     id<MTLTexture> Upload(const BLP::Image& image, bool forceExpansion = false);
+    id<MTLTexture> UploadCube(const std::array<BLP::Image, 6>& faces, bool forceExpansion = false);
     void Draw(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const QuadParameters& parameters, const TextureDrawState& state, const MTLViewport* viewport = nullptr);
     // A supplied encoder remains open and must belong to the given pass/command.
@@ -239,6 +240,7 @@ public:
     simd_float4 DecodeScale(BLP::Format format) const;
 
 private:
+    id<MTLTexture> UploadFaces(const BLP::Image* faces, size_t count, bool forceExpansion);
     id<MTLLibrary> m_library;
     id<MTLFunction> m_rippleVertex;
     id<MTLFunction> m_rippleFragment[2][2][2]{};
@@ -251,7 +253,7 @@ private:
     id<MTLFunction> m_wmoVertex[7][10]{};
     id<MTLFunction> m_wmoFragment[7][2][2][2]{};
     id<MTLFunction> m_terrainVertex[128]{};
-    id<MTLFunction> m_terrainFragment[4][4][16][2][2]{};
+    id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
     id<MTLFunction> m_modelVertex[7][30]{};
     id<MTLFunction> m_modelFragment[8][2][2][2]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};

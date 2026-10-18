@@ -105,12 +105,16 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
     Require(!IsModelEffect(effect) || SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect),
         "Unsupported native model vertex permutation");
-    Require(!IsTerrainEffect(effect) || (terrain &&
-        SupportsTerrainPermutation(GxSh_Vertex, terrain->vertexPermutation) && SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
-        TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation) &&
-        terrain->shadowMode < 4 && uint32_t(terrain->layerPass) < 4 &&
-        ((effect == FragmentEffect::Terrain0) == (terrain->layerPass != TerrainLayerPass::Combined)) && (terrain->layerPass != TerrainLayerPass::Combined || bool(terrain->vertexPermutation & 1) == bool(terrain->shadowMode))),
-        "Unsupported native terrain permutation or mismatched layer count");
+    Require(!IsTerrainEffect(effect) ||
+                (terrain && SupportsTerrainPermutation(GxSh_Vertex, terrain->vertexPermutation) &&
+                 SupportsTerrainPermutation(GxSh_Pixel, terrain->pixelPermutation) &&
+                 TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation) &&
+                 bool(terrain->vertexPermutation & 2) == bool(terrain->pixelPermutation & 1) && terrain->shadowMode < 4 &&
+                 uint32_t(terrain->layerPass) < 4 &&
+                 ((effect == FragmentEffect::Terrain0 || effect == FragmentEffect::Terrain0Environment) ==
+                  (terrain->layerPass != TerrainLayerPass::Combined)) &&
+                 (terrain->layerPass != TerrainLayerPass::Combined || bool(terrain->vertexPermutation & 1) == bool(terrain->shadowMode))),
+            "Unsupported native terrain permutation or mismatched layer count");
     Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
     Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)), "Unsupported native liquid permutation");
     Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
@@ -341,7 +345,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         Require(!screenAtDepth && GxVertexHasAttrib(format, GxVA_Normal) && (!color || GxVertexHasAttrib(format, GxVA_Color0)),
             "Unsupported native terrain vertex layout");
         auto& vertex = m_terrainVertex[vertexPermutation];
-        auto& fragment = m_terrainFragment[uint32_t(terrain->layerPass)][terrain->shadowMode][pixelPermutation / 2][state.alphaRef != 0][decodePacked];
+        auto& fragment =
+            m_terrainFragment[uint32_t(terrain->layerPass)][terrain->shadowMode][pixelPermutation][state.alphaRef != 0][decodePacked];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -353,7 +358,10 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&layerPass type:MTLDataTypeUInt atIndex:25];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:color ? @"terrainColorVertex" : @"terrainVertex" constantValues:constants error:&error];
-        if (!fragment) fragment = [m_library newFunctionWithName:@"terrainFragment" constantValues:constants error:&error];
+        if (!fragment)
+            fragment = [m_library newFunctionWithName:(pixelPermutation & 1) ? @"terrainEnvironmentFragment" : @"terrainFragment"
+                                       constantValues:constants
+                                                error:&error];
         if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Terrain specialization failed");
         descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
         auto layout = [MTLVertexDescriptor vertexDescriptor];
@@ -494,7 +502,35 @@ simd_float4 GxMetal::TextureDevice::DecodeScale(BLP::Format format) const {
 }
 
 id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forceExpansion) {
-    Require(!image.mips.empty(), "Cannot upload an empty texture");
+    return UploadFaces(&image, 1, forceExpansion);
+}
+id<MTLTexture> GxMetal::TextureDevice::UploadCube(const std::array<BLP::Image, 6>& faces, bool forceExpansion) {
+    return UploadFaces(faces.data(), faces.size(), forceExpansion);
+}
+id<MTLTexture> GxMetal::TextureDevice::UploadFaces(const BLP::Image* faces, size_t count, bool forceExpansion) {
+    Require(faces && (count == 1 || count == 6) && !faces[0].mips.empty(), "Invalid texture faces");
+    const auto& image = faces[0];
+    const auto width = image.mips[0].width, height = image.mips[0].height;
+    Require(width && height && width <= 16384 && height <= 16384 && (count == 1 || (width == height && !(width & (width - 1)))),
+            "Invalid texture extent");
+    size_t levels = 1;
+    for (auto size = std::max(width, height); size > 1; size >>= 1)
+        ++levels;
+    Require(image.mips.size() <= levels, "Texture has excess mip levels");
+    for (size_t face = 0; face < count; ++face) {
+        Require(faces[face].format == image.format && faces[face].mips.size() == image.mips.size(), "Mismatched cube faces");
+        for (size_t level = 0; level < image.mips.size(); ++level) {
+            const auto& mip = faces[face].mips[level];
+            const bool bc = BLP::IsBlockCompressed(image.format);
+            const size_t block = bc ? 4 : 1, bytes = bc                                   ? (image.format == BLP::Format::BC1 ? 8 : 16)
+                                                     : image.format == BLP::Format::BGRA8 ? 4
+                                                                                          : 2;
+            const size_t rowBytes = ((mip.width + block - 1) / block) * bytes;
+            Require(mip.width == std::max(1u, width >> level) && mip.height == std::max(1u, height >> level) && mip.rowBytes == rowBytes &&
+                        mip.bytes.size() == rowBytes * ((mip.height + block - 1) / block),
+                    "Invalid texture mip payload");
+        }
+    }
     const bool compressed = BLP::IsBlockCompressed(image.format);
     const bool packed16 = !compressed && image.format != BLP::Format::BGRA8;
     const bool packedFallback = packed16 && !SupportsPacked16();
@@ -509,63 +545,80 @@ id<MTLTexture> GxMetal::TextureDevice::Upload(const BLP::Image& image, bool forc
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:
         format width:image.mips[0].width height:image.mips[0].height mipmapped:NO];
     descriptor.mipmapLevelCount = image.mips.size();
+    if (count == 6)
+        descriptor.textureType = MTLTextureTypeCube;
     descriptor.storageMode = MTLStorageModePrivate;
     descriptor.usage = MTLTextureUsageShaderRead;
     struct Layout { size_t offset, stride, rows; };
     std::vector<Layout> layouts;
     size_t total = 0;
-    for (const auto& mip : image.mips) {
-        const size_t stride = Align(expanded || codedFallback ? mip.width * 4 : mip.rowBytes);
-        const size_t rows = expanded || codedFallback ? mip.height : mip.bytes.size() / mip.rowBytes;
-        Require(stride * rows <= 256 * 1024 * 1024 - total, "Native texture staging exceeds memory budget");
-        layouts.push_back({total, stride, rows});
-        total += stride * rows;
-    }
+    for (size_t face = 0; face < count; ++face)
+        for (const auto& mip : faces[face].mips) {
+            const size_t stride = Align(expanded || codedFallback ? mip.width * 4 : mip.rowBytes);
+            const size_t rows = expanded || codedFallback ? mip.height : mip.bytes.size() / mip.rowBytes;
+            Require(stride * rows <= 256 * 1024 * 1024 - total, "Native texture staging exceeds memory budget");
+            layouts.push_back({total, stride, rows});
+            total += stride * rows;
+        }
     id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
     Require(texture != nil, "Metal texture allocation failed");
     texture.label = @"WoW authored texture mip chain";
     id<MTLBuffer> staging = [device newBufferWithLength:total options:MTLResourceStorageModeShared];
     Require(staging != nil, "Metal texture staging allocation failed");
-    for (size_t level = 0; level < image.mips.size(); ++level) {
-        BLP::Mip decoded;
-        if (expanded) { decoded = image.DecodeBGRA(level); }
-        const BLP::Mip& mip = expanded ? decoded : image.mips[level];
-        const auto& layout = layouts[level];
-        for (size_t row = 0; row < layout.rows; ++row) {
-            auto* dest = static_cast<uint8_t*>(staging.contents) + layout.offset + row * layout.stride;
-            const auto* source = mip.bytes.data() + row * mip.rowBytes;
-            if (codedFallback) {
-                for (uint32_t x = 0; x < mip.width; ++x) {
-                    uint16_t word; std::memcpy(&word, source + x * 2, 2);
-                    const bool rgb565 = image.format == BLP::Format::RGB565;
-                    const unsigned greenBits = rgb565 ? 6 : 5;
-                    dest[x * 4] = word & 31;
-                    dest[x * 4 + 1] = (word >> 5) & ((1u << greenBits) - 1);
-                    dest[x * 4 + 2] = (word >> (5 + greenBits)) & 31;
-                    dest[x * 4 + 3] = rgb565 ? 255 : word >> 15;
+    for (size_t face = 0; face < count; ++face)
+        for (size_t level = 0; level < image.mips.size(); ++level) {
+            BLP::Mip decoded;
+            if (expanded) {
+                decoded = faces[face].DecodeBGRA(level);
+            }
+            const BLP::Mip& mip = expanded ? decoded : faces[face].mips[level];
+            const auto& layout = layouts[face * image.mips.size() + level];
+            for (size_t row = 0; row < layout.rows; ++row) {
+                auto* dest = static_cast<uint8_t*>(staging.contents) + layout.offset + row * layout.stride;
+                const auto* source = mip.bytes.data() + row * mip.rowBytes;
+                if (codedFallback) {
+                    for (uint32_t x = 0; x < mip.width; ++x) {
+                        uint16_t word;
+                        std::memcpy(&word, source + x * 2, 2);
+                        const bool rgb565 = image.format == BLP::Format::RGB565;
+                        const unsigned greenBits = rgb565 ? 6 : 5;
+                        dest[x * 4] = word & 31;
+                        dest[x * 4 + 1] = (word >> 5) & ((1u << greenBits) - 1);
+                        dest[x * 4 + 2] = (word >> (5 + greenBits)) & 31;
+                        dest[x * 4 + 3] = rgb565 ? 255 : word >> 15;
+                    }
+                } else if (!expanded && image.format == BLP::Format::ARGB4444) {
+                    // D3D A:R:G:B -> Metal R:G:B:A in the 16-bit word. This is
+                    // only a rotation of channel bits, with no precision loss.
+                    for (uint32_t x = 0; x < mip.width; ++x) {
+                        uint16_t word;
+                        std::memcpy(&word, source + x * 2, 2);
+                        word = uint16_t((word << 4) | (word >> 12));
+                        std::memcpy(dest + x * 2, &word, 2);
+                    }
+                } else {
+                    std::memcpy(dest, source, mip.rowBytes);
                 }
-            } else if (!expanded && image.format == BLP::Format::ARGB4444) {
-                // D3D A:R:G:B -> Metal R:G:B:A in the 16-bit word. This is
-                // only a rotation of channel bits, with no precision loss.
-                for (uint32_t x = 0; x < mip.width; ++x) {
-                    uint16_t word; std::memcpy(&word, source + x * 2, 2);
-                    word = uint16_t((word << 4) | (word >> 12));
-                    std::memcpy(dest + x * 2, &word, 2);
-                }
-            } else { std::memcpy(dest, source, mip.rowBytes); }
+            }
         }
-    }
     id<MTLCommandBuffer> command = [queue commandBuffer];
     command.label = @"Upload BLP mip chain";
     id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
     Require(blit != nil, "Cannot create Metal upload encoder");
-    for (size_t level = 0; level < image.mips.size(); ++level) {
-        const auto& mip = image.mips[level];
-        const auto& layout = layouts[level];
-        [blit copyFromBuffer:staging sourceOffset:layout.offset sourceBytesPerRow:layout.stride sourceBytesPerImage:layout.stride * layout.rows
-            sourceSize:MTLSizeMake(mip.width, mip.height, 1) toTexture:texture destinationSlice:0 destinationLevel:level
-            destinationOrigin:MTLOriginMake(0, 0, 0)];
-    }
+    for (size_t face = 0; face < count; ++face)
+        for (size_t level = 0; level < image.mips.size(); ++level) {
+            const auto& mip = faces[face].mips[level];
+            const auto& layout = layouts[face * image.mips.size() + level];
+            [blit copyFromBuffer:staging
+                       sourceOffset:layout.offset
+                  sourceBytesPerRow:layout.stride
+                sourceBytesPerImage:layout.stride * layout.rows
+                         sourceSize:MTLSizeMake(mip.width, mip.height, 1)
+                          toTexture:texture
+                   destinationSlice:face
+                   destinationLevel:level
+                  destinationOrigin:MTLOriginMake(0, 0, 0)];
+        }
     [blit endEncoding];
     [command addCompletedHandler:^(id<MTLCommandBuffer> completed) {
         if (completed.error) { NSLog(@"BLP upload failed: %@", completed.error); }

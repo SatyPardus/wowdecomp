@@ -57,7 +57,12 @@ struct Pool {
     bool streaming = false;
     std::unordered_map<uint64_t, BufferBinding> snapshots;
 };
-struct Texture { BLP::Image image; id<MTLTexture> gpu, sampled; uint32_t base = 0; bool renderTarget = false; };
+struct Texture {
+    std::vector<BLP::Image> images;
+    id<MTLTexture> gpu, sampled;
+    uint32_t base = 0;
+    bool renderTarget = false;
+};
 struct Shader { std::shared_ptr<GxMetal::UIShader> ui; uint32_t permutation; GxMetal::FragmentEffect effect; GxMetal::ModelVertexEffect vertexEffect = GxMetal::ModelVertexEffect::Diffuse; GxMetal::WmoVertexEffect wmoVertex = GxMetal::WmoVertexEffect::Diffuse; };
 std::vector<uint8_t> ReadShader(const char* path, bool optional = false) {
     SFileImpl* file = nullptr;
@@ -87,6 +92,8 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::ShadowMap: return target == GxSh_Vertex ? "ShadowMap" : "ShadowMapSL";
         case GxMetal::FragmentEffect::Terrain: return target == GxSh_Vertex ? "Terrain" : "Terrain1";
         case GxMetal::FragmentEffect::Terrain0: return "Terrain0";
+        case GxMetal::FragmentEffect::Terrain0Environment:
+            return "Terrain0_env";
         case GxMetal::FragmentEffect::Terrain2: return "Terrain2";
         case GxMetal::FragmentEffect::Terrain3: return "Terrain3";
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
@@ -408,8 +415,8 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_texFmt[GxTex_Argb4444] = 1;
     for (auto format : {GxTex_Argb1555, GxTex_Rgb565}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_rttFormat[GxTex_Argb8888] = m_caps.m_rttFormat[GxTex_R32F] = 1;
-    m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
-    m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
+    m_caps.m_texTarget[GxTex_CubeMap] = m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
+    m_caps.m_texMaxSize[GxTex_CubeMap] = m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
     m_caps.m_texNonPow2 = 1;
     // Advertise the original profile; resolve missing assets in the game order.
     // ShaderCreate still rejects every family lacking a verified native effect.
@@ -665,8 +672,11 @@ void CGxDeviceMetal::BufData(CGxBuf* buffer, const void* data, uint32_t size, ui
 int32_t CGxDeviceMetal::TexCreate(EGxTexTarget target, uint32_t width, uint32_t height, uint32_t depth, EGxTexFormat format,
     EGxTexFormat dataFormat, CGxTexFlags flags, void* arg, GxTexUserFunc callback, const char* name, CGxTex*& texture) {
     texture = nullptr;
-    Require((target == GxTex_2d || target == GxTex_NonPow2) && width && height && width <= 16384 && height <= 16384 && depth <= 1,
-        "Unsupported Gx texture target or extent");
+    Require((target == GxTex_2d || target == GxTex_NonPow2 || target == GxTex_CubeMap) && width && height && width <= 16384 &&
+                height <= 16384 && depth <= 1,
+            "Unsupported Gx texture target or extent");
+    Require(target != GxTex_CubeMap || (width == height && !(width & (width - 1)) && !flags.m_renderTarget),
+            "Cube textures require square power-of-two faces; cube render targets are not implemented");
     Require(!flags.m_generateMipMaps, "Gx automatic mip generation is not implemented");
     if (flags.m_renderTarget) {
         Require(format == GxTex_Argb8888 || format == GxTex_R32F, "Gx render target format is not implemented");
@@ -731,7 +741,10 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
             id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
             Require(replacement != nil, "Cannot allocate Gx color render target");
             replacement.label = @"Gx color render target";
-            storage.gpu = replacement; storage.base = base; storage.renderTarget = true; storage.image = {};
+            storage.gpu = replacement;
+            storage.base = base;
+            storage.renderTarget = true;
+            storage.images.clear();
             storage.sampled = nil;
             if (texture->m_format == GxTex_R32F) {
                 // D3D9 defines absent format channels as one. Keep the render
@@ -747,14 +760,17 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
         CGxDevice::ITexMarkAsUpdated(texture);
         return;
     }
-    const bool recreate = texture->m_needsCreation || !storage.gpu || storage.renderTarget || storage.base != base || storage.image.mips.size() != end - base;
+    const bool recreate = texture->m_needsCreation || !storage.gpu || storage.renderTarget || storage.base != base ||
+                          storage.images.size() != (texture->m_target == GxTex_CubeMap ? 6u : 1u) ||
+                          storage.images[0].mips.size() != end - base;
     if (!recreate && !texture->m_needsUpdate) { texture->m_needsFlagUpdate = 0; return; }
     Require(texture->m_userFunc && !texture->m_flags.m_generateMipMaps && !texture->m_flags.m_renderTarget && SupportedConversion(texture->m_format, texture->m_dataFormat),
         "Unsupported updated Gx texture flags or conversion");
-    BLP::Image image = recreate ? BLP::Image{} : storage.image;
-    image.format = ImageFormat(texture->m_format);
-    const uint32_t block = BLP::IsBlockCompressed(image.format) ? 4 : 1;
-    const uint32_t bytes = block == 4 ? (image.format == BLP::Format::BC1 ? 8 : 16) : Packed16(texture->m_format) ? 2 : 4;
+    const size_t faceCount = texture->m_target == GxTex_CubeMap ? 6 : 1;
+    auto images = recreate ? std::vector<BLP::Image>(faceCount) : storage.images;
+    const auto format = ImageFormat(texture->m_format);
+    const uint32_t block = BLP::IsBlockCompressed(format) ? 4 : 1;
+    const uint32_t bytes = block == 4 ? (format == BLP::Format::BC1 ? 8 : 16) : Packed16(texture->m_format) ? 2 : 4;
     const uint32_t sourceBytes = Packed16(texture->m_dataFormat) ? 2 : texture->m_dataFormat == GxTex_Argb8888 ? 4 : bytes;
     const bool convert = texture->m_format != texture->m_dataFormat;
     uint32_t stride = 0; const void* pixels = nullptr;
@@ -764,43 +780,83 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
         ~Unlock() { uint32_t stride = 0; const void* data = nullptr; t->m_userFunc(GxTex_Unlock, t->m_width, t->m_height, 0, 0, t->m_userArg, stride, data); }
     } unlock{texture};
     size_t total = 0;
-    for (uint32_t mip = base; mip < end; ++mip) {
-        const uint32_t rowBytes = ((width + block - 1) / block) * bytes, rows = (height + block - 1) / block;
-        total += size_t(rowBytes) * rows;
-        Require(total <= ResourceBudget, "Gx texture upload exceeds memory budget");
-        if (recreate) { image.mips.push_back({width, height, rowBytes, std::vector<uint8_t>(size_t(rowBytes) * rows)}); }
-        auto& dest = image.mips[mip - base];
-        CiRect rect = recreate ? CiRect(0, 0, texture->m_height, texture->m_width) : texture->m_updateRect;
-        Require(rect.minX >= 0 && rect.minY >= 0 && rect.maxX <= int32_t(texture->m_width) && rect.maxY <= int32_t(texture->m_height), "Invalid Gx texture dirty rectangle");
-        uint32_t left = uint32_t(rect.minX) >> mip, top = uint32_t(rect.minY) >> mip;
-        uint32_t right = std::min(width, std::max(left + 1, uint32_t(rect.maxX) >> mip));
-        uint32_t bottom = std::min(height, std::max(top + 1, uint32_t(rect.maxY) >> mip));
-        left /= block; top /= block; right = (right + block - 1) / block; bottom = (bottom + block - 1) / block;
-        pixels = nullptr; stride = 0;
-        texture->m_userFunc(GxTex_Latch, width, height, 0, mip, texture->m_userArg, stride, pixels);
-        Require(pixels && right > left && bottom > top && stride >= (texture->m_flags.m_bit15 ? right - left : right) * sourceBytes,
-            "Missing or invalid Gx texture mip callback data");
-        Require(!recreate || !texture->m_flags.m_bit15 || (texture->m_updateRect.minX == 0 && texture->m_updateRect.minY == 0 &&
-            texture->m_updateRect.maxX == int32_t(texture->m_width) && texture->m_updateRect.maxY == int32_t(texture->m_height)),
-            "Cannot recreate a Gx texture from partial-origin callback data");
-        auto* source = static_cast<const uint8_t*>(pixels);
-        if (!texture->m_flags.m_bit15) { source += size_t(top) * stride + left * sourceBytes; }
-        for (uint32_t row = top; row < bottom; ++row) {
-            auto* dst = dest.bytes.data() + size_t(row) * rowBytes + left * bytes;
-            const auto* src = source + size_t(row - top) * stride;
-            if (convert) {
-                for (uint32_t x = 0; x < right - left; ++x) {
-                    const uint16_t packed = Pack16(src + x * 4, texture->m_format);
-                    std::memcpy(dst + x * 2, &packed, sizeof(packed));
-                }
-            } else {
-                std::memcpy(dst, src, (right - left) * bytes);
+    const auto baseWidth = width, baseHeight = height;
+    for (size_t face = 0; face < faceCount; ++face) {
+        auto& image = images[face];
+        image.format = format;
+        width = baseWidth;
+        height = baseHeight;
+        for (uint32_t mip = base; mip < end; ++mip) {
+            const uint32_t rowBytes = ((width + block - 1) / block) * bytes, rows = (height + block - 1) / block;
+            total += size_t(rowBytes) * rows;
+            Require(total <= ResourceBudget, "Gx texture upload exceeds memory budget");
+            if (recreate) {
+                image.mips.push_back({width, height, rowBytes, std::vector<uint8_t>(size_t(rowBytes) * rows)});
             }
+            auto& dest = image.mips[mip - base];
+            CiRect rect = recreate ? CiRect(0, 0, texture->m_height, texture->m_width) : texture->m_updateRect;
+            Require(rect.minX >= 0 && rect.minY >= 0 && rect.maxX <= int32_t(texture->m_width) && rect.maxY <= int32_t(texture->m_height),
+                    "Invalid Gx texture dirty rectangle");
+            uint32_t left = uint32_t(rect.minX) >> mip, top = uint32_t(rect.minY) >> mip;
+            uint32_t right = std::min(width, std::max(left + 1, uint32_t(rect.maxX) >> mip));
+            uint32_t bottom = std::min(height, std::max(top + 1, uint32_t(rect.maxY) >> mip));
+            left /= block;
+            top /= block;
+            right = (right + block - 1) / block;
+            bottom = (bottom + block - 1) / block;
+            pixels = nullptr;
+            stride = 0;
+            texture->m_userFunc(GxTex_Latch, width, height, uint32_t(face), mip, texture->m_userArg, stride, pixels);
+            Require(pixels && right > left && bottom > top && stride >= (texture->m_flags.m_bit15 ? right - left : right) * sourceBytes,
+                    "Missing or invalid Gx texture mip callback data");
+            Require(!recreate || !texture->m_flags.m_bit15 ||
+                        (texture->m_updateRect.minX == 0 && texture->m_updateRect.minY == 0 &&
+                         texture->m_updateRect.maxX == int32_t(texture->m_width) &&
+                         texture->m_updateRect.maxY == int32_t(texture->m_height)),
+                    "Cannot recreate a Gx texture from partial-origin callback data");
+            auto* source = static_cast<const uint8_t*>(pixels);
+            if (!texture->m_flags.m_bit15) {
+                source += size_t(top) * stride + left * sourceBytes;
+            }
+            for (uint32_t row = top; row < bottom; ++row) {
+                auto* dst = dest.bytes.data() + size_t(row) * rowBytes + left * bytes;
+                const auto* src = source + size_t(row - top) * stride;
+                if (convert) {
+                    for (uint32_t x = 0; x < right - left; ++x) {
+                        const uint16_t packed = Pack16(src + x * 4, texture->m_format);
+                        std::memcpy(dst + x * 2, &packed, sizeof(packed));
+                    }
+                } else {
+                    std::memcpy(dst, src, (right - left) * bytes);
+                }
+            }
+            width = std::max(1u, width >> 1);
+            height = std::max(1u, height >> 1);
         }
-        width = std::max(1u, width >> 1); height = std::max(1u, height >> 1);
     }
     // Immutable replacement keeps previously encoded frames' texture contents alive.
-    storage.gpu = m->gpu.Upload(image); storage.image = std::move(image); storage.base = base; storage.renderTarget = false;
+    id<MTLTexture> replacement, sampled = nil;
+    if (faceCount == 6) {
+        std::array<BLP::Image, 6> faces;
+        for (size_t i = 0; i < 6; ++i)
+            faces[i] = std::move(images[i]);
+        replacement = m->gpu.UploadCube(faces);
+        for (size_t i = 0; i < 6; ++i)
+            images[i] = std::move(faces[i]);
+        // D3D9 filters inside each face. Metal's native cube sampler is
+        // seamless, so terrain samples this array view with projected gradients.
+        sampled = [replacement newTextureViewWithPixelFormat:replacement.pixelFormat
+                                                 textureType:MTLTextureType2DArray
+                                                      levels:NSMakeRange(0, end - base)
+                                                      slices:NSMakeRange(0, 6)];
+        Require(sampled != nil, "Cannot create cube face sampling view");
+    } else
+        replacement = m->gpu.Upload(images[0]);
+    storage.gpu = replacement;
+    storage.sampled = sampled;
+    storage.images = std::move(images);
+    storage.base = base;
+    storage.renderTarget = false;
     texture->m_apiSpecificData = &storage;
     texture->m_needsCreation = texture->m_needsFlagUpdate = 0;
     CGxDevice::ITexMarkAsUpdated(texture);
@@ -836,8 +892,10 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     for (auto candidate : {Effect::LiquidWater, Effect::LiquidWaterNoSpec, Effect::LiquidMagma})
         if (SStrCmpI(name, GxMetal::LiquidShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::Terrain, target), STORM_MAX_STR) == 0) effect = Effect::Terrain;
-    if (target == GxSh_Pixel) for (auto candidate : {Effect::Terrain0, Effect::Terrain2, Effect::Terrain3})
-        if (SStrCmpI(name, ShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
+    if (target == GxSh_Pixel)
+        for (auto candidate : {Effect::Terrain0, Effect::Terrain0Environment, Effect::Terrain2, Effect::Terrain3})
+            if (SStrCmpI(name, ShaderFamily(candidate, target), STORM_MAX_STR) == 0)
+                effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::ShadowMap, target), STORM_MAX_STR) == 0) effect = Effect::ShadowMap;
     if (SStrCmpI(name, "DetailDoodad", STORM_MAX_STR) == 0) effect = Effect::DetailDoodad;
     if (SStrCmpI(name, "WaterRipples", STORM_MAX_STR) == 0) effect = Effect::WaterRipple;
@@ -960,8 +1018,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     }
     if (terrain) {
         Require(GxMetal::SupportsTerrainPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
-            GxMetal::SupportsTerrainPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation, effect),
-            "Metal terrain cube reflection permutation is not implemented");
+                    GxMetal::SupportsTerrainPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation, effect),
+                "Invalid Metal terrain permutation");
     }
     CGxBuf* vertices = postProcess ? m_primVertexFormatBuf[GxVA_Position] : m_primVertexBuf;
     Require(vertices, "Gx draw requires vertices");
@@ -1083,6 +1141,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertexPermutation = m->shaders.at(vertex).permutation;
         native.pixelPermutation = GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation);
         native.shadowMode = GxMetal::TerrainShadowMode(effect, m->shaders.at(pixel).permutation);
+        if (effect == GxMetal::FragmentEffect::Terrain0Environment)
+            native.layerPass = GxMetal::TerrainLayerPass::WeightedBase;
         if (effect == GxMetal::FragmentEffect::Terrain0) native.layerPass = GxMetal::TerrainLayerPass(1 + m->shaders.at(pixel).permutation);
         std::memcpy(&native.fragment.layerChannel, s_shadowConstants[0].constants, sizeof(simd_float4));
         const float* constants = s_shadowConstants[1].constants;
@@ -1090,6 +1150,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         // Terrain uses multiply/add columns, unlike Model2's dot-product rows.
         std::memcpy(&native.vertex.worldView, constants, sizeof(simd_float4x4));
         std::memcpy(&native.vertex.projection, constants + 16, sizeof(simd_float4x4));
+        for (unsigned i = 0; i < 3; ++i)
+            native.vertex.environmentRotation[i] = vector(8 + i);
         native.vertex.fog = vector(12);
         for (unsigned i = 0; i < 5; ++i) { native.vertex.texOffset[i] = vector(13 + i); native.vertex.texScale[i] = vector(18 + i); }
         native.vertex.position = vector(23); native.vertex.sunDirection = vector(24);
@@ -1166,10 +1228,12 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
         Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");
+        const bool cube = terrain && i == 0 && (terrainParameters->pixelPermutation & 1);
+        Require((texture->m_target == GxTex_CubeMap) == cube, "Shader and texture target mismatch");
         ITexMarkAsUpdated(texture);
         textures[i] = m->textures.at(texture).sampled ?: m->textures.at(texture).gpu;
         states[i] = state;
-        states[i].decodeScale = m->gpu.DecodeScale(m->textures.at(texture).image.format);
+        states[i].decodeScale = m->gpu.DecodeScale(texture->m_format == GxTex_R32F ? BLP::Format::BGRA8 : ImageFormat(texture->m_format));
         states[i].filter = EGxTexFilter(texture->m_flags.m_filter);
         states[i].wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); states[i].wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
@@ -1292,8 +1356,10 @@ void CGxDeviceMetal::DeviceRestoreDepthSurface() { Unsupported("restore depth su
 void CGxDeviceMetal::DeviceResolveDepthBuffer(CGxTex*) { Unsupported("resolve depth"); }
 void CGxDeviceMetal::DeviceCopyTex(CGxTex* source, uint32_t sourcePlane, CGxTex* dest, uint32_t destPlane) {
     if (!m_context || !source || !dest) { return; }
-    Require(sourcePlane == 0 && destPlane == 0 && dest->m_flags.m_renderTarget && (source->m_format == GxTex_Argb8888 || source->m_format == GxTex_R32F) &&
-        dest->m_format == source->m_format, "Unsupported Gx texture copy format, target or plane");
+    Require(source->m_target != GxTex_CubeMap && dest->m_target != GxTex_CubeMap && sourcePlane == 0 && destPlane == 0 &&
+                dest->m_flags.m_renderTarget && (source->m_format == GxTex_Argb8888 || source->m_format == GxTex_R32F) &&
+                dest->m_format == source->m_format,
+            "Unsupported Gx texture copy format, target or plane");
     ITexMarkAsUpdated(source); ITexMarkAsUpdated(dest);
     id<MTLTexture> src = m->textures.at(source).gpu, dst = m->textures.at(dest).gpu;
     Require(m->CopyColor(src, SurfaceRect(src, 0), dst, 0, SurfaceRect(dst, 0), false), "Invalid Gx texture copy");

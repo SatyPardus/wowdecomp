@@ -21,6 +21,7 @@
 
 void CheckServicesTexturePixels(CGxTex* texture, const BLP::Image& reference);
 void CheckGameModels();
+void CheckGameCubeTextures();
 void CheckGameTerrain();
 void CheckGameWmoRoots();
 void CheckGameWmoScene();
@@ -71,6 +72,7 @@ void CheckGameAsyncFiles() {
         struct Cleanup { bool active = true; ~Cleanup() { if (active) { EventDestroy(); } PropDestroy(); } } cleanup;
         EventCreateContextEx(1, Initialize, Destroy, 1, 0);
         EventProcessPending();
+        CheckGameCubeTextures();
         CheckGameModels();
         CheckGameTerrain();
         CheckGameWmoRoots();

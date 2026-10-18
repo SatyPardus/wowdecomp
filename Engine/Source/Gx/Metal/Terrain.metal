@@ -1,5 +1,4 @@
-// Original terrain surface lighting and projected shadow receivers. Cube
-// reflection remains a separate, explicitly unsupported permutation.
+// Original terrain surface lighting, environment reflection and projected shadows.
 constant uint terrainVertexPermutation [[function_constant(12)]];
 constant uint terrainPixelPermutation [[function_constant(13)]];
 constant uint terrainShadowMode [[function_constant(24)]];
@@ -12,7 +11,7 @@ struct TerrainVertexParameters {
     float4 fog, texOffset[5], texScale[5];
     float4 position, sunDirection, ambient, diffuse, specular;
     TerrainPointLight lights[3];
-    float4 shadowRows[12];
+    float4 shadowRows[12], environmentRotation[3];
 };
 struct TerrainFragmentParameters {
     float4 fogColor, layerLighting, decodeScale[5], pcfOffsets[8], shadowDecodeScale, layerChannel;
@@ -35,6 +34,7 @@ struct TerrainRaster {
     float fog;
     float pointSize [[point_size]];
     float3 dynamicShadow, nearShadow, middleShadow, farShadow;
+    float3 environmentDirection;
 };
 inline float3 terrainRotate(float3 point, float4x4 matrix) {
     return fma(point.z, matrix[2].xyz, fma(point.x, matrix[0].xyz, point.y * matrix[1].xyz));
@@ -67,6 +67,11 @@ inline TerrainRaster terrainTransform(float3 position, float3 normal, float3 col
         uv[i] = fma(relative, p.texScale[i].yx, p.texOffset[i].yx);
     const float fog = min(pow(max(fma(view.z, p.fog.x, p.fog.y), 0.0f), p.fog.z), 1.0f);
     TerrainRaster result{clip, min(lighting, 1.0f) * color, specular, uv[0], uv[1], uv[2], uv[3], uv[4], fog, 1};
+    if (terrainVertexPermutation & 2) {
+        const float3 reflected = fma(direction, -2 * dot(view.xyz, direction), view.xyz);
+        result.environmentDirection = fma(reflected.z, p.environmentRotation[2].xzy,
+                                          fma(reflected.x, p.environmentRotation[0].xzy, reflected.y * p.environmentRotation[1].xzy));
+    }
     if (terrainVertexPermutation & 1) {
         // Each shadow projection is three affine rows, with no perspective
         // division. Keep four named coordinates rather than D3D's packed varyings.
@@ -107,19 +112,14 @@ inline float terrainBandedShadow(TerrainRaster v, constant TerrainFragmentParame
     const float farVisibility = terrainShadowSamples(v.farShadow, farImage, farSampler, p, 3, false);
     return fma(terrainShadowBorder(v.farShadow, true), farVisibility - 1, 1.0f);
 }
-fragment float4 terrainFragment(TerrainRaster v [[stage_in]], constant TerrainFragmentParameters& p [[buffer(0)]],
-                                texture2d<float> image0 [[texture(0)]], sampler sampler0 [[sampler(0)]],
-                                texture2d<float> image1 [[texture(1)]], sampler sampler1 [[sampler(1)]],
-                                texture2d<float> image2 [[texture(2)]], sampler sampler2 [[sampler(2)]],
-                                texture2d<float> image3 [[texture(3)]], sampler sampler3 [[sampler(3)]],
-                                texture2d<float> image4 [[texture(4)]], sampler sampler4 [[sampler(4)]],
-                                texture2d<float> dynamicImage [[texture(5)]], sampler dynamicSampler [[sampler(5)]],
-                                texture2d<float> nearImage [[texture(6)]], sampler nearSampler [[sampler(6)]],
-                                texture2d<float> middleImage [[texture(7)]], sampler middleSampler [[sampler(7)]],
-                                texture2d<float> farImage [[texture(8)]], sampler farSampler [[sampler(8)]]) {
+inline float4 terrainShade(TerrainRaster v, constant TerrainFragmentParameters& p, float4 base, texture2d<float> image1, sampler sampler1,
+                           texture2d<float> image2, sampler sampler2, texture2d<float> image3, sampler sampler3, texture2d<float> image4,
+                           sampler sampler4, texture2d<float> dynamicImage, sampler dynamicSampler, texture2d<float> nearImage,
+                           sampler nearSampler, texture2d<float> middleImage, sampler middleSampler, texture2d<float> farImage,
+                           sampler farSampler) {
     const uint layers = 1 + ((terrainPixelPermutation >> 1) & 3);
     float4 texels[5];
-    texels[0] = decoded(image0.sample(sampler0, v.uv0), p.decodeScale[0]);
+    texels[0] = decoded(base, p.decodeScale[0]);
     texels[1] = 0;
     if (layers > 1 || terrainShadowMode < 2 || (terrainPixelPermutation & 8))
         texels[1] = decoded(image1.sample(sampler1, v.uv1), p.decodeScale[1]);
@@ -173,12 +173,82 @@ fragment float4 terrainFragment(TerrainRaster v [[stage_in]], constant TerrainFr
         lit = fma(mixed.a * v.specular, visibility, diffuse + diffuse);
     }
     float alpha = 1;
-    if (terrainLayerPass == 1) alpha = dot(blend.rgb, p.layerChannel.rgb);
+    if (terrainLayerPass == 1)
+        alpha = dot(blend.rgb, p.layerChannel.rgb);
     // Terrain0 weights the fully lit color before fog. The old-alpha path
     // instead exposes that layer's weight as output alpha for Gx blending.
-    if (terrainLayerPass == 2) lit *= 1 - saturate(dot(blend.rgb, float3(1)));
-    if (terrainLayerPass == 3) lit *= dot(blend.rgb, p.layerChannel.rgb);
+    if (terrainLayerPass == 2)
+        lit *= 1 - saturate(dot(blend.rgb, float3(1)));
+    if (terrainLayerPass == 3)
+        lit *= dot(blend.rgb, p.layerChannel.rgb);
     if (alphaTest && alpha < p.stateAlphaRef)
         discard_fragment();
     return float4(fma(float3(v.fog), lit - p.fogColor.rgb, p.fogColor.rgb), alpha);
+}
+
+struct CubeFaceCoordinate {
+    float2 uv, dx, dy;
+    uint face;
+};
+inline CubeFaceCoordinate terrainCubeCoordinate(float3 direction) {
+    const float3 dx = dfdx(direction), dy = dfdy(direction), magnitude = abs(direction);
+    float3 projected, px, py;
+    uint face;
+    if (magnitude.x >= magnitude.y && magnitude.x >= magnitude.z) {
+        const float sign = direction.x >= 0 ? 1.0f : -1.0f;
+        face = direction.x >= 0 ? 0 : 1;
+        projected = float3(-sign * direction.z, -direction.y, sign * direction.x);
+        px = float3(-sign * dx.z, -dx.y, sign * dx.x);
+        py = float3(-sign * dy.z, -dy.y, sign * dy.x);
+    } else if (magnitude.y >= magnitude.z) {
+        const float sign = direction.y >= 0 ? 1.0f : -1.0f;
+        face = direction.y >= 0 ? 2 : 3;
+        projected = float3(direction.x, sign * direction.z, sign * direction.y);
+        px = float3(dx.x, sign * dx.z, sign * dx.y);
+        py = float3(dy.x, sign * dy.z, sign * dy.y);
+    } else {
+        const float sign = direction.z >= 0 ? 1.0f : -1.0f;
+        face = direction.z >= 0 ? 4 : 5;
+        projected = float3(sign * direction.x, -direction.y, sign * direction.z);
+        px = float3(sign * dx.x, -dx.y, sign * dx.z);
+        py = float3(sign * dy.x, -dy.y, sign * dy.z);
+    }
+    // Direction zero has no defined cube face. Keep coordinates finite without
+    // changing the projection of any nonzero direction.
+    const float inverseMajor = projected.z > 0 ? 1 / projected.z : 0;
+    const float2 ratio = projected.xy * inverseMajor;
+    return {ratio * 0.5f + 0.5f, (px.xy - ratio * px.z) * (0.5f * inverseMajor), (py.xy - ratio * py.z) * (0.5f * inverseMajor), face};
+}
+
+fragment float4 terrainFragment(TerrainRaster v [[stage_in]], constant TerrainFragmentParameters& p [[buffer(0)]],
+                                texture2d<float> image0 [[texture(0)]], sampler sampler0 [[sampler(0)]],
+                                texture2d<float> image1 [[texture(1)]], sampler sampler1 [[sampler(1)]],
+                                texture2d<float> image2 [[texture(2)]], sampler sampler2 [[sampler(2)]],
+                                texture2d<float> image3 [[texture(3)]], sampler sampler3 [[sampler(3)]],
+                                texture2d<float> image4 [[texture(4)]], sampler sampler4 [[sampler(4)]],
+                                texture2d<float> dynamicImage [[texture(5)]], sampler dynamicSampler [[sampler(5)]],
+                                texture2d<float> nearImage [[texture(6)]], sampler nearSampler [[sampler(6)]],
+                                texture2d<float> middleImage [[texture(7)]], sampler middleSampler [[sampler(7)]],
+                                texture2d<float> farImage [[texture(8)]], sampler farSampler [[sampler(8)]]) {
+    const float4 base = image0.sample(sampler0, v.uv0);
+    return terrainShade(v, p, base, image1, sampler1, image2, sampler2, image3, sampler3, image4, sampler4, dynamicImage, dynamicSampler,
+                        nearImage, nearSampler, middleImage, middleSampler, farImage, farSampler);
+}
+
+fragment float4 terrainEnvironmentFragment(TerrainRaster v [[stage_in]], constant TerrainFragmentParameters& p [[buffer(0)]],
+                                           texture2d_array<float> image0 [[texture(0)]], sampler sampler0 [[sampler(0)]],
+                                           texture2d<float> image1 [[texture(1)]], sampler sampler1 [[sampler(1)]],
+                                           texture2d<float> image2 [[texture(2)]], sampler sampler2 [[sampler(2)]],
+                                           texture2d<float> image3 [[texture(3)]], sampler sampler3 [[sampler(3)]],
+                                           texture2d<float> image4 [[texture(4)]], sampler sampler4 [[sampler(4)]],
+                                           texture2d<float> dynamicImage [[texture(5)]], sampler dynamicSampler [[sampler(5)]],
+                                           texture2d<float> nearImage [[texture(6)]], sampler nearSampler [[sampler(6)]],
+                                           texture2d<float> middleImage [[texture(7)]], sampler middleSampler [[sampler(7)]],
+                                           texture2d<float> farImage [[texture(8)]], sampler farSampler [[sampler(8)]]) {
+    const auto coord = terrainCubeCoordinate(v.environmentDirection);
+    // D3D9 applies the requested address/filter mode within the selected face;
+    // Metal's seamless texturecube sampling would blend neighboring faces.
+    const float4 base = image0.sample(sampler0, coord.uv, coord.face, gradient2d(coord.dx, coord.dy));
+    return terrainShade(v, p, base, image1, sampler1, image2, sampler2, image3, sampler3, image4, sampler4, dynamicImage, dynamicSampler,
+                        nearImage, nearSampler, middleImage, middleSampler, farImage, farSampler);
 }

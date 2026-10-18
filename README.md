@@ -379,7 +379,7 @@ comparisons, baked-shadow combination and distinct edge fades are preserved.
 Sparse binding reaches texture slot 8; absent/unused blend maps remain optional.
 The shared CMap shader initialization/selection and ShadowCache matrix/offset/
 texture binding run with Services-owned R32F targets. The expanded probe makes
-1,472 independent reference draws, including band boundaries, out-of-range depth,
+2,816 independent reference draws, including band boundaries, out-of-range depth,
 packed/RGBA layer maps, and the existing surface permutations. Pipeline cache
 keys now use separate material fields instead of a nearly full packed bit word.
 At the original close-map edge near 0.99, float multiply/add rounding can change
@@ -395,6 +395,24 @@ GetPixelShader selection, packed/RGBA inputs and alpha equality/discard behavior
 pass 192 additional reference draws on Mac and iOS simulator; both iOS targets
 build and the simulator presents 120 terrain frames. Full world multi-pass
 submission is still pending.
+Terrain0_env and all Terrain1/2/3 environment variants now use the original
+unnormalized view-space reflection and x/z/y rotation. All 128 terrain vertex
+and 164 surface pixel programs are fingerprint-checked. Cube resources preserve
+six faces, authored mip payloads, callback face order, local updates, base mip
+recreation and earlier encoded draws. Native Metal cube storage has a 2D-array
+sampling view to retain D3D9 face-local wrap/clamp filtering; projected gradients
+retain mip and anisotropic filtering without derivative jumps at face changes.
+Six filter modes, integer/fractional LODs and face-edge samples are checked.
+Four real Services BLP cubes provide 156 face/mip reference images per resource
+cycle. Three BC1 assets have single-block placeholders below 4x4 per face;
+the original Gx compressed path stops at 4x4. The bounded BLP reader now accepts
+that unused tail without exposing it as six-face data, while rejecting truncated
+usable levels. No mip generation or lossy conversion is added. macOS ASan/UBSan
+and Metal validation pass; both iOS targets build, and the simulator passes
+the complete GPU checks and presents 120 terrain frames. Its lack of BC hardware
+also exercises six-face lossless expansion. Original Windows cube LOD/tie
+behavior and physical iOS hardware remain unverified. Cube render targets/copies are still explicit
+unsupported operations.
 The native host can now draw a complete authored ADT surface with
 `WOW_TERRAIN=Azeroth:32:48` (Elwynn) or `WOW_TERRAIN=Northrend:32:32`.
 This selection is mutually exclusive with the model/creature variables. It uses
@@ -428,9 +446,10 @@ checks pass through resource recreation, and the mixed tile presents 120 frames
 with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
-world loading. Terrain0_env, TerrainSM, cube reflection and fixed-function terrain
-paths remain unsupported; the original CWorld initializer currently reaches
-Terrain0_env after accepting Terrain0/1/2/3.
+world loading. The current ADT preview still rejects cube layers pending their
+material binding integration. TerrainSM and fixed-function terrain remain
+unsupported; the original CWorld initializer now reaches TerrainSM after
+accepting Terrain0/1/2/3 and Terrain0_env.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
 on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary

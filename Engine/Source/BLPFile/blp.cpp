@@ -118,7 +118,7 @@ int32_t CBLPFile::Source(void* data, size_t size) {
     } else if (header.m_colorEncoding == 2) {
         if (header.m_preferredFormat != PIXEL_DXT1 && header.m_preferredFormat != PIXEL_DXT3 && header.m_preferredFormat != PIXEL_DXT5) { return 0; }
     } else if (header.m_colorEncoding != 3 || header.m_preferredFormat != PIXEL_ARGB8888) { return 0; }
-    const uint32_t levels = this->HasMips() ? CalcLevelCount(header.m_width, header.m_height) : 1;
+    uint32_t levels = this->HasMips() ? CalcLevelCount(header.m_width, header.m_height) : 1;
     if (levels > 16) { return 0; }
     uint64_t decodedBytes = 0;
     for (uint32_t level = 0; level < levels; ++level) {
@@ -128,7 +128,20 @@ int32_t CBLPFile::Source(void* data, size_t size) {
         const uint64_t needed = header.m_colorEncoding == 1 ? pixels + (pixels * header.m_alphaSize + 7) / 8 :
             CalcLevelSize(level, header.m_width, header.m_height, header.m_preferredFormat);
         const size_t offset = header.m_mipOffsets[level], stored = header.m_mipSizes[level];
-        if (offset < requiredHeader || offset > size || stored > size - offset || stored < needed) { return 0; }
+        if (offset < requiredHeader || offset > size || stored > size - offset) { return 0; }
+        if (stored < needed) {
+            // Original terrain BC cubes contain single-block placeholders below
+            // 4x4 per face. They are not six-face mip payloads. The shared Gx
+            // compressed upload path ends at 4x4, so never expose these records
+            // as readable cube faces. Complete small mips remain valid.
+            const uint32_t blockBytes = header.m_preferredFormat == PIXEL_DXT1 ? 8 : 16;
+            if (header.m_colorEncoding == 2 && header.m_width == 6 * header.m_height &&
+                this->Height(level) < 4 && level && stored == blockBytes) {
+                levels = level;
+                break;
+            }
+            return 0;
+        }
     }
     this->m_numLevels = levels;
     this->m_inMemoryImage = data;

@@ -15,6 +15,7 @@
 namespace {
 // Borrow the original world binding globals only for this isolated probe.
 struct OriginalTerrainShadows {
+    CGxShader* environment = CMap::pixelShader_Terrain0_env;
     std::array<CGxShader*, 3> shaders0;
     std::array<CGxShader*, 32> shaders2;
     std::array<CGxShader*, 96> shaders3;
@@ -27,6 +28,7 @@ struct OriginalTerrainShadows {
     uint32_t pcf = CShaderEffect::s_usePcfFiltering, size = CShadowCache::s_shadowSize;
     std::array<float, 2> textureSize;
     OriginalTerrainShadows() {
+        CMap::pixelShader_Terrain0_env = nullptr;
         std::copy_n(CMap::pixelShader_Terrain0, 3, shaders0.begin());
         std::fill_n(CMap::pixelShader_Terrain0, 3, nullptr);
         std::copy_n(CMap::pixelShader_Terrain2, 32, shaders2.begin());
@@ -39,7 +41,10 @@ struct OriginalTerrainShadows {
         std::copy_n(CShadowCache::s_textureSize, 2, textureSize.begin());
     }
     ~OriginalTerrainShadows() {
-        for (auto& shader : CMap::pixelShader_Terrain0) g_theGxDevicePtr->ShaderDestroy(shader);
+        g_theGxDevicePtr->ShaderDestroy(CMap::pixelShader_Terrain0_env);
+        CMap::pixelShader_Terrain0_env = environment;
+        for (auto& shader : CMap::pixelShader_Terrain0)
+            g_theGxDevicePtr->ShaderDestroy(shader);
         std::copy(shaders0.begin(), shaders0.end(), CMap::pixelShader_Terrain0);
         for (auto& shader : CMap::pixelShader_Terrain2)
             g_theGxDevicePtr->ShaderDestroy(shader);
@@ -111,7 +116,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
         CGxShader** ps;
         CGxShader** ps2;
         CGxShader** ps3;
-        CGxTex* textures[6]{};
+        CGxTex* textures[7]{};
         CTexture* shadows[4]{};
         ~Cleanup() {
             if (device.FrameCommand())
@@ -135,6 +140,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
     } cleanup{device, vs, ps, ps2, ps3};
     OriginalTerrainShadows original;
     device.ShaderCreate(CMap::pixelShader_Terrain0, GxSh_Pixel, "Shaders\\Pixel", "Terrain0", 3);
+    device.ShaderCreate(&CMap::pixelShader_Terrain0_env, GxSh_Pixel, "Shaders\\Pixel", "Terrain0_env", 1);
     CShaderEffect::s_usePcfFiltering = 0;
     CMap::InitializePCFShaders();
     for (unsigned i = 0; i < 32; ++i)
@@ -161,6 +167,19 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
         device.TexCreate(GxTex_2d, 2, 2, 0, format, format, flags, &patterns[i], Upload, "Terrain shader numeric input",
                          cleanup.textures[i]);
     }
+    std::array<Pattern, 6> faces;
+    for (unsigned face = 0; face < 6; ++face) {
+        faces[face].texels = {0x80304050u + face * 0x00100805u, 0xA0207030u + face * 0x00100510u, 0xC0702020u + face * 0x00051010u,
+                              0xE0303040u + face * 0x00101008u};
+    }
+    CGxTexFlags cubeFlags(GxTex_Nearest);
+    cubeFlags.m_wrapU = cubeFlags.m_wrapV = GxTex_Clamp;
+    device.TexCreate(
+        GxTex_CubeMap, 2, 2, 0, GxTex_Argb8888, GxTex_Argb8888, cubeFlags, faces.data(),
+        [](EGxTexCommand command, uint32_t w, uint32_t h, uint32_t face, uint32_t mip, void* arg, uint32_t& stride, const void*& data) {
+            Upload(command, w, h, face, mip, static_cast<Pattern*>(arg) + face, stride, data);
+        },
+        "Terrain cube reference", cleanup.textures[6]);
     GxRsSet(GxRs_DepthTest, 0);
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Culling, 0);
@@ -189,12 +208,14 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
         CGxTexFlags flags(GxTex_Nearest);
         flags.m_renderTarget = 1;
         flags.m_wrapU = flags.m_wrapV = GxTex_Clamp;
-        cleanup.shadows[band] =
-            TextureCreate(GxTex_2d, 8, 8, 0, GxTex_R32F, GxTex_R32F, flags, nullptr, [](EGxTexCommand, uint32_t, uint32_t, uint32_t, uint32_t, void*, uint32_t&, const void*&) {}, "Terrain shadow reference", 0);
+        cleanup.shadows[band] = TextureCreate(
+            GxTex_2d, 8, 8, 0, GxTex_R32F, GxTex_R32F, flags, nullptr,
+            [](EGxTexCommand, uint32_t, uint32_t, uint32_t, uint32_t, void*, uint32_t&, const void*&) {}, "Terrain shadow reference", 0);
         if (!cleanup.shadows[band])
             throw std::runtime_error("Services terrain shadow target creation failed");
         auto* target = TextureGetGxTex(cleanup.shadows[band], 1, nullptr);
-        if (!target) throw std::runtime_error("Services shadow target has no Gx resource");
+        if (!target)
+            throw std::runtime_error("Services shadow target has no Gx resource");
         device.DeviceSetRenderTarget(GxBuffers_Color, target, 0);
         if (!band)
             CShadowCache::s_extDynShadow.m_textures[0] = cleanup.shadows[band];
@@ -246,6 +267,9 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
     c[5] = {0, 0.8f, 0, 0};
     c[6] = {0.1f, 0, 1, 0};
     c[7] = {0, 0.02f, 0.8f, 1};
+    c[8] = {0.8f, -0.3f, 0.1f, 0};
+    c[9] = {0.2f, 0.9f, -0.1f, 0};
+    c[10] = {-0.05f, 0.1f, 0.95f, 0};
     c[12] = {-0.4f, 0.55f, 1.3f, 0};
     c[23] = {-0.2f, 0.1f, 0, 0};
     for (unsigned i = 0; i < 5; ++i) {
@@ -274,7 +298,9 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
             clip[j] += view[i] * c[4 + i][j];
     const unsigned x = unsigned((clip[0] / clip[3] + 1) * 16), y = unsigned((1 - clip[1] / clip[3]) * 16);
     CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
-    for (unsigned vp = 0; vp < 128; vp += 4) {
+    unsigned draws = 0;
+    for (unsigned vp = 0; vp < 128; vp += 2) {
+        const bool environment = (vp & 2) != 0;
         Vec diffuse{}, specular{};
         for (unsigned j = 0; j < 3; ++j)
             diffuse[j] = c[25][j] + c[26][j] * Sat(Dot(c[24], direction));
@@ -315,11 +341,13 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
             for (unsigned packed = 0; packed < 2; ++packed)
                 for (unsigned receiver = 0; receiver < 8; ++receiver) {
                     const bool multipass = receiver >= 5;
-                    if (multipass && layers != 1) continue;
+                    if (multipass && (layers != 1 || (environment && receiver != 6)))
+                        continue;
                     const unsigned shadowMode = receiver && !multipass ? receiver == 1 ? 1 : receiver - 1 : 0;
                     const unsigned activeVp = vp | unsigned(multipass ? packed : receiver != 0);
-                    const unsigned pp = multipass ? 0 : 2 * (layers - 1) + 8 * mode;
-                    Vec channel{}; channel[mode ? mode - 1 : 3] = 1;
+                    const unsigned pp = (multipass ? 0 : 2 * (layers - 1) + 8 * mode) + unsigned(environment);
+                    Vec channel{};
+                    channel[mode ? mode - 1 : 3] = 1;
                     std::array<Vec, 5> texels{};
                     for (unsigned i = 0; i <= layers; ++i) {
                         const unsigned pattern = i == layers ? 4 + packed : i;
@@ -327,6 +355,28 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                         const float v = (point[0] - c[23][0]) * c[18 + i][0] + c[13 + i][0];
                         texels[i] = Sample(patterns[pattern], u, v, i < layers);
                         device.RsSet(EGxRenderState(GxRs_Texture0 + i), cleanup.textures[pattern]);
+                    }
+                    if (environment) {
+                        Vec reflection{}, direction{};
+                        const auto normalView = Rotate(normal, c);
+                        for (unsigned i = 0; i < 3; ++i)
+                            reflection[i] = view[i] - 2 * Dot(view, normalView) * normalView[i];
+                        for (unsigned j = 0; j < 3; ++j)
+                            for (unsigned i = 0; i < 3; ++i)
+                                direction[j] += reflection[i] * c[8 + i][j == 1 ? 2 : j == 2 ? 1 : 0];
+                        unsigned axis = 0;
+                        for (unsigned i = 1; i < 3; ++i)
+                            if (std::abs(direction[i]) > std::abs(direction[axis]))
+                                axis = i;
+                        const bool negative = direction[axis] < 0;
+                        const unsigned face = axis * 2 + negative;
+                        const float major = std::abs(direction[axis]);
+                        float u = axis == 0   ? (negative ? direction[2] : -direction[2])
+                                  : axis == 1 ? direction[0]
+                                              : (negative ? -direction[0] : direction[0]);
+                        float v = axis == 1 ? (negative ? -direction[2] : direction[2]) : -direction[1];
+                        texels[0] = Sample(faces[face], u / major * 0.5f + 0.5f, v / major * 0.5f + 0.5f, false);
+                        device.RsSet(GxRs_Texture0, cleanup.textures[6]);
                     }
                     const Vec blend = texels[layers];
                     if (pp & 16)
@@ -402,7 +452,9 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                         }
                     }
                     const float layerAlpha = receiver == 5 ? Dot(blend, channel) : 1;
-                    const float layerWeight = receiver == 6 ? 1 - Sat(blend[0] + blend[1] + blend[2]) : receiver == 7 ? Dot(blend, channel) : 1;
+                    const float layerWeight = receiver == 6   ? 1 - Sat(blend[0] + blend[1] + blend[2])
+                                              : receiver == 7 ? Dot(blend, channel)
+                                                              : 1;
                     const unsigned alphaRef = receiver == 5 ? mode ? unsigned(std::lround(layerAlpha * 255)) + packed : 0 : 255;
                     const bool discard = alphaRef && layerAlpha < alphaRef / 255.0f;
                     GxRsSet(GxRs_AlphaRef, int32_t(alphaRef));
@@ -412,7 +464,8 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                             mixed[j] * (visibility * 0.3f + 0.7f) * ((pp & 16) ? 1 : 2 * diffuse[j]) + mixed[3] * specular[j] * visibility;
                         expected[j] = Sat((lit * layerWeight - fogColor[j]) * fog + fogColor[j]);
                     }
-                    if (discard) expected = {};
+                    if (discard)
+                        expected = {};
                     device.BeginFrame(pass);
                     GxShaderConstantsSet(GxSh_Pixel, 0, channel.data(), 1);
                     GxShaderConstantsSet(GxSh_Vertex, 0, c[0].data(), 49);
@@ -420,14 +473,18 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                     GxShaderConstantsSet(GxSh_Pixel, 1, layerLighting.data(), 1);
                     GxShaderConstantsSet(GxSh_Pixel, 2, fogColor.data(), 1);
                     device.RsSet(GxRs_VertexShader, vs[activeVp]);
-                    const unsigned shadowPp = 48 * (mode / 2) + 24 * (mode % 2) + 8 * (shadowMode ? shadowMode - 1 : 0) + 2 * (layers - 1);
-                    auto* pixelShader = multipass ? CMap::GetPixelShader(receiver != 5, receiver != 7, false) : receiver == 0 ? ps[pp] : receiver == 1 ? ps2[pp] : ps3[shadowPp];
+                    const unsigned shadowPp = 48 * (mode / 2) + 24 * (mode % 2) + 8 * (shadowMode ? shadowMode - 1 : 0) + 2 * (layers - 1) +
+                                              unsigned(environment);
+                    auto* pixelShader = multipass       ? CMap::GetPixelShader(receiver != 5, receiver != 7, environment)
+                                        : receiver == 0 ? ps[pp]
+                                        : receiver == 1 ? ps2[pp]
+                                                        : ps3[shadowPp];
                     if (receiver && !multipass) {
                         std::memcpy(CShadowCache::s_shadowMatrices, c[37].data(), sizeof(CShadowCache::s_shadowMatrices));
                         CShadowCache::s_shadowMode = shadowMode >= 2 ? SHADOW_HIGH : SHADOW_MEDIUM;
                         CShadowCache::SetShadowMapTerrain();
                         if (receiver != 1) {
-                            auto* selected = CMap::GetTerrainPixelShader(mode % 2, layers, shadowMode, 0, mode / 2);
+                            auto* selected = CMap::GetTerrainPixelShader(mode % 2, layers, shadowMode, environment, mode / 2);
                             if (selected != pixelShader)
                                 throw std::runtime_error("Original CMap terrain receiver selection mismatch");
                             pixelShader = selected;
@@ -435,6 +492,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                     }
                     device.RsSet(GxRs_PixelShader, pixelShader);
                     GxDraw(&batch, 0);
+                    ++draws;
                     CiRect rect(0, 0, 32, 32);
                     TSGrowableArray<CImVector> pixels;
                     device.DeviceReadPixels(rect, pixels);
@@ -454,7 +512,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                     device.ScenePresent();
                 }
     }
-    for (auto pair : {std::pair<unsigned, unsigned>{1, 0}, {2, 1}, {0, 2}}) {
+    for (auto pair : {std::pair<unsigned, unsigned>{1, 0}, {2, 0}, {0, 2}}) {
         device.BeginFrame(pass);
         device.RsSet(GxRs_VertexShader, vs[pair.first]);
         device.RsSet(GxRs_PixelShader, ps[pair.second]);
@@ -468,8 +526,8 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
             throw std::runtime_error("Unsupported/mismatched terrain permutation silently accepted");
         device.ScenePresent();
     }
-    std::fprintf(
-        stderr,
-        "Terrain: 64 vertex / 83 pixel variants, 1472 independent UV/light/fog/layer/shadow reference draws, R32F five/nine taps, band "
-        "boundaries, edge fade, sparse binding, Terrain0 layer weights/alpha and packed/RGBA alpha; original CMap/ShadowCache and Services targets verified\n");
+    std::fprintf(stderr,
+                 "Terrain: 128 vertex / 164 pixel variants, %u independent UV/reflection/light/fog/layer/shadow draws; original "
+                 "CMap/ShadowCache selection verified\n",
+                 draws);
 }
