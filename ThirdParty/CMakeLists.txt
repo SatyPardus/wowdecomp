@@ -101,9 +101,12 @@ target_compile_definitions(expat
     PUBLIC
         _STATIC
     PRIVATE
-        COMPILED_FROM_DSP
-        _LIB
+        $<$<PLATFORM_ID:Windows>:COMPILED_FROM_DSP>
+        $<$<PLATFORM_ID:Windows>:_LIB>
 )
+if (APPLE)
+    target_include_directories(expat PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/expat/apple)
+endif ()
 
 target_include_directories(expat
     PUBLIC
@@ -168,7 +171,7 @@ if (WOWDECOMP_ARCH_32)
     else ()
         message(WARNING "DivxDecoder: ${DIVXDECODER_DLL} is missing. Copy DivxDecoder.dll from a 3.3.5a (12340) client there; Win32 builds need it next to the executables.")
     endif ()
-else ()
+elseif (WIN32)
     target_link_libraries(DivxDecoder
         INTERFACE
             XvidDecoder

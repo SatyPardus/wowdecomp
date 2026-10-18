@@ -4,6 +4,7 @@
 #include <thread>
 #include <time.h>
 #include "Engine/Source/Os/TimeManager.h"
+#include "Engine/Source/Os/Time.h"
 
 // The raw uptime clock is monotonic, independent of wall-clock corrections,
 // and excludes device sleep. Nanoseconds keep profiling units explicit.
@@ -53,5 +54,10 @@ void OsTimeManagerDestroy() { s_method.store(OsTimeManager::NotSet); }
 void OsSleep(uint32_t milliseconds) {
     if (!milliseconds) { std::this_thread::yield(); }
     else { std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds)); }
+}
+void OsGetTimeStamp(char* buffer, uint32_t size) {
+    if (!buffer || !size) return;
+    const time_t now = time(nullptr); tm local{};
+    if (!localtime_r(&now, &local) || !strftime(buffer, size, "%m%d%y_%H%M%S", &local)) buffer[0] = 0;
 }
 #endif

@@ -10,4 +10,8 @@ uint64_t OsGetPhysicalMemory() {
         throw std::runtime_error("Cannot query Apple physical memory");
     return bytes;
 }
+// Native hosts suspend frame callbacks when inactive. Sleeping inside Scrn's
+// paint callback would block AppKit/UIKit and delay lifecycle delivery.
+int32_t OsSleepInBackground() { return 0; }
+uint32_t OsGetBackgroundSleepMs() { return 0; }
 #endif

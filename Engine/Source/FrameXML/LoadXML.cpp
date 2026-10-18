@@ -772,7 +772,7 @@ int32_t LoadXML_AnimOrigin(XMLNode* node, FRAMEPOINT& point, C2Vector& offset, C
 // VERIFY: dea072e9 auto
 // OFFSET: 0x00815F40
 CSimpleTexture* LoadXML_Texture(XMLNode* node, CSimpleFrame* frame, CStatus* status) {
-    void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleTexture::s_allocator.GetData(0, StormTypeName(typeid(CSimpleTexture)), SLOG_OBJECT);
     CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, 2, 1) : nullptr;
 
     texture->PreLoadXML(node, status);
@@ -785,7 +785,7 @@ CSimpleTexture* LoadXML_Texture(XMLNode* node, CSimpleFrame* frame, CStatus* sta
 // VERIFY: 437bdf6e auto
 // OFFSET: 0x00815FA0
 CSimpleFontString* LoadXML_String(XMLNode* node, CSimpleFrame* frame, CStatus* status) {
-    void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleFontString::s_allocator.GetData(0, StormTypeName(typeid(CSimpleFontString)), SLOG_OBJECT);
     CSimpleFontString* string = data ? new (data) CSimpleFontString(frame, 2, true) : nullptr;
 
     string->PreLoadXML(node, status);

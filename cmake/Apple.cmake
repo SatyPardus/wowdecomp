@@ -16,6 +16,9 @@ add_link_options(-Wl,-dead_strip)
 
 add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SMem.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SRgn.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/SUni.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/Os/FontPath.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Diagnostics.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/Sync.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/soprintf.cpp
@@ -124,6 +127,7 @@ add_library(AppleGameResources STATIC
     Engine/Source/Services/Texture.cpp
     Engine/Source/Services/TextureBlob.cpp
     Engine/Source/Services/SysMessage.cpp
+    Engine/Source/Services/TextBlock.cpp
     Engine/Source/Services/AsyncFile.cpp
     Engine/Source/Services/ModelBlob.cpp
     Engine/Source/Services/Camera.cpp
@@ -175,6 +179,13 @@ target_link_libraries(CreatureAppearance PUBLIC Model2)
 
 add_subdirectory(Engine/Source/FrameScript)
 target_link_libraries(FrameScript PUBLIC AppleGameResources lua)
+add_subdirectory(Engine/Source/Frame)
+add_subdirectory(Engine/Source/FrameXML)
+add_subdirectory(Engine/Source/Scrn)
+target_link_libraries(Frame PUBLIC FrameScript FrameXML Scrn Model2)
+target_sources(Frame PRIVATE ${CMAKE_SOURCE_DIR}/WoW/Source/Ui/MouseButtonNames.cpp)
+target_link_libraries(FrameXML PUBLIC Frame)
+target_link_libraries(Scrn PUBLIC AppleGameResources)
 
 # Shared sound policy/cache and original software mixer. Full game sound policy
 # is not initialized by the current graphics host.
@@ -223,7 +234,8 @@ file(READ Engine/Source/Gx/Metal/FixedUnlit.metal WOW_FIXED_UNLIT_SOURCE)
 string(APPEND WOW_TEXTURE_QUAD_SOURCE "\n${WOW_SKINNING_SOURCE}\n${WOW_SHADOW_MAP_SOURCE}\n${WOW_MODEL_SOURCE}\n${WOW_TERRAIN_SOURCE}\n${WOW_WMO_SOURCE}\n${WOW_LIQUID_SOURCE}\n${WOW_DETAIL_DOODAD_SOURCE}\n${WOW_WATER_RIPPLE_SOURCE}\n${WOW_FIXED_UNLIT_SOURCE}")
 configure_file(Engine/Source/Gx/Metal/ShaderSource.h.in ${CMAKE_BINARY_DIR}/generated/MetalShaderSource.h @ONLY)
 add_library(AppleMetal STATIC Engine/Source/Gx/Metal/TextureDevice.mm Engine/Source/Gx/Metal/GeometryDraw.mm
-    Engine/Source/Gx/Metal/CGxDeviceMetal.mm Engine/Source/Gx/Metal/ApplePlatform.mm)
+    Engine/Source/Gx/Metal/CGxDeviceMetal.mm Engine/Source/Gx/Metal/ApplePlatform.mm
+    Engine/Source/Os/Apple/OsClipboard.mm Engine/Source/Os/OsClipboard.cpp)
 target_include_directories(AppleMetal PRIVATE ${CMAKE_BINARY_DIR}/generated)
 target_compile_options(AppleMetal PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetal PUBLIC AppleTextureData Gx "-framework Metal" "-framework Foundation")
@@ -270,6 +282,9 @@ else ()
     add_executable(AppleInputProbe Tools/AppleBootstrap/NativeInputProbe.mm)
     target_compile_options(AppleInputProbe PRIVATE -fobjc-arc)
     target_link_libraries(AppleInputProbe PRIVATE AppleMetalView)
+    add_executable(AppleUIProbe Tools/AppleBootstrap/UIProbe.mm)
+    target_compile_options(AppleUIProbe PRIVATE -fobjc-arc)
+    target_link_libraries(AppleUIProbe PRIVATE Frame AppleMetalView)
     add_executable(AppleCoreProbe Tools/AppleBootstrap/main.cpp)
     target_link_libraries(AppleCoreProbe PRIVATE AppleProbeCore)
     add_executable(AppleMetalProbe Tools/AppleBootstrap/metal_main.mm)

@@ -29,6 +29,8 @@ class CSimpleRender {
     public:
     static CGxShader* s_vertexShader[2];
     static int32_t s_mergeEnable;
+    // The language renderer asks the game layer for declined player/pet names.
+    static int32_t (*s_declinedWord)(const char*, int32_t, char*, uint32_t);
 
     static int32_t CalcBatchCounts(CRenderBatch* batch, uint32_t* vertCounts, uint32_t* idxCounts);
     static void Destroy();

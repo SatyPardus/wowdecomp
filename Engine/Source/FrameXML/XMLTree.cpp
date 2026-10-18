@@ -163,7 +163,7 @@ XMLNode::~XMLNode() {
 
 // INLINED
 void* XMLNode::operator new(size_t bytes) noexcept {
-    return XMLNode::s_allocator.GetData(0, typeid(XMLNode).raw_name(), SLOG_OBJECT);
+    return XMLNode::s_allocator.GetData(0, StormTypeName(typeid(XMLNode)), SLOG_OBJECT);
 }
 
 // INLINED

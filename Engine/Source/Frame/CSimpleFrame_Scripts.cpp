@@ -105,7 +105,7 @@ static int32_t Script_CreateTexture(lua_State* L) {
         }
     }
 
-    void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleTexture::s_allocator.GetData(0, StormTypeName(typeid(CSimpleTexture)), SLOG_OBJECT);
     CSimpleTexture* texture = data ? new (data) CSimpleTexture(frame, drawLayer, 1) : nullptr;
 
     if (name && *name) {
@@ -177,7 +177,7 @@ static int32_t Script_CreateFontString(lua_State* L) {
         }
     }
 
-    void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleFontString::s_allocator.GetData(0, StormTypeName(typeid(CSimpleFontString)), SLOG_OBJECT);
     CSimpleFontString* string = data ? new (data) CSimpleFontString(frame, drawLayer, true) : nullptr;
 
     if (name && *name) {

@@ -253,10 +253,15 @@ int32_t Integral(double& remainder, double delta) {
     return [[NSAttributedString alloc] initWithString:[_marked substringWithRange:range]];
 }
 - (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(NSRangePointer)actual {
-    // Until the original focused edit box supplies its caret, anchor candidates
-    // at the bottom of the game view. AppKit requires screen (point) coordinates.
     if (actual) *actual = [self markedRange];
-    return [self.window convertRectToScreen:[self convertRect:NSMakeRect(8, self.isFlipped ? self.bounds.size.height - 24 : 8, 1, 16) toView:nil]];
+    NSRect caret = self.textInputRectProvider ? self.textInputRectProvider() : NSZeroRect;
+    if (!NSIsEmptyRect(caret)) {
+        if (self.isFlipped) caret.origin.y = 1 - NSMaxY(caret);
+        caret = NSMakeRect(self.bounds.origin.x + caret.origin.x * self.bounds.size.width,
+            self.bounds.origin.y + caret.origin.y * self.bounds.size.height,
+            caret.size.width * self.bounds.size.width, caret.size.height * self.bounds.size.height);
+    } else caret = NSMakeRect(8, self.isFlipped ? self.bounds.size.height - 24 : 8, 1, 16);
+    return [self.window convertRectToScreen:[self convertRect:caret toView:nil]];
 }
 - (NSUInteger)characterIndexForPoint:(NSPoint)point { return NSNotFound; }
 - (void)doCommandBySelector:(SEL)selector { /* Editing/navigation is already in the original key event queue. */ }

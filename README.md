@@ -140,15 +140,26 @@ come from the host. The Mac view now delivers physical keys/repeat, independent
 left/right modifiers, drawable-pixel pointer coordinates, buttons, wheel and
 relative motion through Os/Event. AppKit text commits become Unicode scalar
 events; IME updates own their UTF-8 snapshots and use the original OsIME getters.
-Candidate presentation stays with AppKit, currently anchored to the view until
-the original edit-box caret is connected. Secure text entry and focus loss balance
-system input capture; original edit-box integration and interactive IME-provider
-testing remain. `AppleInputProbe` checks this boundary with local AppKit events
+Candidate presentation stays with AppKit; native UI hosts can supply the original
+edit-box caret. Secure text entry and focus loss balance system input capture;
+interactive IME-provider testing remains. `AppleInputProbe` checks this boundary with local AppKit events
 and the original Event dispatcher. iOS touch interaction remains deferred.
 Foreground resume resets frame elapsed time while retaining
 wall-clock timers. Context shutdown and recreation release property TLS, call
 contexts, queues and timers. Native stepping currently requires the client's
 single scheduler thread; server network pumping is explicitly unsupported.
+
+Original Frame/FrameXML/Scrn now build on all Apple targets. On Mac,
+`build/macos-asan/bin/AppleUIProbe /path/to/Data --preview` opens an interactive
+component window using original Glue fonts/button templates, Lua callbacks,
+CSimpleTop layout, Services textures and Scrn painting. Its original edit box
+accepts native Unicode/composition and supplies the AppKit candidate rectangle.
+Without `--preview`, it checks two full lifecycles, native button hit testing,
+composition replacement, caret movement and GPU output. `WOW_UI_FRAMES=120`
+closes the visible check after 120 frames. This is an integration entry point;
+full Glue/game UI, name-cache declension, movie playback and login remain pending.
+Clipboard has native UTF-8 platform bindings; these checks do not access the
+user's clipboard. UI Desaturate uses the original BLS luminance and alpha rules.
 
 The original Services asynchronous file queue now runs on native workers and
 returns completion through Event poll handlers on the game thread. Idle Apple

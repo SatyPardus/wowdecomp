@@ -1,7 +1,11 @@
 #include <cstddef>
 #include <cstdint>
 #include "Engine/Source/Frame/CSimpleRender.h"
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include <cctype>
 #include <cstring>
 #include "Engine/Source/Base/ConvertUTF.h"
@@ -26,6 +30,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include <cmath>
+#include <stdexcept>
 #include "Engine/Source/Base/Status.h"
 #include "Engine/Source/Frame/CSimpleFont.h"
 #include "Engine/Source/Frame/CSimpleFontStringAttributes.h"
@@ -61,6 +66,11 @@ CGxShader* CSimpleRender::s_vertexShader[2];
 
 // STATIC: 0x00B47948
 int32_t CSimpleRender::s_mergeEnable;
+#if defined(__APPLE__)
+int32_t (*CSimpleRender::s_declinedWord)(const char*, int32_t, char*, uint32_t) = nullptr;
+#else
+int32_t (*CSimpleRender::s_declinedWord)(const char*, int32_t, char*, uint32_t) = GetDeclinedWord;
+#endif
 
 // STATIC: 0x00B47978
 static char s_displayText[0x2000];
@@ -362,7 +372,8 @@ static char* LanguageRule3(const char* text) {
                 }
 
                 *wordEnd = 0;
-                dest += GetDeclinedWord(word, declension, dest, &s_languageBuffer[sizeof(s_languageBuffer)] - dest);
+                if (!CSimpleRender::s_declinedWord) throw std::runtime_error("Game name-declension service is not connected to the native UI");
+                dest += CSimpleRender::s_declinedWord(word, declension, dest, &s_languageBuffer[sizeof(s_languageBuffer)] - dest);
             } else {
                 *dest = '|';
                 dest++;
@@ -2365,7 +2376,7 @@ CSimpleTexture::CSimpleTexture(CSimpleFrame* frame, uint32_t drawLayer, int32_t 
     this->m_texture = nullptr;
     this->m_alphaMode = GxBlend_Alpha;
     this->m_shader = CSimpleTexture::s_imageModePixelShaders[ImageMode_Normal];
-    this->m_textureFlags &= ~0xFu;
+    this->m_textureFlags = 0;
     this->m_shader = CSimpleTexture::GetImageModePixelShader(ImageMode_Normal);
     CSimpleTexture::s_count++;
     this->m_texCoords[0].x = 0.0f;

@@ -339,7 +339,7 @@ void CSimpleMessageScrollFrame::RefreshHyperlinks() {
         uint32_t count = GxuFontStringHyperLinkInfo(node.m_string->m_string ? TextBlockGetStringPtr(node.m_string->m_string) : nullptr, info);
 
         for (uint32_t j = 0; j < count; j++) {
-            void* data = CSimpleHyperlinkButton::s_allocator.GetData(0, typeid(CSimpleHyperlinkButton).raw_name(), SLOG_OBJECT);
+            void* data = CSimpleHyperlinkButton::s_allocator.GetData(0, StormTypeName(typeid(CSimpleHyperlinkButton)), SLOG_OBJECT);
             CSimpleHyperlinkButton* link = data ? new (data) CSimpleHyperlinkButton(this) : nullptr;
             this->m_hyperlinks.LinkToTail(link);
             link->SetHyperlink(node.m_string, &info[j]);

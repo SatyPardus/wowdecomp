@@ -74,12 +74,6 @@ char* OsPathFindExtensionWithoutDot(char* path) {
     return IOsPathFindExtension(path, 1);
 }
 
-// VERIFY: 57238f7e auto
-// OFFSET: 0x0086BD80
-void OsBuildFontFilePath(const char* fontName, char* path, uint32_t size) {
-    SStrPrintf(path, size, "%s\\%s", "Fonts", fontName);
-}
-
 // VERIFY: 8de68232 manual
 // OFFSET: 0x0086BE50
 void OsPathStripFilename(char* path) {

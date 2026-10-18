@@ -15,7 +15,7 @@ CDataAllocator CFramePoint::s_framePointHeap(sizeof(CFramePoint), 0x1000);
 
 // INLINED
 void* CFramePoint::operator new(size_t bytes) noexcept {
-    return CFramePoint::s_framePointHeap.GetData(0, typeid(CFramePoint).raw_name(), SLOG_OBJECT);
+    return CFramePoint::s_framePointHeap.GetData(0, StormTypeName(typeid(CFramePoint)), SLOG_OBJECT);
 }
 
 // INLINED

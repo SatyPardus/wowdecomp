@@ -1,7 +1,11 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include <new>
 #include <typeinfo>
 #include "Engine/Source/Frame/CSimpleHTML.h"
@@ -148,7 +152,7 @@ void CSimpleHTML::ParseIMG(XMLNode* node, CStatus* status) {
         height = NDCToDDCWidth(SStrToFloat(heightAttr) / (CoordinateGetAspectCompensation() * 1024.0f));
     }
 
-    void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleTexture::s_allocator.GetData(0, StormTypeName(typeid(CSimpleTexture)), SLOG_OBJECT);
     CSimpleTexture* texture = data ? new (data) CSimpleTexture(this, 2, 1) : nullptr;
 
     texture->SetWidth(width);
@@ -188,7 +192,7 @@ void CSimpleHTML::ParseIMG(XMLNode* node, CStatus* status) {
 // VERIFY: bbbb23ac manual
 // OFFSET: 0x0096CC90
 void CSimpleHTML::AddText(const char* text, HTML_TEXT_TYPE type, uint32_t justify) {
-    void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleFontString::s_allocator.GetData(0, StormTypeName(typeid(CSimpleFontString)), SLOG_OBJECT);
     CSimpleFontString* string = data ? new (data) CSimpleFontString(this, 2, 1) : nullptr;
 
     if (this->m_layoutAnchor) {
@@ -398,7 +402,7 @@ void CSimpleHTML::RefreshHyperlinks() {
             uint32_t count = GxuFontStringHyperLinkInfo(string->m_string ? TextBlockGetStringPtr(string->m_string) : nullptr, info);
 
             for (uint32_t i = 0; i < count; i++) {
-                void* data = CSimpleHyperlinkButton::s_allocator.GetData(0, typeid(CSimpleHyperlinkButton).raw_name(), SLOG_OBJECT);
+                void* data = CSimpleHyperlinkButton::s_allocator.GetData(0, StormTypeName(typeid(CSimpleHyperlinkButton)), SLOG_OBJECT);
                 CSimpleHyperlinkButton* link = data ? new (data) CSimpleHyperlinkButton(this) : nullptr;
                 this->m_hyperlinks.LinkToTail(link);
                 link->SetHyperlink(string, &info[i]);

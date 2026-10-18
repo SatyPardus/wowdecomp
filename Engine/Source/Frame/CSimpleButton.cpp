@@ -652,7 +652,7 @@ void CSimpleButton::SetText(const char* text) {
     }
 
     if (!this->m_fontString) {
-        void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
+        void* data = CSimpleFontString::s_allocator.GetData(0, StormTypeName(typeid(CSimpleFontString)), SLOG_OBJECT);
         this->SetFontString(data ? new (data) CSimpleFontString(this, 2, true) : nullptr);
     }
 
@@ -716,7 +716,7 @@ int32_t CSimpleButton::SetHighlight(const char* fileName, EGxBlend blend) {
         return 1;
     }
 
-    void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleTexture::s_allocator.GetData(0, StormTypeName(typeid(CSimpleTexture)), SLOG_OBJECT);
     texture = data ? new (data) CSimpleTexture(this, 4, 1) : nullptr;
 
     if (!texture->SetTexture(fileName, 0, 0, CSimpleTexture::s_textureFilterMode, ImageMode_Normal)) {
@@ -1040,7 +1040,7 @@ int32_t CSimpleButton::SetStateTexture(CSimpleButtonState state, const char* fil
         return 1;
     }
 
-    void* data = CSimpleTexture::s_allocator.GetData(0, typeid(CSimpleTexture).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleTexture::s_allocator.GetData(0, StormTypeName(typeid(CSimpleTexture)), SLOG_OBJECT);
     CSimpleTexture* texture = data ? new (data) CSimpleTexture(nullptr, 2, 1) : nullptr;
 
     if (!texture->SetTexture(fileName, 0, 0, CSimpleTexture::s_textureFilterMode, ImageMode_Normal)) {

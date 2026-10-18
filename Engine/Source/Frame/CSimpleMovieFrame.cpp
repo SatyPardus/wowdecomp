@@ -2,7 +2,11 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/Frame/CSimpleMovieFrame.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"

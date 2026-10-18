@@ -121,7 +121,7 @@ CSimpleMessageFrameLineNode::CSimpleMessageFrameLineNode() {
     this->m_fadeLeft = 0.0f;
     this->m_isVisible = false;
 
-    void* data = CSimpleFontString::s_allocator.GetData(0, typeid(CSimpleFontString).raw_name(), SLOG_OBJECT);
+    void* data = CSimpleFontString::s_allocator.GetData(0, StormTypeName(typeid(CSimpleFontString)), SLOG_OBJECT);
     this->m_string = data ? new (data) CSimpleFontString(nullptr, 2, true) : nullptr;
 
     CSimpleFontString* string = this->m_string;
