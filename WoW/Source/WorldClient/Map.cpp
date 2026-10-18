@@ -641,7 +641,7 @@ void CMap::Destroy() {
 
 // VERIFY: f42871fd manual
 // OFFSET: 0x0079E3C0
-void CMap::InitializeLiquidTables() {
+void CMap::InitializeLiquidDepthTables() {
     float scale = 1.0f / (255.0f * CMap::s_liquidAlphaScale);
 
     for (uint32_t i = 0; i < sizeof(CMap::s_depthCoordTable1) / sizeof(CMap::s_depthCoordTable1[0]); i++) {
@@ -652,6 +652,10 @@ void CMap::InitializeLiquidTables() {
         CMap::s_depthCoordTable0[i] = depth <= 4.6666665f ? depth * 0.21428572f : 1.0f;
     }
 
+}
+
+void CMap::InitializeLiquidTables() {
+    CMap::InitializeLiquidDepthTables();
     WaterRipple::Initialize();
     Liquid::CreateProceduralTextures();
 }

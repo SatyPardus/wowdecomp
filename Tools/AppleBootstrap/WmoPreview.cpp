@@ -1,4 +1,5 @@
 #include "Tools/AppleBootstrap/WmoPreview.h"
+#include "Tools/AppleBootstrap/WmoLiquidPreview.h"
 #include "WoW/Source/WorldClient/MapObj.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/MapLight.h"
@@ -45,6 +46,7 @@ struct WmoPreview::Impl {
     std::array<std::unique_ptr<CShaderEffect>, 7> effects;
     std::unique_ptr<CMapObj> object;
     CMapObjGroup *group = nullptr;
+    std::unique_ptr<WmoLiquidPreview> liquid;
     CMapLight light;
     C3Vector center;
     float radius = 1, rotation = 0;
@@ -52,6 +54,7 @@ struct WmoPreview::Impl {
 
     Impl() { std::copy(std::begin(CMapObj::s_unifiedShaders), std::end(CMapObj::s_unifiedShaders), previousEffects.begin()); }
     ~Impl() {
+        liquid.reset();
         object.reset();
         if (buffersInitialized)
             CMapObjGroup::Destroy();
@@ -157,12 +160,13 @@ WmoPreview::WmoPreview(const std::string &selection) : m(std::make_unique<Impl>(
     CShadowCache::s_shadowMode = SHADOW_LOWEST;
     CWorldScene::s_fogPermute = 0;
     m->object->UpdateMaterials();
+    if (m->group->m_liquidVertexList) m->liquid = std::make_unique<WmoLiquidPreview>(*m->object, *m->group);
     std::fprintf(stderr, "WMO original group %s:%u: %d vertices, %d triangles, %d batches (%u two-pass transition batches)\n", name.c_str(),
                  index, m->group->m_vertexListCount, m->group->m_indicesCount / 3, m->group->m_batchListCount,
                  m->group->m_transparencyBatchesCount);
 }
 WmoPreview::~WmoPreview() = default;
-uint32_t WmoPreview::BatchCount() const { return m->group->m_batchListCount + m->group->m_transparencyBatchesCount; }
+uint32_t WmoPreview::BatchCount() const { return m->group->m_batchListCount + m->group->m_transparencyBatchesCount + unsigned(bool(m->liquid)); }
 bool WmoPreview::Ready(bool wait) {
     bool ready = true;
     for (int i = 0; i < m->object->m_materialsCount; ++i)
@@ -173,9 +177,10 @@ bool WmoPreview::Ready(bool wait) {
                 if (!status.IsEmpty() || !texture->m_status.IsEmpty())
                     throw std::runtime_error("WMO material texture failed");
             }
+    if (m->liquid) ready &= m->liquid->Ready(wait);
     return ready;
 }
-bool WmoPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, bool fullViewport) {
+bool WmoPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, bool fullViewport, bool liquidOnly) {
     if (!Ready())
         return false;
     auto &device = *g_theGxDevicePtr;
@@ -235,7 +240,15 @@ bool WmoPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, boo
     else
         GxXformSetViewport(0.5f, 0.98f, 0.2f, 0.92f, 0, 1);
     CMapObj::SetEmissiveAmbient(CImVector{0, 0, 0, 0});
-    m->object->UnifiedRender(m->group, 0);
+    if (!liquidOnly) m->object->UnifiedRender(m->group, 0);
+    if (m->liquid) {
+        // LiquidSystem reads the native projection directly. Preserve the host
+        // projection, while using the same clip transform as the WMO geometry.
+        Restore<C44Matrix> savedProjection{device.m_projNative};
+        device.m_projNative = projection;
+        GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
+        m->liquid->Draw(C3Vector(0, 0, 0));
+    }
     GxXformSetViewport(0, 1, 0, 1, 0, 1);
     return true;
 }

@@ -185,7 +185,7 @@ void Liquid::WmoWaterTexCallback(EGxTexCommand command, uint32_t width, uint32_t
     CImVector band = info->m_bands.m_waterColors[3];
     uint8_t shallowAlpha = CMath::fint_(info->m_bands.m_waterShallowAlpha * 255.0f);
     uint8_t deepAlpha = CMath::fint_(info->m_bands.m_waterDeepAlpha * 255.0f);
-    int32_t alphaStep = ((deepAlpha - shallowAlpha) << 8) >> 6;
+    int32_t alphaStep = ((deepAlpha - shallowAlpha) * 256) >> 6;
     int32_t alpha = shallowAlpha << 8;
 
     CImVector color;
@@ -240,10 +240,10 @@ void Liquid::ExtWaterDepthTexCallback(EGxTexCommand command, uint32_t width, uin
     CImVector shallowColor = info->m_bands.m_waterColors[type * 2];
     CImVector deepColor = info->m_bands.m_waterColors[type * 2 + 1];
 
-    int32_t alphaStep = ((deepAlpha[type] - shallowAlpha[type]) << 8) >> 6;
-    int32_t redStep = ((deepColor.r - shallowColor.r) << 8) >> 6;
-    int32_t blueStep = ((deepColor.b - shallowColor.b) << 8) >> 6;
-    int32_t greenStep = ((deepColor.g - shallowColor.g) << 8) >> 6;
+    int32_t alphaStep = ((deepAlpha[type] - shallowAlpha[type]) * 256) >> 6;
+    int32_t redStep = ((deepColor.r - shallowColor.r) * 256) >> 6;
+    int32_t blueStep = ((deepColor.b - shallowColor.b) * 256) >> 6;
+    int32_t greenStep = ((deepColor.g - shallowColor.g) * 256) >> 6;
 
     int32_t alpha = shallowAlpha[type] << 8;
     int32_t red = shallowColor.r << 8;

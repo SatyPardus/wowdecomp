@@ -3,7 +3,7 @@
 #include <vector>
 
 namespace GxMetal {
-enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod, ModelOpaqueAddNA, ModelModAddNA, ModelModMod, ModelOpaqueMod2xNAAlpha, ModelOpaqueMod2x, Terrain, WmoDiffuse, WmoOpaque, WmoSpecular, WmoMetal, WmoEnvironment, WmoEnvironmentMetal, WmoComposite };
+enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod, ModelOpaqueAddNA, ModelModAddNA, ModelModMod, ModelOpaqueMod2xNAAlpha, ModelOpaqueMod2x, Terrain, WmoDiffuse, WmoOpaque, WmoSpecular, WmoMetal, WmoEnvironment, WmoEnvironmentMetal, WmoComposite, LiquidWater, LiquidWaterNoSpec, LiquidMagma };
 constexpr bool IsModelEffect(FragmentEffect effect) {
     return effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod ||
         effect == FragmentEffect::ModelOpaqueAddNA || effect == FragmentEffect::ModelModAddNA ||

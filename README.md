@@ -283,7 +283,30 @@ macOS ASan/UBSan and Metal validation pass; both iOS targets build. Mac and iOS
 present 120 WMO frames alongside the original archive audio stream; the simulator
 repeats both after foreground resource/device recreation. The preview
 supplies explicit camera/light/fog inputs. Full world placement, portal traversal,
-doodads, WMO shadows and liquid rendering remain to be connected.
+doodads and WMO shadows remain to be connected.
+
+Original LiquidSystem now builds on Apple arm64. Native water, water without
+specular and magma preserve all nine vertex/three pixel variants, their distinct
+UV sources, unnormalized normals, zero to three local lights, specular/alpha
+rules and fog. Independent GPU references cover both normal directions and
+alpha-state boundaries. WMO groups with liquid automatically use the original
+material/settings banks, 30-frame MPQ textures, depth-coordinate tables,
+procedural water-color textures, geometry factory and renderer. The preview
+supplies explicit water-color bands and lighting. Use the WMO selectors
+`World\wmo\Azeroth\Buildings\Stormwind\Stormwind.wmo:224`,
+`World\wmo\Northrend\Dalaran\ND_Dalaran.wmo:71`, or
+`World\wmo\Dungeon\AZ_Blackrock\Blackrock.wmo:43` for exterior water, interior water
+and magma. Their original 5x5, 14x46 and 29x31 grids render with visible texture
+animation; resident geometry is reused through repeated draws and recreation.
+The rebuilt liquid queue now dereferences its pointer-array entries correctly,
+and a mesh factory retains one buffer reference across frames, releasing it on
+purge/destruction. Signed color-gradient arithmetic preserves descending bands
+without undefined shifts. macOS ASan/UBSan and Metal validation pass, including
+Blackrock geometry/magma and archive audio running together for 120 frames;
+both iOS targets build. The simulator passes these checks and presents 120 frames
+of Dalaran geometry/water with audio, then repeats them after foreground resource
+recreation. Terrain liquid loading, actor ripples, procedural-wave
+material 3 and fixed-function liquid paths remain to be connected.
 Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against

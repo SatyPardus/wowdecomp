@@ -43,6 +43,11 @@ void GxMetal::TextureDevice::DrawGlowWave(id<MTLCommandBuffer> command, MTLRende
     Require(geometry.effect == FragmentEffect::GlowWave, "Invalid FFX wave effect");
     DrawGeometry(command, pass, {textures[0], textures[1], textures[2], nil}, geometry, {}, {states[0], states[1], states[2], {}}, encoder);
 }
+void GxMetal::TextureDevice::DrawLiquid(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder) {
+    Require(IsLiquidEffect(geometry.effect) && geometry.liquid, "Invalid native liquid effect");
+    DrawGeometry(command, pass, {textures[0], textures[1], nil, nil, nil}, geometry, {}, {states[0], states[1], {}, {}, {}}, encoder);
+}
 void GxMetal::TextureDevice::DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
     const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(IsWmoEffect(geometry.effect) && geometry.wmo, "Invalid native WMO effect");
@@ -57,13 +62,15 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 5>& states, id<MTLRenderCommandEncoder> encoder) {
     const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
     const bool model = IsModelEffect(geometry.effect);
+    const bool liquid = IsLiquidEffect(geometry.effect);
+    Require(!liquid || geometry.liquid, "Missing native liquid parameters");
     const bool wmo = IsWmoEffect(geometry.effect);
     Require(!wmo || geometry.wmo, "Missing native WMO parameters");
     const bool terrain = geometry.effect == FragmentEffect::Terrain;
     Require(!terrain || geometry.terrain, "Missing native terrain parameters");
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
-    const unsigned inputs = wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
+    const unsigned inputs = liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : geometry.effect == FragmentEffect::Glow ? 2 : 1;
     const auto& state = states[0];
     Require(command && pass && textures[0] && geometry.vertices, "Missing Metal geometry resource");
     Require((filter || wave) ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
@@ -113,7 +120,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     }
     bool decodePacked = false;
     for (unsigned i = 0; i < inputs; ++i) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest, model ? geometry.model->vertexEffect : ModelVertexEffect::Diffuse, geometry.terrain, geometry.wmo);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest, model ? geometry.model->vertexEffect : ModelVertexEffect::Diffuse, geometry.terrain, geometry.wmo, geometry.liquid);
     std::array<id<MTLSamplerState>, 5> samplers{};
     for (unsigned i = 0; i < inputs; ++i) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
@@ -151,12 +158,18 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     if (model) {
         [encoder setVertexBytes:&geometry.model->vertex length:sizeof(ModelVertexParameters) atIndex:0];
         [encoder setVertexBytes:geometry.model->bones.data() length:geometry.model->boneCount * sizeof(ModelAffine) atIndex:2];
+    } else if (liquid) { [encoder setVertexBytes:&geometry.liquid->vertex length:sizeof(LiquidVertexParameters) atIndex:0];
     } else if (wmo) { [encoder setVertexBytes:&geometry.wmo->vertex length:sizeof(WmoVertexParameters) atIndex:0];
     } else if (terrain) { [encoder setVertexBytes:&geometry.terrain->vertex length:sizeof(TerrainVertexParameters) atIndex:0];
     } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
     if (model) {
         ModelFragmentParameters material = geometry.model->fragment;
+        material.stateAlphaRef = state.alphaRef / 255.0f;
+        for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
+        [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
+    } else if (liquid) {
+        LiquidFragmentParameters material = geometry.liquid->fragment;
         material.stateAlphaRef = state.alphaRef / 255.0f;
         for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];

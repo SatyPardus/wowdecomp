@@ -251,6 +251,7 @@ class CMap {
     static void FootprintInitialize();
     static void FreeMapObj(CMapObj* mapObj);
     static void Initialize();
+    static void InitializeLiquidDepthTables();
     static void InitializeLiquidTables();
     static void InitializePCFShaders();
     static bool QueryAreaId(CMapEntity* entity, uint32_t& areaId);

@@ -2,6 +2,7 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include <cstdio>
+#include "Engine/Source/Os/TimeManager.h"
 #include <cstring>
 #include <stdexcept>
 
@@ -46,4 +47,34 @@ void CheckGameWmoScene() {
             device.ScenePresent();
         }
     }
+    for (const char* name : {"World\\wmo\\Azeroth\\Buildings\\Stormwind\\Stormwind.wmo:224",
+        "World\\wmo\\Northrend\\Dalaran\\ND_Dalaran.wmo:71",
+        "World\\wmo\\Dungeon\\AZ_Blackrock\\Blackrock.wmo:43"}) {
+        WmoPreview wmo(name);
+        if (!wmo.Ready(true)) throw std::runtime_error("Real WMO liquid materials did not become ready");
+        TSGrowableArray<CImVector> first;
+        unsigned changed = 0;
+        for (unsigned frame = 0; frame < 4; ++frame) {
+            device.BeginFrame(pass);
+            struct End { CGxDeviceMetal& device; ~End() { if (device.FrameCommand()) device.ScenePresent(); } } end{device};
+            const auto before = device.EncodingStats();
+            if (!wmo.Draw(0, 256, 256, true, true)) throw std::runtime_error("Ready WMO liquid failed to draw");
+            const auto after = device.EncodingStats();
+            if (after.geometryDraws-before.geometryDraws != 1) throw std::runtime_error("Original WMO liquid material omitted its draw");
+            CiRect rect(0, 0, 256, 256); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect, pixels);
+            unsigned covered = 0;
+            for (unsigned i = 0; i < pixels.Count(); ++i) covered += pixels[i].a != 0;
+            if (covered < 16) throw std::runtime_error("Real WMO liquid coverage missing");
+            if (frame) {
+                for (unsigned i = 0; i < pixels.Count(); ++i) changed += std::memcmp(&pixels[i], &first[i], sizeof(CImVector)) != 0;
+                if (after.bufferUploadPasses != before.bufferUploadPasses) throw std::runtime_error("Resident liquid reuploaded unchanged geometry");
+            } else { first.SetCount(pixels.Count()); std::memcpy(first.m_data,pixels.m_data,pixels.Count()*sizeof(CImVector)); }
+            std::fprintf(stderr,"WMO liquid GPU %s frame %u: %u covered pixels, %u changed pixels, %llu passes\n",name,frame,covered,changed,
+                static_cast<unsigned long long>(after.renderPasses-before.renderPasses));
+            device.ScenePresent();
+            if (frame < 3) OsSleep(250);
+        }
+        if (!changed) throw std::runtime_error("Original WMO texture animation did not change visible pixels");
+    }
+
 }

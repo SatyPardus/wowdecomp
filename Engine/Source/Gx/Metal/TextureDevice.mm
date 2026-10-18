@@ -89,7 +89,7 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
@@ -100,6 +100,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         TerrainLayerCount(GxSh_Vertex, terrain->vertexPermutation) == TerrainLayerCount(GxSh_Pixel, terrain->pixelPermutation)),
         "Unsupported native terrain permutation or mismatched layer count");
     Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
+    Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)), "Unsupported native liquid permutation");
     // Leave eight bits for effect families; a growing material set must not
     // collide with the independent sampler/vertex specialization flags.
     const uint64_t key = uint64_t(state.blend) | (uint64_t(state.alphaRef != 0) << 4) | (uint64_t(state.colorWrite) << 5) |
@@ -108,7 +109,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         (uint64_t(modelPermutation) << 25) | (uint64_t(shaderAlphaTest) << 30) | (uint64_t(vertexEffect) << 31) |
         (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42) |
         (uint64_t(wmo ? unsigned(wmo->vertexEffect) : 0) << 47) | (uint64_t(wmo ? wmo->permutation % 10 : 0) << 50) |
-        (uint64_t(wmo && wmo->shaderAlphaTest) << 54);
+        (uint64_t(wmo && wmo->shaderAlphaTest) << 54) | (uint64_t(liquid ? liquid->lightCount : 0) << 55);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -181,7 +182,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && !IsModelEffect(effect) && !IsWmoEffect(effect) && effect != FragmentEffect::Terrain) {
+    if (decodePacked && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -313,6 +314,34 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         attribute(2, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
         attribute(3, GxVA_TexCoord0, MTLVertexFormatFloat2);
         if (composite) { attribute(4, GxVA_Color1, MTLVertexFormatUChar4Normalized_BGRA); attribute(5, GxVA_TexCoord1, MTLVertexFormatFloat2); }
+        layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
+    }
+    if (IsLiquidEffect(effect)) {
+        const uint32_t material = unsigned(effect) - unsigned(FragmentEffect::LiquidWater), lights = liquid->lightCount;
+        const bool magma = effect == FragmentEffect::LiquidMagma;
+        Require(!screenAtDepth && GxVertexHasAttrib(format, GxVA_Color0) && GxVertexHasAttrib(format, GxVA_TexCoord0) &&
+            (magma || (GxVertexHasAttrib(format, GxVA_Normal) && GxVertexHasAttrib(format, GxVA_TexCoord1))), "Unsupported liquid vertex layout");
+        auto& vertex = m_liquidVertex[material][lights];
+        auto& fragment = m_liquidFragment[material][state.alphaRef != 0][decodePacked];
+        const bool alpha = state.alphaRef != 0;
+        auto constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&material type:MTLDataTypeUInt atIndex:18];
+        [constants setConstantValue:&lights type:MTLDataTypeUInt atIndex:19];
+        NSError* error = nil;
+        if (!vertex) vertex = [m_library newFunctionWithName:magma ? @"liquidMagmaVertex" : @"liquidWaterVertex" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:@"liquidFragment" constantValues:constants error:&error];
+        if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Liquid specialization failed");
+        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        auto attribute = [&](unsigned index, EGxVertexAttrib gx, MTLVertexFormat type) {
+            layout.attributes[index].bufferIndex = 1; layout.attributes[index].offset = GxVertexAttribOffset(format, gx); layout.attributes[index].format = type;
+        };
+        attribute(0, GxVA_Position, MTLVertexFormatFloat3);
+        attribute(2, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
+        attribute(3, GxVA_TexCoord0, MTLVertexFormatFloat2);
+        if (!magma) { attribute(1, GxVA_Normal, MTLVertexFormatFloat3); attribute(4, GxVA_TexCoord1, MTLVertexFormatFloat2); }
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     auto attachment = descriptor.colorAttachments[0];

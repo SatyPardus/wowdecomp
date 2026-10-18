@@ -18,8 +18,8 @@ Liquid::CRenderer::~CRenderer() {
 // VERIFY: c8176254 manual
 // OFFSET: 0x008A1980
 int32_t Liquid::CRenderer::CompareOpaque(const void* a, const void* b) {
-    const Liquid::CInstance* l = static_cast<const Liquid::CInstance*>(a);
-    const Liquid::CInstance* r = static_cast<const Liquid::CInstance*>(b);
+    const Liquid::CInstance* l = *static_cast<Liquid::CInstance* const*>(a);
+    const Liquid::CInstance* r = *static_cast<Liquid::CInstance* const*>(b);
 
     if (l->m_material < r->m_material) {
         return -1;
@@ -59,8 +59,8 @@ int32_t Liquid::CRenderer::CompareOpaque(const void* a, const void* b) {
 // VERIFY: abfe3e46 manual
 // OFFSET: 0x008A19E0
 int32_t Liquid::CRenderer::CompareTransparent(const void* a, const void* b) {
-    const Liquid::CInstance* l = static_cast<const Liquid::CInstance*>(a);
-    const Liquid::CInstance* r = static_cast<const Liquid::CInstance*>(b);
+    const Liquid::CInstance* l = *static_cast<Liquid::CInstance* const*>(a);
+    const Liquid::CInstance* r = *static_cast<Liquid::CInstance* const*>(b);
 
     if (l->m_material < r->m_material) {
         return -1;

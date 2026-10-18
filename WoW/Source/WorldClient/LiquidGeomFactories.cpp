@@ -43,8 +43,9 @@ void Liquid::ClearGeomFactories() {
 // VERIFY: 32ee76a0 manual
 // OFFSET: 0x007D4380
 void Liquid::CMeshGeomFactory::Purge() {
-    if (this->m_mapObjGroup) {
+    if (this->m_mapObjGroup && this->m_batch) {
         this->m_mapObjGroup->FreeLiquidVB();
+        this->m_batch = nullptr;
     }
 }
 
@@ -99,7 +100,8 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
     uint32_t sharedRows = this->m_sharedVerts[1].m_count;
     uint32_t sharedTiles = this->m_mapObjGroup->GetNumSharedTiles();
     uint32_t vertexCount = (sharedRows + this->m_mapObjGroup->m_liquidVerts.y) * (sharedCols + this->m_mapObjGroup->m_liquidVerts.x) + 6 * sharedTiles;
-    this->m_mapObjGroup->AllocLiquidVB(format, vertexCount, 3 * vertexCount, &this->m_batch);
+    // One retained buffer reference per factory, not one per rendered frame.
+    if (!this->m_batch) this->m_mapObjGroup->AllocLiquidVB(format, vertexCount, 3 * vertexCount, &this->m_batch);
 
     *vertexBuf = this->m_mapObjGroup->m_liquidVertsBlock->m_buffer;
     *indexBuf = this->m_mapObjGroup->m_liquidIndicesBlock->m_buffer;
@@ -177,8 +179,9 @@ void Liquid::CMeshGeomFactory::GetBuffers(EGxVertexBufferFormat format, CGxBuf**
 // VERIFY: ac0e5a30 manual
 // OFFSET: 0x007D4800
 Liquid::CMeshGeomFactory::~CMeshGeomFactory() {
-    if (this->m_mapObjGroup) {
+    if (this->m_mapObjGroup && this->m_batch) {
         this->m_mapObjGroup->FreeLiquidVB();
+        this->m_batch = nullptr;
     }
 }
 
