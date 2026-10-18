@@ -28,10 +28,13 @@ bool ChineseLocale(const std::string& locale) {
 }
 }
 
+const ClientData* ClientData::s_selected = nullptr;
+
 void ClientData::CloseArchive::operator()(System_SFile::ARCHIVEREC* archive) const {
     if (archive) { Blizzard::Mopaq::SFileCloseArchive(archive); }
 }
 ClientData::~ClientData() {
+    if (m_filePathsSelected) s_selected = m_previousSelection;
     while (!m_mounts.empty()) { m_mounts.pop_back(); }
     if (m_filePathsSelected) {
         s_locale = m_previousDbLocale;
@@ -152,10 +155,16 @@ ClientData::ClientData(const std::string& dataRoot, const std::string& requested
             m_mounts.push_back(std::move(mount));
         }
     }
+    m_patchMountCount = m_mounts.size(); // Includes alternate archives and patch views, as in Client.cpp.
     int32_t basePriority = 63;
-    for (const auto& definition : layout) {
+    for (size_t index = 0; index < layout.size(); ++index) {
+        const auto& definition = layout[index];
         if (definition.m_unk04 == 3 || definition.m_unk04 == 4) { continue; }
-        if (availability & definition.m_unk08) { Open(definition.m_name, basePriority, definition.m_unk04 != 2); }
+        if ((availability & definition.m_unk08) && Open(definition.m_name, basePriority, definition.m_unk04 != 2)) {
+            if (index == 1 || (index == 19 && !m_interfaceArchive)) m_interfaceArchive = m_mounts.back().archive.get();
+            if (index == 15) m_expansionLevel = 1;
+            if (index == 16) m_expansionLevel = 2;
+        }
         --basePriority;
     }
 
@@ -181,6 +190,25 @@ ClientData::ClientData(const std::string& dataRoot, const std::string& requested
     s_locale = 0; // Original enUS/enGB slot, also used by English alternate locales.
     for (int32_t i = 0; i < 9; ++i) if (m_locale == s_iniLocaleNames[i]) { s_locale = i; break; }
     m_filePathsSelected = true;
+    m_previousSelection = s_selected;
+    s_selected = this;
+}
+
+void ClientData::ListInterface(const char* prefix, int32_t (*callback)(const char*, void*), void* parameter) const {
+    if (!prefix || !callback) throw std::invalid_argument("Interface enumeration requires a prefix and callback");
+    ARCHIVELISTPARAMS params{prefix, static_cast<uint32_t>(SStrLen(prefix)), callback, parameter};
+    const auto filter = [](const char* name, void* argument) -> int32_t {
+        const auto& params = *static_cast<const ARCHIVELISTPARAMS*>(argument);
+        return SStrCmpI(name, params.m_prefix, params.m_prefixLength) ? 1 : params.m_callback(name, params.m_param);
+    };
+    const auto list = [&](System_SFile::ARCHIVEREC* archive) {
+        // SFile::List is synchronous; this borrowed wrapper does not own or
+        // close the mount. Both physical archives and views use native MPQ IO.
+        SArchive borrowed{0, archive};
+        SFile::List(&borrowed, filter, &params);
+    };
+    for (size_t i = 0; i < m_patchMountCount; ++i) list(m_mounts[i].archive.get());
+    if (m_interfaceArchive) list(m_interfaceArchive);
 }
 
 ClientData::Asset ClientData::Read(const std::string& name, uint32_t maximumBytes, bool verifyDigest) const {

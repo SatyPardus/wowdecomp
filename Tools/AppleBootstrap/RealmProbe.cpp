@@ -7,6 +7,7 @@
 #include "WoW/Source/Client.h"
 #include "Engine/Source/Base/Prop.h"
 #include "Engine/Source/Event/Event.h"
+#include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include <CommonCrypto/CommonDigest.h>
 #include <algorithm>
@@ -19,6 +20,8 @@
 #include <thread>
 #include <vector>
 #include <functional>
+#include <filesystem>
+#include <sstream>
 
 void CheckAccountData(NetClient&, const std::function<void(CDataStore&)>&,
                       const std::function<std::vector<uint8_t>()>&, int);
@@ -252,6 +255,77 @@ void CheckGameRealm() {
 void CheckRealmMetadata(const ClientData& client, std::ostream& out) {
     Require(CheckDataFilesExist() && client.Locale() == s_localeCode,
         "Native cache metadata did not select the mounted installation and locale");
+    std::vector<const ClientData::Mount*> listed;
+    const ClientData::Mount* interface = nullptr;
+    const ClientData::Mount* localized = nullptr;
+    uint8_t expansion = 0;
+    for (const auto& mount : client.Mounts()) {
+        if (mount.priority >= 64) { listed.push_back(&mount); continue; }
+        const auto name = std::filesystem::path(mount.path).filename().string();
+        if (!SStrCmpI(name.c_str(), "interface.MPQ", STORM_MAX_STR)) interface = &mount;
+        if (!SStrCmpI(name.c_str(), ("locale-" + client.Locale() + ".MPQ").c_str(), STORM_MAX_STR)) localized = &mount;
+        if (!SStrCmpI(name.c_str(), "expansion.MPQ", STORM_MAX_STR)) expansion = std::max<uint8_t>(expansion, 1);
+        if (!SStrCmpI(name.c_str(), "lichking.MPQ", STORM_MAX_STR)) expansion = 2;
+    }
+    if (interface || localized) listed.push_back(interface ? interface : localized);
+    Require(ClientData::Selected() == &client && GetClientExpansionLevel() == expansion,
+            "Native expansion capability differs from mounted base archives");
+    const char* prefix = "Interface\\AddOns\\";
+    std::vector<std::string> reference, stoppedReference;
+    for (const auto* mount : listed) {
+        SArchive borrowed{0, mount->archive.get()};
+        SFileImpl* file = nullptr;
+        if (!SFile::OpenEx(&borrowed, "(listfile)", 0, &file)) continue;
+        struct Close { SFileImpl* file; ~Close() { SFileCloseFile(file); } } close{file};
+        const auto length = SFileGetFileSize(file, nullptr);
+        Require(length < 32 * 1024 * 1024, "Unexpected interface listfile size");
+        std::string contents(length, '\0');
+        uint32_t read = 0;
+        Require(SFileReadFile(file, contents.data(), length, &read, nullptr, 0) && read == length,
+                "Cannot read interface listfile reference bytes");
+        std::istringstream stream(contents);
+        std::string line;
+        bool first = true;
+        while (std::getline(stream, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (SStrCmpI(line.c_str(), prefix, std::strlen(prefix))) continue;
+            const char* extension = std::strrchr(line.c_str(), '.');
+            if (extension && !SStrCmpI(extension, ".md5", STORM_MAX_STR)) continue;
+            reference.push_back(line);
+            if (first) { stoppedReference.push_back(line); first = false; }
+        }
+    }
+    const auto collect = [](const char* name, void* parameter) -> int32_t {
+        static_cast<std::vector<std::string>*>(parameter)->emplace_back(name); return 1;
+    };
+    std::vector<std::string> actual, folded, stopped;
+    ListInterfaceArchive(prefix, collect, &actual);
+    ListInterfaceArchive("interface\\addons\\", collect, &folded);
+    ListInterfaceArchive(prefix, [](const char* name, void* parameter) -> int32_t {
+        static_cast<std::vector<std::string>*>(parameter)->emplace_back(name); return 0;
+    }, &stopped);
+    Require(!actual.empty() && actual == reference && folded == reference && stopped == stoppedReference,
+            "Original interface enumeration changed patch/base order, casing or per-archive stopping");
+    size_t tocCount = 0;
+    for (const auto& name : actual) {
+        const char* extension = std::strrchr(name.c_str(), '.');
+        if (extension && !SStrCmpI(extension, ".toc", STORM_MAX_STR)) ++tocCount;
+    }
+    Require(tocCount > 0, "Interface enumeration found no original addon manifests");
+    std::string root = std::string(SFile::m_basePath) + SFile::GetDataPath();
+    std::replace(root.begin(), root.end(), '\\', '/');
+    {
+        ClientData nested(root, client.Locale());
+        Require(ClientData::Selected() == &nested && GetClientExpansionLevel() == expansion,
+                "Nested resource installation did not select native capabilities");
+    }
+    Require(ClientData::Selected() == &client && GetClientExpansionLevel() == expansion,
+            "Native resource installation did not restore its previous selection");
+    std::vector<std::string> restored;
+    ListInterfaceArchive(prefix, collect, &restored);
+    Require(restored == actual, "Restoring the resource installation changed interface enumeration");
+    out << "Original interface enumeration: " << actual.size() << " ordered entries / " << tocCount
+        << " addon manifests, case-insensitive prefix, per-archive stop and mount restoration; expansion " << unsigned(expansion) << " passed.\n";
     const auto bytes = client.Read(BannedAddOnsRec::GetFilename(), 4 * 1024 * 1024).bytes;
     Require(bytes.size() >= 20 && !std::memcmp(bytes.data(), "WDBC", 4), "Invalid addon policy DBC");
     uint32_t count, rowSize; std::memcpy(&count, bytes.data() + 4, 4); std::memcpy(&rowSize, bytes.data() + 12, 4);

@@ -1,6 +1,7 @@
 #ifndef WOW_SOURCE_WOWSERVICES_CLIENTDATA_H
 #define WOW_SOURCE_WOWSERVICES_CLIENTDATA_H
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -32,11 +33,20 @@ public:
     Asset Read(const std::string& name, uint32_t maximumBytes, bool verifyDigest = false) const;
     const std::string& Locale() const { return m_locale; }
     const std::vector<Mount>& Mounts() const { return m_mounts; }
+    uint8_t ExpansionLevel() const { return m_expansionLevel; }
+    void ListInterface(const char* prefix, int32_t (*callback)(const char*, void*), void* parameter) const;
+    // Selected with the same scoped lifetime as SFile's installation paths.
+    static const ClientData* Selected() { return s_selected; }
 
 private:
     std::string m_root;
     std::string m_locale;
     std::vector<Mount> m_mounts;
+    size_t m_patchMountCount = 0;
+    System_SFile::ARCHIVEREC* m_interfaceArchive = nullptr;
+    uint8_t m_expansionLevel = 0;
+    static const ClientData* s_selected;
+    const ClientData* m_previousSelection = nullptr;
     std::string m_previousBasePath;
     std::string m_previousDataPath;
     std::string m_previousAlternatePath;
