@@ -713,6 +713,15 @@ int32_t CVar::LogAll(char* buffer, uint32_t size, uint32_t category, uint32_t ex
     return CVar::IterateForArchive(category, excludeFlags, CVar::LogCvar, &log);
 }
 
+static void UnregisterCvarCommand(const CVar* var) {
+    // Console commands borrow the CVar name, so remove them before the name is freed.
+    CONSOLECOMMAND* cmd = g_consoleCommandHash.Ptr(var->m_key.m_str);
+
+    if (cmd && cmd->m_handler == CvarCommandHandler) {
+        g_consoleCommandHash.Delete(cmd);
+    }
+}
+
 // VERIFY: da3d65c9 manual
 // OFFSET: 0x00767350
 void CVar::DeleteCharacterCVars() {
@@ -720,6 +729,7 @@ void CVar::DeleteCharacterCVars() {
 
     while (var) {
         if ((var->m_flags & 0x1) && (var->m_flags & 0x30) == 0x20) {
+            UnregisterCvarCommand(var);
             var = s_registeredCVars.DeleteNode(var);
         } else {
             var = s_registeredCVars.Next(var);
@@ -734,6 +744,7 @@ void CVar::DeleteAccountCVars() {
 
     while (var) {
         if ((var->m_flags & 0x1) && (var->m_flags & 0x30) == 0x10) {
+            UnregisterCvarCommand(var);
             var = s_registeredCVars.DeleteNode(var);
         } else {
             var = s_registeredCVars.Next(var);
@@ -750,6 +761,11 @@ void CVar::Destroy() {
     ConsoleCommandUnregister("cvar_reset");
     ConsoleCommandUnregister("cvar_default");
     ConsoleCommandUnregister("cvarlist");
+
+    for (CVar* var = s_registeredCVars.m_fulllist.Head(); var; var = s_registeredCVars.Next(var)) {
+        UnregisterCvarCommand(var);
+    }
+
     s_registeredCVars.Clear();
 }
 
