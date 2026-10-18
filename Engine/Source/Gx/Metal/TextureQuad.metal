@@ -99,6 +99,11 @@ fragment float4 filter4Fragment(Filter4Raster v [[stage_in]], constant QuadParam
         rgb = fma(tap2.rgb, 0.25f, rgb);
         rgb = fma(tap3.rgb, 0.25f, rgb);
         color = float4(rgb, v.color.a);
+    } else if (filter4Kernel == 3) {
+        color = tap1 * 0.25f;
+        color = fma(tap0, 0.25f, color);
+        color = fma(tap2, 0.25f, color);
+        color = fma(tap3, 0.25f, color);
     } else {
         // Original Gauss4: the inner taps carry 3/8, outer taps 1/8, for RGBA.
         color = tap1 * 0.375f;
@@ -167,5 +172,35 @@ fragment float4 glowWaveFragment(GlowWaveRaster v [[stage_in]], constant WavePar
     const float3 base = mix(sceneColor, blurColor, v.color.b);
     const float4 color = float4(fma(blurColor * blurColor, v.color.a, base), 1);
     if (alphaTest && color.a < p.alphaRef) { discard_fragment(); }
+    return color;
+}
+
+struct NetherBlurParameters {
+    float angle, tapSpacing, convergence, padding;
+    float2 pixelCenterOffset;
+    float padding2[2];
+};
+vertex Filter4Raster netherBlurVertex(VertexPCT v [[stage_in]], constant NetherBlurParameters& p [[buffer(0)]]) {
+    // Original vs_2_0 wraps the noisy angle before sincos (cosine, sine).
+    const float turns = fma(fma(v.color.r, 2.0f, -1.0f), 3.0f, p.angle) * 0.15915493667125702f;
+    const float wrapped = copysign(fract(abs(turns)), turns);
+    const float angle = fma(fract(wrapped + 0.5f), 6.2831854820251465f, -3.1415927410125732f);
+    const float2 step = float2(cos(angle), sin(angle)) * p.tapSpacing;
+    // These constants really are fixed in the original BLS; c1.y is unused.
+    const float2 uv0 = v.uv + float2(-0.001953125f, -0.0026041667442768812f);
+    const float2 uv1 = uv0 + step, uv2 = uv1 + step, uv3 = uv2 + step;
+    const float4 clip((v.position.xy + p.pixelCenterOffset) * p.convergence, 0, p.convergence);
+    return {clip, float4(1), uv0, uv1, uv2, uv3};
+}
+fragment float4 netherCombineFragment(GlowRaster v [[stage_in]], constant QuadParameters& p [[buffer(0)]],
+    constant float4& tintFade [[buffer(1)]], texture2d<float> scene [[texture(0)]], texture2d<float> blurred [[texture(1)]],
+    sampler sceneSampling [[sampler(0)]], sampler blurSampling [[sampler(1)]]) {
+    const float3 original = decoded(scene.sample(sceneSampling, v.sceneUV), p.decodeScale[0]).rgb;
+    const float3 blur = decoded(blurred.sample(blurSampling, v.blurUV), p.decodeScale[1]).rgb;
+    const float3 combined = fma(original, 0.5f, blur);
+    const float gray = dot(combined, float3(1)) * 0.16666649281978607f;
+    const float3 tinted = fma(combined, 0.5f, gray) * tintFade.rgb;
+    const float4 color(fma(tinted - original, tintFade.a, original), 1);
+    if (alphaTest && color.a < p.alphaRef) discard_fragment();
     return color;
 }

@@ -399,8 +399,8 @@ void PassNetherBlur::Execute() {
     constants[3] = 0.0f;
     g_theGxDevicePtr->ShaderConstantsSet(GxSh_Vertex, 1, constants, 1);
 
-    float convergence = g_theGxDevicePtr->StereoGetConvergence();
-    g_theGxDevicePtr->ShaderConstantsSet(GxSh_Vertex, 2, &convergence, 1);
+    const float convergence[4] = {g_theGxDevicePtr->StereoGetConvergence(), 0, 0, 0};
+    g_theGxDevicePtr->ShaderConstantsSet(GxSh_Vertex, 2, convergence, 1);
 
     CGxTex* target = TextureGetGxTex(FFX::s_quart[1].m_texture, 1, nullptr);
     GxRsSet(GxRs_ScissorTest, 0);

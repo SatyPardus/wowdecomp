@@ -105,6 +105,8 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
         case GxMetal::FragmentEffect::Glow: return "FFXGlow";
+        case GxMetal::FragmentEffect::NetherBlur: return "FFXNetherBlur";
+        case GxMetal::FragmentEffect::NetherCombine: return "FFXNetherCombine";
         case GxMetal::FragmentEffect::Death: return "FFXDeath";
         case GxMetal::FragmentEffect::GlowWave: return "FFXGlowWave";
         case GxMetal::FragmentEffect::ModelOpaque: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Opaque";
@@ -122,14 +124,15 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         default: return "UI";
     }
 }
-void LoadPostProcess(GxMetal::FragmentEffect effect) {
+void LoadPostProcess(GxMetal::FragmentEffect effect, EGxShTarget target = GxSh_Pixel) {
     // Match IShaderLoad's asset lookup. A present but unknown higher-profile
     // shader must fail validation, never silently select a different effect.
-    for (const char* profile : {"ps_3_0", "ps_2_0"}) {
-        const auto path = std::string("Shaders\\Pixel\\") + profile + "\\" + ShaderFamily(effect) + ".bls";
+    for (const char* profile : (target == GxSh_Vertex ? std::initializer_list<const char*>{"vs_3_0", "vs_2_0"} : std::initializer_list<const char*>{"ps_3_0", "ps_2_0"})) {
+        const auto path = std::string(target == GxSh_Vertex ? "Shaders\\Vertex\\" : "Shaders\\Pixel\\") + profile + "\\" + ShaderFamily(effect) + ".bls";
         auto bytes = ReadShader(path.c_str(), true);
         if (bytes.empty()) { continue; }
-        GxMetal::PostProcessShader::FromBls(bytes, effect);
+        if (target == GxSh_Vertex) GxMetal::PostProcessShader::ValidateNetherVertex(bytes);
+        else GxMetal::PostProcessShader::FromBls(bytes, effect);
         return;
     }
     throw std::runtime_error("Cannot find the original FFX filter shader in mounted Data");
@@ -942,7 +945,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
             }
         }
     } else {
-        for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave, Effect::Death,
+        for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave, Effect::Death, Effect::NetherCombine,
             Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
             Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x, Effect::ModelOpaqueAdd, Effect::ModelOpaqueAddAlpha, Effect::ModelOpaqueAddAlphaAlpha}) {
             if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
@@ -965,6 +968,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     if (SStrCmpI(name, ShaderFamily(Effect::ShadowMap, target), STORM_MAX_STR) == 0) effect = Effect::ShadowMap;
     if (SStrCmpI(name, "DetailDoodad", STORM_MAX_STR) == 0) effect = Effect::DetailDoodad;
     if (SStrCmpI(name, "WaterRipples", STORM_MAX_STR) == 0) effect = Effect::WaterRipple;
+    if (SStrCmpI(name, "FFXNetherBlur", STORM_MAX_STR) == 0) effect = Effect::NetherBlur;
+    const bool netherBlur = effect == Effect::NetherBlur;
     const bool ripple = effect == Effect::WaterRipple;
     const bool detail = effect == Effect::DetailDoodad;
     const bool shadow = effect == Effect::ShadowMap;
@@ -978,8 +983,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
         throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
     }
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (ripple || effect == Effect::Desaturate ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? GxMetal::TerrainPermutationCount(target, effect) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
-        (terrain || model || wmo || liquid || shadow || detail || ripple || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
+        count == (netherBlur ? (target == GxSh_Vertex ? 1u : 2u) : ripple || effect == Effect::Desaturate ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? GxMetal::TerrainPermutationCount(target, effect) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
+        (netherBlur || terrain || model || wmo || liquid || shadow || detail || ripple || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
     bool cached = true;
@@ -1004,7 +1009,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     else if (wmo) { LoadWmoShader(target, wmoVertex, effect); }
     else if (terrain) { LoadTerrainShader(target, effect); }
     else if (model) { LoadModelShader(target, effect, vertexEffect); }
-    else if (effect == GxMetal::FragmentEffect::Unlit) { ui = LoadUI(); } else { LoadPostProcess(effect); }
+    else if (effect == GxMetal::FragmentEffect::Unlit) { ui = LoadUI(); } else { LoadPostProcess(effect, target); }
     for (uint32_t i = 0; i < count; ++i) {
         const std::string key = count == 1 ? family : std::string(family) + ":" + std::to_string(i);
         CGxShader* shader = m_shaderList[target].Ptr(key.c_str());
@@ -1042,7 +1047,7 @@ void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const ch
     else if (GxMetal::IsWmoEffect(native.effect)) { LoadWmoShader(EGxShTarget(shader->m_target), native.wmoVertex, native.effect); }
     else if (GxMetal::IsTerrainEffect(native.effect)) { LoadTerrainShader(EGxShTarget(shader->m_target), native.effect); }
     else if (GxMetal::IsModelEffect(native.effect)) { LoadModelShader(EGxShTarget(shader->m_target), native.effect, native.vertexEffect); }
-    else if (native.effect == GxMetal::FragmentEffect::Unlit) { native.ui = LoadUI(); } else { LoadPostProcess(native.effect); }
+    else if (native.effect == GxMetal::FragmentEffect::Unlit) { native.ui = LoadUI(); } else { LoadPostProcess(native.effect, EGxShTarget(shader->m_target)); }
     IShaderCreate(shader);
 }
 void CGxDeviceMetal::ShaderConstantsSet(EGxShTarget target, uint32_t index, const float* values, uint32_t count) {
@@ -1067,14 +1072,15 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool shadow = effect == GxMetal::FragmentEffect::ShadowMap;
     const bool ripple = effect == GxMetal::FragmentEffect::WaterRipple;
     const bool detail = effect == GxMetal::FragmentEffect::DetailDoodad;
+    const bool netherBlur = effect == GxMetal::FragmentEffect::NetherBlur;
     const bool postProcess = !fixed && !ripple && !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit && effect != GxMetal::FragmentEffect::Desaturate;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
     unsigned fixedInputs = 0;
     if (fixed) while (fixedInputs < unsigned(m_caps.m_numTmus) && pointer(EGxRenderState(GxRs_Texture0 + fixedInputs))) ++fixedInputs;
-    const unsigned inputs = fixed ? fixedInputs : effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation)) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
-    Require(fixed || (postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
-        ((liquid || shadow || detail || ripple) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui))),
+    const unsigned inputs = fixed ? fixedInputs : effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation)) + 1 : model ? GxMetal::ModelTextureCount(effect) : (filter || netherBlur) ? 4 : wave ? 3 : postProcess ? 2 : 1;
+    Require(fixed || (postProcess && !netherBlur ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
+        ((netherBlur || liquid || shadow || detail || ripple) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui))),
         "Unsupported native Gx vertex/pixel shader combination");
     if (model && (!GxMetal::SupportsModelPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation, m->shaders.at(vertex).vertexEffect) ||
         !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation))) {
@@ -1097,19 +1103,20 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     CGxBuf* vertices = postProcess ? m_primVertexFormatBuf[GxVA_Position] : m_primVertexBuf;
     Require(vertices, "Gx draw requires vertices");
     if (postProcess) {
-        const unsigned stride = 16 + inputs * 8;
-        Require(m_primVertexFormat == ((filter || wave) ? GxVertexBufferFormats_Last : GxVBF_PCT2) &&
-            m_primVertexMask == (0x11u | (((1u << inputs) - 1) << GxVA_TexCoord0)) && vertices->m_itemSize == stride &&
+        const unsigned coordinates = netherBlur ? 1 : inputs;
+        const unsigned stride = 16 + coordinates * 8;
+        Require(m_primVertexFormat == ((filter || wave || netherBlur) ? GxVertexBufferFormats_Last : GxVBF_PCT2) &&
+            m_primVertexMask == (0x11u | (((1u << coordinates) - 1) << GxVA_TexCoord0)) && vertices->m_itemSize == stride &&
             !integer(GxRs_Lighting), "FFX requires the original unlit vertex stream");
         const CGxVertexAttrib expected[] = {{GxVA_Position, 4, 0, 48}, {GxVA_Color0, 0, 12, 48},
             {GxVA_TexCoord0, 3, 16, 48}, {GxVA_TexCoord1, 3, 24, 48}, {GxVA_TexCoord2, 3, 32, 48}, {GxVA_TexCoord3, 3, 40, 48}};
-        for (unsigned i = 0; i < inputs + 2; ++i) {
+        for (unsigned i = 0; i < coordinates + 2; ++i) {
             const auto& attr = expected[i];
             const auto& actual = m_primVertexFormatAttrib[attr.m_attrib];
             Require(m_primVertexFormatBuf[attr.m_attrib] == vertices && actual.m_type == attr.m_type &&
                 actual.m_offset == attr.m_offset && actual.m_bufSize == stride, "Unsupported FFX vertex attribute layout");
         }
-        for (unsigned i = 0; i < inputs; ++i) {
+        for (unsigned i = 0; i < coordinates; ++i) {
             Require(!integer(EGxRenderState(GxRs_TexGen0 + i)) && integer(EGxRenderState(GxRs_TextureCoord0 + i)) == i &&
                 (m_xforms[i].m_flags[m_xforms[i].m_level] & CGxMatrixStack::F_Identity), "FFX texture transforms or generated coordinates are not implemented");
         }
@@ -1146,7 +1153,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         const auto indexBinding = m->Flush(m_primIndexBuf);
         draw.indices = indexBinding.buffer; draw.indexOffset = indexBinding.offset;
     }
-    draw.format = m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
+    draw.format = netherBlur ? GxVBF_PCT : m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
     if (fixed) {
         Require(!integer(GxRs_Lighting), "Lit fixed-function materials are not implemented");
         Require(inputs <= 4, "Unlit fixed-function texture stage limit exceeded");
@@ -1192,7 +1199,12 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             native.vertex.textureRows[i][2] = {matrix.a2, matrix.b2, matrix.c2, matrix.d2};
             native.vertex.projected[i] = mode == 2;
         }
+    } else if (netherBlur) {
+        const float* constants = s_shadowConstants[1].constants;
+        draw.netherBlur.angle = constants[0]; draw.netherBlur.tapSpacing = constants[4]; draw.netherBlur.convergence = constants[8];
     } else if (postProcess) {
+        if (effect == GxMetal::FragmentEffect::NetherCombine)
+            std::memcpy(&draw.netherTintFade, s_shadowConstants[0].constants, sizeof(draw.netherTintFade));
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
         draw.clipFromModel = world.m_mtx[world.m_level] * view.m_mtx[view.m_level] * m_projNative;
     } else if (ripple) {
@@ -1377,6 +1389,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (terrain) { m->gpu.DrawTerrain(m->command, m->pass, textures, draw, states, encoder); }
+    else if (netherBlur || effect == GxMetal::FragmentEffect::NetherCombine) { m->gpu.DrawNether(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }
     else if (filter) { m->gpu.DrawFilter4(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }
     else if (wave) { m->gpu.DrawGlowWave(m->command, m->pass, {textures[0], textures[1], textures[2]}, draw, {states[0], states[1], states[2]}, encoder); }
     else if (effect == GxMetal::FragmentEffect::Death) { m->gpu.DrawDeath(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
@@ -1528,7 +1541,8 @@ bool CGxDeviceMetal::QueryEnd(CGxQuery*) { Unsupported("query end"); }
 bool CGxDeviceMetal::QueryGetParam(CGxQuery*, EGxQueryParam, uint32_t&) { Unsupported("query parameter"); }
 bool CGxDeviceMetal::QueryGetData(CGxQuery*, uint32_t&) { Unsupported("query readback"); }
 void CGxDeviceMetal::StereoSetConvergence(float) { Unsupported("stereo convergence"); }
-float CGxDeviceMetal::StereoGetConvergence() { Unsupported("stereo convergence"); }
+// Original mono D3D9 initializes convergence to 1; no stereo device is enabled.
+float CGxDeviceMetal::StereoGetConvergence() { return 1.0f; }
 void CGxDeviceMetal::StereoSetSeparation(float) { Unsupported("stereo separation"); }
 float CGxDeviceMetal::StereoGetSeparation() { Unsupported("stereo separation"); }
 void CGxDeviceMetal::PrimPointSize(float size) { Require(size == 1, "Metal Gx point size is not implemented"); }

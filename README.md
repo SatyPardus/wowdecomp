@@ -272,6 +272,13 @@ not change the selected character. This is a development path: map loading now
 acquires subsequent native drawables for the original synchronous progress
 paints, but unsupported world operations still report failure explicitly.
 
+The native `FFXNetherBlur`/`FFXNetherCombine` paths preserve the original noisy
+four-tap RGBA blur, fixed UV bias, two-pass intermediate surface, tint and fade.
+`WOW_METAL_CHECK=ffx` focuses the existing Metal probe on post-processing
+equations and original game passes. These checks pass on Mac with ASan/UBSan
+and Metal validation and on the iOS simulator; the device target builds too.
+This does not establish Windows GPU equivalence or complete world entry.
+
 `AppleRealmClient` is a separate macOS command-line entry for a local AzerothCore
 server. It performs real SRP authentication, realm selection, encrypted world
 authentication and character enumeration using the original client code and

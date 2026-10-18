@@ -187,6 +187,12 @@ struct LiquidDrawParameters {
 // Unlit geometry consumes the original packed Gx vertex layout directly. The
 // caller supplies a transform to Metal clip space (z in [0,w]); it is not a
 // replacement for lighting, skinning, fog or the game's programmable effects.
+struct NetherBlurParameters {
+    float angle = 0, tapSpacing = 0, convergence = 1, padding = 0;
+    simd_float2 pixelCenterOffset{};
+    float padding2[2]{};
+};
+static_assert(sizeof(NetherBlurParameters) == 32, "Native nether blur constant layout");
 struct GeometryDraw {
     id<MTLBuffer> vertices = nil, indices = nil;
     size_t vertexOffset = 0, indexOffset = 0;
@@ -202,6 +208,8 @@ struct GeometryDraw {
     const LiquidDrawParameters* liquid = nullptr;
     C44Matrix clipFromModel{1.0f};
     simd_float2 waveSceneScale{}, waveBlurScale{};
+    NetherBlurParameters netherBlur{};
+    simd_float4 netherTintFade{};
     bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
     float depthOffset = 0; // normalized post-raster depth offset (water ripples)
@@ -256,6 +264,8 @@ public:
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawDeath(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawNether(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
@@ -287,6 +297,8 @@ private:
     id<MTLFunction> m_fragment[2];
     id<MTLFunction> m_desaturateFragment[2][2]{};
     id<MTLFunction> m_deathFragment[2][2]{};
+    id<MTLFunction> m_netherVertex;
+    id<MTLFunction> m_netherFragment[2][2][2]{};
     id<MTLFunction> m_geometryVertex[2][4];
     id<MTLFunction> m_filterVertex, m_filterFragment[2][2];
     id<MTLFunction> m_glowVertex, m_glowFragment[2];

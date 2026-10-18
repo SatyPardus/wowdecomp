@@ -65,6 +65,11 @@ void GxMetal::TextureDevice::DrawGlow(id<MTLCommandBuffer> command, MTLRenderPas
     Require(geometry.effect == FragmentEffect::Glow, "Invalid FFX glow effect");
     DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}}, encoder);
 }
+void GxMetal::TextureDevice::DrawNether(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 4>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 4>& states, id<MTLRenderCommandEncoder> encoder) {
+    Require(geometry.effect == FragmentEffect::NetherBlur || geometry.effect == FragmentEffect::NetherCombine, "Invalid nether effect");
+    DrawGeometry(command, pass, {textures[0], textures[1], textures[2], textures[3]}, geometry, {}, {states[0], states[1], states[2], states[3]}, encoder);
+}
 void GxMetal::TextureDevice::DrawGlowWave(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 3>& textures,
     const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::GlowWave, "Invalid FFX wave effect");
@@ -107,7 +112,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     Require(!model || (geometry.model && geometry.model->boneCount && geometry.model->boneCount <= geometry.model->bones.size()), "Invalid native model palette");
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const bool terrainShadow = geometry.effect == FragmentEffect::TerrainShadowMap;
-    const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : filter ? 4 : wave ? 3 : (geometry.effect == FragmentEffect::Glow || geometry.effect == FragmentEffect::Death) ? 2 : 1;
+    const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : (filter || geometry.effect == FragmentEffect::NetherBlur) ? 4 : wave ? 3 : (geometry.effect == FragmentEffect::Glow || geometry.effect == FragmentEffect::Death || geometry.effect == FragmentEffect::NetherCombine) ? 2 : 1;
     const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : (1u << inputs) - 1;
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
@@ -200,7 +205,13 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
-    if (geometry.fixed) {
+    if (geometry.effect == FragmentEffect::NetherBlur) {
+        auto native = geometry.netherBlur;
+        const auto viewport = geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1};
+        Require(viewport.width > 0 && viewport.height > 0, "Empty nether blur viewport");
+        native.pixelCenterOffset = {float(1 / viewport.width), float(-1 / viewport.height)};
+        [encoder setVertexBytes:&native length:sizeof(native) atIndex:0];
+    } else if (geometry.fixed) {
         [encoder setVertexBytes:&geometry.fixed->vertex length:sizeof(FixedUnlitVertexParameters) atIndex:0];
     } else if (geometry.effect == FragmentEffect::WaterRipple) {
         [encoder setVertexBytes:&geometry.clipFromModel length:sizeof(C44Matrix) atIndex:0];
@@ -216,6 +227,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else if (wmo) { [encoder setVertexBytes:&geometry.wmo->vertex length:sizeof(WmoVertexParameters) atIndex:0];
     } else if (terrain) { [encoder setVertexBytes:&geometry.terrain->vertex length:sizeof(TerrainVertexParameters) atIndex:0];
     } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
+    if (geometry.effect == FragmentEffect::NetherCombine)
+        [encoder setFragmentBytes:&geometry.netherTintFade length:sizeof(geometry.netherTintFade) atIndex:1];
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
     if (geometry.fixed) {
         FixedUnlitFragmentParameters material = geometry.fixed->fragment;

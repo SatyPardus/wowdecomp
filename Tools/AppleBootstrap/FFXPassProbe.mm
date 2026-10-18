@@ -8,6 +8,8 @@
 #include "Engine/Source/FFX/EffectGlow.h"
 #include "WoW/Source/Game/GameClient/FFXEffects.h"
 #include "WoW/Source/Game/GameClient/PassDeath.h"
+#include "WoW/Source/Game/GameClient/PassNetherBlur.h"
+#include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
@@ -288,8 +290,38 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
         GxScenePresent();
     }
     GxRsSet(GxRs_AlphaRef, 0);
-
+    PassNetherBlur nether(inputs, 1, &output, GxBlend_Opaque, false);
+    PassNetherCombine combine(glowInputs, 2, &screen, GxBlend_Opaque, true);
+    Require(nether.Valid() && combine.Valid(), "Original nether shaders unavailable");
+    const float oldTick = FrameTime::s_tickTimeSec;
+    struct TickScope { float value; ~TickScope() { FrameTime::s_tickTimeSec = value; } } tick{oldTick};
+    FrameTime::s_tickTimeSec = 0.137f;
+    Image previous{};
+    for (unsigned step = 0; step < 3; ++step) {
+        device.BeginFrame(frame); nether.Execute(); checkRestore();
+        const auto intermediate = Read(device, FFX::s_quart[1]);
+        const auto blurred = Read(device, output);
+        Require(blurred.pixels != intermediate.pixels, "Nether second pass did not filter the intermediate surface");
+        if (step) Require(blurred.pixels != previous.pixels, "Original nether phase/noise did not advance");
+        previous = blurred;
+        combine.Execute(); checkRestore();
+        const auto actual = Read(device, screen);
+        Image reference = source;
+        for (unsigned y = 0; y < 32; ++y) for (unsigned x = 0; x < 32; ++x) {
+            const auto blur = Sample(blurred, x / 4.0f, y / 4.0f);
+            double mixed[3], gray = 0;
+            const auto& original = source.pixels[y * 32 + x];
+            for (unsigned c = 0; c < 3; ++c) { mixed[c] = original[c] * 0.5 + blur[c]; gray += mixed[c] * 0.16666649281978607; }
+            const double tint[] = {0.78, 0.6, 0.6};
+            for (unsigned c = 0; c < 3; ++c)
+                reference.pixels[y * 32 + x][c] = std::clamp(std::lround(original[c] * (1 - combine.m_fade) +
+                    (mixed[c] * 0.5 + gray) * tint[c] * combine.m_fade), 0l, 255l);
+            reference.pixels[y * 32 + x][3] = 255;
+        }
+        Compare(actual, reference, 1); GxScenePresent();
+    }
 }
+
 
 
 void CheckGxFFXEffect(CGxDeviceMetal& device) {

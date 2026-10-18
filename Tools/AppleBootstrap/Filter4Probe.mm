@@ -80,6 +80,77 @@ void Compare(const std::vector<uint8_t>& actual, const std::vector<uint8_t>& exp
     Require(actual.size() == expected.size(), "FFX filter extent mismatch");
     for (size_t i = 0; i < actual.size(); ++i) { Require(std::abs(int(actual[i]) - expected[i]) <= tolerance, "Native FFX filter output differs from its original sampling equation"); }
 }
+void CheckNether(GxMetal::TextureDevice& gpu, const std::array<BLP::Mip, 4>& images,
+    const std::array<GxMetal::TextureDrawState, 4>& originalStates, const std::array<simd_float2, 4>& offsets) {
+    auto vertex = Asset("Shaders\\Vertex\\vs_2_0\\FFXNetherBlur.bls");
+    GxMetal::PostProcessShader::ValidateNetherVertex(vertex);
+    vertex.back() ^= 1;
+    bool rejected = false;
+    try { GxMetal::PostProcessShader::ValidateNetherVertex(vertex); } catch (const std::runtime_error&) { rejected = true; }
+    Require(rejected, "Modified nether vertex shader accepted");
+    for (const auto effect : {GxMetal::FragmentEffect::NetherBlur, GxMetal::FragmentEffect::NetherCombine}) {
+        auto bytes = Asset(effect == GxMetal::FragmentEffect::NetherBlur ? "Shaders\\Pixel\\ps_2_0\\FFXNetherBlur.bls" : "Shaders\\Pixel\\ps_2_0\\FFXNetherCombine.bls");
+        GxMetal::PostProcessShader::FromBls(bytes, effect); bytes.back() ^= 1; rejected = false;
+        try { GxMetal::PostProcessShader::FromBls(bytes, effect); } catch (const std::runtime_error&) { rejected = true; }
+        Require(rejected, "Modified nether pixel shader accepted");
+    }
+    auto inputs = images;
+    std::array<id<MTLTexture>, 4> textures;
+    for (unsigned i = 0; i < 4; ++i) {
+        for (size_t j = 3; j < inputs[i].bytes.size(); j += 4) inputs[i].bytes[j] = 85;
+        BLP::Image image; image.format = BLP::Format::BGRA8; image.mips.push_back(inputs[i]); textures[i] = gpu.Upload(image);
+    }
+    GxMetal::GeometryDraw geometry;
+    geometry.batch = {GxPrim_TriangleStrip, 0, 4, 0, 3};
+    geometry.effect = GxMetal::FragmentEffect::NetherBlur;
+    geometry.format = GxVBF_PCT;
+    for (float angle : {-8.1f, -0.4f, 0.1f, 3.5f}) for (uint32_t noise : {17u, 128u, 246u}) for (unsigned alpha : {0u, 85u, 86u}) {
+        geometry.vertices = Quad(gpu, offsets, (noise << 16) | 0x7F0011DD, 1);
+        geometry.netherBlur.angle = angle; geometry.netherBlur.tapSpacing = 0.091f;
+        geometry.netherBlur.convergence = noise == 17 ? 0.25f : noise == 128 ? 1.0f : 3.5f;
+        auto states = originalStates; states[0].alphaRef = alpha;
+        auto pass = Target(gpu, 8, 8); auto command = [gpu.queue commandBuffer];
+        gpu.DrawNether(command, pass, textures, geometry, states);
+        std::vector<uint8_t> expected(8 * 8 * 4);
+        // Independent original angle, fixed UV bias, four equal RGBA taps.
+        const double direction = (2 * (noise / 255.0) - 1) * 3 + angle;
+        for (unsigned y = 0; y < 8; ++y) for (unsigned x = 0; x < 8; ++x) {
+            for (unsigned c = 0; c < 4; ++c) {
+                double result = 0;
+                for (unsigned tap = 0; tap < 4; ++tap) {
+                    const float u = x / 8.0 + offsets[0].x - 1.0 / 512 + tap * 0.091 * std::cos(direction);
+                    const float v = y / 8.0 + offsets[0].y - 1.0 / 384 + tap * 0.091 * std::sin(direction);
+                    result += Sample(inputs[tap], u, v, c, states[tap]) / 4;
+                }
+                const uint32_t clear = 0x11223344;
+                expected[(y * 8 + x) * 4 + c] = alpha > 85 ? (clear >> (c * 8)) & 255 : std::lround(result);
+            }
+        }
+        Compare(Read(gpu, command, pass.colorAttachments[0].texture), expected, 1);
+    }
+    geometry.effect = GxMetal::FragmentEffect::NetherCombine; geometry.format = GxVBF_PCT2;
+    geometry.vertices = Quad(gpu, offsets, 0x1379BDAF, 2);
+    auto states = originalStates; states[0].alphaRef = 255;
+    for (float fade : {0.0f, 0.3f, 0.75f, 1.0f}) {
+        geometry.netherTintFade = {0.6f, 0.33f, 0.78f, fade};
+        auto pass = Target(gpu, 8, 8); auto command = [gpu.queue commandBuffer];
+        gpu.DrawNether(command, pass, textures, geometry, states);
+        std::vector<uint8_t> expected(8 * 8 * 4);
+        for (unsigned y = 0; y < 8; ++y) for (unsigned x = 0; x < 8; ++x) {
+            double original[3], combined[3], gray = 0;
+            for (unsigned c = 0; c < 3; ++c) {
+                original[c] = Sample(inputs[0], (x + 0.5f) / 8 + offsets[0].x, (y + 0.5f) / 8 + offsets[0].y, c, states[0]);
+                combined[c] = original[c] * 0.5 + Sample(inputs[1], (x + 0.5f) / 8 + offsets[1].x, (y + 0.5f) / 8 + offsets[1].y, c, states[1]);
+                gray += combined[c] * 0.16666649281978607;
+            }
+            const double tint[] = {0.78, 0.33, 0.6};
+            for (unsigned c = 0; c < 3; ++c)
+                expected[(y * 8 + x) * 4 + c] = std::clamp(std::lround(original[c] * (1 - fade) + (combined[c] * 0.5 + gray) * tint[c] * fade), 0l, 255l);
+            expected[(y * 8 + x) * 4 + 3] = 255;
+        }
+        Compare(Read(gpu, command, pass.colorAttachments[0].texture), expected, 1);
+    }
+}
 void CheckDeath(GxMetal::TextureDevice& gpu, const std::array<BLP::Mip, 4>& inputs,
     const std::array<id<MTLTexture>, 4>& textures, const std::array<GxMetal::TextureDrawState, 4>& states,
     const std::array<simd_float2, 4>& offsets) {
@@ -137,6 +208,7 @@ void CheckGxFilter4(GxMetal::TextureDevice& gpu) {
     catch (const std::runtime_error&) { rejectedDeath = true; }
     Require(rejectedDeath, "Modified FFXDeath silently selected the original effect");
     CheckDeath(gpu, inputs, textures, states, offsets);
+    CheckNether(gpu, inputs, states, offsets);
     GxMetal::GeometryDraw geometry;
     geometry.format = GxVertexBufferFormats_Last;
     geometry.batch = {GxPrim_TriangleStrip, 0, 4, 0, 3};

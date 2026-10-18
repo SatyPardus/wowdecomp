@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 GxMetal::PostProcessShader GxMetal::PostProcessShader::FromBls(const std::vector<uint8_t>& bytes, FragmentEffect effect) {
-    if (effect != FragmentEffect::Box4 && effect != FragmentEffect::Gauss4 && effect != FragmentEffect::Glow && effect != FragmentEffect::GlowWave && effect != FragmentEffect::Death) {
+    if (effect != FragmentEffect::Box4 && effect != FragmentEffect::Gauss4 && effect != FragmentEffect::Glow && effect != FragmentEffect::GlowWave && effect != FragmentEffect::Death && effect != FragmentEffect::NetherBlur && effect != FragmentEffect::NetherCombine) {
         throw std::runtime_error("Unknown native post-processing effect");
     }
     const auto permutations = GxReadShaderBinary(bytes, 1024 * 1024);
@@ -20,9 +20,11 @@ GxMetal::PostProcessShader GxMetal::PostProcessShader::FromBls(const std::vector
         {0x0d,0xa4,0xcb,0xa3,0x29,0x8f,0xee,0x3c,0x97,0x27,0x63,0xab,0x17,0x5f,0xc0,0xfa},
         {0xa8,0x0a,0xfb,0x31,0x71,0x95,0x8a,0x56,0x86,0x90,0xd6,0x0a,0xa6,0xf6,0xb1,0x58}
     };
-    const auto* expected = effect == FragmentEffect::Box4 ? box : effect == FragmentEffect::Gauss4 ? gauss : effect == FragmentEffect::Death ? death : glow;
-    const bool sceneBlur = effect == FragmentEffect::Glow || effect == FragmentEffect::Death;
-    const uint32_t metadata = effect == FragmentEffect::Box4 ? 0x7a00 : effect == FragmentEffect::Gauss4 ? 0x7800 : sceneBlur ? 0x1a00 : 0x3a00;
+    const uint8_t netherBlur[] = {0x9a,0x0d,0xef,0x54,0xb6,0x52,0xd8,0x08,0x40,0xf2,0x28,0x3c,0xbb,0x91,0x2b,0x9a};
+    const uint8_t netherCombine[] = {0x46,0x61,0xed,0xe5,0xbe,0x85,0x5d,0xd9,0xa2,0xca,0x88,0x4b,0x93,0x09,0xa7,0xe1};
+    const auto* expected = effect == FragmentEffect::NetherBlur ? netherBlur : effect == FragmentEffect::NetherCombine ? netherCombine : effect == FragmentEffect::Box4 ? box : effect == FragmentEffect::Gauss4 ? gauss : effect == FragmentEffect::Death ? death : glow;
+    const bool sceneBlur = effect == FragmentEffect::Glow || effect == FragmentEffect::Death || effect == FragmentEffect::NetherCombine;
+    const uint32_t metadata = effect == FragmentEffect::NetherBlur ? 0x7800 : effect == FragmentEffect::NetherCombine ? 0x1800 : effect == FragmentEffect::Box4 ? 0x7a00 : effect == FragmentEffect::Gauss4 ? 0x7800 : sceneBlur ? 0x1a00 : 0x3a00;
     for (size_t i = 0; i < permutations.size(); ++i) {
         const auto& permutation = permutations[i];
         Blizzard::Util::MD5 hash;
@@ -35,4 +37,15 @@ GxMetal::PostProcessShader GxMetal::PostProcessShader::FromBls(const std::vector
         }
     }
     return PostProcessShader(effect);
+}
+
+void GxMetal::PostProcessShader::ValidateNetherVertex(const std::vector<uint8_t>& bytes) {
+    const auto vs = GxReadShaderBinary(bytes, 1024 * 1024);
+    if (vs.size() != 1 || vs[0].metadata0 != 0xA01 || vs[0].metadata1 != 0x7801 || vs[0].metadata2 || vs[0].metadata3)
+        throw std::runtime_error("Unsupported FFXNetherBlur vertex layout");
+    const uint8_t expected[] = {0x45,0x35,0x39,0x3f,0xfd,0x7a,0xad,0xd5,0x65,0x0c,0xfb,0xc9,0xb8,0x6f,0x19,0x53};
+    Blizzard::Util::MD5 hash; hash.Process(vs[0].code.data(), uint32_t(vs[0].code.size()));
+    uint8_t digest[16]; hash.Finish(digest);
+    if (std::memcmp(digest, expected, sizeof(digest)))
+        throw std::runtime_error("FFXNetherBlur vertex code has no verified native implementation");
 }
