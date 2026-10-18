@@ -9,7 +9,7 @@ constant uint modelLayerOperation [[function_constant(10)]];
 constant bool modelDualUV [[function_constant(11)]];
 constant bool modelProjected [[function_constant(20)]];
 constant bool modelReflectionOnly [[function_constant(33)]];
-constant bool modelDynamicShadow [[function_constant(35)]];
+constant uint modelShadowMode [[function_constant(35)]];
 enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB };
 struct ModelVertexParameters {
     float4x4 projection;
@@ -21,7 +21,7 @@ struct ModelVertexParameters {
 };
 struct ModelFragmentParameters { float4 fogColorAlphaRef, decodeScale[2]; float stateAlphaRef; float padding[3]; };
 struct ModelShadowParameters {
-    ModelAffine projection;
+    ModelAffine projection[4];
     float4 distanceFade, lightDirection, offsets[8], decodeScale;
 };
 struct ModelVertex {
@@ -40,14 +40,14 @@ struct ModelSkinVertex {
 };
 struct ModelRaster {
     float4 position [[position]]; float4 color; float2 uv, secondaryUV; float fog; float pointSize [[point_size]];
-    float3 viewPosition, normal, shadowCoordinate;
+    float3 viewPosition, normal, shadowCoordinate, nearShadow, middleShadow, farShadow;
 };
 inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, float2 uv2, float4 vertexColor,
     ModelAffine viewFromModel, constant ModelVertexParameters& p, constant ModelShadowParameters& shadow) {
     const float4 point = float4(position, 1);
     const float3 view = float3(dot(viewFromModel.x, point), dot(viewFromModel.y, point), dot(viewFromModel.z, point));
     float3 direction = 0;
-    if (modelDynamicShadow || modelEnvironment || (modelColorMode != 1 && (modelPermutation & 1))) {
+    if (modelShadowMode || modelEnvironment || (modelColorMode != 1 && (modelPermutation & 1))) {
         direction = normalize(float3(dot(viewFromModel.x.xyz, normal),
             dot(viewFromModel.y.xyz, normal), dot(viewFromModel.z.xyz, normal)));
     }
@@ -88,10 +88,18 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
     ModelRaster result{p.projection * float4(view, 1), color,
         modelReflectionOnly ? secondaryUV : modelProjected ? float2(dot(p.uv[0], float4(view, 1)), dot(p.uv[1], float4(view, 1))) :
             float2(dot(p.uv[0].xyw, texturePoint), dot(p.uv[1].xyw, texturePoint)), secondaryUV, fog, 1};
-    if (modelDynamicShadow) {
+    if (modelShadowMode) {
         result.viewPosition = view; result.normal = direction;
-        result.shadowCoordinate = float3(dot(shadow.projection.x, float4(view,1)),
-            dot(shadow.projection.y, float4(view,1)), dot(shadow.projection.z, float4(view,1)));
+        result.shadowCoordinate = float3(dot(shadow.projection[0].x, float4(view,1)),
+            dot(shadow.projection[0].y, float4(view,1)), dot(shadow.projection[0].z, float4(view,1)));
+        if (modelShadowMode >= 2) {
+            result.nearShadow = float3(dot(shadow.projection[1].x, float4(view,1)),
+                dot(shadow.projection[1].y, float4(view,1)), dot(shadow.projection[1].z, float4(view,1)));
+            result.middleShadow = float3(dot(shadow.projection[2].x, float4(view,1)),
+                dot(shadow.projection[2].y, float4(view,1)), dot(shadow.projection[2].z, float4(view,1)));
+            result.farShadow = float3(dot(shadow.projection[3].x, float4(view,1)),
+                dot(shadow.projection[3].y, float4(view,1)), dot(shadow.projection[3].z, float4(view,1)));
+        }
     }
     return result;
 }
@@ -155,25 +163,44 @@ vertex ModelRaster modelProjectedSkinVertex(ModelProjectedSkin v [[stage_in]], c
     constant ModelAffine* palette [[buffer(2)]], constant ModelShadowParameters& shadow [[buffer(3)]]) {
     return modelTransform(v.position, v.normal, float2(0), float2(0), float4(1), skinTransform(v.weights, v.bones, palette, modelPermutation >= 20), p, shadow);
 }
-// Original dynamic receiver: compare after LOD-zero sampling, equality lit.
-// Five taps before view Z=10, nine thereafter; border, distance and normal
-// fades are applied before the 0.7 ambient / 0.3 shadow modulation.
+// Compare after LOD-zero sampling; equality is lit. The model's highest
+// quality path still uses five taps, unlike the terrain receiver.
+inline float modelShadowSamples(float3 coordinate, constant ModelShadowParameters& p,
+    texture2d<float> image, sampler filtering, uint band, bool nine) {
+    const float2 uv = fma(coordinate.xy, 0.5f, 0.5f);
+    const float scale = decodePacked ? p.decodeScale[band] : 1;
+    float samples = image.sample(filtering,uv,level(0)).r * scale >= coordinate.z ? 1.0f : 0.0f;
+    for (uint i=0;i<8;i+=nine ? 1 : 2)
+        samples += image.sample(filtering,uv+p.offsets[i].xy,level(0)).r * scale >= coordinate.z ? 1.0f : 0.0f;
+    return samples * (nine ? 1.0f/9.0f : 0.2f);
+}
+inline float modelBandedShadow(ModelRaster v, constant ModelShadowParameters& p,
+    texture2d<float> nearImage, sampler nearSampler, texture2d<float> middleImage, sampler middleSampler,
+    texture2d<float> farImage, sampler farSampler) {
+    if (max(abs(v.nearShadow.x),abs(v.nearShadow.y)) < 1)
+        return modelShadowSamples(v.nearShadow,p,nearImage,nearSampler,1,false);
+    if (max(abs(v.middleShadow.x),abs(v.middleShadow.y)) < 1)
+        return modelShadowSamples(v.middleShadow,p,middleImage,middleSampler,2,false);
+    const float visible = modelShadowSamples(v.farShadow,p,farImage,farSampler,3,false);
+    const float border = saturate(fma(max(abs(v.farShadow.x),abs(v.farShadow.y)), -11.11111068725586f, 11.0f));
+    return fma(border,visible-1,1.0f);
+}
+// Dynamic distance fade precedes the minimum with distant bands. Normal fade
+// then applies to that combined visibility, before RGB-only modulation.
 inline float modelShadowVisibility(ModelRaster v, constant ModelShadowParameters& p,
-    texture2d<float> image, sampler filtering) {
+    texture2d<float> image, sampler filtering, texture2d<float> nearImage, sampler nearSampler,
+    texture2d<float> middleImage, sampler middleSampler, texture2d<float> farImage, sampler farSampler) {
     const float3 coordinate = v.shadowCoordinate;
     const float border = saturate(fma(max(abs(coordinate.x),abs(coordinate.y)), -3.4482758045196533f, 3.4137930870056152f));
     float visibility = 1;
-    if (border > 0.01f) {
-        const float2 uv = fma(coordinate.xy, 0.5f, 0.5f);
-        const float scale = decodePacked ? p.decodeScale.r : 1;
-        float samples = image.sample(filtering,uv,level(0)).r * scale >= coordinate.z ? 1.0f : 0.0f;
-        const bool nine = v.viewPosition.z >= 10;
-        for (uint i=0;i<8;i+=nine ? 1 : 2)
-            samples += image.sample(filtering,uv+p.offsets[i].xy,level(0)).r * scale >= coordinate.z ? 1.0f : 0.0f;
-        visibility = min(fma(border, fma(samples,nine ? 1.0f/9.0f : 0.2f,-1.0f),1.0f),1.0f);
+    if (border > (modelShadowMode == 3 ? 0.0f : 0.01f)) {
+        const float samples = modelShadowSamples(coordinate,p,image,filtering,0,modelShadowMode != 3 && v.viewPosition.z >= 10);
+        visibility = modelShadowMode == 3 ? samples : min(fma(border,samples-1,1.0f),1.0f);
     }
     const float distanceFade = saturate(dot(v.viewPosition,p.distanceFade.xyz)+p.distanceFade.w);
     visibility = mix(visibility,1.0f,distanceFade);
+    if (modelShadowMode >= 2)
+        visibility = min(visibility,modelBandedShadow(v,p,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
     const float normalFade = 1.2f-abs(dot(v.normal,p.lightDirection.xyz));
     const float square = normalFade*normalFade;
     visibility = mix(visibility,1.0f,saturate(square*square));
@@ -182,8 +209,11 @@ inline float modelShadowVisibility(ModelRaster v, constant ModelShadowParameters
 fragment float4 modelDiffuseFragment(ModelRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
-    constant ModelShadowParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]]) {
-    if (modelDynamicShadow) v.color.rgb *= modelShadowVisibility(v,shadow,shadowImage,shadowFiltering);
+    constant ModelShadowParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]],
+    texture2d<float> nearImage [[texture(5)]], sampler nearSampler [[sampler(5)]],
+    texture2d<float> middleImage [[texture(6)]], sampler middleSampler [[sampler(6)]],
+    texture2d<float> farImage [[texture(7)]], sampler farSampler [[sampler(7)]]) {
+    if (modelShadowMode) v.color.rgb *= modelShadowVisibility(v,shadow,shadowImage,shadowFiltering,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler);
     const float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale[0]);
     float4 layer = 1;
     if (modelLayerOperation != LayerNone)

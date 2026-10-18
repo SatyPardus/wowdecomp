@@ -84,15 +84,15 @@ struct ModelDrawParameters {
     ModelVertexParameters vertex{};
     ModelFragmentParameters fragment{};
     std::array<ModelAffine, 75> bones{};
-    uint32_t permutation = 0, boneCount = 1;
+    uint32_t permutation = 0, boneCount = 1, shadowMode = 0;
     ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse;
     bool shaderAlphaTest = false;
     struct ShadowParameters {
-        ModelAffine projection;
+        ModelAffine projection[4];
         simd_float4 distanceFade, lightDirection, offsets[8], decodeScale{1,1,1,1};
     } shadow{};
 };
-static_assert(sizeof(ModelDrawParameters::ShadowParameters) == 224, "Native model shadow layout");
+static_assert(sizeof(ModelDrawParameters::ShadowParameters) == 368, "Native model shadow layout");
 
 struct ShadowMapVertexParameters {
     simd_float4x4 projection;
@@ -300,8 +300,8 @@ private:
     id<MTLFunction> m_terrainVertex[128]{};
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
-    id<MTLFunction> m_modelVertex[8][60]{};
-    id<MTLFunction> m_modelFragment[13][2][2][2][2]{};
+    id<MTLFunction> m_modelVertex[8][90]{};
+    id<MTLFunction> m_modelFragment[13][2][2][2][4]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];

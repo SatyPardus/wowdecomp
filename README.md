@@ -591,20 +591,25 @@ filtering and blending fail explicitly. The original wolf shadow gather/draw
 path exercises both opaque and cutout batches. Complete world shadow queries
 and PCF depth textures are still incomplete.
 
-`Diffuse_T1` also supports its 30 R32F dynamic-shadow vertex variants, paired with
-`Combiners_Opaque` / `Combiners_Mod` pixel variants 1 and 9. Native typed constants
-preserve the original projected coordinates, five/nine LOD-zero samples, lit depth
+`Diffuse_T1` also supports its 60 R32F dynamic/banded-shadow vertex variants, paired
+with `Combiners_Opaque` / `Combiners_Mod` pixel variants 1/2/3 and 9/10/11.
+Native typed constants preserve the original projected coordinates, five/nine LOD-zero samples, lit depth
 equality, border/distance/normal fades, RGB modulation before texturing/fog, and
-unchanged alpha. The numeric fixture checks 2,700 independent outputs including
-skinning, sampling transitions and shader alpha boundaries. The original wolf
-scene generates its R32F map from both opaque/cutout batches, selects both receiver
-materials through the original scene/cache code, and produces 125 darker pixels
-with unchanged alpha coverage across two resource lifetimes on Mac and iOS
-simulator. Numeric and scene checks pass with Metal validation (Mac also under
+unchanged alpha. Three distant bands retain their separate projections/samplers,
+strict near/middle footprint boundaries and far-border fade. Model mode 3 keeps
+its original five-tap dynamic sample without border fading; both banded modes
+take the minimum after dynamic distance fading, then apply normal fading.
+These rules differ from the terrain receiver. The numeric fixture checks 13,140
+independent outputs including skinning, sampling/band transitions, fade order
+and shader alpha boundaries. The original wolf scene generates its R32F map from
+both opaque/cutout batches, selects both receiver materials through the original
+scene/cache code, and produces 125/130/130 darker pixels in the three modes with
+unchanged alpha coverage across two resource lifetimes on Mac and iOS simulator.
+Numeric and scene checks pass with Metal validation (Mac also under
 ASan/UBSan); the Mac application and both iOS client targets build. These checks
 use explicit shadow/light inputs; they do not establish full world shadow behavior
-or Windows visual equivalence. Other model families/materials, distant shadow
-bands and hardware PCF remain unsupported.
+or Windows visual equivalence. Other model families/materials and hardware PCF
+remain unsupported.
 
 Native `DetailDoodad` rendering preserves sun and three-point-light paths,
 unnormalized terrain normals, vertex tint, distance fading, fog and independent

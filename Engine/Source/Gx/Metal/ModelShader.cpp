@@ -19,9 +19,9 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
 }
 bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect, FragmentEffect effect) {
     if (target == GxSh_Vertex)
-        return permutation < (vertexEffect == ModelVertexEffect::Diffuse ? 60u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
+        return permutation < (vertexEffect == ModelVertexEffect::Diffuse ? 90u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
     return permutation < 16 && ((permutation & 3) == 0 ||
-        ((effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod) && (permutation & 7) == 1));
+        ((effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod) && (permutation & 4) == 0));
 }
 void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect) {
     if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
@@ -32,7 +32,7 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
     // Bits: lighting + 2*(point lights + 5*(skinning + 3*shadow)).
     // These 30 vertex variants cover 0/1/4 bone influences and 0..4 local lights.
     // Pixel 0/4 share code, as do 8/12 (shader alpha test). The dynamic
-    // receiver uses R32F depth sampling; hardware PCF and banded models remain distinct.
+    // receivers use R32F depth sampling; hardware PCF remains distinct.
     // Diffuse_T1 dynamic-shadow view/normal/projection outputs (SM3).
     static const char* dynamicShadowVertex[] = {
         "e58d136456637bf01db9db092c89b7f1",
@@ -69,6 +69,43 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
     static const char* dynamicShadowPixel[2][2] = {
         {"705a7856449d672da7d8ed3bb011fa84", "c9b9c2d74181fc60bafba4d6ef2321a5"},
         {"d3761940c97672c9351c987201d0f70c", "fbec23c409af74b2db35438405483845"},
+    };
+    // Four affine projections for the three distant bands and dynamic map.
+    static const char* bandedShadowVertex[] = {
+        "274d35e4afc5491859d70e7f965ccc11",
+        "5622b9710a31c7e3c076587979c3c81f",
+        "274d35e4afc5491859d70e7f965ccc11",
+        "e954af37ade52242e8597a4d42e1e358",
+        "274d35e4afc5491859d70e7f965ccc11",
+        "cea3344a97cea1b39424ee6161f2f964",
+        "274d35e4afc5491859d70e7f965ccc11",
+        "6d02310ecdedcb5eceaf7c13f8e48efb",
+        "274d35e4afc5491859d70e7f965ccc11",
+        "78fca6c244f1d42def6af06a02e51aa9",
+        "7051d60db9b13b7cef4fe060cf5807f6",
+        "f7fc9074bc4a2b673e0f64bb48a79c2b",
+        "7051d60db9b13b7cef4fe060cf5807f6",
+        "1926ec29e1fa2978da7cc3b8460a9b48",
+        "7051d60db9b13b7cef4fe060cf5807f6",
+        "db4eb2016ebd445aa029141b9dd78867",
+        "7051d60db9b13b7cef4fe060cf5807f6",
+        "f3a7eb54325b65098032584ea37b0846",
+        "7051d60db9b13b7cef4fe060cf5807f6",
+        "97e2aab9a9afeeeb49d6a8a4fbc2f324",
+        "2b6b3fa4c0a1c613ee628b27a54ed768",
+        "70968748fb77e37918cee210c9b1b0c9",
+        "2b6b3fa4c0a1c613ee628b27a54ed768",
+        "f907b4cb3e55491974a2f9c4928c1386",
+        "2b6b3fa4c0a1c613ee628b27a54ed768",
+        "f07306965987dfaabae1b2bc29a7237c",
+        "2b6b3fa4c0a1c613ee628b27a54ed768",
+        "050cb618632eb1b6230b2fe762cfea43",
+        "2b6b3fa4c0a1c613ee628b27a54ed768",
+        "a551582a2d402df80ba3a0f35c9f3812",
+    };
+    static const char* bandedShadowPixel[2][2][2] = {
+        {{"f384f937ae18203c8f7f7802b7e29a12", "94a9cc00ef6fe43a4d3c93a3c42b5089"}, {"00226b5faf6e5a946bc05b8d1ef2ae9f", "e5d4cb1e35a84f17a0b352c3012edf60"}},
+        {{"d83149168880ffd054c521ac54a360cd", "91ce8ef8e1b8be8467f9f306d67a3121"}, {"ea2f6e7059485a470ee85a30dbc92353", "43a8c4381a9b478464df5a7fcbd743ef"}},
     };
     static const char* vertex[] = {
         "089abea1c8a391a0f0f946dbca2d42bc",
@@ -293,8 +330,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         std::string fingerprint;
         for (auto byte : digest) { fingerprint += hex[byte >> 4]; fingerprint += hex[byte & 15]; }
         const char* expected = target == GxSh_Vertex ?
-            (i >= 30 ? dynamicShadowVertex[i-30] : vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
-            ((i & 3) ? dynamicShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3] :
+            (i >= 60 ? bandedShadowVertex[i-60] : i >= 30 ? dynamicShadowVertex[i-30] : vertexEffect == ModelVertexEffect::DiffuseReflection ? reflectionVertex[i] : vertexEffect == ModelVertexEffect::DiffuseProjected ? projectedVertex[i] : vertexEffect == ModelVertexEffect::ColorProjected ? projectedColor[i] : vertexEffect == ModelVertexEffect::Diffuse ? vertex[i] : vertexEffect == ModelVertexEffect::DiffuseEnvironment ? environmentVertex[i] : vertexEffect == ModelVertexEffect::DiffuseDualUV ? dualUVVertex[i] : coloredVertex[unsigned(vertexEffect) - 1][i]) :
+            ((i & 3) >= 2 ? bandedShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][(i & 3)-2][i >> 3] : (i & 3) ? dynamicShadowPixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3] :
                 pixel[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][i >> 3]);
         if (fingerprint != expected) {
             throw std::runtime_error("Model shader in current Data has no verified native implementation");

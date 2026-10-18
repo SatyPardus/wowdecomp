@@ -1203,7 +1203,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         throw std::runtime_error("Metal model vertex/shadow permutation is not implemented (vertex " +
             std::to_string(m->shaders.at(vertex).permutation) + ", pixel " + std::to_string(m->shaders.at(pixel).permutation) + ")");
     }
-    if (model) Require(m->shaders.at(vertex).permutation / 30 == (m->shaders.at(pixel).permutation & 3), "Mismatched model shadow coordinates and material");
+    if (model) Require(m->shaders.at(vertex).permutation / 30 == std::min(m->shaders.at(pixel).permutation & 3, 2u), "Mismatched model shadow coordinates and material");
     if (detail) {
         Require(GxMetal::SupportsDetailDoodadPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
             GxMetal::SupportsDetailDoodadPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation), "Detail-doodad shadow receivers are not implemented");
@@ -1419,6 +1419,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         auto& native = modelParameters.emplace();
         draw.model = &native;
         native.permutation = m->shaders.at(vertex).permutation;
+        native.shadowMode = m->shaders.at(pixel).permutation & 3;
         native.vertexEffect = m->shaders.at(vertex).vertexEffect;
         native.shaderAlphaTest = (m->shaders.at(pixel).permutation & 8) != 0;
         const float* constants = s_shadowConstants[1].constants;
@@ -1433,7 +1434,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertex.diffuse = vector(28); native.vertex.emissive = vector(29); native.vertex.fog = vector(30);
         std::memcpy(&native.fragment.fogColorAlphaRef, s_shadowConstants[0].constants + 8, sizeof(simd_float4));
         if (native.permutation >= 30) {
-            native.shadow.projection = {vector(224),vector(225),vector(226)};
+            for (unsigned i = 0; i < (native.shadowMode >= 2 ? 4u : 1u); ++i)
+                native.shadow.projection[i] = {vector(224 + 3*i),vector(225 + 3*i),vector(226 + 3*i)};
             const float* pixelConstants = s_shadowConstants[0].constants;
             std::memcpy(&native.shadow.distanceFade,pixelConstants+3*4,sizeof(simd_float4));
             std::memcpy(&native.shadow.lightDirection,pixelConstants+4*4,sizeof(simd_float4));
@@ -1501,7 +1503,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     std::array<id<MTLTexture>, 9> textures{};
     std::array<GxMetal::TextureDrawState, 9> states;
     states.fill(state);
-    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model && modelParameters->permutation >= 30 ? 1u << 4 : 0);
+    const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model ? GxMetal::ModelShadowTextureMask(modelParameters->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
         Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");

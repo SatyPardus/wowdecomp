@@ -51,14 +51,20 @@ float Dot(const Vec& a, const Vec& b, unsigned count = 4) {
     float result = 0; for (unsigned i = 0; i < count; ++i) result += a[i] * b[i]; return result;
 }
 float Sat(float value) { return std::clamp(value, 0.0f, 1.0f); }
-float ShadowDepth(unsigned x,unsigned y) { return float(64*(1+(x+2*y)%3))/255; }
-void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,void*,uint32_t& stride,const void*& data) {
-    static std::array<uint32_t,25> values=[] { std::array<uint32_t,25> v; for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x) v[y*5+x]=0xFF000000u | ((64*(1+(x+2*y)%3))<<16); return v; }();
-    if (command == GxTex_Latch) { stride=5*sizeof(uint32_t); data=values.data(); }
+float ShadowDepth(unsigned x,unsigned y,unsigned band=0) { return float(64*(1+(x+2*y+band)%3))/255; }
+void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,void* context,uint32_t& stride,const void*& data) {
+    static std::array<std::array<uint32_t,25>,4> values=[] {
+        std::array<std::array<uint32_t,25>,4> v;
+        for(unsigned band=0;band<4;++band) for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x)
+            v[band][y*5+x]=0xFF000000u | ((64*(1+(x+2*y+band)%3))<<16);
+        return v;
+    }();
+    if (command == GxTex_Latch) { stride=5*sizeof(uint32_t); data=values[context ? *static_cast<const unsigned*>(context):0].data(); }
 }
-void CheckDynamicModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opaque,CGxShader** mod,
-    MTLRenderPassDescriptor* pass,CGxTex* material,CGxTex* shadow) {
-    GxRsSet(GxRs_Texture0,material); GxRsSet(GxRs_Texture4,shadow); GxRsSet(GxRs_AlphaRef,0);
+void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opaque,CGxShader** mod,
+    MTLRenderPassDescriptor* pass,CGxTex* material,CGxTex* const* shadows) {
+    GxRsSet(GxRs_Texture0,material); GxRsSet(GxRs_AlphaRef,0);
+    for(unsigned i=0;i<4;++i) GxRsSet(EGxRenderState(GxRs_Texture4+i),shadows[i]);
     std::array<Vec,256> c{}; std::array<Vec,13> p{};
     c[2]={1,0,0,0}; c[3]={0,1,0,0}; c[4]={0,0,0,.5}; c[5]={0,0,0,1};
     c[6]={1,0,0,0}; c[7]={0,1,0,0}; c[10]={.4,.5,.6,0}; c[11]={.1,.1,.1,0}; c[12]={0,0,-1,0};
@@ -74,12 +80,27 @@ void CheckDynamicModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShade
     auto* vertices=GxBufStream(GxPoolTarget_Vertex,sizeof(source),1);
     std::memcpy(device.BufLock(vertices),&source,sizeof(source)); device.BufUnlock(vertices,0); GxPrimVertexPtr(vertices,GxVBF_PBNT2);
     CGxBatch batch{GxPrim_Points,0,1,0,0}; unsigned checks=0;
-    struct Case { float z,x,y,depth,distance,normal; };
-    const Case cases[]={{.5,0,0,128.0f/255,0,1},{9.99,0,0,128.0f/255,0,1},{10,0,0,128.0f/255,0,1},{10.01,0,0,128.0f/255,0,1},
+    struct Case {
+        float z,x,y,depth,distance,normal;
+        std::array<Vec,3> bands{Vec{2,0,0,0},Vec{2,0,0,0},Vec{2,0,0,0}};
+        bool affine = false;
+    };
+    std::vector<Case> cases={{.5,0,0,128.0f/255,0,1},{9.99,0,0,128.0f/255,0,1},{10,0,0,128.0f/255,0,1},{10.01,0,0,128.0f/255,0,1},
         {.5,0,0,std::nextafter(128.0f/255,1.0f),0,1},{.5,0,0,0,0,1},{.5,0,0,1,0,1},
         {.5,.9,0,1,0,1},{.5,.98,0,1,0,1},{.5,1,0,1,0,1},{.5,0,-.98,1,0,1},
         {.5,0,0,1,.4,1},{.5,0,0,1,1,1},{.5,0,0,1,0,.7},{.5,0,0,1,0,0}};
-    for(unsigned permutation=0;permutation<30;++permutation) for(const auto& test:cases) {
+    const size_t dynamicCases=cases.size();
+    // Distinct maps reveal slot/coordinate swaps; exact +/-1 selects the next band.
+    for(unsigned selected=0;selected<3;++selected) for(float edge:{0.0f,std::nextafter(1.0f,0.0f),1.0f,-1.0f}) {
+        Case test{.5,0,0,0,0,1}; test.bands[selected]={edge,0,128.0f/255,0};
+        if(selected<2) test.bands[selected+1]={0,0,1,0};
+        cases.push_back(test);
+    }
+    Case farFade{.5,0,0,0,0,1}; farFade.bands[2]={0,-.95,1,0}; cases.push_back(farFade);
+    Case minOrder{10,0,0,1,1,.7}; minOrder.bands[0]={.1,.2,128.0f/255,0}; minOrder.affine=true; cases.push_back(minOrder);
+    for(unsigned mode=1;mode<=3;++mode) for(unsigned permutation=0;permutation<30;++permutation)
+        for(size_t caseIndex=0;caseIndex<(mode==1 ? dynamicCases:cases.size());++caseIndex) {
+        const auto& test=cases[caseIndex];
         for(unsigned i=0;i<5;++i) {
             c[31+i*3]={1,0,0,.02f*i}; c[32+i*3]={0,1,0,-.03f*i}; c[33+i*3]={0,0,1,test.z};
         }
@@ -88,20 +109,40 @@ void CheckDynamicModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShade
         else if(permutation>=10) bone=indices[0];
         const Vec view{.03125f+bone*.02f,.03125f+bone*-.03f,test.z,1};
         c[224]={.2,.3,0,test.x}; c[225]={-.1,.2,0,test.y}; c[226]={0,0,0,test.depth};
+        for(unsigned band=0;band<3;++band) {
+            c[227+3*band]={test.affine ? .1f*(band+1):0,0,0,test.bands[band][0]};
+            c[228+3*band]={0,test.affine ? -.2f*(band+1):0,0,test.bands[band][1]};
+            c[229+3*band]={0,0,test.affine ? .01f*(band+1):0,test.bands[band][2]};
+        }
         p[3]={.1,.2,0,test.distance}; p[4]={0,0,test.normal,0};
         const float sx=Dot(c[224],view),sy=Dot(c[225],view);
         const float border=Sat(std::max(std::abs(sx),std::abs(sy))*(-3.4482758045196533f)+3.4137930870056152f);
-        auto sample=[&](float dx,float dy) {
-            const unsigned x=unsigned(std::clamp(int(std::floor((sx*.5f+.5f+dx)*5)),0,4));
-            const unsigned y=unsigned(std::clamp(int(std::floor((sy*.5f+.5f+dy)*5)),0,4));
-            return ShadowDepth(x,y)>=test.depth ? 1.0f : 0.0f;
+        auto sample=[&](const Vec& coordinate,unsigned band,float dx,float dy) {
+            const unsigned x=unsigned(std::clamp(int(std::floor((coordinate[0]*.5f+.5f+dx)*5)),0,4));
+            const unsigned y=unsigned(std::clamp(int(std::floor((coordinate[1]*.5f+.5f+dy)*5)),0,4));
+            return ShadowDepth(x,y,band)>=coordinate[2] ? 1.0f : 0.0f;
+        };
+        auto average=[&](const Vec& coordinate,unsigned band,bool nine) {
+            float count=sample(coordinate,band,0,0);
+            for(unsigned i=0;i<8;i+=nine ? 1:2) count+=sample(coordinate,band,offsets[i][0],offsets[i][1]);
+            return count/(nine ? 9:5);
         };
         float visibility=1;
-        if(border>.01f) {
-            float count=sample(0,0); for(unsigned i=0;i<8;i+=test.z<10 ? 2:1) count+=sample(offsets[i][0],offsets[i][1]);
-            visibility=std::min(1.0f,1+border*(count/(test.z<10 ? 5:9)-1));
+        if(border>(mode==3 ? 0:.01f)) {
+            const float count=average({sx,sy,test.depth,0},0,mode!=3 && test.z>=10);
+            visibility=mode==3 ? count:std::min(1.0f,1+border*(count-1));
         }
         const float distance=Sat(Dot(p[3],view)); visibility+=distance*(1-visibility);
+        if(mode>=2) {
+            for(unsigned band=0;band<3;++band) {
+                Vec coordinate{Dot(c[227+3*band],view),Dot(c[228+3*band],view),Dot(c[229+3*band],view),0};
+                const float edge=std::max(std::abs(coordinate[0]),std::abs(coordinate[1]));
+                if(edge>=1 && band<2) continue;
+                float bandValue=average(coordinate,band+1,false);
+                if(band==2) bandValue=1+Sat(edge*(-11.11111068725586f)+11)*(bandValue-1);
+                visibility=std::min(visibility,bandValue); break;
+            }
+        }
         const float normalFade=Sat(std::pow(1.2f-std::abs(test.normal),4)); visibility+=normalFade*(1-visibility);
         const float brightness=.7f+.3f*visibility;
         for(unsigned materialIndex=0;materialIndex<2;++materialIndex) for(unsigned alphaCase=0;alphaCase<3;++alphaCase) {
@@ -109,7 +150,7 @@ void CheckDynamicModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShade
             p[2][3]=alphaCase==2 ? std::nextafter(alpha,1.0f) : alpha;
             const bool visible=alphaCase!=2;
             device.BeginFrame(pass); GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),256); GxShaderConstantsSet(GxSh_Pixel,0,p[0].data(),13);
-            GxRsSet(GxRs_VertexShader,vertex[30+permutation]); GxRsSet(GxRs_PixelShader,(materialIndex ? mod:opaque)[alphaCase ? 9:1]);
+            GxRsSet(GxRs_VertexShader,vertex[30*std::min(mode,2u)+permutation]); GxRsSet(GxRs_PixelShader,(materialIndex ? mod:opaque)[mode+(alphaCase ? 8:0)]);
             GxDraw(&batch,0); CiRect rect(0,0,32,32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels);
             const unsigned x=unsigned(std::floor((view[0]+1)*16)),y=unsigned(std::floor((1-view[1])*16));
             const auto& pixel=pixels[y*32+x]; const unsigned channels[]={pixel.r,pixel.g,pixel.b,pixel.a};
@@ -122,12 +163,12 @@ void CheckDynamicModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShade
                 }
                 if(!visible) expected=0;
                 if(std::abs(int(channels[channel])-int(std::lround(expected*255)))>2)
-                    throw std::runtime_error("Dynamic model shadow mismatch: VS "+std::to_string(30+permutation)+" case "+std::to_string(checks)+" channel "+std::to_string(channel)+" got "+std::to_string(channels[channel])+" expected "+std::to_string(expected*255));
+                    throw std::runtime_error("Model shadow mismatch: mode "+std::to_string(mode)+" VS "+std::to_string(30*std::min(mode,2u)+permutation)+" case "+std::to_string(checks)+" channel "+std::to_string(channel)+" got "+std::to_string(channels[channel])+" expected "+std::to_string(expected*255));
             }
             device.ScenePresent(); ++checks;
         }
     }
-    std::fprintf(stderr,"Dynamic model shadows: %u independent outputs, 30 rigid/skinned/light variants, five/nine taps, depth equality, border/distance/normal fades and shader alpha boundaries passed\n",checks);
+    std::fprintf(stderr,"Model shadows: %u independent outputs, 60 rigid/skinned/light variants, all R32F shadow modes, five/nine taps, band selection, depth equality, border/distance/normal fades and shader alpha boundaries passed\n",checks);
 }
 }
 
@@ -160,7 +201,7 @@ void CheckModelShaders(CGxDeviceMetal& device) {
     device.ShaderCreate(layerPixel[10], GxSh_Pixel, "Shaders\\Pixel", "Combiners_Opaque_Mod2xNA", 16);
     device.RsPush();
     struct Cleanup {
-        CGxDeviceMetal& device; CGxShader* (*vertex)[90]; CGxShader** pixel; CGxShader** modPixel; CGxShader* (*layerPixel)[16]; CGxTex* texture[5]{};
+        CGxDeviceMetal& device; CGxShader* (*vertex)[90]; CGxShader** pixel; CGxShader** modPixel; CGxShader* (*layerPixel)[16]; CGxTex* texture[8]{};
         ~Cleanup() {
             if (device.FrameCommand()) device.ScenePresent();
             device.RsPop(); for (auto& image : texture) device.TexDestroy(image);
@@ -176,6 +217,9 @@ void CheckModelShaders(CGxDeviceMetal& device) {
     device.TexCreate(GxTex_2d, 2, 2, 0, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(GxTex_Linear), nullptr, EnvironmentPattern, "Environment material reference", cleanup.texture[2]);
     device.TexCreate(GxTex_2d, 1, 1, 0, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(GxTex_Nearest), nullptr, LayerAlphaPattern, "Layer alpha boundary", cleanup.texture[3]);
     device.TexCreate(GxTex_NonPow2, 5, 5, 0, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(GxTex_Nearest), nullptr, ShadowPattern, "Dynamic model depth reference", cleanup.texture[4]);
+    static unsigned bandIndices[]={1,2,3};
+    for(unsigned band=0;band<3;++band)
+        device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Nearest),&bandIndices[band],ShadowPattern,"Banded model depth reference",cleanup.texture[5+band]);
     device.RsSet(GxRs_Texture1, cleanup.texture[2]);
     device.RsSet(GxRs_Texture0, cleanup.texture[0]);
     GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_Culling, 0);
@@ -335,9 +379,9 @@ void CheckModelShaders(CGxDeviceMetal& device) {
         }
     }
     device.BeginFrame(pass);
-    device.RsSet(GxRs_VertexShader, vertex[0][60]); device.RsSet(GxRs_PixelShader, pixel[2]);
+    device.RsSet(GxRs_VertexShader, vertex[0][30]); device.RsSet(GxRs_PixelShader, pixel[5]);
     bool rejected = false; try { GxDraw(&batch, 0); } catch (const std::runtime_error&) { rejected = true; }
     Require(rejected, "Unimplemented model shadow permutation was silently replaced");
     device.ScenePresent();
-    CheckDynamicModelShadows(device,vertex[0],pixel,modPixel,pass,cleanup.texture[3],cleanup.texture[4]);
+    CheckModelShadows(device,vertex[0],pixel,modPixel,pass,cleanup.texture[3],cleanup.texture+4);
 }

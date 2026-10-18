@@ -97,6 +97,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     const auto* model = geometry.model; const auto* terrain = geometry.terrain; const auto* wmo = geometry.wmo;
     const auto* liquid = geometry.liquid; const auto* shadow = geometry.shadow; const auto* detail = geometry.detail;
     const uint32_t modelPermutation = model ? model->permutation : 0;
+    const uint32_t modelShadowMode = model ? model->shadowMode : 0;
     const bool shaderAlphaTest = model && model->shaderAlphaTest;
     const auto vertexEffect = model ? model->vertexEffect : ModelVertexEffect::Diffuse;
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
@@ -104,7 +105,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(colorFormat == MTLPixelFormatBGRA8Unorm || colorFormat == MTLPixelFormatR32Float, "Unsupported pipeline color format");
     Require(colorFormat != MTLPixelFormatR32Float || state.blend < GxBlend_Alpha, "R32F blending is not implemented");
     Require(format >= GxVBF_P && format <= GxVertexBufferFormats_Last, "Invalid Gx vertex format");
-    Require(!IsModelEffect(effect) || SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect),
+    Require(!IsModelEffect(effect) || (SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) &&
+        modelShadowMode < 4 && modelPermutation / 30 == std::min(modelShadowMode, 2u)),
         "Unsupported native model vertex permutation");
     const bool terrainShadow = effect == FragmentEffect::TerrainShadowMap;
     Require(!IsTerrainEffect(effect) ||
@@ -133,7 +135,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
-        fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : 0,
+        fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : modelShadowMode,
         fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) : terrain ? uint32_t(terrain->layerPass) : 0};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
@@ -365,9 +367,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     if (IsModelEffect(effect)) {
-        const bool dynamicShadow = modelPermutation >= 30;
         const uint32_t basePermutation = modelPermutation % 30;
-        Require(!dynamicShadow || effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod, "Unsupported model shadow material");
+        Require(!modelShadowMode || effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod, "Unsupported model shadow material");
         const bool material = UsesModelMaterial(vertexEffect);
         const bool reflectionOnly = vertexEffect == ModelVertexEffect::DiffuseReflection;
         const bool environment = vertexEffect == ModelVertexEffect::DiffuseEnvironment || reflectionOnly;
@@ -386,7 +387,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             "Unsupported native model vertex layout or permutation");
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation];
         const bool textureAlpha = effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA || effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x;
-        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][dynamicShadow];
+        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][modelShadowMode];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -400,7 +401,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&dualUV type:MTLDataTypeBool atIndex:11];
         [constants setConstantValue:&projected type:MTLDataTypeBool atIndex:20];
         [constants setConstantValue:&reflectionOnly type:MTLDataTypeBool atIndex:33];
-        [constants setConstantValue:&dynamicShadow type:MTLDataTypeBool atIndex:35];
+        [constants setConstantValue:&modelShadowMode type:MTLDataTypeUInt atIndex:35];
         NSError* error = nil;
         NSString* vertexName = material ? (basePermutation < 10 ? @"modelRigidVertex" : @"modelSkinVertex") :
             normal ? @"modelColorLitVertex" : color ? @"modelColorVertex" : @"modelWhiteVertex";

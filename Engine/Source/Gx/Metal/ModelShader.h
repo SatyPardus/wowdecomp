@@ -28,10 +28,11 @@ constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
 }
 const char* ModelVertexFamily(ModelVertexEffect effect);
 // Original SM3 model materials, environment reflection and colored particles.
-// Diffuse supports rigid/1/4 weights and the R32F dynamic-shadow receiver;
+// Diffuse supports rigid/1/4 weights and R32F dynamic/banded shadow receivers;
 // colored vertices currently support rigid streams. Other skinning/shadow
 // handles fail explicitly when drawn.
 void ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse);
 bool SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse,
     FragmentEffect effect = FragmentEffect::ModelOpaque);
+inline uint32_t ModelShadowTextureMask(uint32_t mode) { return mode >= 2 ? 0xF0u : mode ? 0x10u : 0u; }
 }

@@ -242,17 +242,22 @@ void CheckGameModels() {
             int32_t recreate=CShadowCache::s_recreateTextures;
             uint32_t pcf=CShaderEffect::s_usePcfFiltering;
             CShadowBand band=CShadowCache::s_extDynShadow;
+            std::array<CShadowBand,3> distant;
             C4Vector cutoff=CShadowCache::s_cutoffPlane, direction=CShadowCache::s_sunDirViewSpace;
+            C4Vector cutoffDefault=CShadowCache::s_cutoffPlaneDefault;
             std::array<C4Vector,12> matrices;
             std::array<C4Vector,8> offsets;
             RestoreShadows(CM2Model* m):model(m),lighting(m->m_lightingCallback) {
                 std::copy_n(CShadowCache::s_shadowMatrices,12,matrices.begin());
                 std::copy_n(CShadowCache::s_pcfOffsets,8,offsets.begin());
+                std::copy_n(CShadowCache::s_extShadowBands,3,distant.begin());
             }
             ~RestoreShadows() {
                 model->m_lightingCallback=lighting; CShadowCache::s_shadowMode=mode; CShadowCache::s_recreateTextures=recreate;
                 CShaderEffect::s_usePcfFiltering=pcf; CShadowCache::s_extDynShadow=band;
                 CShadowCache::s_cutoffPlane=cutoff; CShadowCache::s_sunDirViewSpace=direction;
+                CShadowCache::s_cutoffPlaneDefault=cutoffDefault;
+                std::copy(distant.begin(),distant.end(),CShadowCache::s_extShadowBands);
                 std::copy(matrices.begin(),matrices.end(),CShadowCache::s_shadowMatrices);
                 std::copy(offsets.begin(),offsets.end(),CShadowCache::s_pcfOffsets);
             }
@@ -263,28 +268,39 @@ void CheckGameModels() {
         CShadowCache::s_cutoffPlane=vector(0,0,0,0); CShadowCache::s_sunDirViewSpace=vector(0,0,1,0);
         CShadowCache::s_shadowMatrices[0]=vector(1,0,0,0); CShadowCache::s_shadowMatrices[1]=vector(0,1,0,0);
         CShadowCache::s_shadowMatrices[2]=vector(0,0,.5f,.21f); // Same light transform, explicit 0.01 receiver offset.
+        CShadowCache::s_cutoffPlaneDefault=vector(0,0,0,0);
+        for(unsigned band=0;band<3;++band) {
+            CShadowCache::s_extShadowBands[band].m_current=0;
+            CShadowCache::s_extShadowBands[band].m_textures[0]=shadowTarget.owner;
+            for(unsigned row=0;row<3;++row) CShadowCache::s_shadowMatrices[3+band*3+row]=CShadowCache::s_shadowMatrices[row];
+        }
         const C2Vector offsets[]={{-1,0},{-1,-1},{0,-1},{1,-1},{1,0},{1,1},{0,1},{-1,1}};
         for(unsigned i=0;i<8;++i) CShadowCache::s_pcfOffsets[i]=vector(offsets[i].x/128,offsets[i].y/128,0,0);
         visible->m_lightingCallback=[](CM2Model*,CM2Lighting* lighting,void*) {
             lighting->AddAmbient(C3Vector(.4f,.4f,.4f)); lighting->AddDiffuse(C3Vector(.6f,.6f,.6f),C3Vector(0,0,-1));
             lighting->SetFog(C3Vector(.1f,.2f,.3f),1,20); lighting->m_flags|=0x10;
         };
-        device.BeginFrame(pass); visible->m_fFlags|=8; visible->SetAnimating(1); scene->Animate(C3Vector(0,0,0));
-        unsigned receivers=0;
-        for(unsigned i=0;i<scene->m_elements.Count();++i) {
-            const auto& element=scene->m_elements[i];
-            if(element.m_model==visible && element.m_shadowValue==1 && element.m_vertexPermute>=50 && (element.m_pixelPermute&3)==1) ++receivers;
+        for (EShadowMode mode:{SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
+            CShadowCache::s_shadowMode=mode;
+            const uint32_t expectedShadow=CShadowCache::s_shadowValues[mode];
+            device.BeginFrame(pass); visible->m_fFlags|=8; visible->SetAnimating(1); scene->Animate(C3Vector(0,0,0));
+            unsigned receivers=0;
+            for(unsigned i=0;i<scene->m_elements.Count();++i) {
+                const auto& element=scene->m_elements[i];
+                if(element.m_model==visible && element.m_shadowValue==expectedShadow &&
+                    element.m_vertexPermute>=20+30*std::min(expectedShadow,2u) && (element.m_pixelPermute&3)==expectedShadow) ++receivers;
+            }
+            if(receivers!=2) throw std::runtime_error("Original wolf scene did not select both shadow receivers");
+            scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
+            TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received); unsigned darker=0;
+            for(unsigned i=0;i<received.Count();++i) {
+                if(received[i].a!=animated[i].a) throw std::runtime_error("Shadow changed original wolf alpha coverage");
+                darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(animated[i].r)+animated[i].g+animated[i].b;
+            }
+            if(darker<64) throw std::runtime_error("Generated R32F shadow did not reach the original wolf material");
+            std::fprintf(stderr,"Original wolf shadow receivers mode %u: %u batches, %u darker pixels, unchanged alpha coverage\n",expectedShadow,receivers,darker);
+            device.ScenePresent();
         }
-        if(receivers!=2) throw std::runtime_error("Original wolf scene did not select both dynamic shadow receivers");
-        scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
-        TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received); unsigned darker=0;
-        for(unsigned i=0;i<received.Count();++i) {
-            if(received[i].a!=animated[i].a) throw std::runtime_error("Dynamic shadow changed original wolf alpha coverage");
-            darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(animated[i].r)+animated[i].g+animated[i].b;
-        }
-        if(darker<64) throw std::runtime_error("Generated R32F shadow did not reach the original wolf material");
-        std::fprintf(stderr,"Original wolf dynamic shadow receivers: %u batches, %u darker pixels, unchanged alpha coverage\n",receivers,darker);
-        device.ScenePresent();
     }
     CheckGameDetailDoodads(scene, device, pass);
     struct LayeredPose { uint32_t displayID, sequenceID, elapsed; };
