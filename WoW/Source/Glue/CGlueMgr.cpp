@@ -1020,6 +1020,9 @@ void ProcessAgreement(SFileImpl* file, const char* name, CVar* cvar, bool locali
 // VERIFY: 42fb8ddc manual
 // OFFSET: 0x004DB9F0
 void CGlueMgr::Initialize() {
+#if defined(__APPLE__)
+    NetClient::SetDisconnectHandler(CGlueMgr::NetDisconnectHandler);
+#endif
     CGlueMgr::m_initialized = 1;
 
     int32_t readTOS = g_readTOSVar->m_intValue;
@@ -1696,6 +1699,9 @@ void CGlueMgr::Suspend() {
 // VERIFY: 39c0975e manual
 // OFFSET: 0x004DBBC0
 void CGlueMgr::Shutdown() {
+#if defined(__APPLE__)
+    NetClient::SetDisconnectHandler(nullptr);
+#endif
     while (CGlueMgr::m_pendingServerAlert || CGlueMgr::m_latestAgreements.m_data.Count()) {
         if (CGlueMgr::m_latestAgreements.m_data.Count()) {
             CGlueMgr::m_latestAgreements.m_data.Clear();

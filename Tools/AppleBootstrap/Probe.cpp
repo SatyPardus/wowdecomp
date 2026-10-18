@@ -54,6 +54,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report);
 void CheckWorldData(const ClientData& client, std::ostream& report);
 void CheckGameNetwork();
 void CheckGameLogin();
+void CheckGameSession();
 
 namespace {
 struct ReleaseUnit { void operator()(IOUnit* unit) const { if (unit) { unit->Release(); } } };
@@ -648,6 +649,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         CheckStormSynchronization();
         CheckGameNetwork();
         CheckGameLogin();
+        CheckGameSession();
         CheckBlpLoading();
 
         IOUnitContainer container(3u, 17u, 0u);

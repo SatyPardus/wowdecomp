@@ -29,6 +29,13 @@ static uint32_t s_idleStats[4];
 // STATIC: 0x00C5D654
 uint32_t NetClient::s_clientCount;
 
+#if defined(__APPLE__)
+static int32_t (*s_disconnectHandler)(NetClient*);
+void NetClient::SetDisconnectHandler(int32_t (*handler)(NetClient*)) {
+    s_disconnectHandler = handler;
+}
+#endif
+
 // VERIFY: 44b868cd manual
 // OFFSET: 0x006321B0
 static bool __stdcall ComputeProofOfWork(const SHA1_CONTEXT* context, uint32_t difficulty, uint64_t* proof) {
@@ -80,7 +87,11 @@ void NetClient::WCMessageReady(WowConnection* connection, uint32_t timeStamp, CD
     uint32_t size = msg->m_size;
     void* data;
     msg->GetDataInSitu(data, size);
+#if defined(__APPLE__)
+    this->m_bytesReceived.fetch_add(msg->m_size, std::memory_order_relaxed);
+#else
     InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(&this->m_bytesReceived), msg->m_size);
+#endif
     msg->m_read = 0;
 
     uint16_t msgId;
@@ -123,6 +134,13 @@ void NetClient::WCMessageReady(WowConnection* connection, uint32_t timeStamp, CD
 // OFFSET: 0x00633440
 NETEVENTQUEUE::NETEVENTQUEUE(NetClient* client) {
     this->m_client = client;
+}
+
+// Original 0x00633470 frees each node's owned message before the node itself.
+NETEVENTQUEUENODE::~NETEVENTQUEUENODE() {
+    if (this->m_data) {
+        SMemFree(this->m_data, __FILE__, __LINE__, 0);
+    }
 }
 
 // VERIFY: eb4e833d manual
@@ -181,12 +199,23 @@ void NETEVENTQUEUE::Poll() {
 
     NetClient* client = this->m_client;
 
+#if defined(__APPLE__)
+    // The client owns this queue and its pthread mutex. Destroying it while
+    // Poll still holds the mutex aborts, and would leave Poll using freed data.
+    const bool deleteClient = client->m_refCount.Decrement() == 0 && client->m_deleteMe;
+    this->m_eventQueue.Clear();
+    this->m_critSect.Leave();
+    if (deleteClient) {
+        delete client;
+    }
+#else
     if (client->m_refCount.Decrement() == 0 && client->m_deleteMe) {
         delete client;
     }
 
     this->m_eventQueue.Clear();
     this->m_critSect.Leave();
+#endif
 }
 
 // VERIFY: dd90b2c3 auto
@@ -411,7 +440,14 @@ int32_t NetClient::HandleDisconnect() {
 
     this->m_netState = NS_INITIALIZED;
     ConsolePrintf("NetClient::HandleDisconnect()");
+#if defined(__APPLE__)
+    if (!s_disconnectHandler) {
+        SErrDisplayAppFatal("NetClient disconnect requires an active native session host");
+    }
+    s_disconnectHandler(this);
+#else
     CGlueMgr::NetDisconnectHandler(this);
+#endif
     NetClient::PopObjMgr();
 
     return 1;
@@ -656,7 +692,15 @@ void NetClient::HandleIdle() {
     s_idleStats[2] = s_stats[1];
     s_idleStats[3] = s_stats[4];
 
-    if (static_cast<int32_t>(OsGetAsyncTimeMs() - this->m_pingSent - 30000) >= 0) {
+#if defined(__APPLE__)
+    // WCConnected resets the ping clock on the connection worker.
+    this->m_pingLock.Enter();
+    const uint32_t pingSent = this->m_pingSent;
+    this->m_pingLock.Leave();
+#else
+    const uint32_t pingSent = this->m_pingSent;
+#endif
+    if (static_cast<int32_t>(OsGetAsyncTimeMs() - pingSent - 30000) >= 0) {
         this->Ping();
     }
 }
@@ -731,6 +775,12 @@ NetClient::~NetClient() {
 // OFFSET: 0x00633630
 void NETEVENTQUEUE::Clear() {
     this->m_critSect.Enter();
+#if defined(__APPLE__)
+    // Canceled events will not reach Poll's per-event reference release.
+    for (auto* node = this->m_eventQueue.Head(); node; node = this->m_eventQueue.Next(node)) {
+        this->m_client->m_refCount.Decrement();
+    }
+#endif
     this->m_eventQueue.Clear();
     this->m_critSect.Leave();
 }
@@ -761,9 +811,7 @@ void NETEVENTQUEUE::AddEvent(EVENTID eventId, void* connection, NetClient* clien
 // VERIFY: 4d2c7b3d manual
 // OFFSET: 0x00633730
 NETEVENTQUEUE::~NETEVENTQUEUE() {
-    this->m_critSect.Enter();
-    this->m_eventQueue.Clear();
-    this->m_critSect.Leave();
+    this->Clear();
 }
 
 // VERIFY: 75864678 auto

@@ -7,6 +7,12 @@
 #if defined(_WIN32)
 #include <windows.h>
 #endif
+#if defined(__APPLE__)
+#include <atomic>
+using GlueScanStatus = std::atomic<int32_t>;
+#else
+using GlueScanStatus = volatile long;
+#endif
 
 enum CHAR_CUSTOMIZATION_TYPE {
     CHAR_CUSTOMIZATION_SKIN = 0,

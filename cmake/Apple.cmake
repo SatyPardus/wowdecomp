@@ -245,6 +245,20 @@ add_library(WorldTerrain STATIC WoW/Common/TerrainGeometry.cpp WoW/Common/Terrai
 target_link_libraries(WorldTerrain PUBLIC Tempest)
 target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain WorldSupport SoundInterface LiquidSystem ClientWorldSupport)
 
+add_subdirectory(WoW/Source/Net)
+add_subdirectory(WoW/Source/Glue)
+add_subdirectory(WoW/Source/WowSvcs)
+target_link_libraries(Net PUBLIC ClientWorldSupport)
+target_link_libraries(Glue PUBLIC Frame WorldClient AppleGameLogin)
+target_link_libraries(WowSvcs PUBLIC Net AppleGameLogin Glue)
+target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/RealmConnection.cpp)
+add_library(AppleSessionProbeCore STATIC Tools/AppleBootstrap/SessionProbe.cpp)
+target_link_libraries(AppleSessionProbeCore PUBLIC Net)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_executable(AppleSessionProbe Tools/AppleBootstrap/session_main.cpp)
+    target_link_libraries(AppleSessionProbe PRIVATE AppleSessionProbeCore)
+endif ()
+
 add_library(AppleTextureData ALIAS BLPFile)
 
 enable_language(OBJCXX)
@@ -292,7 +306,7 @@ target_compile_options(AppleMetalView PRIVATE -fobjc-arc)
 target_link_libraries(AppleMetalView PUBLIC AppleMetal AppleGameResources Model2 CreatureAppearance AppleTerrainView AppleWmoView AppleGameAudio "-framework MetalKit" "-framework CoreGraphics")
 
 add_library(AppleProbeCore STATIC Tools/AppleBootstrap/Probe.cpp Tools/AppleBootstrap/ModelProbe.cpp Tools/AppleBootstrap/TerrainProbe.cpp Tools/AppleBootstrap/WorldDataProbe.cpp Tools/AppleBootstrap/LiquidDataProbe.cpp)
-target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore AppleLoginProbeCore)
+target_link_libraries(AppleProbeCore PUBLIC Gx Tempest lua AppleArchives AppleFoundation AppleTextureData ConsoleBase Model2 WorldTerrain WorldSupport AppleAudioProbeCore AppleWorldProbe AppleNetworkProbeCore AppleLoginProbeCore AppleSessionProbeCore)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)

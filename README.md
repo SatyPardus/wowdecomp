@@ -102,6 +102,8 @@ build/macos-arm64/bin/AppleCoreProbe --data-root /path/to/client335a/Data --loca
 build/macos-arm64/bin/AppleNetworkProbe
 # Check original SRP and Grunt login against synthetic loopback credentials.
 build/macos-arm64/bin/AppleLoginProbe
+# Check original NetClient game-thread delivery and session teardown.
+build/macos-arm64/bin/AppleSessionProbe
 
 # Draw and read back every authored mip; add --preview for a native window.
 build/macos-arm64/bin/AppleMetalProbe --data-root /path/to/client335a/Data \
@@ -151,10 +153,25 @@ and proofs, then exchanges the original hello, authentication/version proofs and
 realm-list messages with a synthetic loopback peer. Split and combined replies,
 account rejection, invalid SRP keys/proofs and teardown are checked. The probe
 supplies an explicit test version checksum; the application's real checksum,
-signature policy and game-thread session integration remain to be connected.
+signature policy and full Glue session integration remain to be connected.
 No external login service is contacted by these checks. Apple uses its system
 secure random source and retains the reference 12340 Windows/x86 protocol IDs;
 these legacy wire IDs do not describe the native arm64 hardware.
+
+The original `NetClient` now queues connection, authentication challenge, opcode
+and disconnect events for the game thread. `AppleSessionProbe` exercises those
+events through a real loopback socket, including the first unencrypted packet,
+subsequent directional cipher headers, cancellation before dispatch, repeated
+initialization and deferred deletion. Apple Glue binds its original disconnect
+handler for its own lifetime; invoking the native disconnect path without a host
+is an explicit error. The original event payload release was restored from the
+reference executable. Native teardown releases the queue mutex before deleting
+its owner, and canceled events release their references. Receive statistics and
+the ping clock are synchronized between the worker and game thread.
+Net, Glue, WowSvcs and RealmConnection compile on Apple arm64; the full Glue
+startup and RealmConnection character/session flow are not yet running.
+Windows DLL scanning, patch execution and the remaining platform services are
+not made available merely by compiling their shared callers.
 
 The shared Event scheduler now has a nonblocking native-host step. Mac/iOS
 previews render continuously from the original paint event, preserving update,

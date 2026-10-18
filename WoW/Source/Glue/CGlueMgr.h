@@ -111,7 +111,7 @@ class CGlueMgr {
     static uint8_t m_scandllOkayToLogIn;
     static const char* m_scandllResult;
     static uint8_t m_scandllShouldBlockPlaying;
-    static volatile long m_scandllStatus;
+    static GlueScanStatus m_scandllStatus;
     static SThread m_scandllThread;
 
     static void AcceptChangedOptionWarnings();

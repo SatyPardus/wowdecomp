@@ -1,6 +1,10 @@
 #include "AccountData.h"
 #include <cstring>
+#if defined(__APPLE__)
+#include <alloca.h>
+#else
 #include <malloc.h>
+#endif
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/Types.h"

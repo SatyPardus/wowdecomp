@@ -14,10 +14,16 @@
 char CGlueMgr::m_scandllHackName[512];
 
 // STATIC: 0x00B6B468
-static volatile long s_downloadComplete;
+static GlueScanStatus s_downloadComplete;
 
 // STATIC: 0x00B6B46C
-volatile long CGlueMgr::m_scandllStatus;
+GlueScanStatus CGlueMgr::m_scandllStatus;
+
+#if defined(__APPLE__)
+static int32_t InterlockedExchange(GlueScanStatus* value, int32_t replacement) {
+    return value->exchange(replacement);
+}
+#endif
 
 // STATIC: 0x00B6B470
 const char* CGlueMgr::m_scandllResult;

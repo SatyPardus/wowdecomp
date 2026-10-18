@@ -3,6 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#if defined(__APPLE__)
+#include <atomic>
+#endif
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Event/Types.h"
 #include "Engine/Source/Storm/H/stpl.h"
@@ -56,6 +59,7 @@ struct NETEVENTQUEUENODE : public TSLinkedNode<NETEVENTQUEUENODE> {
     /* 000C */ uint32_t m_timeReceived;
     /* 0010 */ void* m_data;
     /* 0014 */ uint32_t m_dataSize;
+    ~NETEVENTQUEUENODE();
 };
 
 class NETEVENTQUEUE {
@@ -74,6 +78,10 @@ class NETEVENTQUEUE {
 class NetClient : public WowConnectionResponse {
     public:
     static uint32_t s_clientCount;
+#if defined(__APPLE__)
+    // The native host binds its Glue lifecycle on the game thread.
+    static void SetDisconnectHandler(int32_t (*handler)(NetClient*));
+#endif
 
     struct HELDMESSAGE : public TSLinkedNode<NetClient::HELDMESSAGE> {
         /* 0008 */ CDataStore m_msg;
@@ -100,7 +108,12 @@ class NetClient : public WowConnectionResponse {
     /* 2E94 */ uint32_t m_latencyStart;
     /* 2E98 */ uint32_t m_latencyEnd;
     /* 2E9C */ uint32_t m_bytesSent;
+#if defined(__APPLE__)
+    // Written by the connection worker, sampled by the game thread.
+    std::atomic<uint32_t> m_bytesReceived;
+#else
     /* 2EA0 */ uint32_t m_bytesReceived;
+#endif
     /* 2EA4 */ uint32_t m_connectedTimestamp;
     /* 2EA8 */ SCritSect m_pingLock;
     /* 2ED0 */ ClntObjMgr* m_objMgr;
