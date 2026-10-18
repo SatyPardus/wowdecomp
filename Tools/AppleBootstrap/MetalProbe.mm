@@ -218,6 +218,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
                     report = "Original fixed-function color/depth and water-ripple GPU checks passed (focused run).\n";
                     return true;
                 }
+                if (!std::strcmp(selection, "detail-shaders")) {
+                    CheckGxDevice(selection);
+                    report = "Original detail-doodad lighting, baked colors and dynamic/banded R32F shadows passed (focused run).\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "model-shaders")) {
                     CheckGxDevice(selection);
                     report = "Original model shader variants/materials and reflection-only coordinates passed (focused run).\n";

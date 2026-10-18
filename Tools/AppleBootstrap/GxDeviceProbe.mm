@@ -73,6 +73,7 @@ void CheckGxDevice(const char* focus) {
     if (focus && !std::strcmp(focus, "queries")) { CheckGxQueries(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "atlas")) { CheckGameTextureAtlases(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "fixed")) { CheckFixedUnlit(device); CheckWaterRippleShaders(device); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "detail-shaders")) { CheckDetailDoodadShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-shaders")) { CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "wmo-shaders")) { CheckWmoShaders(device); CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ffx")) { CheckGxFFXPasses(device); CheckGxFFXEffect(device); device.DeviceDestroy(); return; }

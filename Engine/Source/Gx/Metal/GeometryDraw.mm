@@ -35,10 +35,10 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
     Require(geometry.effect == FragmentEffect::Unlit || geometry.effect == FragmentEffect::Desaturate, "UI draw received a different native effect");
     DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state}, encoder);
 }
-void GxMetal::TextureDevice::DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-    const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
+void GxMetal::TextureDevice::DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::DetailDoodad && geometry.detail, "Invalid native detail-doodad effect");
-    DrawGeometry(command, pass, {texture, nil, nil, nil, nil}, geometry, {}, {state, {}, {}, {}, {}}, encoder);
+    DrawGeometry(command, pass, textures, geometry, {}, states, encoder);
 }
 void GxMetal::TextureDevice::DrawWaterRipple(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
@@ -118,7 +118,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const bool wave = geometry.effect == FragmentEffect::GlowWave;
     const bool terrainShadow = geometry.effect == FragmentEffect::TerrainShadowMap;
     const unsigned inputs = geometry.fixed ? geometry.fixed->stages : terrainShadow ? 0 : shadow ? unsigned(geometry.shadow->cutout) : liquid ? LiquidTextureCount(geometry.effect) : wmo ? WmoTextureCount(geometry.effect) : terrain ? TerrainLayerCount(GxSh_Pixel, geometry.terrain->pixelPermutation) + 1 : model ? ModelTextureCount(geometry.effect) : (filter || geometry.effect == FragmentEffect::NetherBlur) ? 4 : wave ? 3 : (geometry.effect == FragmentEffect::Glow || geometry.effect == FragmentEffect::Death || geometry.effect == FragmentEffect::NetherCombine || geometry.effect == FragmentEffect::FogCombine) ? 2 : 1;
-    const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ShadowReceiverTextureMask(geometry.model->shadowMode) : wmo ? ShadowReceiverTextureMask(geometry.wmo->shadowMode) : 0);
+    const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ShadowReceiverTextureMask(geometry.model->shadowMode) : wmo ? ShadowReceiverTextureMask(geometry.wmo->shadowMode) : detail ? ShadowReceiverTextureMask(geometry.detail->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
             const bool cube = terrain && i == 0 && (geometry.terrain->pixelPermutation & 1);
@@ -233,6 +233,12 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         [encoder setVertexBytes:&geometry.clipFromModel length:sizeof(C44Matrix) atIndex:0];
     } else if (detail) {
         [encoder setVertexBytes:&geometry.detail->vertex length:sizeof(DetailDoodadVertexParameters) atIndex:0];
+        if (geometry.detail->shadowMode) {
+            auto native = geometry.detail->shadow;
+            for (unsigned i=0;i<4;++i) native.decodeScale[i] = states[4+i].decodeScale[0];
+            [encoder setVertexBytes:&native length:sizeof(native) atIndex:3];
+            [encoder setFragmentBytes:&native length:sizeof(native) atIndex:3];
+        }
     } else if (shadow) {
         [encoder setVertexBytes:&geometry.shadow->vertex length:sizeof(ShadowMapVertexParameters) atIndex:0];
         [encoder setVertexBytes:geometry.shadow->bones.data() length:geometry.shadow->boneCount * sizeof(ModelAffine) atIndex:2];

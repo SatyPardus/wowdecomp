@@ -152,6 +152,8 @@ struct DetailDoodadDrawParameters {
     DetailDoodadVertexParameters vertex{};
     DetailDoodadFragmentParameters fragment{};
     bool pointLights = false;
+    uint32_t shadowMode = 0;
+    ShadowReceiverParameters shadow{};
 };
 
 struct WmoVertexParameters {
@@ -254,8 +256,8 @@ public:
         const GeometryDraw&, const std::array<TextureDrawState, 9>&, id<MTLRenderCommandEncoder> = nil);
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
-    void DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
-        const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawWaterRipple(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawShadowMap(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
@@ -291,8 +293,8 @@ private:
     id<MTLLibrary> m_library;
     id<MTLFunction> m_rippleVertex;
     id<MTLFunction> m_rippleFragment[2][2][2]{};
-    id<MTLFunction> m_detailVertex[2]{};
-    id<MTLFunction> m_detailFragment[2][2]{};
+    id<MTLFunction> m_detailVertex[2][3]{};
+    id<MTLFunction> m_detailFragment[2][2][4]{};
     id<MTLFunction> m_shadowVertex[3][2]{};
     id<MTLFunction> m_shadowFragment[2][2][2]{};
     id<MTLFunction> m_liquidVertex[3][4]{};

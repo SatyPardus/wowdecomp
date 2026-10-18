@@ -300,6 +300,9 @@ void CheckGameModels() {
             if(darker<64) throw std::runtime_error("Generated R32F shadow did not reach the original wolf material");
             std::fprintf(stderr,"Original wolf shadow receivers mode %u: %u batches, %u darker pixels, unchanged alpha coverage\n",expectedShadow,receivers,darker);
             device.ScenePresent();
+            // Exercise the original ground-decoration selector and cache
+            // bindings with the same generated R32F map and all three modes.
+            CheckGameDetailDoodads(scene, device, pass);
         }
     }
     CheckGameDetailDoodads(scene, device, pass);

@@ -11,12 +11,15 @@
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Services/Texture.h"
+#include "Engine/Source/ShaderEffect/ShadowCache.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace {
 using Vec = std::array<float, 4>;
@@ -35,6 +38,100 @@ void Pattern(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void
         stride = 4;
         data = &texel;
     }
+}
+
+// Quantized depth patterns isolate comparison/tap selection; the original
+// scene fixture separately binds the generated R32F map through ShadowCache.
+float ShadowDepth(unsigned x,unsigned y,unsigned band) { return float(64*(1+(x+2*y+band)%3))/255; }
+void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,void* context,uint32_t& stride,const void*& data) {
+    static std::array<std::array<uint32_t,25>,4> values=[] {
+        std::array<std::array<uint32_t,25>,4> result{};
+        for(unsigned b=0;b<4;++b) for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x) result[b][y*5+x]=0xFF000000u | ((64*(1+(x+2*y+b)%3))<<16);
+        return result;
+    }();
+    if(command==GxTex_Latch) { stride=20; data=values[*static_cast<unsigned*>(context)].data(); }
+}
+void CheckDetailShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** pixel,MTLRenderPassDescriptor* pass) {
+    struct Cleanup {
+        CGxDeviceMetal& device; CGxTex* textures[4]{};
+        ~Cleanup() { if(device.FrameCommand()) device.ScenePresent(); for(auto* texture:textures) device.TexDestroy(texture); }
+    } cleanup{device};
+    unsigned bands[]={0,1,2,3};
+    for(unsigned b=0;b<4;++b) {
+        device.TexCreate(GxTex_2d,5,5,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Nearest),bands+b,ShadowPattern,"Ground shadow reference",cleanup.textures[b]);
+        GxRsSet(EGxRenderState(GxRs_Texture4+b),cleanup.textures[b]);
+    }
+    std::array<Vec,35> c{}; std::array<Vec,13> p{};
+    c[0]={1,0,0,0};c[1]={0,1,0,0};c[2]={0,0,1,0};c[3]={0,0,0,1};
+    c[4]={1,0,0,0};c[5]={0,1,0,0};c[7]={0,0,.5,1};
+    c[8]={0,.6,1,0};c[9]={0,1,0,0};c[10]={0,0,1,0};c[11]={.1,.2,.3,0};c[12]={.3,.4,.5,0};
+    for(unsigned i=0;i<3;++i) { c[14+3*i]={.03125,.03125,30,1};c[15+3*i]={.02,.03,.01,0};c[16+3*i]={1,0,0,0}; }
+    p[2]={.12,.23,.34,0};
+    const Vec offsets[]={{-.2,0,0,0},{-.2,-.2,0,0},{0,-.2,0,0},{.2,-.2,0,0},{.2,0,0,0},{.2,.2,0,0},{0,.2,0,0},{-.2,.2,0,0}};
+    std::copy_n(offsets,8,p.begin()+5);
+    struct Case { float z,x,y,depth,distance,normal; std::array<Vec,3> bands{Vec{2,0,0,0},Vec{2,0,0,0},Vec{2,0,0,0}}; };
+    std::vector<Case> cases={{.5,0,0,128.0f/255,0,1},{9.99,0,0,128.0f/255,0,1},{10,0,0,128.0f/255,0,1},{10.01,0,0,128.0f/255,0,1},
+        {.5,0,0,std::nextafter(128.0f/255,1.0f),0,1},{.5,0,0,0,0,1},{.5,0,0,1,0,1},
+        {.5,.9,0,1,0,1},{.5,.98,0,1,0,1},{.5,1,0,1,0,1},{.5,0,-.98,1,0,1},
+        {.5,0,0,1,.4,1},{.5,0,0,1,1,1},{.5,0,0,1,0,.7},{.5,0,0,1,0,0}};
+    const size_t dynamicCases=cases.size();
+    for(unsigned b=0;b<3;++b) for(float edge:{0.0f,std::nextafter(1.0f,0.0f),1.0f,-1.0f}) {
+        Case t{.5,0,0,0,0,1};t.bands[b]={edge,0,128.0f/255,0};if(b<2)t.bands[b+1]={0,0,1,0};cases.push_back(t);
+    }
+    Case far{.5,0,0,0,0,1};far.bands[2]={0,-.95,1,0};cases.push_back(far);
+    Case order{10,0,0,1,1,.7};order.bands[0]={.1,.2,128.0f/255,0};cases.push_back(order);
+    CGxBatch batch{GxPrim_Points,0,1,0,0}; unsigned draws=0;
+    for(unsigned mode=1;mode<=3;++mode) for(unsigned lights=0;lights<2;++lights)
+    for(unsigned tint:{0u,128u,255u}) for(size_t n=0;n<(mode==1 ? dynamicCases:cases.size());++n) for(unsigned alpha:{0u,128u,129u}) {
+        const auto& t=cases[n]; CGxVertexPNCT source{};
+        source.m_position=C3Vector(.03125,.03125,t.z);source.m_normal=C3Vector(.3,-.4,t.normal);
+        source.m_color=CImVector(192,128,160,tint);source.m_texture=C2Vector(.5,.5);
+        auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(source),1);
+        std::memcpy(device.BufLock(buffer),&source,sizeof(source));device.BufUnlock(buffer,0);GxPrimVertexPtr(buffer,GxVBF_PNCT);
+        const Vec coordinates[]={Vec{t.x,t.y,t.depth,0},t.bands[0],t.bands[1],t.bands[2]};
+        for(unsigned b=0;b<4;++b) {
+            c[23+3*b]={.25,.5,0,coordinates[b][0]-.0234375f};
+            c[24+3*b]={-.5,.25,0,coordinates[b][1]+.0078125f};
+            c[25+3*b]={0,0,0,coordinates[b][2]};
+        }
+        p[3]={.25,-.5,0,t.distance+.0078125f};p[4]={0,0,1,0};
+        auto samples=[&](unsigned band,bool nine) {
+            auto sample=[&](float dx,float dy) {
+                unsigned x=unsigned(std::clamp(int(std::floor((coordinates[band][0]*.5f+.5f+dx)*5)),0,4));
+                unsigned y=unsigned(std::clamp(int(std::floor((coordinates[band][1]*.5f+.5f+dy)*5)),0,4));
+                return ShadowDepth(x,y,band)>=coordinates[band][2] ? 1.0f:0.0f;
+            };
+            float value=sample(0,0); for(unsigned i=0;i<8;i+=nine ? 1:2) value+=sample(offsets[i][0],offsets[i][1]);
+            return value/(nine ? 9:5);
+        };
+        const float baked=tint/255.0f;
+        float visibility=mode==1 ? baked:1;
+        const float border=Sat(std::max(std::abs(t.x),std::abs(t.y))*(-3.4482758045196533f)+3.4137930870056152f);
+        if(border>(mode==3 ? 0:.01f)) { const float shadow=samples(0,mode!=3 && t.z>=10);visibility=mode==3 ? shadow:std::min(visibility,1+border*(shadow-1)); }
+        visibility+=Sat(t.distance)*(1-visibility);
+        if(mode>=2) for(unsigned b=1;b<4;++b) {
+            const float edge=std::max(std::abs(coordinates[b][0]),std::abs(coordinates[b][1]));
+            if(edge>=1 && b<3)continue;
+            float value=samples(b,false);if(b==3)value=1+Sat(edge*(-11.11111068725586f)+11)*(value-1);
+            visibility=std::min(visibility,value);break;
+        }
+        visibility+=Sat(std::pow(1.2f-std::abs(t.normal),4))*((mode==1 ? baked:1)-visibility);
+        Vec expected{};const Vec color{160.0f/255,128.0f/255,192.0f/255,1};
+        for(unsigned j=0;j<3;++j) {
+            float light=c[11][j]+c[12][j]*Sat(t.normal);
+            if(lights)for(unsigned i=0;i<3;++i)light+=c[15+3*i][j]*Sat(t.normal);
+            expected[j]=.6f*((float(96+48*j)/255)*color[j]*std::min(light,1.0f)*(.7f+.3f*visibility)-p[2][j])+p[2][j];
+        }
+        expected[3]=128.0f/255;if(alpha>128)expected={};
+        device.BeginFrame(pass);GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),c.size());GxShaderConstantsSet(GxSh_Pixel,0,p[0].data(),p.size());
+        GxRsSet(GxRs_VertexShader,vertex[lights*3+std::min(mode,2u)]);GxRsSet(GxRs_PixelShader,pixel[mode]);GxRsSet(GxRs_AlphaRef,int32_t(alpha));
+        GxDraw(&batch,0);CiRect rect(0,0,32,32);TSGrowableArray<CImVector> image;device.DeviceReadPixels(rect,image);
+        const auto& sample=image[15*32+16];const unsigned channels[]={sample.r,sample.g,sample.b,sample.a};
+        for(unsigned j=0;j<4;++j)if(std::abs(int(channels[j])-int(std::lround(expected[j]*255)))>2)
+            throw std::runtime_error("Detail-doodad shadow/baked color/band/fade/alpha reference mismatch at mode "+std::to_string(mode)+" case "+std::to_string(n));
+        device.ScenePresent();++draws;
+    }
+    std::fprintf(stderr,"Detail-doodad R32F shadows: %u independent dynamic/banded, baked-alpha composition, five/nine samples, band edges, distance/normal fades and coverage checks passed\n",draws);
 }
 } // namespace
 
@@ -172,6 +269,7 @@ void CheckDetailDoodadShaders(CGxDeviceMetal& device) {
                     ++draws;
                 }
     std::fprintf(stderr, "Detail-doodad sun/three-light paths: %u independent tint/normal/fade/fog/alpha reference draws\n", draws);
+    CheckDetailShadows(device,cleanup.vertex,cleanup.pixel,pass);
 }
 
 void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) {
@@ -254,8 +352,8 @@ void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPa
         for (unsigned i = 0; i < pixels.Count(); ++i)
             covered += pixels[i].r || pixels[i].g || pixels[i].b;
         const auto draws = device.EncodingStats().geometryDraws - before.geometryDraws;
-        std::fprintf(stderr, "Original ground decoration %u (%s, flags %u): %u instances, %llu draws, %u covered pixels\n", id,
-                     data->m_record->m_doodadpath, data->m_record->m_flags, additions, static_cast<unsigned long long>(draws), covered);
+        std::fprintf(stderr, "Original ground decoration %u (%s, flags %u), shadow mode %u: %u instances, %llu draws, %u covered pixels\n", id,
+                     data->m_record->m_doodadpath, data->m_record->m_flags, CShadowCache::GetShadowValue(), additions, static_cast<unsigned long long>(draws), covered);
         if (draws != batches || covered < 32)
             throw std::runtime_error("Original ground decoration produced no visible batch");
         device.ScenePresent();

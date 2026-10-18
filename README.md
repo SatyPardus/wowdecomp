@@ -291,8 +291,11 @@ accept agreements automatically. It is not a device login or touch-input adapter
 The iOS 18.5 arm64 simulator has authenticated to local AzerothCore, entered an
 existing character's Stormwind world at 2622x1206, resumed after backgrounding,
 and completed 2400 frames and original shutdown with Metal validation enabled.
-Its nine synchronous loading frames use separate layer drawables. Both iOS
-targets build; signed physical-device deployment remains unverified.
+Its synchronous loading frames use separate layer drawables. A separate runtime
+with original `extShadowQuality=3` also completed local world entry, 1,800 frames,
+2622x1206 readback and normal shutdown with Metal validation (ten loading frames).
+That run did not recheck foreground recovery. Both iOS targets build; signed
+physical-device deployment remains unverified.
 
 For a local development server, `--local-unchecked` explicitly omits executable
 challenge verification and restricts Grunt authentication to `127.0.0.1:3724`
@@ -627,8 +630,17 @@ state alpha testing. Sixty numeric GPU draws cover both non-shadow vertex and
 pixel variants. Original grass and bone resources pass through the world loader
 and `CDetailDoodadInst` vertex/index generation and texture batching, exercising
 both DBC orientation flags across resource recreation. These checks use explicit
-instance placement and lighting; world density/placement and shadow receivers
-remain incomplete.
+instance placement and lighting. The four shadow vertex variants and three R32F
+pixel variants now preserve dynamic five/nine-tap sampling and all three distant
+bands. Low mode combines dynamic visibility with baked vertex alpha before
+distance fading and fades normals back to that baked value; higher modes use
+the distant maps instead. Texture/distance alpha and state cutouts remain
+independent. `WOW_METAL_CHECK=detail-shaders` adds 1,314 numeric references;
+`WOW_METAL_CHECK=models` exercises original grass/bone batching and cache binding
+with the generated R32F map in all modes across two resource lifetimes. Both pass
+on Mac ASan/UBSan and iOS simulator with Metal validation; both iOS client targets
+and the Mac application build. Full world density/placement, PCF and Windows
+visual comparison remain incomplete.
 
 Native `WaterRipples` preserves texture RGB, vertex-controlled alpha and additive
 blending. Its normalized D3D9 polygon offset is applied after clipping and

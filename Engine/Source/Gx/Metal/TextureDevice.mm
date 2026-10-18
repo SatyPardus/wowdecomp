@@ -127,7 +127,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)),
             "Unsupported native liquid permutation");
     Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
-    Require(effect != FragmentEffect::DetailDoodad || detail, "Missing detail-doodad parameters");
+    Require(effect != FragmentEffect::DetailDoodad || (detail && detail->shadowMode < 4), "Missing detail-doodad parameters");
     const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
                            (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
@@ -136,7 +136,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
-        fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : wmo ? wmo->shadowMode : modelShadowMode,
+        fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : wmo ? wmo->shadowMode : detail ? detail->shadowMode : modelShadowMode,
         fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) : terrain ? uint32_t(terrain->layerPass) : 0};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
@@ -322,9 +322,13 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
         [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
         [constants setConstantValue:&detail->pointLights type:MTLDataTypeBool atIndex:23];
-        auto& vertex = m_detailVertex[detail->pointLights]; auto& fragment = m_detailFragment[alpha][decodePacked];
+        const uint32_t vertexShadow = std::min(detail->shadowMode, 2u);
+        [constants setConstantValue:&vertexShadow type:MTLDataTypeUInt atIndex:37];
+        auto& vertex = m_detailVertex[detail->pointLights][vertexShadow];
+        auto& fragment = m_detailFragment[alpha][decodePacked][detail->shadowMode];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:@"detailDoodadVertex" constantValues:constants error:&error];
+        [constants setConstantValue:&detail->shadowMode type:MTLDataTypeUInt atIndex:37];
         if (!fragment) fragment = [m_library newFunctionWithName:@"detailDoodadFragment" constantValues:constants error:&error];
         if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Detail-doodad specialization failed");
         descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
