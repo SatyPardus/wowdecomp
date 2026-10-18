@@ -492,6 +492,17 @@ set_target_properties(AppleProbeCore PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJ
 target_link_libraries(AppleProbeCore PUBLIC CharacterNames AppleKnowledgeBase)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_executable(WowAppleClient MACOSX_BUNDLE Tools/AppleBootstrap/iOSClientMain.mm)
+    target_compile_options(WowAppleClient PRIVATE -fobjc-arc)
+    target_link_libraries(WowAppleClient PRIVATE AppleMetalView AppleClientCore "-framework UIKit")
+    set_target_properties(WowAppleClient PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Tools/AppleBootstrap/iOSClientInfo.plist.in
+        MACOSX_BUNDLE_GUI_IDENTIFIER org.wowdecomp.AppleClient
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+        XCODE_ATTRIBUTE_CODE_SIGN_STYLE Automatic
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER org.wowdecomp.AppleClient
+        XCODE_GENERATE_SCHEME TRUE
+    )
     add_executable(WowAppleBootstrap MACOSX_BUNDLE Tools/AppleBootstrap/iOSMain.mm)
     target_compile_options(WowAppleBootstrap PRIVATE -fobjc-arc)
     target_link_libraries(WowAppleBootstrap PRIVATE AppleProbeCore AppleMetalProbeCore AppleMetalView "-framework UIKit" "-framework Foundation")

@@ -259,7 +259,40 @@ and shutdown; `WOW_CLIENT_CAPTURE=/absolute/path/to/login.png` saves the final
 GPU image. With no frame limit the window remains interactive. The original
 login interface and agreement display have run for 120 frames under Mac
 ASan/UBSan and Metal validation, followed by the original client teardown.
-This complete startup host has not yet been added to the iOS app.
+
+`WowAppleClient` also builds the original client for iOS devices and the arm64
+simulator; `WowAppleBootstrap` remains the separate component preview/check app.
+
+```sh
+cmake --build --preset ios-arm64 --target WowAppleClient
+cmake --build --preset ios-simulator-arm64 --target WowAppleClient
+```
+
+The iOS app expects the original `Data` directory under its `Documents`, exposed
+through Finder file sharing and Files. Import a copy, then return to the app.
+Configuration, cache and logs go to `Library/Application Support/WoWDecompClient`;
+the app never writes to Data. `WOW_DATA_ROOT` and `WOW_RUNTIME_ROOT` can override
+these locations for development. Signed device deployment requires a development
+team. The host runs the original Glue, networking, world and rendering code, in
+landscape at native display resolution. It pauses frame submission and native
+audio output while inactive, drains submitted GPU work, saves configuration on
+backgrounding and resets the first resumed frame's elapsed time. Touch controls
+and a mobile login UI remain outside the current scope.
+
+The iOS host accepts `--local-unchecked`, `--login-stdin`, `--enter-world NAME`,
+`WOW_CLIENT_FRAMES` and `WOW_CLIENT_CAPTURE` as described below. Simulator local
+mode connects to the Mac's loopback AzerothCore. Since `simctl launch` does not
+forward stdin, the simulator-only `--login-pipe PATH` can read two credential
+lines from an owner-only FIFO inside the app's data container, then removes the
+FIFO. Use an interactive writer with password echo disabled; never use a regular
+file, command-line arguments or environment variables for credentials. This
+development path still requires existing agreement preferences and does not
+accept agreements automatically. It is not a device login or touch-input adapter.
+The iOS 18.5 arm64 simulator has authenticated to local AzerothCore, entered an
+existing character's Stormwind world at 2622x1206, resumed after backgrounding,
+and completed 2400 frames and original shutdown with Metal validation enabled.
+Its nine synchronous loading frames use separate layer drawables. Both iOS
+targets build; signed physical-device deployment remains unverified.
 
 For a local development server, `--local-unchecked` explicitly omits executable
 challenge verification and restricts Grunt authentication to `127.0.0.1:3724`

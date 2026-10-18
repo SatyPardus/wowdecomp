@@ -17,6 +17,9 @@
 #include "Engine/Source/Storm/Source/SLock.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/CRandom.h"
+#if defined(__APPLE__)
+#include "Engine/Source/SoundEngine/fmodex/apple/AppleOutput.h"
+#endif
 
 // Native hosts can destroy and reconstruct both CVar and sound lifetimes.
 // Process-lifetime CVar pointers would then refer to freed registry entries.
@@ -94,6 +97,12 @@ static float (*s_volumeCallback)(SESoundUserData*);
 
 // STATIC: 0x00D43814
 static int32_t s_initialized;
+
+#if defined(__APPLE__)
+FMOD_RESULT SE2::SetNativeOutputActive(bool active) {
+    return s_initialized ? FMODAppleSetActive(s_system, active) : FMOD_OK;
+}
+#endif
 
 // STATIC: 0x00D43818
 static uint32_t s_captureLength;

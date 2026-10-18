@@ -242,6 +242,10 @@ class SESound {
 class SE2 {
     public:
     static int32_t sm_bCaptureInitialized;
+#if defined(__APPLE__)
+    // Host lifecycle hook; independent of the game's background-volume setting.
+    static FMOD_RESULT SetNativeOutputActive(bool active);
+#endif
 
     static void ActivateAlternateCaptureCallback();
     static void ActivatePrimaryCaptureCallback();

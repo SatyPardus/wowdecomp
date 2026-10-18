@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdio>
-#include <iostream>
+#include <cerrno>
 #include <stdexcept>
 #include <string>
 #include <termios.h>
@@ -14,23 +14,35 @@ struct NativeLoginInput {
         password.clear();
     }
     ~NativeLoginInput() { Clear(); }
-    void Read() {
+    void Read(int descriptor = STDIN_FILENO) {
+        auto line = [&](std::string& output, size_t limit) {
+            output.clear();
+            for (;;) {
+                char ch; const auto count = read(descriptor, &ch, 1);
+                if (count < 0 && errno == EINTR) continue;
+                if (!count) return !output.empty();
+                if (count != 1) return false;
+                if (ch == '\n') return !output.empty();
+                if (output.size() == limit) return false;
+                output.push_back(ch);
+            }
+        };
         std::fputs("Account: ", stderr);
-        if (!std::getline(std::cin, account) || account.empty() || account.size() > 127)
+        if (!line(account, 127))
             throw std::runtime_error("Missing or oversized account");
         std::fputs("Password: ", stderr);
         struct Echo {
-            termios saved{}; bool restore = false;
-            Echo() {
-                if (!isatty(STDIN_FILENO)) return;
-                if (tcgetattr(STDIN_FILENO, &saved)) throw std::runtime_error("Cannot protect password input");
+            termios saved{}; bool restore = false; int descriptor;
+            explicit Echo(int fd) : descriptor(fd) {
+                if (!isatty(descriptor)) return;
+                if (tcgetattr(descriptor, &saved)) throw std::runtime_error("Cannot protect password input");
                 auto hidden = saved; hidden.c_lflag &= ~ECHO;
-                if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &hidden)) throw std::runtime_error("Cannot protect password input");
+                if (tcsetattr(descriptor, TCSAFLUSH, &hidden)) throw std::runtime_error("Cannot protect password input");
                 restore = true;
             }
-            ~Echo() { if (restore) { tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved); std::fputc('\n', stderr); } }
-        } echo;
-        if (!std::getline(std::cin, password) || password.empty() || password.size() > 128)
+            ~Echo() { if (restore) { tcsetattr(descriptor, TCSAFLUSH, &saved); std::fputc('\n', stderr); } }
+        } echo(descriptor);
+        if (!line(password, 128))
             throw std::runtime_error("Missing or oversized password");
     }
 };
