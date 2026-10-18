@@ -47,6 +47,12 @@ int32_t CAccountMsgBody::LoadBody(int32_t messageId) {
     url += "&messageId=";
     url += messageId;
 
+#if defined(__APPLE__)
+    this->m_iterator.m_node = nullptr;
+    if (!this->_StartNativeDownload(url.m_buffer)) {
+        return 0;
+    }
+#else
     if (!OsURLDownload(url.m_buffer, &CKBPage::LoadingCallback, this)) {
         this->m_state = 3;
         return 0;
@@ -54,6 +60,7 @@ int32_t CAccountMsgBody::LoadBody(int32_t messageId) {
 
     this->m_iterator.m_node = nullptr;
     this->_BeginLoading();
+#endif
     return 1;
 }
 

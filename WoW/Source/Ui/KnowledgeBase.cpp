@@ -31,6 +31,9 @@ CKBPage::CKBPage() {
 // VERIFY: 8d159cad manual
 // OFFSET: 0x00550B80
 bool CKBPage::LoadingCallback(void* param, const char* data, uint32_t size, bool done, HTTPError::ErrorCode error) {
+#if defined(__APPLE__)
+    return NativeLoadingCallback(param, data, size, done, error);
+#else
     CKBPage* page = static_cast<CKBPage*>(param);
 
     if (!page) {
@@ -106,6 +109,7 @@ bool CKBPage::LoadingCallback(void* param, const char* data, uint32_t size, bool
     page->m_state = 2;
     page->m_lock.Leave();
     return true;
+#endif
 }
 
 // VERIFY: ec9f19a2 auto
@@ -128,6 +132,17 @@ int32_t CKBSetup::BeginLoading(int32_t numArticles, int32_t pageNumber) {
     url += "&locale=";
     url += s_localeCode;
 
+#if defined(__APPLE__)
+    this->m_currentCategory = -1;
+    this->m_languages.m_node = nullptr;
+    this->m_categories.m_node = nullptr;
+    this->m_subCategories.m_node = nullptr;
+    this->m_articleHeaders.m_node = nullptr;
+    if (!this->_StartNativeDownload(url.m_buffer)) {
+        this->_SendFailureEvent();
+        return 0;
+    }
+#else
     if (!OsURLDownload(url.m_buffer, &CKBPage::LoadingCallback, this)) {
         this->m_state = 3;
         this->_SendFailureEvent();
@@ -143,12 +158,16 @@ int32_t CKBSetup::BeginLoading(int32_t numArticles, int32_t pageNumber) {
     this->m_loadingNext = CKBPage::s_pLoadingQueue_Head;
     CKBPage::s_pLoadingQueue_Head = this;
     this->m_inQueue = 1;
+#endif
     return 1;
 }
 
 // VERIFY: 772164f4 auto
 // OFFSET: [0x00550B10, 0x005526D0]
 CKBPage::~CKBPage() {
+#if defined(__APPLE__)
+    _CancelNativeDownload();
+#endif
     if (this->m_tree) {
         XMLTree_Free(this->m_tree);
         XMLTree_Cleanup();
@@ -169,6 +188,10 @@ void CKBPage::_ComputeCachedData() {
 // VERIFY: 8bb4a93d auto
 // OFFSET: 0x00550B60
 int32_t CKBPage::_BeginLoading() {
+#if defined(__APPLE__)
+    if (m_state == 1 || m_inQueue) return 0;
+    _ResetNativeDownload();
+#endif
     this->m_state = 1;
     this->m_loadingNext = CKBPage::s_pLoadingQueue_Head;
     CKBPage::s_pLoadingQueue_Head = this;
@@ -526,6 +549,9 @@ const char* KnowledgeBaseGetURLForLocale() {
 // VERIFY: 8a5437bf manual
 // OFFSET: 0x00550A80
 void CKBPage::UpdateLoadingQueue() {
+#if defined(__APPLE__)
+    UpdateNativeLoadingQueue();
+#else
     CKBPage* prev = nullptr;
     CKBPage* page = CKBPage::s_pLoadingQueue_Head;
 
@@ -553,11 +579,16 @@ void CKBPage::UpdateLoadingQueue() {
         page->m_loadingNext = nullptr;
         page = next;
     }
+#endif
 }
 
 // VERIFY: c9bdf799 manual
 // OFFSET: 0x00552740
 void CKBPage::Shutdown() {
+#if defined(__APPLE__)
+    for (auto* page = s_pLoadingQueue_Head; page; page = page->m_loadingNext)
+        OsURLDownloadCancel(LoadingCallback, page);
+#endif
     while (CKBPage::s_pLoadingQueue_Head) {
         OsSleep(1);
         CKBPage::UpdateLoadingQueue();

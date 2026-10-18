@@ -138,3 +138,17 @@ void OsURLDownloadShutdown() {
         state.stopping = false;
     }
 }
+
+void OsURLDownloadCancel(OsURLDownloadCallback callback, void* parameter) {
+    @autoreleasepool {
+        auto& state = State();
+        std::unique_lock<std::mutex> lock(state.mutex);
+        for (WowURLDownload* download in state.active)
+            if (download->callback == callback && download->parameter == parameter) [download->task cancel];
+        state.changed.wait(lock, [&] {
+            for (WowURLDownload* download in state.active)
+                if (download->callback == callback && download->parameter == parameter) return false;
+            return true;
+        });
+    }
+}

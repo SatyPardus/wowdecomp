@@ -1,5 +1,7 @@
 #include "Engine/Source/Os/OsURLDownload.h"
 #include "WoW/Source/WowServices/SocketPlatform.h"
+#include "WoW/Source/Ui/KnowledgeBase.h"
+#include "Engine/Source/FrameXML/XMLTree.h"
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
@@ -10,6 +12,9 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <functional>
+#include <memory>
+#include <thread>
 
 namespace {
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
@@ -201,4 +206,99 @@ void CheckURLDownloads() {
         }
     }
     std::fprintf(stderr, "Native HTTP: exact streamed bytes, query/redirect, EOF/status, truncation, chained callback, stop, timeout and shutdown/restart passed twice\n");
+}
+
+void CheckKnowledgeBaseDownloads() {
+    struct Page : CKBPage {
+        unsigned successes = 0, failures = 0, computed = 0;
+        std::thread::id owner = std::this_thread::get_id();
+        std::function<void()> completed;
+        void _ComputeCachedData() override {
+            Require(std::this_thread::get_id() == owner, "Page parsed XML outside its game thread"); ++computed;
+        }
+        void _SendSuccessEvent() override {
+            Require(std::this_thread::get_id() == owner && !m_inQueue, "Page event arrived on wrong thread or before queue removal");
+            ++successes; auto action = completed; if (action) action();
+        }
+        void _SendFailureEvent() override {
+            Require(std::this_thread::get_id() == owner && !m_inQueue, "Page failure arrived on wrong thread or before queue removal"); ++failures;
+        }
+    };
+    auto pump = [](const auto& done) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!done()) {
+            CKBPage::UpdateLoadingQueue();
+            Require(std::chrono::steady_clock::now() < deadline, "Downloaded page did not complete");
+            // Exercise FrameXML's same shared parser while workers receive data.
+            auto* tree = XMLTree_Load("<Ui><Frame/></Ui>", 17);
+            Require(tree, "FrameXML parse was corrupted by a concurrent download"); XMLTree_Free(tree);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    };
+    auto response = [](const Socket& peer, const std::string& data) {
+        Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: " + std::to_string(data.size()) + "\r\nConnection: close\r\n\r\n" + data);
+    };
+    for (unsigned cycle = 0; cycle < 2; ++cycle) {
+        Server server; Page first, second;
+        const std::string xml = "<root number=\"42\" enabled=\"true\"><body>account &amp; support</body></root>";
+        Require(first._StartNativeDownload((server.root + "/first").c_str()), "Cannot start native page");
+        auto firstPeer = server.Accept("/first");
+        Require(second._StartNativeDownload((server.root + "/second").c_str()), "Cannot start concurrent native page");
+        auto secondPeer = server.Accept("/second");
+        Send(firstPeer, "HTTP/1.1 200 OK\r\nContent-Length: " + std::to_string(xml.size()) + "\r\nConnection: close\r\n\r\n" + xml.substr(0, 17));
+        CKBPage::UpdateLoadingQueue(); Require(first.m_state == 1 && !first.m_tree, "Partial download published XML early");
+        Send(firstPeer, xml.substr(17)); response(secondPeer, xml);
+        pump([&] { return first.successes && second.successes; });
+        CKBIterator root{}; first._GetRoot(root);
+        Require(first.computed == 1 && second.computed == 1 && first._GetInt(root.m_node, "number") == 42 &&
+            first._GetBool(root.m_node, "enabled") && std::string(first._GetBodyString(root.m_node->GetChildByName("body"))) == "account & support",
+            "Downloaded original XML fields or body changed");
+        for (unsigned state : {6u, 8u, 4u}) {
+            Require(first._StartNativeDownload((server.root + "/failure").c_str()), "Cannot restart page");
+            {
+                auto peer = server.Accept("/failure");
+                if (state == 6) Send(peer, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                else if (state == 8) response(peer, "<root>");
+                else Send(peer, "HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\n<root>");
+            }
+            pump([&] { return !first.m_inQueue; });
+            Require(first.m_state == state && !first.m_data, "Page failure state/partial-buffer cleanup changed");
+        }
+        Require(first._BeginLoading() && !CKBPage::LoadingCallback(&first, "x", 8 * 1024 * 1024 + 1, false, HTTPError::NoError), "Page byte budget failed");
+        CKBPage::UpdateLoadingQueue(); Require(first.m_state == 1, "Rejected chunk published before its final callback");
+        CKBPage::LoadingCallback(&first, nullptr, 0, true, HTTPError::NoError); CKBPage::UpdateLoadingQueue();
+        Require(first.m_state == 7 && first.failures == 4, "Page budget error was overwritten by normal callback termination");
+        Require(first._BeginLoading() && OsUrlDownload::DownloadString((server.root + "/timeout").c_str(), CKBPage::LoadingCallback, &first, 200), "Cannot start page timeout");
+        auto timed = server.Accept("/timeout"); pump([&] { return !first.m_inQueue; }); Require(first.m_state == 5, "Page timeout state changed");
+        Require(!first._StartNativeDownload("bad-url") && first.m_state == 3 && !first.m_inQueue, "Invalid page URL left a queued request");
+        first.completed = [&] { first.completed = {}; Require(first._StartNativeDownload((server.root + "/reloaded").c_str()), "Event could not reload its page"); };
+        Require(first._StartNativeDownload((server.root + "/retry").c_str()), "Page retry failed");
+        auto retry = server.Accept("/retry"); response(retry, xml); pump([&] { return first.successes == 2; });
+        auto reloaded = server.Accept("/reloaded"); response(reloaded, xml); pump([&] { return first.successes == 3; });
+
+        auto deleted = std::make_unique<Page>();
+        Require(deleted->_StartNativeDownload((server.root + "/delete").c_str()), "Cannot start deletion check");
+        auto deletedPeer = server.Accept("/delete");
+        Require(second._StartNativeDownload((server.root + "/survivor").c_str()), "Cannot start surviving page");
+        auto survivor = server.Accept("/survivor"); deleted.reset();
+        response(survivor, xml); pump([&] { return second.successes == 2; });
+        deleted = std::make_unique<Page>(); deleted->completed = [&] { deleted.reset(); };
+        Require(deleted->_StartNativeDownload((server.root + "/event-delete").c_str()), "Cannot start event deletion check");
+        auto eventPeer = server.Accept("/event-delete"); response(eventPeer, xml); pump([&] { return !deleted; });
+
+        CKBSetup setup;
+        Require(setup._StartNativeDownload((server.root + "/setup").c_str()), "Cannot load original knowledge-base setup");
+        auto setupPeer = server.Accept("/setup");
+        response(setupPeer, "<root><Languages><language id=\"1\">English</language><language id=\"2\">Chinese</language></Languages><Categories><category id=\"7\"><SubCategories><category id=\"9\"/></SubCategories></category></Categories><ArticleHeaders><article id=\"11\"/><article id=\"12\"/></ArticleHeaders></root>");
+        pump([&] { return !setup.m_inQueue; });
+        Require(setup.m_state == 2 && setup.m_numLanguages == 2 && setup.m_numCategories == 1 && setup.m_numArticleHeaders == 2 &&
+            setup._GetInt(setup.GetLanguage(1), "id") == 2 && setup._GetInt(setup.GetCategoryNode(0), "id") == 7 &&
+            setup._GetInt(setup.GetSubCategory(0, 0), "id") == 9 && setup._GetInt(setup.GetArticleHeader(1), "id") == 12,
+            "Original knowledge-base cached metadata or iterators changed");
+        Require(second._StartNativeDownload((server.root + "/shutdown").c_str()), "Cannot start shutdown page");
+        auto shutdown = server.Accept("/shutdown"); CKBPage::Shutdown();
+        Require(second.m_state == 4 && !CKBPage::s_pLoadingQueue_Head, "Page shutdown did not cancel/drain callbacks and dispatch failure");
+        OsURLDownloadShutdown();
+    }
+    std::fprintf(stderr, "Original web pages: concurrent downloads/game-thread XML, fields/iterators, HTTP/XML/size/timeout failure and retry, event reload/deletion, scoped cancellation and shutdown passed twice\n");
 }

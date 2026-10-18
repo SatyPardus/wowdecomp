@@ -192,6 +192,14 @@ int32_t CAccountMsgHeaders::LoadHeaders() {
         url += static_cast<int32_t>(digest[i]);
     }
 
+#if defined(__APPLE__)
+    this->m_iterator.m_node = nullptr;
+    this->m_count = 0;
+    this->m_opened.Clear();
+    if (!this->_StartNativeDownload(url.m_buffer)) {
+        return 0;
+    }
+#else
     if (!OsURLDownload(url.m_buffer, &CKBPage::LoadingCallback, this)) {
         this->m_state = 3;
         return 0;
@@ -201,6 +209,7 @@ int32_t CAccountMsgHeaders::LoadHeaders() {
     this->m_count = 0;
     this->m_opened.Clear();
     this->_BeginLoading();
+#endif
     return 1;
 }
 

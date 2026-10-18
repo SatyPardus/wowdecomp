@@ -40,6 +40,17 @@ class CKBPage {
     /* 0034 */ XMLTree* m_tree;
     /* 0038 */ CKBPage* m_loadingNext;
     /* 003C */ uint32_t m_inQueue;
+#if defined(__APPLE__)
+    // Protected by m_lock. Public page state and XML belong to the game thread.
+    uint32_t m_nativeResult = 0;
+    bool m_nativeFinished = false;
+    bool _StartNativeDownload(const char* url);
+    void _ResetNativeDownload();
+    void _CancelNativeDownload();
+    bool _FinishNativeDownload();
+    static bool NativeLoadingCallback(void*, const char*, uint32_t, bool, HTTPError::ErrorCode);
+    static void UpdateNativeLoadingQueue();
+#endif
 
     CKBPage();
     virtual ~CKBPage();

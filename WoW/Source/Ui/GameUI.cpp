@@ -1114,9 +1114,6 @@ int32_t CGGameUI::m_billingNagCheckTime;
 // STATIC: 0x00BD087C
 int32_t CGGameUI::m_billingNagShown;
 
-// STATIC: 0x00BD0880
-int32_t CGGameUI::m_initialized;
-
 // STATIC: 0x00BD0884
 uint32_t CGGameUI::m_uiLastInstanceTime;
 

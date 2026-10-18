@@ -42,6 +42,8 @@ bool OsURLDownload(const char* url, OsURLDownloadCallback callback, void* param)
 // Called by the application owner, outside download callbacks, before freeing
 // callback arguments. Cancels outstanding work and drains final callbacks.
 void OsURLDownloadShutdown();
+// Same owner-thread contract, limited to requests with this callback/argument.
+void OsURLDownloadCancel(OsURLDownloadCallback callback, void* param);
 #endif
 
 #endif

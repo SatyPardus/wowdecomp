@@ -37,6 +37,12 @@ int32_t CKBArticle::BeginLoading(int32_t articleId, int32_t searchType) {
     url += "&locale=";
     url += s_localeCode;
 
+#if defined(__APPLE__)
+    if (!this->_StartNativeDownload(url.m_buffer)) {
+        this->_SendFailureEvent();
+        return 0;
+    }
+#else
     if (!OsURLDownload(url.m_buffer, &CKBPage::LoadingCallback, this)) {
         this->m_state = 3;
         this->_SendFailureEvent();
@@ -47,6 +53,7 @@ int32_t CKBArticle::BeginLoading(int32_t articleId, int32_t searchType) {
     this->m_loadingNext = CKBPage::s_pLoadingQueue_Head;
     CKBPage::s_pLoadingQueue_Head = this;
     this->m_inQueue = 1;
+#endif
     return 1;
 }
 
