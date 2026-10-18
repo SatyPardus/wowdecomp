@@ -1,5 +1,6 @@
 #if defined(WOW_LOCAL_FILES_ONLY)
 #include <cerrno>
+#include <stdexcept>
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 
@@ -25,4 +26,10 @@ bool MakeLocalBlocking(File::StreamRecord*, int64_t, int32_t, int32_t, const cha
 bool InitializeStreaming(const char*, const char*, const char*, const char*, bool) { return UnsupportedDownload(); }
 }
 bool CheckIfStreamingAndTrial() { return false; }
+void StreamingSetMapId(int32_t) {
+    throw std::runtime_error("Remote map streaming is unavailable in the local-files build");
+}
+void StreamingSetAreaOfInterest(int32_t, int32_t) {
+    throw std::runtime_error("Remote area streaming is unavailable in the local-files build");
+}
 #endif

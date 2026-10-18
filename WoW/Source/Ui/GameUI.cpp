@@ -1069,9 +1069,6 @@ float CGGameUI::m_aspect;
 // STATIC: 0x00BD07FC
 int32_t CGGameUI::m_inCinematic;
 
-// STATIC: 0x00BD0800
-int32_t CGGameUI::m_inMovie;
-
 // STATIC: 0x00BD0804
 int32_t CGGameUI::m_movieFileDataID;
 

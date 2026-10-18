@@ -1178,15 +1178,18 @@ void World::ObjectDestroy(CMapEntity* entity) {
 // VERIFY: a4bfc150 manual
 // OFFSET: 0x00780860
 void World::PrepareAreaOfInterest(const C3Vector& position) {
+    PrepareAreaOfInterest(position, *CGWorldFrame::GetActiveCamera());
+}
+
+void World::PrepareAreaOfInterest(const C3Vector& position, const CSimpleCamera& camera) {
     World::s_currentWorldPos = position;
 
-    CGCamera* camera = CGWorldFrame::GetActiveCamera();
-    float farZ = camera->m_farZ;
-    float nearZ = camera->m_nearZ;
-    float fov = camera->FOV();
+    float farZ = camera.m_farZ;
+    float nearZ = camera.m_nearZ;
+    float fov = camera.FOV();
 
     C44Matrix projection;
-    GxuXformCreateProjection_Exact(fov * 0.6f, camera->m_aspect, nearZ, farZ, projection);
+    GxuXformCreateProjection_Exact(fov * 0.6f, camera.m_aspect, nearZ, farZ, projection);
 
     C44Matrix view;
     GxXformView(view);
@@ -1361,6 +1364,10 @@ void World::SetFarClip(float farClip) {
 // VERIFY: 833d137a auto
 // OFFSET: 0x00781430
 void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4) {
+    LoadMap(mapName, position, zoneID, unused_a4, *CGWorldFrame::GetActiveCamera());
+}
+
+void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4, const CSimpleCamera& camera) {
     World::s_farClip = World::ValidateFarClip(CWorldParam::cvar_farClip->m_floatValue, zoneID);
     World::s_nearClip = 0.2f;
     World::s_prevFarClip = World::s_farClip;
@@ -1369,7 +1376,7 @@ void CWorld::LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, in
         StreamingSetMapId(zoneID);
     }
 
-    World::PrepareAreaOfInterest(*position);
+    World::PrepareAreaOfInterest(*position, camera);
     CWorld::gbChunkRectOld = CWorld::gbChunkRect;
     CMap::Load(mapName, zoneID);
 

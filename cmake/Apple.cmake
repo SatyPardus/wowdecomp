@@ -183,6 +183,13 @@ include(cmake/AppleAudio.cmake)
 
 add_library(WorldSupport STATIC WoW/Common/AaBsp.cpp)
 target_link_libraries(WorldSupport PUBLIC Tempest)
+add_library(ClientWorldSupport STATIC WoW/Source/ObjectMgrClient/ObjectMgrClient.cpp
+    WoW/Source/Object/ObjectClient/ObjectEffect.cpp WoW/Source/UIUtil/CSimpleCamera.cpp
+    WoW/Source/Ui/SoundPlaybackState.cpp
+    WoW/Source/Object/Object.cpp WoW/Source/Object/Item.cpp WoW/Source/Object/Container.cpp
+    WoW/Source/Object/Unit.cpp WoW/Source/Object/Player.cpp WoW/Source/Object/GameObject.cpp
+    WoW/Source/Object/DynamicObject.cpp WoW/Source/Object/Corpse.cpp)
+target_link_libraries(ClientWorldSupport PUBLIC Model2 SoundInterface)
 add_subdirectory(WoW/Source/WorldClient)
 add_subdirectory(WoW/Source/LiquidSystem)
 target_link_libraries(LiquidSystem PUBLIC Model2 WorldSupport)
@@ -191,7 +198,7 @@ target_sources(WorldClient PRIVATE ${CMAKE_SOURCE_DIR}/WoW/Source/Ui/WorldFrameH
     ${CMAKE_SOURCE_DIR}/WoW/Source/ConsoleDevice/ConsoleDevice.cpp)
 add_library(WorldTerrain STATIC WoW/Common/TerrainGeometry.cpp WoW/Common/TerrainSurface.cpp WoW/Common/TerrainAlpha.cpp)
 target_link_libraries(WorldTerrain PUBLIC Tempest)
-target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain WorldSupport SoundInterface LiquidSystem)
+target_link_libraries(WorldClient PUBLIC Model2 WorldTerrain WorldSupport SoundInterface LiquidSystem ClientWorldSupport)
 
 add_library(AppleTextureData ALIAS BLPFile)
 

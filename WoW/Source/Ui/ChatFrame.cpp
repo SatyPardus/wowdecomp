@@ -56,9 +56,6 @@ int32_t CGChat::m_afk;
 // STATIC: 0x00BCF004
 int32_t CGChat::m_voiceChatSystemStatus;
 
-// STATIC: 0x00B4AE40
-int32_t CGChat::m_paused;
-
 // STATIC: 0x009FA558
 const ChatColorInfo s_chatTypeInfo[CHAT_MSG_MAX] = {
     { "SYSTEM", { 0xFF, 0xFF, 0x00, 0x00 }, 0, 0 },
@@ -5562,25 +5559,6 @@ int32_t CGChat::OnDisplayChannelList(CDataStore* msg) {
     }
 
     return 1;
-}
-
-// VERIFY: 2c5750ac auto
-// VERIFY: 13c41e04 auto
-// OFFSET: 0x004CFB80
-void CGChat::Pause() {
-    CGChat::m_paused++;
-}
-
-// VERIFY: 62ef2d2f auto
-// OFFSET: 0x004CFB90
-void CGChat::Resume() {
-    CGChat::m_paused--;
-}
-
-// VERIFY: 7732767c auto
-// OFFSET: 0x004CFBA0
-int32_t CGChat::IsPaused() {
-    return CGChat::m_paused;
 }
 
 // VERIFY: 969b4800 manual

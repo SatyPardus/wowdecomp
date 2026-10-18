@@ -41,6 +41,7 @@ namespace Liquid {
 }
 class CImVector;
 class CM2Scene;
+class CSimpleCamera;
 class CMapEntity;
 struct MINIMAPQUADINFO;
 class CTexture;
@@ -388,6 +389,7 @@ namespace World {
 
     void GetFrustumCorners(C3Vector* corners);
     void PrepareAreaOfInterest(const C3Vector& position);
+    void PrepareAreaOfInterest(const C3Vector& position, const CSimpleCamera& camera);
     void SetLoadProgressCallback(CALLBACK_FUNC callback, void* param);
     void UnloadMap();
 
@@ -562,6 +564,7 @@ class CWorld {
     static void Destroy();
     static void Initialize();
     static void LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4);
+    static void LoadMap(const char* mapName, C3Vector* position, int32_t zoneID, int32_t unused_a4, const CSimpleCamera& camera);
     static void ObjectDestroy(CMapBaseObj* object);
     static CMapBaseObj* ObjectCreate(const char* name, const C3Vector& position, float facing, int32_t waitLoad, int32_t snap, uint64_t guid, uint32_t doodadSetCount, const int16_t* doodadSets, float* radius, uint32_t id);
     static void Update(C3Vector* camPos, C3Vector* camTarget, C3Vector* position);

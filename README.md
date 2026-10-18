@@ -221,6 +221,13 @@ unshadowed BLS variants are verified; 246 additional GPU checks cover layered
 coordinates, lighting/fog, and independent shader/state alpha boundaries on Mac
 and iOS simulator. Mac ASan/UBSan and Metal validation pass; both iOS targets build.
 
+The original map load also reaches `Combiners_Opaque_Add`,
+`Combiners_Opaque_AddAlpha`, and `Combiners_Opaque_AddAlpha_Alpha`. Metal now
+preserves their distinct additive alpha, alpha-weighted reflection, and combined
+base-alpha interpolation, including the authored lighting/fog order. Their twelve
+unshadowed variants add 738 GPU references across both UV paths, skinning,
+lighting and shader/state alpha boundaries.
+
 Native `ShadowMap` / `ShadowMapSL` generation preserves rigid, single-bone and
 four-weight transforms, separate light-view transforms, linear depth and alpha
 cutouts. All 90 vertex and 16 pixel handles are validated against the mounted
@@ -431,8 +438,17 @@ detached before freeing their instances, and footprint texture/batch caches are
 cleared so reinitialization reloads valid handles. Live and between-world CVar
 callbacks, portrait notification detach, Mac ASan/UBSan and Metal validation pass;
 both iOS targets build and the simulator subsequently presents 120 terrain frames.
-This exercises startup/shutdown without an active CMap; full world loading and
-application ownership of the world remain pending.
+The lifecycle check now also enters the original `CWorld::LoadMap` / `CMap::Load`
+with an explicitly supplied `CSimpleCamera`. Azeroth loads 16 areas, 1,600 chunks,
+24 WMO placements, 4,856 doodad model instances and 687 WDL horizon tiles through
+the original asynchronous resource paths. Both world lifetimes reproduce that
+population and clear the map tables on teardown. WDL chunk headers use byte copies
+because 545 authored 16-bit heights leave the next header only two-byte aligned;
+height, hole and geometry algorithms are unchanged. Original object-manager lookup,
+object-effect state and the UI's chat/movie sound state now link on Apple; no active
+player or network session is synthesized. Mac ASan/UBSan, Metal validation and
+iOS simulator checks pass, and both iOS targets build. Full world rendering and
+application ownership of the loaded world remain pending.
 
 Original DayNight selection/interpolation now links on all Apple targets with
 715 lights, 850 parameter sets, 124 skyboxes, and 15,300 color / 5,100 float bands.

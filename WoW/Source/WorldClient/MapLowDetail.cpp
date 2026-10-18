@@ -16,6 +16,14 @@
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "Engine/Source/Gx/CGxVertexPC.h"
 
+namespace {
+uint32_t ReadWdlWord(const void* data) {
+    uint32_t value;
+    std::memcpy(&value, data, sizeof(value));
+    return value;
+}
+}
+
 // VERIFY: 3763adce auto
 // OFFSET: 0x007C06E0
 CMapAreaLow::CMapAreaLow() {
@@ -132,17 +140,17 @@ void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
     SFileReadFile(file, this->m_data, size, nullptr, nullptr, 0);
     SFileCloseFile(file);
 
-    uint32_t* chunk = reinterpret_cast<uint32_t*>(this->m_data + reinterpret_cast<uint32_t*>(this->m_data)[1] + 8);
-    char* data = this->m_data + reinterpret_cast<uint32_t*>(this->m_data)[1] + 16;
+    char* chunk = this->m_data + ReadWdlWord(this->m_data + 4) + 8;
+    char* data = chunk + 8;
 
-    if (chunk[0] == 0x4D574D4F) {
+    if (ReadWdlWord(chunk) == 0x4D574D4F) {
         this->m_mapObjNames = data;
-        uint32_t* mwid = reinterpret_cast<uint32_t*>(data + chunk[1]);
-        this->m_mapObjNameOffsets = mwid + 2;
-        uint32_t* modf = reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(mwid) + mwid[1] + 8);
-        this->m_mapObjDefs = reinterpret_cast<SMMapObjDef*>(modf + 2);
-        this->m_mapObjDefCount = modf[1] >> 6;
-        data = reinterpret_cast<char*>(modf + 2) + modf[1] + 8;
+        char* mwid = data + ReadWdlWord(chunk + 4);
+        this->m_mapObjNameOffsets = reinterpret_cast<uint32_t*>(mwid + 8);
+        char* modf = mwid + ReadWdlWord(mwid + 4) + 8;
+        this->m_mapObjDefs = reinterpret_cast<SMMapObjDef*>(modf + 8);
+        this->m_mapObjDefCount = ReadWdlWord(modf + 4) >> 6;
+        data = modf + 16 + ReadWdlWord(modf + 4);
     }
 
     this->m_areaOffsets = reinterpret_cast<uint32_t*>(data);
@@ -151,12 +159,15 @@ void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
 
     for (uint32_t y = 0; y < 1024; y += 16) {
         for (uint32_t x = 0; x < 1024; x += 16) {
-            if (this->m_areaOffsets[index]) {
-                char* mare = this->m_data + this->m_areaOffsets[index];
+            const uint32_t areaOffset = ReadWdlWord(this->m_areaOffsets + index);
+            if (areaOffset) {
+                char* mare = this->m_data + areaOffset;
                 CMapAreaLow* area = CMap::AllocAreaLow();
                 this->m_areas[index] = area;
                 area->m_heights = reinterpret_cast<int16_t*>(mare + 8);
-                uint32_t* next = reinterpret_cast<uint32_t*>(mare + reinterpret_cast<uint32_t*>(mare)[1] + 8);
+                // MARE contains 545 int16 heights, so its following header is
+                // only two-byte aligned even in the original game archives.
+                char* next = mare + ReadWdlWord(mare + 4) + 8;
 
                 int32_t minHeight = 100000;
                 int32_t maxHeight = -100000;
@@ -196,8 +207,8 @@ void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
                 float dx = area->m_bbox.t.x - area->m_sphere.c.x;
                 area->m_sphere.r = sqrtf(dx * dx + dy * dy + dz * dz);
 
-                if (next[0] == 0x4D41484F) {
-                    uint16_t* holes = reinterpret_cast<uint16_t*>(next + 2);
+                if (ReadWdlWord(next) == 0x4D41484F) {
+                    uint16_t* holes = reinterpret_cast<uint16_t*>(next + 8);
                     area->m_holes = holes;
                     area->m_indexCount = 0;
 
