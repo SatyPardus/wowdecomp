@@ -151,6 +151,15 @@ int main(int argc, char** argv) {
             std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
             Require(owner && owner->DeviceCreate((__bridge void*)view, format), "Cannot create UI device");
             auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+            OsInputSetWindowResizeLock(1);
+            Require(!(window.styleMask & NSWindowStyleMaskResizable), "Native resize lock did not restrict the host window");
+            OsInputSetWindowResizeLock(0);
+            Require(window.styleMask & NSWindowStyleMaskResizable, "Native resize unlock lost the original window style");
+            window.styleMask &= ~NSWindowStyleMaskResizable;
+            OsInputSetWindowResizeLock(1); OsInputSetWindowResizeLock(0);
+            Require(!(window.styleMask & NSWindowStyleMaskResizable), "Native resize unlock made a fixed host resizable");
+            window.styleMask |= NSWindowStyleMaskResizable;
+            std::puts("Native window resize lock/unlock and fixed-window preservation passed");
             CVar::Initialize("/private/tmp/wow-ui-probe.wtf"); PropInitialize(); EventInitialize(1, 0);
             EventCreateContextEx(1, Initialize, Destroy, 1, 0); Step(); OsInputSetDrawableSize(600, 300);
             auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:600 height:300 mipmapped:NO];

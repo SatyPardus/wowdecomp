@@ -5,6 +5,7 @@
 #include "Engine/Source/Os/Apple/Input.h"
 #include <TargetConditionals.h>
 #include <stdexcept>
+#include <atomic>
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 #else
@@ -16,8 +17,22 @@ int32_t CGxDevice::DeviceAdapterID(uint16_t& vendor, uint16_t& device, uint32_t&
     vendor = 0; device = 0; driverHi = driverLo = 0;
     return 0;
 }
-int32_t CGxDevice::DeviceAdapterInfer(uint16_t& device) { device = 0; return 0; }
+int32_t CGxDevice::DeviceAdapterInfer(uint16_t& device) {
+    device = 0;
+    if (!MTLCreateSystemDefaultDevice()) return 0;
+    // The original generic tier 3 means hardware vertex processing, >2
+    // textures and SM2-class programmable fragments. All native Metal devices
+    // at our deployment targets meet it. This is a DBC capability category,
+    // not a PCI ID, nor a claim that every game effect is already implemented.
+    device = 3;
+    return 1;
+}
 int32_t CGxDevice::AdapterDesktopMode(CGxMonitorMode& mode) {
+    if (!NSThread.isMainThread) {
+        __block int32_t result;
+        dispatch_sync(dispatch_get_main_queue(), ^{ result = AdapterDesktopMode(mode); });
+        return result;
+    }
 #if TARGET_OS_OSX
     NSScreen* screen = NSScreen.mainScreen;
     if (!screen) { return 0; }
@@ -119,4 +134,41 @@ void OsInputSetMousePosition(int32_t x, int32_t y) {
 #else
     throw std::runtime_error("iOS pointer positioning is not connected");
 #endif
+}
+
+namespace {
+std::atomic<bool> resizeLocked{false};
+#if TARGET_OS_OSX
+__weak NSWindow* lockedWindow;
+bool restoreResizable, applyingResizeLock;
+#endif
+}
+void OsInputApplyWindowResizeLock(void* nativeView) {
+#if TARGET_OS_OSX
+    auto apply = ^{
+        if (applyingResizeLock) return; // AppKit style changes may reattach the view.
+        applyingResizeLock = true;
+        NSWindow* window = nativeView ? ((__bridge NSView*)nativeView).window : nil;
+        if (lockedWindow && (lockedWindow != window || !resizeLocked.load())) {
+            if (restoreResizable) lockedWindow.styleMask |= NSWindowStyleMaskResizable;
+            lockedWindow = nil;
+        }
+        if (window && resizeLocked.load() && lockedWindow != window) {
+            restoreResizable = (window.styleMask & NSWindowStyleMaskResizable) != 0;
+            lockedWindow = window;
+            window.styleMask &= ~NSWindowStyleMaskResizable;
+        }
+        applyingResizeLock = false;
+    };
+    if (NSThread.isMainThread) apply();
+    else dispatch_sync(dispatch_get_main_queue(), apply);
+#else
+    // UIKit owns scene/window sizing. This setting only restricts interactive
+    // window resizing on macOS; it must not block iOS orientation/scene changes.
+    (void)nativeView;
+#endif
+}
+void OsInputSetWindowResizeLock(int32_t lock) {
+    resizeLocked.store(lock != 0);
+    OsInputApplyWindowResizeLock(g_theGxDevicePtr ? g_theGxDevicePtr->DeviceWindow() : nullptr);
 }

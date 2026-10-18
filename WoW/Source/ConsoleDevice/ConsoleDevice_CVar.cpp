@@ -1,6 +1,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#if defined(__APPLE__)
+#include <charconv>
+#endif
 #include "ConsoleDevice.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
@@ -98,7 +101,13 @@ static bool CVGxColorBitsCallback(CVar* var, const char* oldValue, const char* v
             return true;
 
         case 24:
+#if defined(__APPLE__)
+            // gxColorBits counts RGB bits, including for Fmt_Argb8888 in the
+            // original s_formatToInt table. Native drawables retain alpha.
+            s_requestedFormat.m_colorFormat = CGxFormat::Fmt_Argb8888;
+#else
             s_requestedFormat.m_colorFormat = CGxFormat::Fmt_ArgbX888;
+#endif
             ConsoleWrite("set pending gxRestart", DEFAULT_COLOR);
             return true;
 
@@ -400,8 +409,18 @@ static bool CVGxStereoSeparationCallback(CVar* var, const char* oldValue, const 
 static bool CVGxResolutionCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
     int32_t width = -1;
     int32_t height = -1;
+#if defined(__APPLE__)
+    // sscanf's overflowing %d conversion is undefined; never publish invalid
+    // drawable dimensions from a saved/user-provided native configuration.
+    const char* end = value + std::strlen(value);
+    const auto x = std::from_chars(value, end, width);
+    if (x.ec != std::errc() || x.ptr == end || (*x.ptr != 'x' && *x.ptr != 'X')) return false;
+    const auto y = std::from_chars(x.ptr + 1, end, height);
+    if (y.ec != std::errc() || y.ptr != end || width <= 0 || height <= 0) return false;
+#else
     char separator;
     sscanf(value, "%d%c%d", &width, &separator, &height);
+#endif
 
     if (s_requestedFormat.m_window) {
         s_requestedFormat.m_size.x = width;
@@ -475,7 +494,7 @@ static bool CVGxResolutionCallback(CVar* var, const char* oldValue, const char* 
             }
 
             char entry[16];
-            SStrPrintf(entry, 32, "%dx%d", resolutions[j].x, resolutions[j].y);
+            SStrPrintf(entry, sizeof(entry), "%dx%d", resolutions[j].x, resolutions[j].y);
             strcat(message, entry);
         }
 
@@ -536,12 +555,21 @@ void RegisterStereoCVars() {
 // OFFSET: 0x0076A630
 void RegisterGxCVars() {
     const CGxFormat& format = *s_defaults.m_format;
+#if defined(__APPLE__)
+    const bool window = format.m_window != 0;
+#else
     bool window = s_locale == 4;
+#endif
     char value[260];
 
     s_cvWidescreen = CVar::Register("widescreen", "Allow widescreen support", 0, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvGxWindow = CVar::Register("gxWindow", "toggle fullscreen/window", 3, window ? "1" : "0", CVGxWindowCallback, CATEGORY_GRAPHICS, false, nullptr, false);
-    s_cvGxMaximize = CVar::Register("gxMaximize", "maximize game window", 3, window ? "1" : "0", CVGxMaximizeCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+#if defined(__APPLE__)
+    const bool maximize = format.m_maximize != 0;
+#else
+    const bool maximize = window;
+#endif
+    s_cvGxMaximize = CVar::Register("gxMaximize", "maximize game window", 3, maximize ? "1" : "0", CVGxMaximizeCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
     SStrPrintf(value, sizeof(value), "%s", s_formatToInt[format.m_colorFormat]);
     s_cvGxColorBits = CVar::Register("gxColorBits", "color bits", 3, value, CVGxColorBitsCallback, CATEGORY_GRAPHICS, false, nullptr, false);
@@ -552,7 +580,13 @@ void RegisterGxCVars() {
     SStrPrintf(value, sizeof(value), "%dx%d", format.m_size.x, format.m_size.y);
     s_cvGxResolution = CVar::Register("gxResolution", "resolution", 3, value, CVGxResolutionCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
-    s_cvGxRefresh = CVar::Register("gxRefresh", "refresh rate", 3, "75", CVGxRefreshCallback, CATEGORY_GRAPHICS, false, nullptr, false);
+#if defined(__APPLE__)
+    SStrPrintf(value, sizeof(value), "%u", format.m_refreshRate);
+    const char* refresh = value;
+#else
+    const char* refresh = "75";
+#endif
+    s_cvGxRefresh = CVar::Register("gxRefresh", "refresh rate", 3, refresh, CVGxRefreshCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvGxTripleBuffer = CVar::Register("gxTripleBuffer", "triple buffer", 3, "0", CVGxTripleBufferCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvGxApi = CVar::Register("gxApi", "graphics api", 3, g_gxApiNames[GxDefaultApi()], CVGxApiCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvGxVSync = CVar::Register("gxVSync", "vsync on or off", 3, "1", CVGxVSyncCallback, CATEGORY_GRAPHICS, false, nullptr, false);

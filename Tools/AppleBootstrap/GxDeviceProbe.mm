@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
+void CheckDisplaySettings(CGxDeviceMetal& device);
 void CheckGxFFXPasses(CGxDeviceMetal& device);
 void CheckGxFFXEffect(CGxDeviceMetal& device);
 void CheckGameEvents();
@@ -67,6 +68,7 @@ void CheckGxDevice(bool modelsOnly) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    CheckDisplaySettings(device);
     if (modelsOnly) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }
     auto& gpu = device.GPU();
     CGxShader* vertex[2]{}; CGxShader* pixel = nullptr;

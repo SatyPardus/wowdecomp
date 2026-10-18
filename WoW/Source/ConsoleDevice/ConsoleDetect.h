@@ -4,6 +4,8 @@
 #include <cstdint>
 #include "WoW/Source/Types.h"
 
+// Select the original DBC record/default tables without displaying UI or saving preferences.
+bool ConsoleDetectSelectHardware(Hardware& hardware, uint32_t cpuIdx);
 void ConsoleDetectDetectHardware(Hardware& hardware, bool& changed);
 void ConsoleDetectSaveHardware(const Hardware& hardware, bool& changed);
 void ConsoleDetectSetDefaults(DefaultSettings& defaults, const Hardware& hardware);

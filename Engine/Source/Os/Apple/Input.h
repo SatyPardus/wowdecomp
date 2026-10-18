@@ -7,6 +7,8 @@
 // Native hosts deliver drawable pixel dimensions and input through OsQueuePut.
 void OsInputSetDrawableSize(uint32_t width, uint32_t height);
 // Last absolute native event position, initially the virtual drawable origin.
+// Apply the saved resize policy when a native host view attaches/detaches.
+void OsInputApplyWindowResizeLock(void* nativeView);
 void OsInputGetQueuedPointer(int32_t* x, int32_t* y);
 
 // Copy native text into the queue. Never put a pointer in OSEVENT's 32-bit words.

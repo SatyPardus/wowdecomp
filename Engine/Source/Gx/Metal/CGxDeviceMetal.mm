@@ -1,4 +1,5 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Gx/Metal/UIShader.h"
 #include "Engine/Source/Gx/Metal/ModelShader.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -433,6 +434,7 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_shaderConstants[GxSh_Vertex] = m_caps.m_shaderConstants[GxSh_Pixel] = 256;
 }
 CGxDeviceMetal::~CGxDeviceMetal() {
+    if (m->window) OsInputApplyWindowResizeLock(nullptr);
     if (m->command) {
         m->EndRender();
         // Preserve already encoded uploads even when a caller unwinds a failed frame.
@@ -466,6 +468,7 @@ int32_t CGxDeviceMetal::DeviceCreate(GxWindowProc proc, const CGxFormat& format)
 int32_t CGxDeviceMetal::DeviceCreate(void* window, const CGxFormat& format) {
     if (!DeviceSetFormat(format)) { return 0; }
     m->window = window;
+    OsInputApplyWindowResizeLock(window);
     m_context = 1;
     m_windowVisible = m_windowFocus = 1;
     if (!m_vertexPool) { DeviceCreatePools(); DeviceCreateStreamBufs(); }
@@ -482,7 +485,7 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
     m->scissor = {0, 0, size_t(format.m_size.x), size_t(format.m_size.y)};
     return 1;
 }
-void CGxDeviceMetal::DeviceDestroy() { Require(!m->command, "End the Metal frame before destroying its host"); Drain(); m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy(); }
+void CGxDeviceMetal::DeviceDestroy() { Require(!m->command, "End the Metal frame before destroying its host"); Drain(); OsInputApplyWindowResizeLock(nullptr); m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy(); }
 void* CGxDeviceMetal::DeviceWindow() { return m->window; }
 void CGxDeviceMetal::CapsWindowSize(CRect& rect) { rect = m_curWindowRect; }
 int32_t CGxDeviceMetal::DeviceWM(EGxWM, uintptr_t, uintptr_t) { Unsupported("window message dispatch"); }

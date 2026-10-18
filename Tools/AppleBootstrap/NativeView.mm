@@ -86,6 +86,10 @@ int32_t Integral(double& remainder, double delta) {
     if (_secureInput) DisableSecureEventInput();
     if (_gameInputActive) OsInputSetMouseMode(OS_MOUSE_MODE_NORMAL);
 }
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    OsInputApplyWindowResizeLock((__bridge void*)self);
+}
 - (BOOL)acceptsFirstResponder { return YES; }
 - (BOOL)acceptsFirstMouse:(NSEvent*)event { return YES; }
 - (void)updateTrackingAreas {
