@@ -266,6 +266,12 @@ it does not accept agreements or create/delete characters. A 600-frame session
 has reached the original character-selection screen and shut down normally under
 Mac ASan/UBSan and Metal validation.
 
+`--enter-world CHARACTER` additionally requests original world entry once that
+exact character is selected and ready. It requires `--local-unchecked` and does
+not change the selected character. This is a development path: map loading now
+acquires subsequent native drawables for the original synchronous progress
+paints, but unsupported world operations still report failure explicitly.
+
 `AppleRealmClient` is a separate macOS command-line entry for a local AzerothCore
 server. It performs real SRP authentication, realm selection, encrypted world
 authentication and character enumeration using the original client code and

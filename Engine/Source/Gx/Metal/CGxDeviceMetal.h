@@ -18,6 +18,9 @@ public:
     EncodingStatistics EncodingStats() const;
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);
     id<MTLCommandBuffer> FrameCommand() const;
+    // Optional host acquisition for original synchronous loading-screen paints.
+    // The owner must outlive registration; headless callers keep explicit frames.
+    void SetHostFrameProvider(bool (*acquire)(CGxDeviceMetal&, void*), void* owner);
     void Drain();
     bool DeferDisplayRestart(void (*restart)());
     int32_t DeviceCreate(GxWindowProc proc, const CGxFormat& format) override;
@@ -80,6 +83,7 @@ public:
     void DeviceUnk82() override {}
     void DeviceUnk83(uint32_t, uint32_t) override {}
 private:
+    void EnsureFrame();
     bool ApplyHostFormat(CGxFormat& format);
     void ApplyRenderTarget();
     MTLViewport Viewport() const;

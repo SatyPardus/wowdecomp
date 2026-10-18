@@ -210,6 +210,8 @@ bool RectFits(const CiRect& rect, const CiRect& surface) {
 
 struct CGxDeviceMetal::Impl {
     void (*displayRestart)() = nullptr;
+    bool (*acquireFrame)(CGxDeviceMetal&, void*) = nullptr;
+    void* frameOwner = nullptr;
     explicit Impl(id<MTLDevice> device) : gpu(device) {}
     GxMetal::TextureDevice gpu;
     std::unordered_map<CGxPool*, Pool> pools;
@@ -507,6 +509,7 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
 void CGxDeviceMetal::DeviceDestroy() {
     Require(!m->command, "End the Metal frame before destroying its host");
     m->displayRestart = nullptr;
+    m->acquireFrame = nullptr; m->frameOwner = nullptr;
     Drain(); OsInputApplyWindowResizeLock(nullptr);
     if (m->window && OsGuiGetWindow(0) == m->window) OsGuiSetGxWindow(nullptr);
     m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy();
@@ -543,6 +546,16 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     if (resized) { m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)}; m_scissorRectDirty = 1; }
 }
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
+void CGxDeviceMetal::SetHostFrameProvider(bool (*acquire)(CGxDeviceMetal&, void*), void* owner) {
+    Require(NSThread.isMainThread, "Host frame provider requires the native host thread");
+    m->acquireFrame = acquire; m->frameOwner = acquire ? owner : nullptr;
+}
+void CGxDeviceMetal::EnsureFrame() {
+    if (m->command) return;
+    Require(NSThread.isMainThread && m_context && m->acquireFrame && m->acquireFrame(*this, m->frameOwner) && m->command,
+        "No drawable available for a synchronous game frame");
+}
+
 bool CGxDeviceMetal::DeferDisplayRestart(void (*restart)()) {
     Require(NSThread.isMainThread, "Display restart requires the native host thread");
     if (!m->command) return false;
@@ -574,6 +587,7 @@ void CGxDeviceMetal::ScenePresent() {
     if (restart) restart();
 }
 void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
+    EnsureFrame();
     Require(m->command && (mask & ~3u) == 0, "Invalid Metal Gx clear");
     if (!mask) { return; }
     if (mask & 2) { Require(m->pass.depthAttachment.texture != nil, "No depth surface to clear"); }
@@ -681,6 +695,7 @@ int32_t CGxDeviceMetal::BufUnlock(CGxBuf* buffer, uint32_t size) {
     return 1;
 }
 void CGxDeviceMetal::PrepareBuffers(CGxBuf *const *buffers, uint32_t count) {
+    if (count) EnsureFrame();
     Require(!count || (buffers && m->command), "Gx buffer preparation requires an active frame and buffer list");
     // Validate the full set before opening an encoder. Repeated buffers/pools
     // naturally become no-ops after their queued immutable copies are consumed.
@@ -1036,6 +1051,7 @@ void CGxDeviceMetal::ShaderConstantsSet(EGxShTarget target, uint32_t index, cons
 }
 
 void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
+    EnsureFrame();
     Require(m->command && batch && batch->m_count, "Gx draw requires an active frame and nonempty batch");
     auto integer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.u[0]; };
     auto pointer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.p; };
@@ -1388,6 +1404,7 @@ void CGxDeviceMetal::XformSetProjection(const C44Matrix& matrix) {
 
 // Fail at the actual call site rather than inherit the base class's empty operations.
 void CGxDeviceMetal::DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>& pixels) {
+    EnsureFrame();
     Require(m->command && m->pass.colorAttachments[0].texture.pixelFormat == MTLPixelFormatBGRA8Unorm, "Pixel readback requires a BGRA8 Gx frame");
     ClampRectToWindow(rect);
     const size_t width = std::max<int64_t>(0, int64_t(rect.maxX) - rect.minX), height = std::max<int64_t>(0, int64_t(rect.maxY) - rect.minY);
@@ -1401,6 +1418,7 @@ void CGxDeviceMetal::DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>& 
     m->ReadSurface(m->pass.colorAttachments[0].texture, rect, pixels.Ptr());
 }
 void CGxDeviceMetal::ReadFloatColor(CiRect& rect, TSGrowableArray<float>& pixels) {
+    EnsureFrame();
     Require(m->command && m->pass.colorAttachments[0].texture.pixelFormat == MTLPixelFormatR32Float, "Float color readback requires an R32F attachment");
     ClampRectToWindow(rect);
     const size_t width = std::max<int64_t>(0, int64_t(rect.maxX) - rect.minX), height = std::max<int64_t>(0, int64_t(rect.maxY) - rect.minY);
@@ -1409,6 +1427,7 @@ void CGxDeviceMetal::ReadFloatColor(CiRect& rect, TSGrowableArray<float>& pixels
     if (width && height) m->ReadSurface(m->pass.colorAttachments[0].texture, rect, pixels.Ptr());
 }
 void CGxDeviceMetal::DeviceReadDepths(CiRect& rect, TSGrowableArray<float>& depths) {
+    EnsureFrame();
     Require(m->command && m->pass.depthAttachment.texture, "Depth readback requires a Gx depth attachment");
     ClampRectToWindow(rect);
     const size_t width = std::max<int64_t>(0, int64_t(rect.maxX) - rect.minX), height = std::max<int64_t>(0, int64_t(rect.maxY) - rect.minY);
@@ -1480,6 +1499,7 @@ void CGxDeviceMetal::DeviceCopyTex(CGxTex* source, uint32_t sourcePlane, CGxTex*
 }
 int32_t CGxDeviceMetal::TexCopy(CGxTex* dest, const C2iVector& destPos, const C2iVector& sourcePos, const C2iVector& size, uint32_t level, uint32_t plane) {
     if (!m_context) { return 0; }
+    EnsureFrame();
     Require(m->command && dest && dest->m_flags.m_renderTarget && plane == 0, "Unsupported Gx framebuffer copy target, plane or lifecycle");
     ITexMarkAsUpdated(dest);
     id<MTLTexture> src = m->defaultPass.colorAttachments[0].texture, dst = m->textures.at(dest).gpu;
@@ -1492,6 +1512,7 @@ int32_t CGxDeviceMetal::TexCopy(CGxTex* dest, const C2iVector& destPos, const C2
 }
 int32_t CGxDeviceMetal::TexStretch(CGxTex* dest, const CiRect* destRect, const CiRect* sourceRect, uint32_t level, uint32_t face) {
     if (!m_context) { return 0; }
+    EnsureFrame();
     Require(m->command && dest && dest->m_flags.m_renderTarget && face == 0, "Unsupported Gx stretch target, face or lifecycle");
     ITexMarkAsUpdated(dest);
     id<MTLTexture> src = m->defaultPass.colorAttachments[0].texture, dst = m->textures.at(dest).gpu;

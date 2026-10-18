@@ -6,6 +6,7 @@
 #include "WoW/Source/WowServices/Apple/ClientSettings.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
+#include "WoW/Source/Glue/CharacterSelection.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "Engine/Source/Base/Base.h"
 #include "Engine/Source/Base/Prop.h"
@@ -41,6 +42,9 @@ CGxDeviceMetal* device;
 HPROPCONTEXT context;
 bool initialized;
 std::unique_ptr<NativeLoginInput> pendingLogin;
+std::string enterCharacter;
+bool entryQueued;
+uint32_t synchronousFrames;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 [[noreturn]] void Fatal(const char* message) {
     // Original initialization and packet dispatch are not exception-safe.
@@ -48,7 +52,7 @@ void Require(bool value, const char* message) { if (!value) throw std::runtime_e
     // shutdown routines; fail the process visibly at the native boundary.
     std::fprintf(stderr, "Native client stopped: %s\n", message);
     std::fflush(nullptr);
-    std::exit(EXIT_FAILURE);
+    std::_Exit(EXIT_FAILURE);
 }
 int32_t Initialize(const void* data, void* param) {
     context = PropGetSelectedContext();
@@ -58,12 +62,34 @@ int32_t Initialize(const void* data, void* param) {
     std::fprintf(stderr, "Original client initialized; Glue screen: %s\n", CGlueMgr::m_currentScreen);
     return result;
 }
+int32_t EnterSelectedCharacter(const void*, void*) {
+    const auto index = CCharacterSelection::s_selectionIndex;
+    Require(CGlueMgr::m_idleState == IDLE_NONE && !CGlueMgr::m_suspended &&
+        index >= 0 && uint32_t(index) < CCharacterSelection::s_characterList.Count(), "Selected character is not ready for world entry");
+    const auto& info = CCharacterSelection::s_characterList[index].m_characterInfo;
+    Require(enterCharacter == info.m_name, "World entry requires the explicitly named character to be selected");
+    std::fprintf(stderr, "Entering original world as %s on map %u\n", info.m_name, info.m_mapID);
+    enterCharacter.clear();
+    CGlueMgr::EnterWorld();
+    return 1;
+}
 int32_t Destroy(const void* data, void* param) {
     if (!initialized) return 1;
     initialized = false;
     const int32_t result = DestroyEngineCallback(data, param);
     std::fprintf(stderr, "Original client shutdown completed\n");
     return result;
+}
+bool AcquireSynchronousFrame(CGxDeviceMetal& gpu, void* owner) {
+    MTKView* view = (__bridge MTKView*)owner;
+    if (!view || view.paused || !view.window) return false;
+    // MTKView normally retains one drawable for its draw callback. Original
+    // map loading may present several times before that callback returns.
+    [view releaseDrawables];
+    auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
+    if (!pass || !drawable) return false;
+    gpu.BeginFrame(pass, drawable); ++synchronousFrames;
+    return true;
 }
 void SelectRuntime(const std::filesystem::path& data, const std::filesystem::path& requested) {
     namespace fs = std::filesystem;
@@ -89,6 +115,7 @@ void SelectRuntime(const std::filesystem::path& data, const std::filesystem::pat
 @property(nonatomic) BOOL active;
 @property(nonatomic) BOOL stopping;
 @property(nonatomic) NSUInteger frames;
+@property(nonatomic) NSUInteger characterFrames;
 @property(nonatomic) NSUInteger frameLimit;
 @end
 @implementation OriginalClientHost
@@ -147,6 +174,13 @@ void SelectRuntime(const std::filesystem::path& data, const std::filesystem::pat
             pendingLogin.reset();
             Require(CGlueMgr::m_idleState == IDLE_LOGIN_SERVER_LOGIN, "Original Glue did not start login");
         }
+        if (!enterCharacter.empty() && !entryQueued && !std::strcmp(CGlueMgr::m_currentScreen, "charselect") && CGlueMgr::m_idleState == IDLE_NONE) {
+            if (++self.characterFrames == 60) {
+                // Enter through the original timer phase of the next game
+                // frame, with a drawable active for loading-screen paints.
+                entryQueued = true; EventSetTimer(0, EnterSelectedCharacter, nullptr);
+            }
+        }
         if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; Glue screen: %s\n", CGlueMgr::m_currentScreen);
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
             if (NSString* file = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"]) {
@@ -181,11 +215,12 @@ int main(int argc, char** argv) {
     while (argument < argc && !std::strncmp(argv[argument], "--", 2)) {
         if (!std::strcmp(argv[argument], "--local-unchecked")) local = true;
         else if (!std::strcmp(argv[argument], "--login-stdin")) loginInput = true;
+        else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
-    if (argc - argument != 2 || (loginInput && !local)) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    if (argc - argument != 2 || ((loginInput || !enterCharacter.empty()) && !local)) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
@@ -231,6 +266,7 @@ int main(int argc, char** argv) {
             Require(device && device->DeviceWindow() == (__bridge void*)view, "Cannot create the native client display");
             view.device = device->GPU().device;
             view.colorPixelFormat = MTLPixelFormatBGRA8Unorm; view.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
+            device->SetHostFrameProvider(AcquireSynchronousFrame, (__bridge void*)view);
             view.framebufferOnly = NO; view.clearColor = MTLClearColorMake(0, 0, 0, 1);
             view.textInputRectProvider = ^NSRect {
                 auto* focused = CSimpleEditBox::s_currentFocus; CRect rect;
@@ -248,7 +284,9 @@ int main(int argc, char** argv) {
             [host resume]; [NSApp run]; [host suspend];
             view.delegate = nil; window.delegate = nil; NSApp.delegate = nil;
             OsIMEDestroy(); OsTimeShutdown(); EventDestroy();
+            device->SetHostFrameProvider(nullptr, nullptr);
             ConsoleDeviceDestroy(); device = nullptr;
+            std::fprintf(stderr, "Original synchronous loading frames: %u\n", synchronousFrames);
             Require(CVar::SaveAll(), "Cannot save native Config.wtf");
             CVar::Destroy(); ConsoleCommandDestroy(); CVar::s_configFile = nullptr;
             mounts.reset(); BaseDestroyGlobal(); GxLogClose(); StormDestroy();
