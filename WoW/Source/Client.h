@@ -86,6 +86,7 @@ const char* GetInstallLocationString();
 uint32_t GetM2CvarFlags();
 int32_t InitializeEngineCallback(const void* data, void* param);
 bool InitializeGlobal();
+void LoadMopaqFileSigningData(const char* locale);
 bool LocaleCallback(CVar* var, const char* oldValue, const char* value, void* arg);
 int main();
 int32_t Packet_SMSG_NOTIFICATION(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);

@@ -226,6 +226,28 @@ and race restrictions, selected-character login, failure/logout replies, rejecte
 authentication and truncated character lists. This checks protocol behavior;
 it does not create a playable player or connect to an external realm.
 
+`AppleClient` is the macOS host for the original engine/client initialization,
+GlueXML login interface, Event loop and shutdown. It mounts the original Data,
+loads the authenticated file-signature manifest and preserves GlueXML signature
+checks. This is a development client entry: interactive authentication and world
+entry are still being integrated, and native executable challenge verification
+currently fails explicitly.
+
+```sh
+cmake --build --preset macos-arm64 --target AppleClient
+build/macos-arm64/bin/AppleClient /absolute/path/to/client335a/Data /absolute/path/to/native-runtime
+```
+
+The explicit runtime directory must be outside the original installation. It
+contains `WTF/Config.wtf`, cache, logs and other relative client output. Existing
+configuration is loaded and saved through the original CVar system; credentials
+are not supplied by this command. `WOW_CLIENT_FRAMES=120` runs a bounded startup
+and shutdown; `WOW_CLIENT_CAPTURE=/absolute/path/to/login.png` saves the final
+GPU image. With no frame limit the window remains interactive. The original
+login interface and agreement display have run for 120 frames under Mac
+ASan/UBSan and Metal validation, followed by the original client teardown.
+This complete startup host has not yet been added to the iOS app.
+
 `AppleRealmClient` is a separate macOS command-line entry for a local AzerothCore
 server. It performs real SRP authentication, realm selection, encrypted world
 authentication and character enumeration using the original client code and

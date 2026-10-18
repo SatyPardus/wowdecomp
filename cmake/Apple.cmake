@@ -1,5 +1,5 @@
-# Incremental native port. This intentionally does not expose a WowClient
-# target until the game, graphics, sound and platform modules can link.
+# Incremental native port. AppleClient now links the original client startup;
+# world entry and remaining platform/rendering capabilities are still in progress.
 if (CMAKE_VERSION VERSION_LESS 3.21)
     message(FATAL_ERROR "Apple builds require CMake 3.21 or newer.")
 endif ()
@@ -9,7 +9,7 @@ cmake_policy(SET CMP0119 NEW)
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "The Apple port requires a 64-bit target.")
 endif ()
-message(STATUS "Apple foundation: shared core, archives and native Metal textures; full game is not yet linked")
+message(STATUS "Apple native targets: shared client core, original Glue startup and Metal")
 
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>)
 add_link_options(-Wl,-dead_strip)
@@ -507,6 +507,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     )
 else ()
     target_link_libraries(AppleMetalView PUBLIC "-framework Carbon")
+    add_executable(AppleClient Tools/AppleBootstrap/ClientHost.mm)
+    target_compile_options(AppleClient PRIVATE -fobjc-arc)
+    target_link_libraries(AppleClient PRIVATE AppleMetalView AppleClientCore)
     add_executable(AppleInputProbe Tools/AppleBootstrap/NativeInputProbe.mm)
     target_compile_options(AppleInputProbe PRIVATE -fobjc-arc)
     target_link_libraries(AppleInputProbe PRIVATE AppleMetalView)

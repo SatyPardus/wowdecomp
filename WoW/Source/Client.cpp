@@ -639,7 +639,7 @@ static void CheckAvailableLocales(char* locale) {
 }
 // VERIFY: 979d57c4 manual
 // OFFSET: 0x00402F60
-static void LoadMopaqFileSigningData(const char* locale) {
+void LoadMopaqFileSigningData(const char* locale) {
 #ifdef DISABLE_SIGNATURE_CHECKS
     return;
 #endif
@@ -694,7 +694,8 @@ static void LoadMopaqFileSigningData(const char* locale) {
     }
 
     bool expansion = GetClientExpansionLevel() >= 1;
-    uint32_t localeTag = *reinterpret_cast<const uint32_t*>(locale);
+    uint32_t localeTag;
+    memcpy(&localeTag, locale, sizeof(localeTag));
 
     while (record < data + size && SStrCmp(record, "NGIS", 4)) {
         char* hash = record + 7;
@@ -706,7 +707,8 @@ static void LoadMopaqFileSigningData(const char* locale) {
         char* end = SStrStr(name, "\r\n");
         *end = '\0';
 
-        uint32_t tag = *reinterpret_cast<const uint32_t*>(record);
+        uint32_t tag;
+        memcpy(&tag, record, sizeof(tag));
 
         if ((tag == 'esab' || tag == localeTag) && (record[5] == 'c' || (record[5] == 'e' && expansion))) {
             MD5 md5(hash);
