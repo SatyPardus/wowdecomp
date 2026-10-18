@@ -9,6 +9,7 @@
 #include "Engine/Source/Gx/Metal/WmoShader.h"
 #include "Engine/Source/Gx/Metal/LiquidShader.h"
 #include "Engine/Source/Gx/Metal/ShadowMapShader.h"
+#include "Engine/Source/Gx/Metal/DetailDoodadShader.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -105,6 +106,23 @@ struct TerrainDrawParameters {
     uint32_t vertexPermutation = 0, pixelPermutation = 0;
 };
 
+struct DetailDoodadVertexParameters {
+    simd_float4x4 worldView, projection;
+    simd_float4 fog, fade, sunDirection, ambient, diffuse;
+    TerrainPointLight lights[3];
+};
+struct DetailDoodadFragmentParameters {
+    simd_float4 fogColor, decodeScale;
+    float stateAlphaRef;
+    float padding[3]{};
+};
+static_assert(sizeof(DetailDoodadVertexParameters) == 352 && sizeof(DetailDoodadFragmentParameters) == 48, "Native detail-doodad layout");
+struct DetailDoodadDrawParameters {
+    DetailDoodadVertexParameters vertex{};
+    DetailDoodadFragmentParameters fragment{};
+    bool pointLights = false;
+};
+
 struct WmoVertexParameters {
     simd_float4x4 projection;
     ModelAffine worldView;
@@ -152,6 +170,7 @@ struct GeometryDraw {
     CGxBatch batch{};
     const ModelDrawParameters* model = nullptr;
     const ShadowMapDrawParameters* shadow = nullptr;
+    const DetailDoodadDrawParameters* detail = nullptr;
     const TerrainDrawParameters* terrain = nullptr;
     const WmoDrawParameters* wmo = nullptr;
     const LiquidDrawParameters* liquid = nullptr;
@@ -187,6 +206,8 @@ public:
     // Without one, these helpers encode an independent complete pass.
     void DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const QuadParameters& parameters, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
+        const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawShadowMap(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
         const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
@@ -211,6 +232,8 @@ public:
 
 private:
     id<MTLLibrary> m_library;
+    id<MTLFunction> m_detailVertex[2]{};
+    id<MTLFunction> m_detailFragment[2][2]{};
     id<MTLFunction> m_shadowVertex[3][2]{};
     id<MTLFunction> m_shadowFragment[2][2][2]{};
     id<MTLFunction> m_liquidVertex[3][4]{};
@@ -235,7 +258,7 @@ private:
     std::unordered_map<uint32_t, id<MTLSamplerState>> m_samplers;
     std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depthStates;
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format = GxVertexBufferFormats_Last,
-        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse, const TerrainDrawParameters* terrain = nullptr, const WmoDrawParameters* wmo = nullptr, const LiquidDrawParameters* liquid = nullptr, const ShadowMapDrawParameters* shadow = nullptr, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm);
+        bool depthAttachment = false, bool screenAtDepth = false, FragmentEffect effect = FragmentEffect::Unlit, bool signedWave = false, bool decodePacked = false, uint32_t modelPermutation = 0, bool shaderAlphaTest = false, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse, const TerrainDrawParameters* terrain = nullptr, const WmoDrawParameters* wmo = nullptr, const LiquidDrawParameters* liquid = nullptr, const ShadowMapDrawParameters* shadow = nullptr, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm, const DetailDoodadDrawParameters* detail = nullptr);
     id<MTLSamplerState> Sampler(const TextureDrawState& state);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 5>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 5>&, id<MTLRenderCommandEncoder>);

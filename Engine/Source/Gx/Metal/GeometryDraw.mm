@@ -23,6 +23,11 @@ void GxMetal::TextureDevice::DrawUnlit(id<MTLCommandBuffer> command, MTLRenderPa
     Require(geometry.effect == FragmentEffect::Unlit, "Unlit draw received a different native effect");
     DrawGeometry(command, pass, {texture, nil, nil, nil}, geometry, parameters, {state, state, state, state}, encoder);
 }
+void GxMetal::TextureDevice::DrawDetailDoodad(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
+    const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
+    Require(geometry.effect == FragmentEffect::DetailDoodad && geometry.detail, "Invalid native detail-doodad effect");
+    DrawGeometry(command, pass, {texture, nil, nil, nil, nil}, geometry, {}, {state, {}, {}, {}, {}}, encoder);
+}
 void GxMetal::TextureDevice::DrawShadowMap(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, id<MTLTexture> texture,
     const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder) {
     Require(geometry.effect == FragmentEffect::ShadowMap && geometry.shadow, "Invalid native shadow-map effect");
@@ -67,6 +72,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const GeometryDraw& geometry, const QuadParameters& parameters, const std::array<TextureDrawState, 5>& states, id<MTLRenderCommandEncoder> encoder) {
     const bool filter = geometry.effect == FragmentEffect::Box4 || geometry.effect == FragmentEffect::Gauss4;
     const bool model = IsModelEffect(geometry.effect);
+    const bool detail = geometry.effect == FragmentEffect::DetailDoodad;
+    Require(!detail || geometry.detail, "Missing native detail-doodad parameters");
     const bool shadow = geometry.effect == FragmentEffect::ShadowMap;
     Require(!shadow || (geometry.shadow && geometry.shadow->boneCount && geometry.shadow->boneCount <= geometry.shadow->bones.size()), "Invalid shadow-map palette");
     const bool liquid = IsLiquidEffect(geometry.effect);
@@ -127,7 +134,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     }
     bool decodePacked = false;
     for (unsigned i = 0; i < inputs; ++i) { decodePacked |= simd_any(states[i].decodeScale != simd_make_float4(1)); }
-    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest, model ? geometry.model->vertexEffect : ModelVertexEffect::Diffuse, geometry.terrain, geometry.wmo, geometry.liquid, geometry.shadow, target.pixelFormat);
+    id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry.format, hasDepth, geometry.screenAtDepth, geometry.effect, geometry.signedWave, decodePacked, model ? geometry.model->permutation : 0, model && geometry.model->shaderAlphaTest, model ? geometry.model->vertexEffect : ModelVertexEffect::Diffuse, geometry.terrain, geometry.wmo, geometry.liquid, geometry.shadow, target.pixelFormat, geometry.detail);
     std::array<id<MTLSamplerState>, 5> samplers{};
     for (unsigned i = 0; i < inputs; ++i) {
         Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
@@ -162,7 +169,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
-    if (shadow) {
+    if (detail) {
+        [encoder setVertexBytes:&geometry.detail->vertex length:sizeof(DetailDoodadVertexParameters) atIndex:0];
+    } else if (shadow) {
         [encoder setVertexBytes:&geometry.shadow->vertex length:sizeof(ShadowMapVertexParameters) atIndex:0];
         [encoder setVertexBytes:geometry.shadow->bones.data() length:geometry.shadow->boneCount * sizeof(ModelAffine) atIndex:2];
     } else if (model) {
@@ -173,7 +182,11 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     } else if (terrain) { [encoder setVertexBytes:&geometry.terrain->vertex length:sizeof(TerrainVertexParameters) atIndex:0];
     } else { [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:0]; }
     [encoder setVertexBuffer:geometry.vertices offset:geometry.vertexOffset atIndex:1];
-    if (shadow) {
+    if (detail) {
+        DetailDoodadFragmentParameters material = geometry.detail->fragment;
+        material.stateAlphaRef = state.alphaRef / 255.0f; material.decodeScale = state.decodeScale;
+        [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
+    } else if (shadow) {
         ShadowMapFragmentParameters material = geometry.shadow->fragment;
         material.stateAlphaRef = state.alphaRef / 255.0f; material.decodeScale = state.decodeScale;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];

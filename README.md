@@ -224,6 +224,15 @@ filtering and blending fail explicitly. The original wolf shadow gather/draw
 path exercises both opaque and cutout batches. Shadow receivers, complete world
 shadow queries and PCF depth textures are still incomplete.
 
+Native `DetailDoodad` rendering preserves sun and three-point-light paths,
+unnormalized terrain normals, vertex tint, distance fading, fog and independent
+state alpha testing. Sixty numeric GPU draws cover both non-shadow vertex and
+pixel variants. Original grass and bone resources pass through the world loader
+and `CDetailDoodadInst` vertex/index generation and texture batching, exercising
+both DBC orientation flags across resource recreation. These checks use explicit
+instance placement and lighting; world density/placement and shadow receivers
+remain incomplete.
+
 Original `Model2.wfx` projected materials now use native view-space projection
 for both texture coordinates, with the authored ModMod/ModAdd color and alpha
 rules. Forty additional vertex permutations cover rigid and skinned lit

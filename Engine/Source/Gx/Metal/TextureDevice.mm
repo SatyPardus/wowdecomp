@@ -89,7 +89,7 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     Pipeline(state, GxVBF_PCT);
 }
 
-id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid, const ShadowMapDrawParameters* shadow, MTLPixelFormat colorFormat) {
+id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, EGxVertexBufferFormat format, bool depthAttachment, bool screenAtDepth, FragmentEffect effect, bool signedWave, bool decodePacked, uint32_t modelPermutation, bool shaderAlphaTest, ModelVertexEffect vertexEffect, const TerrainDrawParameters* terrain, const WmoDrawParameters* wmo, const LiquidDrawParameters* liquid, const ShadowMapDrawParameters* shadow, MTLPixelFormat colorFormat, const DetailDoodadDrawParameters* detail) {
     Require(state.blend >= GxBlend_Opaque && state.blend < GxBlends_Last && state.colorWrite <= 15 && state.alphaRef <= 255,
         "Invalid Gx blend, color mask or alpha reference");
     Require(colorFormat == MTLPixelFormatBGRA8Unorm || colorFormat == MTLPixelFormatR32Float, "Unsupported pipeline color format");
@@ -104,6 +104,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(!IsWmoEffect(effect) || (wmo && SupportsWmoPermutation(GxSh_Vertex, wmo->permutation)), "Unsupported native WMO permutation");
     Require(!IsLiquidEffect(effect) || (liquid && liquid->lightCount < LiquidPermutationCount(effect, GxSh_Vertex)), "Unsupported native liquid permutation");
     Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
+    Require(effect != FragmentEffect::DetailDoodad || detail, "Missing detail-doodad parameters");
     // Leave eight bits for effect families; a growing material set must not
     // collide with the independent sampler/vertex specialization flags.
     const uint64_t key = uint64_t(state.blend) | (uint64_t(state.alphaRef != 0) << 4) | (uint64_t(state.colorWrite) << 5) |
@@ -113,7 +114,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         (uint64_t(terrain ? terrain->vertexPermutation : 0) << 35) | (uint64_t(terrain ? terrain->pixelPermutation : 0) << 42) |
         (uint64_t(wmo ? unsigned(wmo->vertexEffect) : 0) << 47) | (uint64_t(wmo ? wmo->permutation % 10 : 0) << 50) |
         (uint64_t(wmo && wmo->shaderAlphaTest) << 54) | (uint64_t(liquid ? liquid->lightCount : 0) << 55) |
-        (uint64_t(shadow ? shadow->skinning : 0) << 57) | (uint64_t(shadow && shadow->cutout) << 59) | (uint64_t(colorFormat == MTLPixelFormatR32Float) << 60);
+        (uint64_t(shadow ? shadow->skinning : 0) << 57) | (uint64_t(shadow && shadow->cutout) << 59) | (uint64_t(colorFormat == MTLPixelFormatR32Float) << 60) | (uint64_t(detail && detail->pointLights) << 61);
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -186,7 +187,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
         layout.layouts[1].stride = 40; descriptor.vertexDescriptor = layout;
     }
-    if (decodePacked && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
+    if (decodePacked && effect != FragmentEffect::DetailDoodad && effect != FragmentEffect::ShadowMap && !IsModelEffect(effect) && !IsWmoEffect(effect) && !IsLiquidEffect(effect) && effect != FragmentEffect::Terrain) {
         auto& fragment = m_decodedFragments[unsigned(effect)][state.alphaRef != 0][signedWave];
         if (!fragment) {
             const bool alpha = state.alphaRef != 0;
@@ -203,6 +204,28 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             if (!fragment) { throw std::runtime_error(error.localizedDescription.UTF8String ?: "Packed texture specialization failed"); }
         }
         descriptor.fragmentFunction = fragment;
+    }
+    if (effect == FragmentEffect::DetailDoodad) {
+        Require(!screenAtDepth && format == GxVBF_PNCT, "Detail-doodad rendering requires original PNCT vertices");
+        const bool alpha = state.alphaRef != 0;
+        auto constants = [MTLFunctionConstantValues new];
+        [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
+        [constants setConstantValue:&detail->pointLights type:MTLDataTypeBool atIndex:23];
+        auto& vertex = m_detailVertex[detail->pointLights]; auto& fragment = m_detailFragment[alpha][decodePacked];
+        NSError* error = nil;
+        if (!vertex) vertex = [m_library newFunctionWithName:@"detailDoodadVertex" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:@"detailDoodadFragment" constantValues:constants error:&error];
+        if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Detail-doodad specialization failed");
+        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
+        auto layout = [MTLVertexDescriptor vertexDescriptor];
+        const EGxVertexAttrib attrs[] = {GxVA_Position, GxVA_Normal, GxVA_Color0, GxVA_TexCoord0};
+        const MTLVertexFormat formats[] = {MTLVertexFormatFloat3, MTLVertexFormatFloat3, MTLVertexFormatUChar4Normalized_BGRA, MTLVertexFormatFloat2};
+        for (unsigned i=0;i<4;++i) {
+            layout.attributes[i].bufferIndex = 1; layout.attributes[i].offset = GxVertexAttribOffset(format, attrs[i]);
+            layout.attributes[i].format = formats[i];
+        }
+        layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     if (effect == FragmentEffect::ShadowMap) {
         Require(!screenAtDepth && (!shadow->cutout || GxVertexHasAttrib(format, GxVA_TexCoord0)) &&

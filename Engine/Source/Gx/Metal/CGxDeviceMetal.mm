@@ -82,6 +82,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
     if (GxMetal::IsLiquidEffect(effect)) return GxMetal::LiquidShaderFamily(effect, target);
     if (GxMetal::IsWmoEffect(effect)) return target == GxSh_Vertex ? GxMetal::WmoVertexFamily(wmoVertex) : GxMetal::WmoPixelFamily(effect);
     switch (effect) {
+        case GxMetal::FragmentEffect::DetailDoodad: return "DetailDoodad";
         case GxMetal::FragmentEffect::ShadowMap: return target == GxSh_Vertex ? "ShadowMap" : "ShadowMapSL";
         case GxMetal::FragmentEffect::Terrain: return target == GxSh_Vertex ? "Terrain" : "Terrain1";
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
@@ -116,6 +117,11 @@ void LoadModelShader(EGxShTarget target, GxMetal::FragmentEffect effect, GxMetal
     const auto path = std::string(target == GxSh_Vertex ? "Shaders\\Vertex\\vs_3_0\\" : "Shaders\\Pixel\\ps_3_0\\") +
         ShaderFamily(effect, target, vertexEffect) + ".bls";
     GxMetal::ValidateModelShader(ReadShader(path.c_str()), target, effect, vertexEffect);
+}
+
+void LoadDetailDoodadShader(EGxShTarget target) {
+    const auto path = std::string(target == GxSh_Vertex ? "Shaders\\Vertex\\vs_3_0\\" : "Shaders\\Pixel\\ps_3_0\\") + "DetailDoodad.bls";
+    GxMetal::ValidateDetailDoodadShader(ReadShader(path.c_str()), target);
 }
 
 void LoadShadowMapShader(EGxShTarget target) {
@@ -822,6 +828,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
         if (SStrCmpI(name, GxMetal::LiquidShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::Terrain, target), STORM_MAX_STR) == 0) effect = Effect::Terrain;
     if (SStrCmpI(name, ShaderFamily(Effect::ShadowMap, target), STORM_MAX_STR) == 0) effect = Effect::ShadowMap;
+    if (SStrCmpI(name, "DetailDoodad", STORM_MAX_STR) == 0) effect = Effect::DetailDoodad;
+    const bool detail = effect == Effect::DetailDoodad;
     const bool shadow = effect == Effect::ShadowMap;
     const bool wmo = GxMetal::IsWmoEffect(effect);
     const bool liquid = GxMetal::IsLiquidEffect(effect);
@@ -832,8 +840,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
         throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
     }
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? (target == GxSh_Vertex ? 128u : 32u) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
-        (terrain || model || wmo || liquid || shadow || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
+        count == (detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? (target == GxSh_Vertex ? 128u : 32u) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
+        (terrain || model || wmo || liquid || shadow || detail || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
     bool cached = true;
@@ -850,7 +858,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     }
     // Validate the mounted assets before adding any live shader objects.
     std::shared_ptr<GxMetal::UIShader> ui;
-    if (shadow) { LoadShadowMapShader(target); }
+    if (detail) { LoadDetailDoodadShader(target); }
+    else if (shadow) { LoadShadowMapShader(target); }
     else if (liquid) { LoadLiquidShader(target, effect); }
     else if (wmo) { LoadWmoShader(target, wmoVertex, effect); }
     else if (terrain) { LoadTerrainShader(target); }
@@ -885,7 +894,8 @@ void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const ch
     Require(shader && m->shaders.count(shader) && path && name && SStrCmpI(name, ShaderFamily(m->shaders.at(shader).effect, EGxShTarget(shader->m_target), m->shaders.at(shader).vertexEffect, m->shaders.at(shader).wmoVertex), STORM_MAX_STR) == 0 &&
         SStrCmpI(path, shader->m_target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0, "Unsupported native shader reload");
     auto& native = m->shaders.at(shader);
-    if (native.effect == GxMetal::FragmentEffect::ShadowMap) { LoadShadowMapShader(EGxShTarget(shader->m_target)); }
+    if (native.effect == GxMetal::FragmentEffect::DetailDoodad) { LoadDetailDoodadShader(EGxShTarget(shader->m_target)); }
+    else if (native.effect == GxMetal::FragmentEffect::ShadowMap) { LoadShadowMapShader(EGxShTarget(shader->m_target)); }
     else if (GxMetal::IsLiquidEffect(native.effect)) { LoadLiquidShader(EGxShTarget(shader->m_target), native.effect); }
     else if (GxMetal::IsWmoEffect(native.effect)) { LoadWmoShader(EGxShTarget(shader->m_target), native.wmoVertex, native.effect); }
     else if (native.effect == GxMetal::FragmentEffect::Terrain) { LoadTerrainShader(EGxShTarget(shader->m_target)); }
@@ -911,17 +921,22 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const bool liquid = GxMetal::IsLiquidEffect(effect);
     const bool terrain = effect == GxMetal::FragmentEffect::Terrain;
     const bool shadow = effect == GxMetal::FragmentEffect::ShadowMap;
-    const bool postProcess = !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
+    const bool detail = effect == GxMetal::FragmentEffect::DetailDoodad;
+    const bool postProcess = !detail && !shadow && !model && !terrain && !wmo && !liquid && effect != GxMetal::FragmentEffect::Unlit;
     const bool filter = effect == GxMetal::FragmentEffect::Box4 || effect == GxMetal::FragmentEffect::Gauss4;
     const bool wave = effect == GxMetal::FragmentEffect::GlowWave;
     const unsigned inputs = shadow ? unsigned((m->shaders.at(pixel).permutation & 8) != 0) : liquid ? GxMetal::LiquidTextureCount(effect) : wmo ? GxMetal::WmoTextureCount(effect) : terrain ? GxMetal::TerrainLayerCount(GxSh_Pixel, m->shaders.at(pixel).permutation) + 1 : model ? GxMetal::ModelTextureCount(effect) : filter ? 4 : wave ? 3 : postProcess ? 2 : 1;
     Require(postProcess ? !vertex : vertex && m->shaders.count(vertex) && vertex->m_target == GxSh_Vertex &&
-        ((liquid || shadow) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui)),
+        ((liquid || shadow || detail) ? m->shaders.at(vertex).effect == effect : wmo ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::WmoDiffuse : terrain ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::Terrain : model ? m->shaders.at(vertex).effect == GxMetal::FragmentEffect::ModelOpaque : bool(m->shaders.at(vertex).ui)),
         "Unsupported native Gx vertex/pixel shader combination");
     if (model && (!GxMetal::SupportsModelPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation, m->shaders.at(vertex).vertexEffect) ||
         !GxMetal::SupportsModelPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation))) {
         throw std::runtime_error("Metal model vertex/shadow permutation is not implemented (vertex " +
             std::to_string(m->shaders.at(vertex).permutation) + ", pixel " + std::to_string(m->shaders.at(pixel).permutation) + ")");
+    }
+    if (detail) {
+        Require(GxMetal::SupportsDetailDoodadPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
+            GxMetal::SupportsDetailDoodadPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation), "Detail-doodad shadow receivers are not implemented");
     }
     if (wmo) {
         Require(GxMetal::SupportsWmoPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
@@ -966,6 +981,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     GxMetal::GeometryDraw draw;
     std::optional<GxMetal::ModelDrawParameters> modelParameters;
     std::optional<GxMetal::ShadowMapDrawParameters> shadowParameters;
+    std::optional<GxMetal::DetailDoodadDrawParameters> detailParameters;
     std::optional<GxMetal::TerrainDrawParameters> terrainParameters;
     std::optional<GxMetal::WmoDrawParameters> wmoParameters;
     std::optional<GxMetal::LiquidDrawParameters> liquidParameters;
@@ -979,6 +995,17 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     if (postProcess) {
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
         draw.clipFromModel = world.m_mtx[world.m_level] * view.m_mtx[view.m_level] * m_projNative;
+    } else if (detail) {
+        auto& native = detailParameters.emplace(); draw.detail = &native;
+        native.pointLights = m->shaders.at(vertex).permutation == 3;
+        const float* constants = s_shadowConstants[1].constants;
+        auto vector = [&](unsigned index) { simd_float4 value; std::memcpy(&value, constants + index * 4, sizeof(value)); return value; };
+        std::memcpy(&native.vertex.worldView, constants, sizeof(simd_float4x4));
+        std::memcpy(&native.vertex.projection, constants + 16, sizeof(simd_float4x4));
+        native.vertex.fog = vector(8); native.vertex.fade = vector(9); native.vertex.sunDirection = vector(10);
+        native.vertex.ambient = vector(11); native.vertex.diffuse = vector(12);
+        for (unsigned i=0;i<3;++i) native.vertex.lights[i] = {vector(14+i*3), vector(15+i*3), vector(16+i*3)};
+        std::memcpy(&native.fragment.fogColor, s_shadowConstants[0].constants + 8, sizeof(simd_float4));
     } else if (shadow) {
         auto& native = shadowParameters.emplace(); draw.shadow = &native;
         native.skinning = GxMetal::ShadowMapSkinning(m->shaders.at(vertex).permutation);
@@ -1121,7 +1148,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             m->gpu.device.supports32BitFloatFiltering, "This GPU cannot filter R32F textures with the requested sampler");
     }
     const auto encoder = m->Render();
-    if (shadow) { m->gpu.DrawShadowMap(m->command, m->pass, textures[0], draw, inputs ? states[0] : state, encoder); }
+    if (detail) { m->gpu.DrawDetailDoodad(m->command, m->pass, textures[0], draw, states[0], encoder); }
+    else if (shadow) { m->gpu.DrawShadowMap(m->command, m->pass, textures[0], draw, inputs ? states[0] : state, encoder); }
     else if (model) { m->gpu.DrawModel(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
     else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }

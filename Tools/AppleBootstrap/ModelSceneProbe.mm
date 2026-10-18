@@ -24,6 +24,8 @@
 #include <memory>
 #include <stdexcept>
 
+void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPassDescriptor* pass);
+
 namespace {
 void CheckEmptySkeleton(CM2Scene* scene) {
     // Exercise a valid zero-bone instance with other arena-backed arrays. The
@@ -199,6 +201,7 @@ void CheckGameModels() {
         device.DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0);
         device.ScenePresent();
     }
+    CheckGameDetailDoodads(scene, device, pass);
     struct LayeredPose { uint32_t displayID, sequenceID, elapsed; };
     // The motorcycle's dual-UV effect is authored only in its death sequence:
     // color alpha stays zero through 500 ms, then rises to one at 1000 ms.
