@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/CAaBox.h"
 #include "Engine/Source/Storm/H/stpl.h"
@@ -16,6 +17,7 @@ class CiRect;
 class CAsyncObject;
 class SFileImpl;
 class CMapArea;
+class MapAreaData;
 class CMapAreaChunkLink;
 class CMapBaseObjLink;
 class CMapAreaTexture;
@@ -69,6 +71,7 @@ class CMapArea : public CMapBaseObj {
     /* 00B4 */ int32_t* m_textureFlags;
     /* 00B8 */ Liquid::CAreaData* m_liquid;
     /* 00BC */ CMapChunk* m_mapChunks [256];
+    std::unique_ptr<MapAreaData> m_nativeData;
 
     CMapArea();
     ~CMapArea() override;

@@ -1,4 +1,5 @@
 #include "WoW/Common/TerrainSurface.h"
+#include "WoW/Source/WorldClient/MapAreaData.h"
 #include "WoW/Source/LiquidSystem/Liquid.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include <cmath>
@@ -13,6 +14,55 @@ uint32_t Word(const std::vector<uint8_t>& bytes, size_t offset) {
     uint32_t word; std::memcpy(&word, bytes.data() + offset, 4); return word;
 }
 void Write(std::vector<uint8_t>& bytes, size_t offset, uint32_t word) { std::memcpy(bytes.data() + offset, &word, 4); }
+void CheckAreaTables(const std::vector<uint8_t>& adt, std::ostream& report) {
+    std::vector<uint8_t> unaligned(adt.size()+1);
+    std::memcpy(unaligned.data()+1, adt.data(), adt.size());
+    MapAreaData native(unaligned.data()+1, adt.size());
+    Require(!std::memcmp(&native.header, adt.data()+20, 64), "ADT header bytes changed");
+    auto compare = [&](const auto& records, uint32_t offset) {
+        if (!offset) { Require(records.empty(), "Absent ADT table gained records"); return; }
+        const auto size = Word(adt, size_t(offset)+24);
+        Require(records.size()*sizeof(records[0]) == size, "ADT table record count changed");
+        if (size) Require(!std::memcmp(records.data(), adt.data()+offset+28, size), "ADT table bytes changed");
+    };
+    compare(native.chunks, native.header.m_mcin);
+    compare(native.textureNames, native.header.m_mtex);
+    compare(native.modelNames, native.header.m_mmdx); compare(native.modelOffsets, native.header.m_mmid);
+    compare(native.wmoNames, native.header.m_mwmo); compare(native.wmoOffsets, native.header.m_mwid);
+    compare(native.doodads, native.header.m_mddf); compare(native.objects, native.header.m_modf);
+    compare(native.textureFlags, native.header.m_mtxf);
+    Require(reinterpret_cast<uintptr_t>(native.doodads.data()) % alignof(SMDoodadDef) == 0 &&
+        reinterpret_cast<uintptr_t>(native.objects.data()) % alignof(SMMapObjDef) == 0, "ADT object tables are unaligned");
+    std::fill(unaligned.begin(), unaligned.end(), 0);
+    compare(native.doodads, native.header.m_mddf); compare(native.objects, native.header.m_modf);
+    if (native.header.m_flags & 1)
+        Require(!std::memcmp(native.flyingBounds.data(), adt.data()+native.header.m_mfbo+28, 36), "ADT flight bounds changed");
+    auto reject = [&](std::vector<uint8_t> changed) {
+        bool failed = false;
+        try { MapAreaData invalid(changed.data(), changed.size()); } catch (const std::runtime_error&) { failed = true; }
+        Require(failed, "Malformed ADT area table was accepted");
+    };
+    auto changed = adt; changed.pop_back(); reject(changed);
+    changed = adt; Write(changed, 24, native.header.m_mcin+1); reject(changed);
+    changed = adt; Write(changed, native.header.m_mcin+32, 0xFFFFFFFF); reject(changed);
+    if (!native.modelOffsets.empty()) {
+        changed = adt; Write(changed, native.header.m_mmid+28, uint32_t(native.modelNames.size())); reject(changed);
+    }
+    if (!native.doodads.empty()) {
+        changed = adt; Write(changed, native.header.m_mddf+28, uint32_t(native.modelOffsets.size())); reject(changed);
+    }
+    if (!native.objects.empty()) {
+        changed = adt; Write(changed, native.header.m_modf+28, uint32_t(native.wmoOffsets.size())); reject(changed);
+    }
+    for (const auto& chunk : native.chunks) if (Word(adt, chunk.m_offset+24)) {
+        changed = adt;
+        Write(changed, chunk.m_offset+Word(adt, chunk.m_offset+40)+8, uint32_t(native.doodads.size()));
+        reject(changed); break;
+    }
+    report << "  ADT area: " << native.doodads.size() << " doodad placements, " << native.objects.size()
+        << " WMO placements, " << native.modelOffsets.size()+native.wmoOffsets.size()
+        << " filename references; aligned ownership and invalid-reference rejection passed\n";
+}
 CImVector BlendPixel(const Terrain::BlendTexture& image, unsigned x, unsigned y) {
     if (!image.rgba.empty()) return image.rgba[y * image.side + x];
     const auto value = image.packed[y * image.side + x];
@@ -80,6 +130,7 @@ void CheckTerrainResources(const ClientData& client, std::ostream& report) {
         Require(map.bytes.size() >= 52 && Word(map.bytes, 12) == 0x4D504844, "Terrain WDT header missing");
         const bool bigAlpha = (Word(map.bytes, 20) & 4) != 0;
         const auto asset = client.Read(base + "_" + std::to_string(test.x) + "_" + std::to_string(test.y) + ".adt", 64 * 1024 * 1024, true);
+        CheckAreaTables(asset.bytes, report);
         CheckTerrainLiquids(asset.bytes, report);
         // Exercise even an unaligned file base, in addition to the real ADT's
         // naturally unaligned inner chunks. The source must remain untouched.

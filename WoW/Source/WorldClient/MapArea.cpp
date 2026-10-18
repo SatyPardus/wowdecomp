@@ -1,6 +1,8 @@
 #include "MapArea.h"
+#include "MapAreaData.h"
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include "Engine/Source/Services/AsyncFile.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CiRect.h"
@@ -179,11 +181,11 @@ void CMapArea::LoadTerrainTexture(CMapAreaTexture* areaTexture, int32_t textureI
             areaTexture->m_texture = TextureCreateSolid(color);
         }
     } else {
-        char fileName[256];
-        SStrCopy(fileName, areaTexture->m_textureName, STORM_MAX_STR);
-        char* ext = SStrChrR(fileName, '.');
-        SStrCopy(ext, "_s.blp", STORM_MAX_STR);
-        areaTexture->m_texture = CMap::LoadTexture(fileName);
+        std::string fileName(areaTexture->m_textureName);
+        const auto ext = fileName.rfind('.');
+        if (ext == std::string::npos) throw std::runtime_error("ADT specular texture has no extension");
+        fileName.replace(ext, std::string::npos, "_s.blp");
+        areaTexture->m_texture = CMap::LoadTexture(fileName.c_str());
     }
 }
 
@@ -305,52 +307,25 @@ void CMapArea::LoadTextures(char* fileNames, uint32_t fileNamesSize) {
 // VERIFY: 2e3ea90a manual
 // OFFSET: 0x007D6EF0
 void CMapArea::ProcessIffChunks() {
-    SIffChunk* version = static_cast<SIffChunk*>(this->m_fileBuffer);
-    uint8_t* header = reinterpret_cast<uint8_t*>(&version->m_data) + version->m_size + offsetof(SIffChunk, m_data);
-
-    this->m_header = reinterpret_cast<SMAreaHeader*>(header);
-    this->m_chunkInfo = reinterpret_cast<SMChunkInfo*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mcin)->m_data);
-    char* textureNames = reinterpret_cast<char*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mtex)->m_data);
-    this->m_doodadDef = reinterpret_cast<SMDoodadDef*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mddf)->m_data);
-    this->m_mapObjDef = reinterpret_cast<SMMapObjDef*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_modf)->m_data);
-    this->m_m2FileNames = reinterpret_cast<char*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mmdx)->m_data);
-    this->m_wmoFileNames = reinterpret_cast<char*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mwmo)->m_data);
-    this->m_modelFilenamesOffsets = reinterpret_cast<uint32_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mmid)->m_data);
-    this->m_wmoFilenamesOffsets = reinterpret_cast<uint32_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mwid)->m_data);
-
-    if (this->m_header->m_flags & 0x1) {
-        this->m_flyingBbox = reinterpret_cast<int16_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mfbo)->m_data);
-    }
-
-    uint32_t liquidOffset;
-    std::memcpy(&liquidOffset, header + offsetof(SMAreaHeader, m_mh2o), sizeof(liquidOffset));
-    if (liquidOffset) {
-        const size_t offset = size_t(header - static_cast<uint8_t*>(m_fileBuffer)) + liquidOffset;
-        if (m_fileSize < 0 || offset > size_t(m_fileSize) || size_t(m_fileSize)-offset < 8)
-            throw std::runtime_error("ADT liquid chunk offset out of bounds");
-        const auto* chunk = static_cast<const uint8_t*>(m_fileBuffer) + offset;
-        uint32_t token, size;
-        std::memcpy(&token, chunk, 4); std::memcpy(&size, chunk+4, 4);
-        if (token != 0x4D48324F || size > size_t(m_fileSize)-offset-8)
-            throw std::runtime_error("Invalid ADT liquid chunk extent");
-        if (size) {
-            void* mem = SMemAlloc(sizeof(Liquid::CAreaData), __FILE__, __LINE__, 0);
-            auto* liquid = new (mem) Liquid::CAreaData(nullptr);
-            try { liquid->SetData(chunk+8, size); }
-            catch (...) { liquid->~CAreaData(); SMemFree(mem, __FILE__, __LINE__, 0); throw; }
-            if (m_liquid) { m_liquid->~CAreaData(); SMemFree(m_liquid, __FILE__, __LINE__, 0); }
-            m_liquid = liquid;
-        }
-    }
-
-    if (this->m_header->m_mtxf) {
-        this->m_textureFlags = reinterpret_cast<int32_t*>(&reinterpret_cast<SIffChunk*>(header + this->m_header->m_mtxf)->m_data);
-    }
-
-    this->LoadTextures(textureNames, reinterpret_cast<SIffChunk*>(header + this->m_header->m_mtex)->m_size);
-
-    this->m_doodadDefCount = reinterpret_cast<SIffChunk*>(header + this->m_header->m_mddf)->m_size / sizeof(SMDoodadDef);
-    this->m_mapObjDefCount = reinterpret_cast<SIffChunk*>(header + this->m_header->m_modf)->m_size / sizeof(SMMapObjDef);
+    if (m_nativeData) throw std::runtime_error("ADT area tables are already loaded");
+    // Finish all file validation before publishing pointers or starting texture
+    // loads. Only the original per-chunk loader retains views into file bytes.
+    auto native = std::make_unique<MapAreaData>(m_fileBuffer, m_fileSize < 0 ? 0 : size_t(m_fileSize));
+    m_header = &native->header;
+    m_chunkInfo = native->chunks.data();
+    m_doodadDef = native->doodads.data();
+    m_mapObjDef = native->objects.data();
+    m_doodadDefCount = int32_t(native->doodads.size());
+    m_mapObjDefCount = int32_t(native->objects.size());
+    m_m2FileNames = native->modelNames.data();
+    m_wmoFileNames = native->wmoNames.data();
+    m_modelFilenamesOffsets = native->modelOffsets.data();
+    m_wmoFilenamesOffsets = native->wmoOffsets.data();
+    m_flyingBbox = m_header->m_flags & 1 ? native->flyingBounds.data() : nullptr;
+    m_textureFlags = native->textureFlags.empty() ? nullptr : native->textureFlags.data();
+    m_liquid = native->liquid.get();
+    m_nativeData = std::move(native);
+    LoadTextures(m_nativeData->textureNames.data(), uint32_t(m_nativeData->textureNames.size()));
 }
 
 // VERIFY: ff270d7a auto
@@ -377,6 +352,7 @@ CMapArea::CMapArea() {
     memset(this->m_mapChunks, 0, sizeof(this->m_mapChunks));
     this->m_fileBuffer = nullptr;
     this->m_fileSize = 0;
+    this->m_header = nullptr;
     this->unused_008C = 0;
     this->m_doodadDef = nullptr;
     this->m_mapObjDef = nullptr;
@@ -612,11 +588,7 @@ void CMapArea::QueryLiquidSounds(C3Vector* pos, float radius, TSGrowableArray<Wo
 // VERIFY: e54d69d6 manual
 // OFFSET: [0x007D6E10, 0x007D7120]
 CMapArea::~CMapArea() {
-    if (this->m_liquid) {
-        this->m_liquid->~CAreaData();
-        SMemFree(this->m_liquid, __FILE__, __LINE__, 0);
-        this->m_liquid = nullptr;
-    }
+    this->m_liquid = nullptr;
 
     if (this->m_fileBuffer) {
         CMapArea::FreeAsyncLoadBuffer(this->m_fileBuffer, this->m_fileSize);

@@ -1,4 +1,7 @@
 #include "Tools/AppleBootstrap/TerrainPreview.h"
+#include "WoW/Source/WorldClient/MapAreaData.h"
+#include "Engine/Source/Services/AsyncFile.h"
+#include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include <cstdio>
@@ -6,7 +9,35 @@
 #include <cstring>
 #include <stdexcept>
 
+namespace {
+void CheckOriginalAreaLoad() {
+    const auto specular = CMap::enableSpecularTerrain;
+    struct Restore { decltype(specular) value; ~Restore() { CMap::enableSpecularTerrain = value; } } restore{specular};
+    CMap::enableSpecularTerrain = 1;
+    for (const char* name : {"World\\Maps\\Azeroth\\Azeroth_32_48.adt", "World\\Maps\\Northrend\\Northrend_32_32.adt"}) {
+        CMapArea area;
+        struct Purge { CMapArea& area; ~Purge() { area.Purge(); } } purge{area};
+        area.Load(name);
+        AsyncFileReadWait(area.m_asyncObject);
+        if (area.m_asyncObject || !area.m_nativeData || area.m_header != &area.m_nativeData->header ||
+            area.m_chunkInfo != area.m_nativeData->chunks.data() || area.m_doodadDef != area.m_nativeData->doodads.data() ||
+            area.m_mapObjDef != area.m_nativeData->objects.data() || area.m_liquid != area.m_nativeData->liquid.get())
+            throw std::runtime_error("Original asynchronous ADT loader did not publish its owned tables");
+        for (uint32_t i = 0; i < area.m_textures.Count(); ++i)
+            if (!area.m_textures[i].m_texture || !TextureGetGxTex(area.m_textures[i].m_texture, 1, nullptr))
+                throw std::runtime_error("Original ADT texture table did not load");
+        const auto* source = static_cast<const uint8_t*>(area.m_fileBuffer)+20+area.m_header->m_mcin+8;
+        SMChunkInfo first; std::memcpy(&first, source, sizeof(first));
+        area.m_chunkInfo[0].m_flags ^= 1;
+        if (std::memcmp(&first, source, sizeof(first))) throw std::runtime_error("ADT runtime flags modified source bytes");
+        std::fprintf(stderr, "Original ADT area %s: %d doodads, %d WMOs, %u resident textures; owned table lifecycle passed\n",
+            name, area.m_doodadDefCount, area.m_mapObjDefCount, area.m_textures.Count());
+    }
+}
+}
+
 void CheckGameTerrain() {
+    CheckOriginalAreaLoad();
     auto &device = *static_cast<CGxDeviceMetal *>(g_theGxDevicePtr);
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:256 height:256 mipmapped:NO];
     descriptor.usage = MTLTextureUsageRenderTarget;
