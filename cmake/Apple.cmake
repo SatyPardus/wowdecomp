@@ -68,6 +68,7 @@ add_library(AppleFoundation STATIC
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/OsMemory.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/System.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/Path.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/Source/BlizzardCore/Source/System/Version/Apple/Version.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Time.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Storm/Source/Apple/SReg.cpp
     ${CMAKE_SOURCE_DIR}/Engine/Source/Os/Apple/TimeManager.cpp
@@ -209,6 +210,7 @@ add_library(AppleGameLogin STATIC
     WoW/Source/WowServices/Login.cpp
     WoW/Source/WowServices/GruntLogin.cpp
     WoW/Source/WowServices/BattlenetLogin.cpp)
+target_sources(AppleGameLogin PRIVATE WoW/Source/WowServices/Apple/BattlenetLogin.cpp)
 target_link_libraries(AppleGameLogin PUBLIC AppleGameNetwork Battlenet "-framework Security")
 add_library(AppleLoginProbeCore STATIC Tools/AppleBootstrap/LoginProbe.cpp)
 target_link_libraries(AppleLoginProbeCore PUBLIC AppleGameLogin)

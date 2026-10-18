@@ -1,4 +1,5 @@
 #include "Engine/Source/Os/OsVersionHash.h"
+#include "Engine/Source/BlizzardCore/Source/System/Version/Version.h"
 #import <Foundation/Foundation.h>
 #include <array>
 #include <cstdio>
@@ -68,6 +69,10 @@ void CheckVersionInfo(const std::string& scratch) {
         Save(filename, valid);
         OsFileVersionInfo info(filename.c_str());
         CheckVersions(info, {3,3,5,12340}, {1,2,3,65535});
+        Blizzard::Version::FileVersion version{};
+        Require(Blizzard::Version::GetFileVersion(filename.c_str(), version) && version.m_major == 3 &&
+            version.m_minor == 3 && version.m_build == 5 && version.m_revision == 12340,
+            "Shared component version query confused file/product metadata");
         Require(info.m_data.Count() == 92 && !std::memcmp(info.m_data.Ptr(), valid.data() + 640, 92), "Version resource bytes were rewritten");
         for (size_t length : {0u, 1u, 63u, 127u, 151u, 375u, 415u, 511u, 527u, 551u, 575u, 591u, 639u, 731u, 1023u})
             reject(Bytes(valid.begin(), valid.begin() + length));
@@ -102,6 +107,13 @@ void CheckVersionInfo(const std::string& scratch) {
         !OsFileVersionInfo("").m_data.Count() && !OsFileVersionInfo((scope.path + "/missing").c_str()).m_data.Count(),
         "Non-file version metadata was accepted");
     OsFileVersionInfo current(nullptr);
+    Blizzard::Version::FileVersion unavailable{11, 22, 33, 44};
+    Require(!Blizzard::Version::GetFileVersion((scope.path + "/missing").c_str(), unavailable) &&
+        unavailable.m_major == 11 && unavailable.m_minor == 22 && unavailable.m_build == 33 && unavailable.m_revision == 44,
+        "Failed component version query modified its output");
+    Blizzard::Version::FileVersion native{};
+    Require(Blizzard::Version::GetFileVersion(nullptr, native) == bool(current.m_data.Count()),
+        "Shared component query differs from native bundle version availability");
     if ([NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"])
         CheckVersions(current,{1,0,0,0},{0,1,0,0}); // Actual native bootstrap bundle metadata.
     else Require(!current.m_data.Count(), "Unversioned command-line executable invented version metadata");
@@ -116,6 +128,10 @@ void CheckInstalledVersions(const std::string& dataRoot) {
         const auto path = root / item.name;
         if (!std::filesystem::exists(path)) continue; // A Data-only iOS installation need not contain Windows binaries.
         OsFileVersionInfo info(path.c_str()); CheckVersions(info,item.file,item.product);
+        Blizzard::Version::FileVersion version{};
+        Require(Blizzard::Version::GetFileVersion(path.c_str(), version) && version.m_major == item.file[0] &&
+            version.m_minor == item.file[1] && version.m_build == item.file[2] && version.m_revision == item.file[3],
+            "Shared component query differs from original installed file version");
         std::fprintf(stderr,"Original %s version: %u.%u.%u.%u; %u resource bytes read without loading code\n", item.name,
             info.m_fileVersion[0],info.m_fileVersion[1],info.m_fileVersion[2],info.m_fileVersion[3],info.m_data.Count());
     }

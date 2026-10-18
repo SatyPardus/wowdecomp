@@ -1,6 +1,7 @@
 #include "WoW/Source/Battlenet/Battlenet.h"
 #include "WoW/Source/Battlenet/BattlenetProtocol.h"
 #include "WoW/Source/Battlenet/GeneralFunction.h"
+#include "WoW/Source/Battlenet/Apple/Resolver.h"
 #include <array>
 #include <cerrno>
 #include <cstdio>
@@ -36,6 +37,18 @@ template<class T> void CopyProtocol(const T& from, T& to) {
 }
 
 void CheckBattlenetCore() {
+    Battlenet::Client::DNSInfo dns;
+    for (const char* hostname : {"localhost", "127.0.0.1", "127.0.0.1:1119"}) {
+        Require(Battlenet::ResolveNativeIPv4(hostname, dns) && dns.m_addresses.m_count == 1 &&
+            dns.m_addresses[0].m_value[0] == 127 && dns.m_addresses[0].m_value[1] == 0 &&
+            dns.m_addresses[0].m_value[2] == 0 && dns.m_addresses[0].m_value[3] == 1,
+            "Native Battle.net resolver changed its IPv4 address bytes");
+    }
+    for (const char* hostname : {static_cast<const char*>(nullptr), "", "::1"}) {
+        Require(!Battlenet::ResolveNativeIPv4(hostname, dns) && !dns.m_addresses.m_count && !dns.m_name.m_length,
+            "Native Battle.net resolver retained stale address/name on failure");
+    }
+    std::fputs("Battle.net native resolver: localhost, IPv4 and numeric address:port bytes, failure clearing and IPv6 rejection passed\n", stderr);
     Allocator allocator;
     for (unsigned cycle = 0; cycle != 2; ++cycle) {
         Library first(Battlenet::Library::Load("/usr/lib/libSystem.B.dylib", allocator));

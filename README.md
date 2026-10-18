@@ -958,6 +958,12 @@ Mac sanitizer and simulator checks exercise exact BSN bit/address bytes, native
 protocol field/array/UTF-8/optional adapters and 64-bit arguments/reference counts.
 The external Battle.net authentication component is still unavailable; this does
 not establish Battle.net login or replace its security checks.
+Its native IPv4 resolver now preserves the original single-address callback and
+network byte order, with numeric address:port parsing before DNS (DNS proxies can
+otherwise synthesize an address for this invalid hostname form). Localhost,
+numeric addresses and failure clearing run on Mac and iOS Simulator. The shared
+Blizzard file-version query uses the bounded PE/native bundle metadata reader;
+PE32/PE32+ and the original client components are checked without executing them.
 This compile coverage includes the original game UI and scripts; it does not
 establish full client startup or runtime coverage of those interfaces.
 The original `Wow.ini` profile reader now runs through SFile on Apple, retaining
