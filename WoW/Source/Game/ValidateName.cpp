@@ -859,8 +859,8 @@ uint16_t ToLower(uint16_t c) {
 void CaseAccentInsensitiveParse(char* string, uint32_t size, int32_t locale) {
     uint16_t wide[512];
     uint16_t folded[512];
-    memset(wide, 0, 512);
-    memset(folded, 0, 512);
+    memset(wide, 0, sizeof(wide));
+    memset(folded, 0, sizeof(folded));
 
     switch (locale) {
         case 0: {
