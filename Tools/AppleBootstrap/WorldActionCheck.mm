@@ -634,7 +634,135 @@ bool CheckNativeWorldQuestAction(WowNativeView* view, bool acceptQuest) {
     return false;
 }
 
+static bool CheckNativeWorldEquipment(WowNativeView* view) {
+    struct SavedSlot { unsigned bag, slot; WOWGUID guid; uint32_t count; };
+    static unsigned phase, readyFrames, stableFrames, bagIndex, bagSlot;
+    static uint32_t coins, entry;
+    static WOWGUID item;
+    static std::array<WOWGUID,19> equipment;
+    static std::vector<SavedSlot> contents;
+    static NSPoint point;
+    static bool releaseMouse;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 11) return true;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) { Require(!phase,"World left during equipment check"); return false; }
+    if (!phase && ++readyFrames < 120) return false;
+    auto frame = [](const char* name) { return static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name,CSimpleFrame::GetObjectType())); };
+    auto* character = frame("CharacterFrame");
+    auto* chestButton = frame("CharacterChestSlot");
+    Require(character && chestButton,"Original character equipment UI is missing");
+    auto bag = [&](unsigned index) -> CGBag_C* {
+        if (!index) return player->GetBag();
+        auto* container = player->GetBag()->GetItemPointer(18+index);
+        return container ? container->GetBag() : nullptr;
+    };
+    auto slotItem = [&](unsigned index, unsigned slot) { auto* owner = bag(index); return owner ? owner->GetItemPointer(index ? slot-1 : slot+22) : nullptr; };
+    auto guid = [](const CGItem_C* object) { return object ? object->m_obj->m_guid : WOWGUID(); };
+    auto bagFrame = [&]() -> CSimpleFrame* {
+        for (unsigned i=1;i<=13;++i) {
+            char name[32]; std::snprintf(name,sizeof(name),"ContainerFrame%u",i); auto* candidate=frame(name);
+            if (candidate && candidate->m_isVisible && candidate->m_id==bagIndex) return candidate;
+        }
+        return nullptr;
+    };
+    auto bagButton = [&]() { char name[40]; std::snprintf(name,sizeof(name),"CharacterBag%uSlot",bagIndex-1); return frame(bagIndex ? name : "MainMenuBarBackpackButton"); };
+    auto key = [&](bool down) {
+        NSEvent* event=[NSEvent keyEventWithType:down ? NSEventTypeKeyDown:NSEventTypeKeyUp location:NSZeroPoint modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil characters:@"c" charactersIgnoringModifiers:@"c" isARepeat:NO keyCode:kVK_ANSI_C];
+        if (down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto mouse = [&](NSEventType type) {
+        NSEvent* event=[NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+        if (type==NSEventTypeMouseMoved) [view mouseMoved:event]; else if (type==NSEventTypeLeftMouseDown) [view mouseDown:event]; else [view mouseUp:event];
+    };
+    const auto now=std::chrono::steady_clock::now();
+    const double elapsed=std::chrono::duration<double>(now-started).count();
+    auto advance=[&](unsigned next) { phase=next; stableFrames=0; started=now; };
+    auto click=[&](CSimpleFrame* button,unsigned next) {
+        CRect rect; Require(button && button->m_isVisible && button->GetRect(&rect),"Equipment check button is not visible");
+        float x,y; DDCToNDC((rect.minX+rect.maxX)*.5f,(rect.minY+rect.maxY)*.5f,&x,&y);
+        Require(x>0 && x<1 && y>0 && y<1,"Equipment check button is outside the view");
+        point=[view convertPoint:NSMakePoint(x*view.bounds.size.width,(view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        mouse(NSEventTypeMouseMoved); mouse(NSEventTypeLeftMouseDown); releaseMouse=true; advance(next);
+    };
+    auto destinationButton=[&]() -> CSimpleFrame* {
+        auto* owner=bagFrame(); Require(owner,"Selected bag is not open");
+        for (unsigned i=1;i<=13;++i) {
+            char name[48]; std::snprintf(name,sizeof(name),"ContainerFrame%u",i);
+            if (frame(name)!=owner) continue;
+            for (unsigned j=1;j<=36;++j) {
+                std::snprintf(name,sizeof(name),"ContainerFrame%uItem%u",i,j); auto* button=frame(name);
+                if (button && button->m_isVisible && button->m_id==bagSlot) return button;
+            }
+        }
+        return nullptr;
+    };
+    if (releaseMouse) { if (elapsed>=.05) { mouse(NSEventTypeLeftMouseUp); releaseMouse=false; started=now; } return false; }
+    if (!phase) {
+        Require(!player->IsInCombat() && !CGGameUI::m_cursorItemType && !character->m_isShown,"Equipment check requires a safe idle player, empty cursor and closed character panel");
+        const char* binding=CGUIBindings::s_bindings ? CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,"C",1) : nullptr;
+        Require(binding && !std::strcmp(binding,"TOGGLECHARACTER0"),"Equipment check does not match the C binding");
+        auto* chest=player->GetBag()->GetItemPointer(4);
+        Require(chest && !(chest->m_itemFlags&1),"Equipment check requires an existing unlocked chest item");
+        item=guid(chest); entry=chest->m_obj->m_entryID; coins=player->GetCoinage();
+        for (unsigned i=0;i<equipment.size();++i) equipment[i]=guid(player->GetBag()->GetItemPointer(i));
+        for (unsigned i=0;i<=4;++i) {
+            auto* owner=bag(i); if (!owner) continue;
+            const unsigned count=i ? owner->m_numSlots:16;
+            const bool acceptsArmor=!i || player->GetBag()->GetItemPointer(18+i)->GetBagFamily()==0;
+            for (unsigned j=1;j<=count;++j) {
+                auto* object=slotItem(i,j); contents.push_back({i,j,guid(object),object ? uint32_t(object->m_item->m_itemFieldStackCount):0u});
+                if (!object && !bagSlot && acceptsArmor && j<=36) { bagIndex=i; bagSlot=j; }
+            }
+        }
+        Require(bagSlot,"Equipment check requires an empty carried bag slot");
+        Require(!bagFrame(),"Equipment check requires the destination bag closed");
+        std::fprintf(stderr,"Native equipment: existing chest item %u, temporary bag %u slot %u; original equipment and all carried slots saved\n",entry,bagIndex,bagSlot);
+        key(true); advance(1);
+    } else if (phase==1 && elapsed>=.05) { key(false); advance(2); }
+    else if (phase==2 && elapsed>=.3) { Require(character->m_isVisible,"Character panel did not open"); click(bagButton(),3); }
+    else if (phase==3 && elapsed>=.3) {
+        Require(bagFrame() && destinationButton() && !slotItem(bagIndex,bagSlot),"Selected empty slot is unavailable");
+        CaptureWorldCheckFrame(view,@"-equipped-before"); click(chestButton,4);
+    }
+    else if (phase==4) {
+        if (CGGameUI::GetCursorItem()==item) click(destinationButton(),5);
+        else Require(elapsed<3,"Original chest button did not pick up the equipped item");
+    } else if (phase==5) {
+        auto* moved=slotItem(bagIndex,bagSlot);
+        if (!player->GetBag()->GetItemPointer(4) && guid(moved)==item && moved && !(moved->m_itemFlags&1) &&
+            !player->m_player->m_playerVisibleItems[4].m_itemId && !CGGameUI::m_cursorItemType) {
+            if (++stableFrames<120) return false;
+            CaptureWorldCheckFrame(view,@"-unequipped");
+            std::fprintf(stderr,"Native equipment: server moved chest item %u into bag %u/%u, cleared visible equipment; 120 settled frames\n",entry,bagIndex,bagSlot);
+            click(destinationButton(),6);
+        } else Require(elapsed<10,"Server did not acknowledge chest removal");
+    } else if (phase==6) {
+        if (CGGameUI::GetCursorItem()==item) click(chestButton,7);
+        else Require(elapsed<3,"Original bag button did not pick up the stored chest item");
+    } else if (phase==7) {
+        bool restored=!CGGameUI::m_cursorItemType && player->m_player->m_playerVisibleItems[4].m_itemId==int32_t(entry);
+        for (unsigned i=0;i<equipment.size();++i) restored &= guid(player->GetBag()->GetItemPointer(i))==equipment[i];
+        for (const auto& saved:contents) { auto* object=slotItem(saved.bag,saved.slot); restored &= guid(object)==saved.guid && (object ? object->m_item->m_itemFieldStackCount:0)==saved.count; }
+        auto* chest=player->GetBag()->GetItemPointer(4);
+        if (restored && chest && !(chest->m_itemFlags&1)) {
+            Require(player->GetCoinage()==coins,"Equipment check changed player money");
+            if (++stableFrames<120) return false;
+            CaptureWorldCheckFrame(view,@"-equipped-restored");
+            std::fputs("Native equipment: server restored all 19 equipment slots, every carried item/count and visible chest; 120 settled frames, money unchanged\n",stderr);
+            click(bagButton(),8);
+        } else Require(elapsed<10,"Server did not restore original equipment and inventory");
+    } else if (phase==8 && elapsed>=.3) { Require(!bagFrame(),"Temporary equipment bag did not close"); key(true); advance(9); }
+    else if (phase==9 && elapsed>=.05) { key(false); advance(10); }
+    else if (phase==10) { if (!character->m_isVisible) { advance(11); return true; } Require(elapsed<3,"Character panel did not close after restoration"); }
+    return false;
+}
+
 bool CheckNativeWorldInventory(WowNativeView* view) {
+    const char* equipmentCheck=std::getenv("WOW_WORLD_EQUIPMENT_CHECK");
+    if (equipmentCheck && !std::strcmp(equipmentCheck,"1")) return CheckNativeWorldEquipment(view);
     static unsigned phase, readyFrames, source, destination;
     static WOWGUID slots[16], item;
     static uint32_t coins, counts[16];

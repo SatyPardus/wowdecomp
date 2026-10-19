@@ -10673,7 +10673,11 @@ int32_t InventoryUpdate(WOWGUID guid, uint32_t offset, uint32_t count, const voi
     WOWGUID item;
     item.m_guid = player->m_bag.GetItemGuid(slot);
 
-    if (*static_cast<const WOWGUID*>(value) != item) {
+    // Mirror callbacks retain field bytes in a packed descriptor mirror. A GUID
+    // can start at a four-byte boundary even though native WOWGUID needs eight.
+    WOWGUID previous;
+    memcpy(&previous, value, sizeof(previous));
+    if (previous != item) {
         CGGameUI::UnlockItem(item);
     }
 
@@ -12094,7 +12098,9 @@ int32_t CritterUpdate(WOWGUID guid, uint32_t offset, uint32_t count, const void*
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
 
     if (player) {
-        CGActionBar::UpdateCritter((static_cast<const WOWGUID*>(value)->m_guid >> 24) & 0xFFFFFFF);
+        WOWGUID previous;
+        memcpy(&previous, value, sizeof(previous));
+        CGActionBar::UpdateCritter((previous.m_guid >> 24) & 0xFFFFFFF);
         CGActionBar::UpdateCritter((player->m_unit->m_unitFieldCritter.m_guid >> 24) & 0xFFFFFFF);
         CGSpellBook::SendCompanionUpdate(0);
     }

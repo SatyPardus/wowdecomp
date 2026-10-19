@@ -41,6 +41,8 @@ bool CheckNativeWorldQuest(WowNativeView* view);
 bool CheckNativeWorldQuestAction(WowNativeView* view, bool acceptQuest);
 // Move/swap the existing backpack Hearthstone and restore the full layout using
 // the original item cursor, native left clicks and server inventory updates.
+// WOW_WORLD_EQUIPMENT_CHECK=1 instead removes/restores the already equipped chest
+// through an empty carried bag slot and verifies all equipment/inventory slots.
 bool CheckNativeWorldInventory(WowNativeView* view);
 // Explicit local route through the existing W/arrow bindings and collision.
 // WOW_WORLD_WALK contains x:y waypoints separated by semicolons.

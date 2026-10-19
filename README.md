@@ -597,6 +597,20 @@ round trip, all 16 slots/counts, empty cursor, unchanged money and normal shutdo
 under Mac ASan/UBSan and Metal validation. Both iOS clients compile; the other
 corrected GUID callbacks have not all been exercised in live gameplay.
 
+With `WOW_WORLD_EQUIPMENT_CHECK=1`, that inventory check instead moves the already
+equipped chest into an empty ordinary carried bag slot, then equips it again
+through the original character/bag buttons. It checks all 19 equipment slots,
+every carried item/stack, visible equipment, cursor and money, with 120 rendered
+frames in each changed/restored state. This exposed two remaining direct GUID
+reads in `InventoryUpdate` and `CritterUpdate`: their descriptor-mirror offsets
+can be only four-byte aligned. They now copy the same eight bytes into aligned
+locals, preserving comparisons, companion IDs, unlocks and event order.
+After restoring the interrupted check, Feral's item 846 completed the full
+chest → bag 1/23 → chest round trip in a 1,800-frame Mac ASan/UBSan/Metal run with
+normal shutdown. Captures confirm the character panel's changed/restored clothing
+and armor; both iOS client targets build. No server/character database was edited.
+The companion callback has build coverage but no new live companion verification.
+
 `--check-world-walk` follows an explicit local `WOW_WORLD_WALK` route such as
 `x:y;x:y` through the existing W/Left/Right bindings. It uses original movement,
 collision, camera and server packets; it does not set coordinates, facing or
