@@ -501,7 +501,9 @@ int32_t UnitCharmedUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fi
         unit->m_clientFlags &= ~0x1000;
     }
 
-    if (*static_cast<const WOWGUID*>(oldValue) == ClntObjMgrGetActivePlayer()) {
+    WOWGUID oldGuid;
+    memcpy(&oldGuid, oldValue, sizeof(oldGuid));
+    if (oldGuid == ClntObjMgrGetActivePlayer()) {
         Spell_C_RemovePeriodicClientTrigger(guid, 0);
         return 1;
     }
@@ -745,9 +747,11 @@ int32_t ChannelSpellOrObjectChangeHandler(WOWGUID guid, uint32_t fieldOffset, ui
     CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
 
     if (unit) {
-        const WOWGUID* oldObject = static_cast<const WOWGUID*>(oldValue);
-        int32_t oldSpell = *reinterpret_cast<const int32_t*>(oldObject + 1);
-        unit->OnChannelObjectChanged(*oldObject, oldSpell);
+        WOWGUID oldObject;
+        int32_t oldSpell;
+        memcpy(&oldObject, oldValue, sizeof(oldObject));
+        memcpy(&oldSpell, static_cast<const uint8_t*>(oldValue) + sizeof(oldObject), sizeof(oldSpell));
+        unit->OnChannelObjectChanged(oldObject, oldSpell);
         unit->OnChannelSpellChanged(oldSpell);
     }
 

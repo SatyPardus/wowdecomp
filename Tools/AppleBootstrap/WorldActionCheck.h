@@ -22,6 +22,9 @@ bool CheckNativeWorldReentry(WowNativeView* view);
 bool CheckNativeWorldPanels(WowNativeView* view);
 // Read a nearby game-object quest offer through native picking; no acceptance.
 bool CheckNativeWorldQuest(WowNativeView* view);
+// Move/swap the existing backpack Hearthstone and restore the full layout using
+// the original item cursor, native left clicks and server inventory updates.
+bool CheckNativeWorldInventory(WowNativeView* view);
 
 // Native picking/action-bar Moonfire, or the existing T attack binding, against
 // a nearby non-player critter. Approach uses original movement and collision.

@@ -453,6 +453,18 @@ object picking passed a 1,000-frame Mac ASan/UBSan and Metal run, with all 25
 quest-log IDs and money unchanged, final capture and normal shutdown. This
 checks the dialog path, not quest acceptance/completion or reward delivery.
 
+`--check-world-inventory` uses the original B binding and left-click item cursor
+to move the existing Hearthstone to an empty backpack slot, or swap with a
+different unlocked item if the backpack is full, then restore every slot and
+stack count. It never uses, sells or destroys either item. A real server update
+exposed GUID references into DWORD-packed mirror storage; inventory, container,
+pet, charm and channel callbacks now copy those bytes into aligned local values
+without changing mirror layout, update order or gameplay. After restoring the
+interrupted first swap, the final 1,200-frame Feral run confirmed the full 1→16→1
+round trip, all 16 slots/counts, empty cursor, unchanged money and normal shutdown
+under Mac ASan/UBSan and Metal validation. Both iOS clients compile; the other
+corrected GUID callbacks have not all been exercised in live gameplay.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;

@@ -397,8 +397,11 @@ static int32_t PetChangeHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fie
             SErrDisplayAppFatalMessage("", "", 0);
         }
 
+        // The old-value mirror is DWORD packed even when WOWGUID needs 8-byte alignment.
+        WOWGUID oldGuids[2];
+        memcpy(oldGuids, oldValue, sizeof(oldGuids));
         for (int32_t i = 0; i < 2; i++) {
-            WOWGUID oldGuid = static_cast<const WOWGUID*>(oldValue)[i];
+            WOWGUID oldGuid = oldGuids[i];
             WOWGUID newGuid = i ? player->m_unit->m_unitFieldSummon : player->m_unit->m_unitFieldCharm;
 
             if (oldGuid) {

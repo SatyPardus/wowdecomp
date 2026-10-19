@@ -183,6 +183,101 @@ bool CheckNativeWorldQuest(WowNativeView* view) {
     return false;
 }
 
+bool CheckNativeWorldInventory(WowNativeView* view) {
+    static unsigned phase, readyFrames, source, destination;
+    static WOWGUID slots[16], item;
+    static uint32_t coins, counts[16];
+    static NSPoint point;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 17) return true;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) {
+        Require(!phase, "World left during native inventory check"); return false;
+    }
+    if (!phase && ++readyFrames < 120) return false;
+    auto frame = [](const char* name) { return static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name, CSimpleFrame::GetObjectType())); };
+    auto* bag = frame("ContainerFrame1"); Require(bag, "Original backpack frame is missing");
+    auto slotItem = [&](unsigned slot) { return player->GetBag()->GetItemPointer(slot + 22); };
+    auto guid = [&](unsigned slot) { auto* object = slotItem(slot); return object ? object->m_obj->m_guid : WOWGUID(); };
+    auto key = [&](bool down) {
+        NSEvent* event = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown:NSEventTypeKeyUp location:NSZeroPoint modifierFlags:0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil
+            characters:@"b" charactersIgnoringModifiers:@"b" isARepeat:NO keyCode:kVK_ANSI_B];
+        if (down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto mouse = [&](NSEventType type) {
+        NSEvent* event = [NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+        if (type == NSEventTypeMouseMoved) [view mouseMoved:event];
+        else if (type == NSEventTypeLeftMouseDown) [view mouseDown:event]; else [view mouseUp:event];
+    };
+    auto selectSlot = [&](unsigned slot) {
+        Require(bag->m_isVisible && bag->m_id == 0, "Original backpack is not visible");
+        CSimpleFrame* button = nullptr;
+        for (unsigned i=1; i<=16; ++i) {
+            char name[48]; std::snprintf(name, sizeof(name), "ContainerFrame1Item%u", i);
+            auto* candidate = frame(name);
+            if (candidate && candidate->m_isVisible && candidate->m_id == int32_t(slot)) { button = candidate; break; }
+        }
+        CRect rect; Require(button && button->GetRect(&rect), "Inventory slot has no visible original button");
+        float x, y; DDCToNDC((rect.minX+rect.maxX)*.5f, (rect.minY+rect.maxY)*.5f, &x, &y);
+        Require(x>0 && x<1 && y>0 && y<1, "Inventory slot is outside the game view");
+        point = [view convertPoint:NSMakePoint(x*view.bounds.size.width, (view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        mouse(NSEventTypeMouseMoved);
+    };
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now-started).count();
+    auto next = [&] { ++phase; started = now; };
+    if (!phase) {
+        Require(CGUIBindings::s_bindings && !CGGameUI::m_cursorItemType && !bag->m_isShown, "Inventory check requires a closed backpack and empty cursor");
+        const char* action = CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE, "B", 1);
+        Require(action && !std::strcmp(action, "TOGGLEBACKPACK"), "Inventory check differs from the current B binding");
+        unsigned alternate = 0;
+        for (unsigned slot=1; slot<=16; ++slot) {
+            slots[slot-1] = guid(slot); auto* object = slotItem(slot);
+            counts[slot-1] = object ? object->m_item->m_itemFieldStackCount : 0;
+            if (!object) destination = slot;
+            else if (object->m_obj->m_entryID == 6948 && !(object->m_itemFlags & 1)) { item = object->m_obj->m_guid; source = slot; }
+            else if (object->m_obj->m_entryID != 6948 && !(object->m_itemFlags & 1)) alternate = slot;
+        }
+        if (!destination) destination = alternate;
+        Require(source && destination, "Inventory check requires an unlocked Hearthstone and another available backpack slot");
+        std::fprintf(stderr, "Native inventory: existing Hearthstone slot %u; destination %u is %s\n", source, destination,
+            slots[destination-1] ? "occupied (swap and restore)":"empty");
+        coins = player->GetCoinage(); key(true); next();
+    } else if (phase == 1 && elapsed >= .05) { key(false); next(); }
+    else if (phase == 2 && elapsed >= .3) { selectSlot(source); next(); }
+    else if ((phase == 3 || phase == 6 || phase == 9 || phase == 12) && elapsed >= .2) { mouse(NSEventTypeLeftMouseDown); next(); }
+    else if ((phase == 4 || phase == 7 || phase == 10 || phase == 13) && elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); next(); }
+    else if (phase == 5 || phase == 11) {
+        if (CGGameUI::GetCursorItem() == item) { selectSlot(phase == 5 ? destination:source); next(); }
+        else Require(elapsed < 3, "Original bag click did not pick up the existing item cursor");
+    } else if (phase == 8) {
+        auto* moved = slotItem(destination);
+        if (guid(source) == slots[destination-1] && guid(destination) == item && moved && !(moved->m_itemFlags & 1) && !CGGameUI::m_cursorItemType) {
+            std::fprintf(stderr, "Native inventory: server moved existing Hearthstone from backpack %u to %u\n", source, destination);
+            selectSlot(destination); next();
+        } else Require(elapsed < 8, "Server did not acknowledge the native backpack move");
+    } else if (phase == 14) {
+        bool restored = !CGGameUI::m_cursorItemType;
+        for (unsigned slot=1; slot<=16; ++slot) {
+            const auto* object = slotItem(slot);
+            restored &= guid(slot) == slots[slot-1] &&
+                (object ? object->m_item->m_itemFieldStackCount : 0) == counts[slot-1];
+        }
+        if (restored && slotItem(source) && !(slotItem(source)->m_itemFlags & 1)) {
+            Require(player->GetCoinage() == coins, "Inventory move changed player money");
+            std::fputs("Native inventory: server restored all 16 backpack slots and counts; original cursor cleared and money unchanged\n", stderr);
+            key(true); next();
+        } else Require(elapsed < 8, "Server did not restore the original backpack layout");
+    } else if (phase == 15 && elapsed >= .05) { key(false); next(); }
+    else if (phase == 16) {
+        if (!bag->m_isVisible) { next(); return true; }
+        Require(elapsed < 3, "Original backpack did not close after inventory restoration");
+    }
+    return false;
+}
+
 bool CheckNativeWorldActions(WowNativeView* view) {
     static unsigned readyFrames, phase, button;
     static int32_t spell;

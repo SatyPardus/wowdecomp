@@ -19,6 +19,7 @@
 #include "WoW/Source/Ui/TradeSkillFrame.h"
 #include "WoW/Source/Ui/Tutorial.h"
 #include <cstddef>
+#include <cstring>
 
 // STATIC: 0x00C23540
 WOWGUID CGContainerInfo::m_containers[11];
@@ -272,7 +273,9 @@ int32_t UpdateContainerContents(WOWGUID guid, uint32_t fieldOffset, uint32_t fie
     uint32_t slot = (fieldOffset - offsetof(CGContainerData, m_containerFieldSlot1)) / sizeof(WOWGUID);
     CGBag_C* bag = container->GetBag();
     WOWGUID newGuid = slot < static_cast<uint32_t>(bag->m_numSlots) ? bag->m_slots[slot] : WOWGUID();
-    const WOWGUID& oldGuid = *static_cast<const WOWGUID*>(oldValue);
+    // Mirror fields are packed on DWORD boundaries, not native GUID alignment.
+    WOWGUID oldGuid;
+    std::memcpy(&oldGuid, oldValue, sizeof(oldGuid));
     CGItem_C* oldItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(oldGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
     CGItem_C* newItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(newGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
 
@@ -325,7 +328,8 @@ int32_t UpdateInvContents(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSize
 
     uint32_t slot = (fieldOffset - offsetof(CGPlayerLocalData, m_playerFieldInvSlotHead)) / sizeof(WOWGUID);
     WOWGUID newGuid = slot < static_cast<uint32_t>(player->m_bag.m_numSlots) ? player->m_bag.m_slots[slot] : WOWGUID();
-    const WOWGUID& oldGuid = *static_cast<const WOWGUID*>(oldValue);
+    WOWGUID oldGuid;
+    std::memcpy(&oldGuid, oldValue, sizeof(oldGuid));
     CGItem_C* oldItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(oldGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
     CGItem_C* newItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(newGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
 
