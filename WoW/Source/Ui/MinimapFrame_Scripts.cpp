@@ -133,7 +133,8 @@ static int32_t Script_SetPlayerTextureWidth(lua_State* L) {
 static int32_t Script_GetTrackingInfo(lua_State* L) {
     int32_t index = static_cast<int32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index >= static_cast<int32_t>(s_trackingSpells.Count())) {
+    // The binary compares unsigned (jae): GetTrackingInfo(0) gives index -1, which must not read m_data[-1]
+    if (static_cast<uint32_t>(index) >= s_trackingSpells.Count()) {
         const TrackingTypeInfo* info = CGMinimapFrame::GetTrackingTypeByIndex(index - s_trackingSpells.Count());
 
         if (!info) {
@@ -331,7 +332,8 @@ static int32_t Script_SetTracking(lua_State* L) {
 
     int32_t index = static_cast<int32_t>(static_cast<int64_t>(lua_tonumber(L, 1))) - 1;
 
-    if (index < static_cast<int32_t>(s_trackingSpells.Count())) {
+    // The binary compares unsigned (jae): SetTracking(0) gives index -1, which must not read m_data[-1]
+    if (static_cast<uint32_t>(index) < s_trackingSpells.Count()) {
         Spell_C::CastSpell(s_trackingSpells.m_data[index], nullptr, WOWGUID(), false);
         return 0;
     }
