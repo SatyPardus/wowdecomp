@@ -201,6 +201,7 @@ void CheckGxDevice(const char* focus) {
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
     if (focus && !std::strcmp(focus, "gamma")) { CheckPresentationGamma(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "cursor")) { CheckSoftwareCursor(device); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "world-transfers")) { CheckGameWorldLifecycle(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "weather-world")) { CheckGameWorldLifecycle(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "weather")) { CheckWeatherShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "msaa")) { CheckMultisample(device); device.DeviceDestroy(); return; }

@@ -1,5 +1,6 @@
 #include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/WorldClient/WorldParam.h"
+#include "WoW/Source/WorldClient/shadow.h"
 #include "WoW/Source/WorldClient/MapWeather.h"
 #include "WoW/Source/WorldClient/Sand.h"
 #include <cstdlib>
@@ -54,6 +55,97 @@ int32_t DestroyServices(const void*, void*) {
     return 1;
 }
 unsigned portraitRefreshes;
+void CheckMapTransfers() {
+    auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
+    const auto projection = device.m_projection;
+    device.XformPush(GxXform_View);
+    device.RsPush();
+    struct Restore {
+        CGxDeviceMetal& device;
+        C44Matrix projection;
+        ~Restore() {
+            if (device.FrameCommand()) device.ScenePresent();
+            device.RsPop();
+            device.XformSetProjection(projection);
+            GxXformPop(GxXform_View);
+        }
+    } restore{device, projection};
+    struct Destination { const char* name; int32_t id; C3Vector position; bool dungeon; };
+    const Destination route[] = {
+        {"Azeroth", 0, {-9465, 64, 85}, false},
+        {"Northrend", 571, {5800, 650, 660}, false},
+        {"Expansion01", 530, {3082, 3596, 147}, false},
+        {"MoltenCore", 409, {1115.22f, -462.96f, -95.01f}, true},
+        {"Azeroth", 0, {-9465, 64, 85}, false}
+    };
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:128 height:128 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    descriptor.pixelFormat = MTLPixelFormatDepth32Float;
+    pass.depthAttachment.texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.depthAttachment.loadAction = MTLLoadActionClear; pass.depthAttachment.clearDepth = 1;
+    auto* scene = World::s_m2Scene;
+    unsigned tick = 0;
+    for (const auto& destination : route) {
+        // Match Client.cpp's world transfer order, without a player/server or
+        // destroying the shared world, M2 cache, Services or Metal device.
+        World::UnloadMap();
+        World::s_weather->Reset();
+        Require(!CMap::bActive && !CMap::bDungeon && !CWorldScene::s_viewerMapObjDef,
+                "Map transfer retained active map/viewer state");
+        for (auto* area : CMap::m_areaTable) Require(!area, "Map transfer retained an ADT area");
+        CSimpleCamera camera(0.2f, 500, 1);
+        camera.m_position = destination.position;
+        C3Vector direction(1, .3f, -.2f); direction.Normalize(); camera.SetFacing(direction);
+        CRect viewport{0, 0, 128, 128};
+        camera.SetGxProjectionAndView(viewport);
+        World::ViewCameraScope cameraScope(camera);
+        CWorld::LoadMap(destination.name, &camera.m_position, destination.id, 1, camera);
+        Require(CMap::bActive && bool(CMap::bDungeon) == destination.dungeon && World::s_m2Scene == scene &&
+                World::QueryMapId() == destination.id && DayNight::s_mapId == destination.id,
+                "Map transfer selected stale geometry, lighting or world ownership");
+        const auto* record = g_mapDB.GetRecord(destination.id);
+        unsigned scenePixels = 0, varied = 0;
+        const auto first = device.EncodingStats();
+        for (unsigned frame = 0; frame < 120; ++frame) {
+            FrameTime::Update(1.0f/60, ++tick*17);
+            auto& lighting = *DayNight::GetInfo();
+            lighting.m_dayProgression = .5f; lighting.m_timeOfDay = 720; lighting.m_day = 0;
+            if (record->m_timeOfDayOverride != -1) {
+                lighting.m_timeOfDay = 0;
+                lighting.m_dayProgression = record->m_timeOfDayOverride >= 0 && record->m_timeOfDayOverride <= 1440 ? record->m_timeOfDayOverride/1440.0f : .5f;
+            }
+            lighting.m_timeSec = tick/60.0f; lighting.m_deltaSec = 1.0f/60;
+            lighting.m_farClip = camera.m_farZ; lighting.m_weatherIntensity = 0;
+            lighting.m_playerPos = lighting.m_lightRefPos = lighting.m_cameraPos = camera.m_position;
+            lighting.m_cameraDir = direction;
+            g_clientGameTime.SetHourAndMinutes(720);
+            camera.SetGxProjectionAndView(viewport);
+            C3Vector target = camera.m_position + direction;
+            CWorld::Update(&camera.m_position, &target, &camera.m_position, camera);
+            if (frame < 2) AsyncFileReadWaitAll();
+            device.BeginFrame(pass);
+            GxXformSetViewport(0,1,0,1,0,CWorld::s_unk_ADEEE4);
+            CWorldScene::Render(camera.m_position,1.0f/60,camera);
+            CMap::RenderFootprints(); CWorldScene::RenderScenePasses(1.0f/60);
+            if (frame == 119) {
+                CiRect rect(0,0,128,128); TSGrowableArray<CImVector> pixels; TSGrowableArray<float> depths;
+                device.DeviceReadPixels(rect,pixels); device.DeviceReadDepths(rect,depths);
+                for (unsigned i=0;i<pixels.Count();++i) {
+                    scenePixels += depths[i] < CWorld::s_unk_ADEEE4;
+                    varied += pixels[i] != pixels[0];
+                }
+            }
+            device.ScenePresent();
+        }
+        Require(scenePixels > 1024 && varied > 1024, "Transferred map did not produce real scene geometry/color");
+        std::fprintf(stderr,"World transfer %s (map %d, dungeon %d): 120 frames, %u scene / %u varied pixels, %llu draws; original world/Metal ownership retained\n",
+                     destination.name,destination.id,destination.dungeon,scenePixels,varied,
+                     static_cast<unsigned long long>(device.EncodingStats().geometryDraws-first.geometryDraws));
+    }
+}
 std::array<unsigned, 5> CheckLoadedMap() {
     auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
     const auto projection = device.m_projection;
@@ -199,9 +291,10 @@ void CheckGameWorldLifecycle() {
     Require(mkdtemp(directory.data()), "Cannot create world probe configuration directory");
     struct Scope {
         std::string directory;
-        bool services = false, modelCache = false, world = false;
+        bool services = false, modelCache = false, world = false, shadows = false;
         ~Scope() {
             CWorldParam::SetPortraitRefreshCallback(nullptr);
+            if (shadows) ShadowDestroy();
             if (world)
                 CWorld::Destroy();
             if (modelCache)
@@ -245,7 +338,9 @@ void CheckGameWorldLifecycle() {
         g_mapDB.Load(__FILE__, __LINE__);
     std::array<unsigned, 5> firstMap{};
 
-    for (unsigned cycle = 0; cycle < 2; ++cycle) {
+    const char* focus = std::getenv("WOW_METAL_CHECK");
+    const bool transfers = focus && !std::strcmp(focus,"world-transfers");
+    for (unsigned cycle = 0; cycle < (transfers ? 1u : 2u); ++cycle) {
         // CWorld teardown destroys shader effects. The application-owned M2
         // cache must finish that lifetime too, before another world is started.
         M2Initialize(8, 16);
@@ -268,12 +363,20 @@ void CheckGameWorldLifecycle() {
         World::s_weather->m_densityChanged = 0;
         Require(weatherDensity->Set(cycle ? "3" : "0", true, false, false, false) && World::s_weather->m_densityChanged,
                 "Weather configuration did not notify the current world");
-        CheckDayNightMap(cycle);
-        const auto loadedMap = CheckLoadedMap();
-        if (cycle)
-            Require(loadedMap == firstMap, "Map recreation changed the loaded world population");
-        else
-            firstMap = loadedMap;
+        if (transfers) {
+            scope.shadows = true; ShadowInit();
+            Require(s_cvExtShadowQuality && s_cvExtShadowQuality->Set("5",true,false,false,false),"Cannot select original PCF shadow quality");
+            Require(CShaderEffect::s_usePcfFiltering, "Map transfer check requires native comparison shadows");
+            CheckMapTransfers();
+            ShadowDestroy(); scope.shadows = false;
+        } else {
+            CheckDayNightMap(cycle);
+            const auto loadedMap = CheckLoadedMap();
+            if (cycle)
+                Require(loadedMap == firstMap, "Map recreation changed the loaded world population");
+            else
+                firstMap = loadedMap;
+        }
 
         CWorld::Destroy();
         scope.world = false;
@@ -289,6 +392,10 @@ void CheckGameWorldLifecycle() {
         // CVars survive a world lifetime. This callback and registration during
         // the next constructor must not touch the destroyed Weather instance.
         Require(weatherDensity->Set("2", true, false, false, false), "Weather configuration failed between world lifetimes");
+    }
+    if (transfers) {
+        std::fputs("World transfer lifecycle: five map loads in one world/device lifetime and final destruction passed\n",stderr);
+        return;
     }
     CheckDayNightTerrain();
     std::fprintf(

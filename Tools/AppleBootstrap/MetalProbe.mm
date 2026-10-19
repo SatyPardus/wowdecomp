@@ -200,6 +200,7 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
                 if (!std::strcmp(selection, "gamma")) { CheckGxDevice(selection); report = "Original presentation gamma checks passed.\n"; return true; }
                 if (!std::strcmp(selection, "cursor")) { CheckGxDevice(selection); report = "Original software cursor rendering checks passed.\n"; return true; }
+                if (!std::strcmp(selection, "world-transfers")) { CheckGxDevice(selection); report = "Original map unload/load sequence and persistent world/device ownership passed.\n"; return true; }
                 if (!std::strcmp(selection, "memory")) { CheckGxDevice(selection); report = "Metal cache eviction preserved active and in-flight draws.\n"; return true; }
                 if (!std::strcmp(selection, "weather-world")) { CheckGxDevice(selection); report = "Original weather/world integration checks passed.\n"; return true; }
                 if (!std::strcmp(selection, "weather")) { CheckGxDevice(selection); report = "Native weather shader checks passed.\n"; return true; }

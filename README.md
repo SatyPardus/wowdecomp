@@ -1354,6 +1354,16 @@ objects for 120 frames each over real Elwynn terrain, through two world lifetime
 These explicit weather inputs do not change a server's weather. Original Windows
 visual comparison and sustained physical-device performance remain outstanding.
 
+`WOW_METAL_CHECK=world-transfers` runs the original unload/load sequence through
+Azeroth, Northrend, Expansion01, global-WMO MoltenCore and back to Azeroth, with
+one shared world/M2 cache/Metal device lifetime and native PCF shadows enabled.
+Each destination renders 120 frames, checks map/lighting IDs and geometry/color
+readback, and checks that unload clears the active map, ADT and viewer references.
+The 600-frame sequence and final destruction pass on Mac with ASan/UBSan/Metal
+validation and on the iOS simulator, followed by 120 visible MoltenCore frames.
+This diagnostic has no character or server session; it does not validate network
+transfer packets, dungeon encounters or original Windows visual equivalence.
+
 Use `WOW_WORLD=Azeroth:-9465:64:85` with the existing Mac `--preview` command or
 as an iOS environment variable. The format is `Map:worldX:worldY:worldZ`; the
 viewer uses an explicit camera (near 0.2, far 500, FOV 1 radian).
