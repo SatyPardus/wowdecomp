@@ -1222,6 +1222,9 @@ int32_t CM2Shared::InitializeSkinProfile() {
 #if defined(WOWDECOMP_ARCH_64)
             uint32_t bytes = sizeof(M2Vertex) * this->m_skinData->m_vertices.m_count;
             M2Vertex* buffer = static_cast<M2Vertex*>(OsAllocNear(this->m_data, bytes));
+            if (!buffer) {
+                SErrDisplayAppFatal("Model2: OsAllocNear(%u) failed", bytes);
+            }
             memcpy(buffer, vertices, bytes);
             delete[] vertices;
             this->m_data->m_vertices.Set(buffer);
