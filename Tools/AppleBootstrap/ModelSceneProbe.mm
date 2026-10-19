@@ -33,6 +33,34 @@ void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPa
 void CheckGameCharacters(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass);
 
 namespace {
+void CheckSequenceSpeed(CM2Model& model) {
+    auto& sequence = model.m_bones[0].m_sequence;
+    struct Restore {
+        CM2Model& model; M2ModelBoneSeq sequence; uint32_t time;
+        ~Restore() { model.m_bones[0].m_sequence = sequence; model.m_scene->m_time = time; }
+    } restore{model, sequence, model.m_scene->m_time};
+    struct Case { uint32_t now, start, offset; float previousSpeed, speed; uint32_t expectedStart, numerator, denominator; };
+    // Expected clocks follow the two integer truncation points in Wow.exe
+    // 0x008270BD..0x0082716C, including a sequence starting one tick in the future.
+    for (const auto c : {
+        Case{100,101,0,2,.5f,104,2,1}, Case{100,99,0,1.5f,.5f,98,2,1},
+        Case{1,0xFFFFFFFFu,10,.5f,2,0xFFFFFFFCu,1,2}, Case{31,11,50,-1.5f,-2,21,1,2},
+        Case{16777217,16777216,0,1,1,16777216,1,1},
+        Case{0xFFFFFFF0u,0x10,0x80000010u,1,1,0x80000000u,1,1},
+        Case{100,101,0,2,0,100,0,1}, Case{100,101,0,2,.000001f,100,0,1}}) {
+        model.m_scene->m_time = c.now;
+        sequence.m_sequenceIndex = 0; sequence.m_repeatCount = 1;
+        sequence.m_startTime = c.start; sequence.m_startOffset = c.offset; sequence.m_speed = c.previousSpeed;
+        model.SetBoneSequenceSpeed(0xFFFFFFFFu, c.speed);
+        const uint32_t duration = model.m_shared->m_data->m_sequences[0].m_duration;
+        if (sequence.m_startTime != c.expectedStart ||
+            sequence.m_endTime != c.expectedStart + uint32_t(uint64_t(duration)*c.numerator/c.denominator) ||
+            sequence.m_speed != c.speed || sequence.m_invSpeed != (c.numerator ? 1.0f/c.speed : 0.0f))
+            throw std::runtime_error("M2 speed change lost signed/wrapping clocks or an original truncation boundary");
+    }
+    std::fputs("M2 speed changes: future start, clock wrap, fractional/reverse/zero speed and integer precision passed\n",stderr);
+}
+
 void CheckEmptySkeleton(CM2Scene* scene) {
     // Exercise a valid zero-bone instance with other arena-backed arrays. The
     // legacy release path used the absent bone view as its allocation owner.
@@ -107,6 +135,7 @@ void CheckGameModels() {
     if (!model || !model->IsLoaded(1, 0)) throw std::runtime_error("M2 camera instance failed to load");
     if (!model->m_bones || model->m_shared->m_data->m_cameras.m_count != 1)
         throw std::runtime_error("M2 camera instance is incomplete");
+    CheckSequenceSpeed(*model);
     auto* arena = model->m_internalMemory;
     auto* camera = model->m_cameras[0].m_camera;
     if (!model->InitializeLoaded() || model->m_internalMemory != arena || model->m_cameras[0].m_camera != camera)

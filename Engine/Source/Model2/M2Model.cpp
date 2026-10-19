@@ -40,6 +40,14 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/Object/ObjectClient/Types.h"
 
+namespace {
+// Original x87 FISTP truncates to int64; animation clocks use its low word.
+// The indefinite result for non-finite/out-of-range inputs also has low word 0.
+uint32_t TruncateSequenceTicks(double value) {
+    return value >= -0x1p63 && value < 0x1p63 ? static_cast<uint32_t>(static_cast<int64_t>(value)) : 0;
+}
+}
+
 // STATIC: 0x00A45570
 static const uint32_t s_ribbonBlendModes[] = { 0, 1, 2, 10, 3, 4, 5 };
 
@@ -1422,8 +1430,7 @@ int32_t CM2Model::GetBoneSequenceInfo(uint32_t boneId, M2BoneSequenceInfo& info)
     // particular, a sequence may start after the scene's current time.
     const int32_t elapsed = static_cast<int32_t>(this->m_scene->m_time - bone->m_sequence.m_startTime);
     const double advance = double(elapsed) * bone->m_sequence.m_speed;
-    // x87 FISTP produces INT64_MIN for non-finite/out-of-range values (low word 0).
-    const uint32_t ticks = advance >= -0x1p63 && advance < 0x1p63 ? static_cast<uint32_t>(static_cast<int64_t>(advance)) : 0;
+    const uint32_t ticks = TruncateSequenceTicks(advance);
     info.m_time = bone->m_sequence.m_startOffset + ticks;
     info.m_speed = bone->m_sequence.m_speed;
     info.m_startTime = bone->m_sequence.m_startTime;
@@ -1797,13 +1804,18 @@ void CM2Model::SetBoneSequenceSpeed(uint32_t boneId, float speed) {
 
     uint32_t now = this->m_scene->m_time;
     uint32_t duration = bone->m_sequence.m_repeatCount * data->m_sequences[sequenceIndex].m_duration;
-    float invSpeed = fabsf(speed) <= 0.0000099999997f ? 0.0f : 1.0f / speed;
-    float absInvSpeed = fabsf(invSpeed);
-    uint32_t startTime = static_cast<uint32_t>(now - (bone->m_sequence.m_startOffset + (now - bone->m_sequence.m_startTime) * bone->m_sequence.m_speed) * absInvSpeed);
+    // 0x008270BD loads the wrapping delta as signed, truncates its advance,
+    // then adds the offset in 32 bits. 0x0082711B scales that signed position
+    // and truncates again before subtracting it from the integer scene clock.
+    const int32_t elapsed = static_cast<int32_t>(now - bone->m_sequence.m_startTime);
+    const uint32_t position = bone->m_sequence.m_startOffset + TruncateSequenceTicks(double(elapsed) * bone->m_sequence.m_speed);
+    const double invSpeed = fabsf(speed) > 0.0000099999997f ? 1.0 / double(speed) : 0.0;
+    const double absInvSpeed = std::abs(invSpeed);
+    const uint32_t startTime = now - TruncateSequenceTicks(double(static_cast<int32_t>(position)) * absInvSpeed);
     bone->m_sequence.m_startTime = startTime;
-    bone->m_sequence.m_endTime = static_cast<uint32_t>(startTime + absInvSpeed * duration);
+    bone->m_sequence.m_endTime = startTime + TruncateSequenceTicks(absInvSpeed * duration);
     bone->m_sequence.m_speed = speed;
-    bone->m_sequence.m_invSpeed = invSpeed;
+    bone->m_sequence.m_invSpeed = static_cast<float>(invSpeed);
 }
 
 // VERIFY: 13ebc48b manual
