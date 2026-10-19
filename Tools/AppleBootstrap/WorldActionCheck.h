@@ -31,7 +31,8 @@ bool CheckNativeWorldQuest(WowNativeView* view);
 // Turn in an explicitly selected, completed quest without required payment.
 // WOW_WORLD_QUEST is its ID; choices require WOW_WORLD_REWARD_ITEM. Original UI
 // performs every action, then server quest/money/XP/item state is checked.
-bool CheckNativeWorldReward(WowNativeView* view);
+// Acceptance uses the original available-quest and Accept buttons instead.
+bool CheckNativeWorldQuestAction(WowNativeView* view, bool acceptQuest);
 // Move/swap the existing backpack Hearthstone and restore the full layout using
 // the original item cursor, native left clicks and server inventory updates.
 bool CheckNativeWorldInventory(WowNativeView* view);

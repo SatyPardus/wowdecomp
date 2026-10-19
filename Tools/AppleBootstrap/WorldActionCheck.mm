@@ -344,10 +344,10 @@ bool CheckNativeWorldQuest(WowNativeView* view) {
     return false;
 }
 
-bool CheckNativeWorldReward(WowNativeView* view) {
+bool CheckNativeWorldQuestAction(WowNativeView* view, bool acceptQuest) {
     static unsigned phase, releasePhase, settledFrames;
     static uint32_t questID, coins, xp, level, rewardMoney, rewardXP;
-    static uint32_t requestedItem, choiceIndex, rewardCount, previousCount;
+    static uint32_t requestedItem, choiceIndex, rewardCount, previousCount, oldQuests[25];
     static NSPoint point;
     static bool mouseHeld;
     static bool choicePending, choiceSelected;
@@ -398,45 +398,61 @@ bool CheckNativeWorldReward(WowNativeView* view) {
         }
         if (!CheckNativeWorldNPC(view, false, true)) return false;
         const int32_t index = CGQuestLog::GetQuestIndex(questID);
-        Require(index > 0 && CGQuestLog::IsQuestCompleteEx(index-1, 1), "Requested quest is not complete in the original log");
+        if (acceptQuest) {
+            Require(!index && !requestedItem,"Quest acceptance requires an absent quest and no reward selection");
+            unsigned used = 0;
+            for (unsigned i=0; i<25; ++i) { oldQuests[i] = player->m_player->m_playerQuestLog[i].m_questId; used += oldQuests[i] != 0; }
+            Require(used < 25,"Original quest log has no free slot");
+        } else Require(index > 0 && CGQuestLog::IsQuestCompleteEx(index-1, 1), "Requested quest is not complete in the original log");
         coins = player->GetCoinage(); xp = player->m_player->m_playerXp; level = player->m_unit->m_unitFieldLevel;
         Require(!CGQuestLog::GetQuestIndex(INT32_MAX) && CGQuestLog::ComputeBlobQuestObjectives(INT32_MAX) == 0,
             "Absent quest retained objectives during a pending map update");
         std::fprintf(stderr,"Native quest reward: before submission, money %u, XP %u, level %u; absent quest POI rejected\n",coins,xp,level);
         advance(1);
     } else if (phase == 1 && elapsed >= 1) {
-        if (CGQuestInfo::m_currentQuest == int32_t(questID) && CGQuestInfo::m_state >= 2) { advance(3); return false; }
+        if (CGQuestInfo::m_currentQuest == int32_t(questID) && (acceptQuest ? CGQuestInfo::m_state == 1 : CGQuestInfo::m_state >= 2)) { advance(3); return false; }
         CSimpleFrame* button = nullptr;
         auto* gossip = frame("GossipFrame");
         if (gossip && gossip->m_isVisible) {
             int32_t index = 0;
-            for (int32_t i=0; i<CGGossipInfo::GetNumActiveQuests(); ++i) {
-                const auto* quest = CGGossipInfo::GetActiveQuest(i);
+            const int32_t count = acceptQuest ? CGGossipInfo::GetNumAvailableQuests() : CGGossipInfo::GetNumActiveQuests();
+            for (int32_t i=0; i<count; ++i) {
+                const auto* quest = acceptQuest ? CGGossipInfo::GetAvailableQuest(i) : CGGossipInfo::GetActiveQuest(i);
                 if (quest && quest->m_questID == questID) { index = i+1; break; }
             }
-            Require(index, "Requested completed quest is not offered by this NPC");
+            Require(index, "Requested quest is not offered by this NPC");
             auto* lua = FrameScript_GetContext();
             for (unsigned i=1; i<=32; ++i) {
                 char name[40]; std::snprintf(name,sizeof(name),"GossipTitleButton%u",i);
                 auto* candidate = frame(name);
                 if (!candidate || !candidate->m_isVisible || candidate->m_id != uint32_t(index)) continue;
                 lua_rawgeti(lua,LUA_REGISTRYINDEX,candidate->GetLuaObjectRef()); lua_getfield(lua,-1,"type");
-                const char* type = lua_tostring(lua,-1); const bool active = type && !std::strcmp(type,"Active"); lua_pop(lua,2);
+                const char* type = lua_tostring(lua,-1); const bool active = type && !std::strcmp(type,acceptQuest ? "Available":"Active"); lua_pop(lua,2);
                 if (active) { button = candidate; break; }
             }
         } else {
-            for (int32_t i=0; i<CGQuestInfo::m_numInProgress; ++i) {
-                if (CGQuestInfo::m_inProgressQuests[i].m_questID != int32_t(questID)) continue;
-                char name[40]; std::snprintf(name,sizeof(name),"QuestTitleButton%d",i+1); button = frame(name); break;
+            const int32_t count = acceptQuest ? CGQuestInfo::m_numQuests : CGQuestInfo::m_numInProgress;
+            const auto* quests = acceptQuest ? CGQuestInfo::m_availableQuests : CGQuestInfo::m_inProgressQuests;
+            for (int32_t i=0; i<count; ++i) {
+                if (quests[i].m_questID != int32_t(questID)) continue;
+                char name[40]; std::snprintf(name,sizeof(name),"QuestTitleButton%d",i+1+(acceptQuest ? CGQuestInfo::m_numInProgress:0)); button = frame(name); break;
             }
         }
         click(button,2);
-        std::fprintf(stderr,"Native quest reward: selected completed quest %u through its original title button\n",questID);
+        std::fprintf(stderr,"Native quest: selected %s quest %u through its original title button\n",acceptQuest ? "available":"completed",questID);
     } else if (phase == 2) {
-        if (CGQuestInfo::m_currentQuest == int32_t(questID) && (CGQuestInfo::m_state == 2 || CGQuestInfo::m_state == 3)) advance(3);
+        if (CGQuestInfo::m_currentQuest == int32_t(questID) && (acceptQuest ? CGQuestInfo::m_state == 1 : (CGQuestInfo::m_state == 2 || CGQuestInfo::m_state == 3))) advance(3);
         else Require(elapsed < 10,"Server did not open the requested completed quest");
     } else if (phase == 3 && elapsed >= 2) {
-        Require(CGQuestInfo::m_currentQuest == int32_t(questID),"Quest changed before completion");
+        Require(CGQuestInfo::m_currentQuest == int32_t(questID),"Quest changed before submission");
+        if (acceptQuest) {
+            auto* button = static_cast<CSimpleButton*>(CScriptObject::GetScriptObjectByName("QuestFrameAcceptButton",CSimpleButton::GetObjectType()));
+            auto* panel = frame("QuestFrameDetailPanel");
+            Require(CGQuestInfo::m_state == 1 && panel && panel->m_isVisible,"Original quest details are not visible");
+            if (!button || button->m_state == BUTTONSTATE_DISABLED) { Require(elapsed < 30,"Original quest accept button did not become available"); return false; }
+            std::fprintf(stderr,"Native quest acceptance: original details rendered for %s; clicking Accept\n",CGQuestInfo::m_questTitle);
+            click(button,6); return false;
+        }
         if (CGQuestInfo::m_state == 3) { advance(4); return false; }
         auto* button = static_cast<CSimpleButton*>(CScriptObject::GetScriptObjectByName("QuestFrameCompleteButton",CSimpleButton::GetObjectType()));
         Require(CGQuestInfo::m_state == 2 && CGQuestInfo::IsCompletable() && CGQuestInfo::m_requiredMoney <= 0 &&
@@ -489,6 +505,17 @@ bool CheckNativeWorldReward(WowNativeView* view) {
     } else if (phase == 6) {
         bool present = false;
         for (const auto& quest : player->m_player->m_playerQuestLog) present |= quest.m_questId == questID;
+        if (acceptQuest) {
+            if (present && CGQuestLog::GetQuestIndex(questID)) {
+                Require(player->GetCoinage() == coins && player->m_player->m_playerXp == xp && uint32_t(player->m_unit->m_unitFieldLevel) == level,
+                    "Quest acceptance unexpectedly changed money, experience or level");
+                for (auto old : oldQuests) if (old) Require(CGQuestLog::GetQuestIndex(old),"Quest acceptance removed an existing quest");
+                if (++settledFrames < 120) return false;
+                std::fprintf(stderr,"Native quest acceptance: server added quest %u to original log; prior quests/money/XP retained, 120 settled frames passed\n",questID);
+                advance(7); return true;
+            }
+            Require(elapsed < 10,"Server did not add the accepted quest to its original log"); return false;
+        }
         const bool experience = player->m_unit->m_unitFieldLevel > level || uint64_t(player->m_player->m_playerXp) >= uint64_t(xp)+rewardXP;
         const bool itemReceived = !requestedItem || player->m_bag.GetItemTypeCount(requestedItem,0x6) == previousCount+rewardCount;
         if (!present && !CGQuestLog::GetQuestIndex(questID) && uint64_t(player->GetCoinage()) == uint64_t(coins)+rewardMoney && experience && itemReceived) {

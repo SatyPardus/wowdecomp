@@ -498,6 +498,16 @@ The missing-quest regression and subsequent real reward passed; both iOS clients
 compile with this fix. Quest 123 was absent on reconnect, but its full money/XP
 update was interrupted by that fault and is not counted as a passing check.
 
+`--check-world-accept` accepts an explicitly selected `WOW_WORLD_QUEST` from a
+nearby NPC through the original available-quest title, details and Accept button.
+It verifies the new server quest-log entry, retention of prior quests and
+unchanged money/XP/level; it cannot be combined with reward/NPC/merchant checks.
+Feral returned from the boar encounter to Marshal Dughan through original
+movement and accepted quest 147 (Manhunt). Its original tracker showed the
+Collector's Ring objective; 120 settled frames, a 3,600-frame run, final capture
+and normal shutdown passed Mac ASan/UBSan and Metal validation. The quest is
+accepted, not completed.
+
 `--check-world-inventory` uses the original B binding and left-click item cursor
 to move the existing Hearthstone to an empty backpack slot, or swap with a
 different unlocked item if the backpack is full, then restore every slot and
