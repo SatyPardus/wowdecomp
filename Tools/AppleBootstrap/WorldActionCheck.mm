@@ -32,6 +32,7 @@
 #include "WoW/Source/Ui/MerchantFrame.h"
 #include "WoW/Source/Ui/LootFrame.h"
 #include "WoW/Source/Ui/QuestFrame.h"
+#include "WoW/Source/Ui/QuestLog.h"
 #include "WoW/Source/Ui/SpellBookFrame.h"
 #include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/Ui/UIBindings.h"
@@ -343,6 +344,165 @@ bool CheckNativeWorldQuest(WowNativeView* view) {
     return false;
 }
 
+bool CheckNativeWorldReward(WowNativeView* view) {
+    static unsigned phase, releasePhase, settledFrames;
+    static uint32_t questID, coins, xp, level, rewardMoney, rewardXP;
+    static uint32_t requestedItem, choiceIndex, rewardCount, previousCount;
+    static NSPoint point;
+    static bool mouseHeld;
+    static bool choicePending, choiceSelected;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 7) return true;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) {
+        Require(!phase, "World left during quest reward check"); return false;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now-started).count();
+    auto advance = [&](unsigned next) { phase = next; started = now; };
+    auto frame = [](const char* name) {
+        return static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name, CSimpleFrame::GetObjectType()));
+    };
+    auto mouse = [&](NSEventType type) {
+        NSEvent* event = [NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+        if (type == NSEventTypeMouseMoved) [view mouseMoved:event];
+        else if (type == NSEventTypeLeftMouseDown) [view mouseDown:event];
+        else [view mouseUp:event];
+    };
+    auto click = [&](CSimpleFrame* button, unsigned next) {
+        Require(button && button->m_isVisible, "Original quest button is not visible");
+        CRect rect; Require(button->GetRect(&rect), "Original quest button has no rectangle");
+        float x,y; DDCToNDC((rect.minX+rect.maxX)*.5f, (rect.minY+rect.maxY)*.5f, &x,&y);
+        Require(x>0 && x<1 && y>0 && y<1, "Original quest button is outside the view");
+        point = [view convertPoint:NSMakePoint(x*view.bounds.size.width, (view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        mouse(NSEventTypeMouseMoved); mouse(NSEventTypeLeftMouseDown);
+        mouseHeld = true; releasePhase = next; started = now;
+    };
+    if (mouseHeld) {
+        if (elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); mouseHeld = false; advance(releasePhase); }
+        return false;
+    }
+    if (!phase) {
+        if (!questID) {
+            const char* value = std::getenv("WOW_WORLD_QUEST"); char* end = nullptr;
+            Require(value && *value, "Quest reward check requires an explicit WOW_WORLD_QUEST ID");
+            const unsigned long parsed = std::strtoul(value, &end, 10);
+            Require(end != value && !*end && parsed > 0 && parsed <= INT32_MAX, "Invalid quest reward ID");
+            questID = uint32_t(parsed);
+            if (const char* item = std::getenv("WOW_WORLD_REWARD_ITEM")) {
+                const unsigned long parsedItem = std::strtoul(item, &end, 10);
+                Require(end != item && !*end && parsedItem > 0 && parsedItem <= INT32_MAX,"Invalid explicit quest reward item ID");
+                requestedItem = uint32_t(parsedItem);
+            }
+        }
+        if (!CheckNativeWorldNPC(view, false, true)) return false;
+        const int32_t index = CGQuestLog::GetQuestIndex(questID);
+        Require(index > 0 && CGQuestLog::IsQuestCompleteEx(index-1, 1), "Requested quest is not complete in the original log");
+        coins = player->GetCoinage(); xp = player->m_player->m_playerXp; level = player->m_unit->m_unitFieldLevel;
+        Require(!CGQuestLog::GetQuestIndex(INT32_MAX) && CGQuestLog::ComputeBlobQuestObjectives(INT32_MAX) == 0,
+            "Absent quest retained objectives during a pending map update");
+        std::fprintf(stderr,"Native quest reward: before submission, money %u, XP %u, level %u; absent quest POI rejected\n",coins,xp,level);
+        advance(1);
+    } else if (phase == 1 && elapsed >= 1) {
+        if (CGQuestInfo::m_currentQuest == int32_t(questID) && CGQuestInfo::m_state >= 2) { advance(3); return false; }
+        CSimpleFrame* button = nullptr;
+        auto* gossip = frame("GossipFrame");
+        if (gossip && gossip->m_isVisible) {
+            int32_t index = 0;
+            for (int32_t i=0; i<CGGossipInfo::GetNumActiveQuests(); ++i) {
+                const auto* quest = CGGossipInfo::GetActiveQuest(i);
+                if (quest && quest->m_questID == questID) { index = i+1; break; }
+            }
+            Require(index, "Requested completed quest is not offered by this NPC");
+            auto* lua = FrameScript_GetContext();
+            for (unsigned i=1; i<=32; ++i) {
+                char name[40]; std::snprintf(name,sizeof(name),"GossipTitleButton%u",i);
+                auto* candidate = frame(name);
+                if (!candidate || !candidate->m_isVisible || candidate->m_id != uint32_t(index)) continue;
+                lua_rawgeti(lua,LUA_REGISTRYINDEX,candidate->GetLuaObjectRef()); lua_getfield(lua,-1,"type");
+                const char* type = lua_tostring(lua,-1); const bool active = type && !std::strcmp(type,"Active"); lua_pop(lua,2);
+                if (active) { button = candidate; break; }
+            }
+        } else {
+            for (int32_t i=0; i<CGQuestInfo::m_numInProgress; ++i) {
+                if (CGQuestInfo::m_inProgressQuests[i].m_questID != int32_t(questID)) continue;
+                char name[40]; std::snprintf(name,sizeof(name),"QuestTitleButton%d",i+1); button = frame(name); break;
+            }
+        }
+        click(button,2);
+        std::fprintf(stderr,"Native quest reward: selected completed quest %u through its original title button\n",questID);
+    } else if (phase == 2) {
+        if (CGQuestInfo::m_currentQuest == int32_t(questID) && (CGQuestInfo::m_state == 2 || CGQuestInfo::m_state == 3)) advance(3);
+        else Require(elapsed < 10,"Server did not open the requested completed quest");
+    } else if (phase == 3 && elapsed >= 2) {
+        Require(CGQuestInfo::m_currentQuest == int32_t(questID),"Quest changed before completion");
+        if (CGQuestInfo::m_state == 3) { advance(4); return false; }
+        auto* button = static_cast<CSimpleButton*>(CScriptObject::GetScriptObjectByName("QuestFrameCompleteButton",CSimpleButton::GetObjectType()));
+        Require(CGQuestInfo::m_state == 2 && CGQuestInfo::IsCompletable() && CGQuestInfo::m_requiredMoney <= 0 &&
+            button && button->m_state != BUTTONSTATE_DISABLED,"Original quest progress button is not available without payment");
+        click(button,4);
+    } else if (phase == 4) {
+        if (CGQuestInfo::m_currentQuest == int32_t(questID) && CGQuestInfo::m_state == 3) {
+            Require(CGQuestInfo::m_rewardMoney >= 0,"Quest reward check does not pay money");
+            const int32_t choices = CGQuestInfo::GetNumQuestChoices();
+            if (choices) {
+                Require(requestedItem && choices <= 6,"A choice reward requires an explicit WOW_WORLD_REWARD_ITEM ID");
+                for (int32_t i=0; i<choices; ++i) {
+                    const auto& item = CGQuestInfo::m_questItems[i].m_choice;
+                    if (item.m_itemID == int32_t(requestedItem)) { choiceIndex = i+1; rewardCount = item.m_count; break; }
+                }
+                Require(choiceIndex && rewardCount,"Requested item is not a server quest choice");
+                previousCount = player->m_bag.GetItemTypeCount(requestedItem,0x6);
+            } else Require(!requestedItem,"Requested item is absent from this quest's rewards");
+            rewardMoney = CGQuestInfo::m_rewardMoney; rewardXP = CGQuestInfo::m_rewardXP;
+            auto* panel = frame("QuestFrameRewardPanel"); Require(panel && panel->m_isVisible,"Original reward panel is missing");
+            std::fprintf(stderr,"Native quest reward: server offers %s, %u copper, %u XP, choice item %u x%u\n",CGQuestInfo::m_questTitle,rewardMoney,rewardXP,requestedItem,rewardCount);
+            advance(5);
+        } else Require(elapsed < 10,"Server did not open the original reward panel");
+    } else if (phase == 5 && elapsed >= 2) {
+        Require(CGQuestInfo::m_currentQuest == int32_t(questID) && CGQuestInfo::m_state == 3 &&
+            player->GetCoinage() == coins && player->m_player->m_playerXp == xp,"Quest reward state changed before submission");
+        if (choiceIndex && !choiceSelected) {
+            auto* lua = FrameScript_GetContext();
+            if (choicePending) {
+                auto* info = frame("QuestInfoFrame"); Require(info,"Original quest info frame is missing");
+                lua_rawgeti(lua,LUA_REGISTRYINDEX,info->GetLuaObjectRef()); lua_getfield(lua,-1,"itemChoice");
+                const bool selected = lua_tointeger(lua,-1) == choiceIndex; lua_pop(lua,2);
+                Require(selected,"Native click did not select the requested original reward item");
+                choiceSelected = true;
+            } else {
+                CSimpleFrame* choice = nullptr;
+                for (unsigned i=1; i<=10; ++i) {
+                    char name[40]; std::snprintf(name,sizeof(name),"QuestInfoItem%u",i); auto* candidate = frame(name);
+                    if (!candidate || !candidate->m_isVisible || candidate->m_id != choiceIndex) continue;
+                    lua_rawgeti(lua,LUA_REGISTRYINDEX,candidate->GetLuaObjectRef()); lua_getfield(lua,-1,"type");
+                    const char* type = lua_tostring(lua,-1); const bool isChoice = type && !std::strcmp(type,"choice"); lua_pop(lua,2);
+                    if (isChoice) { choice = candidate; break; }
+                }
+                click(choice,5); choicePending = true; return false;
+            }
+        }
+        auto* button = static_cast<CSimpleButton*>(CScriptObject::GetScriptObjectByName("QuestFrameCompleteQuestButton",CSimpleButton::GetObjectType()));
+        Require(button && button->m_state != BUTTONSTATE_DISABLED,"Original quest reward button is disabled");
+        click(button,6);
+    } else if (phase == 6) {
+        bool present = false;
+        for (const auto& quest : player->m_player->m_playerQuestLog) present |= quest.m_questId == questID;
+        const bool experience = player->m_unit->m_unitFieldLevel > level || uint64_t(player->m_player->m_playerXp) >= uint64_t(xp)+rewardXP;
+        const bool itemReceived = !requestedItem || player->m_bag.GetItemTypeCount(requestedItem,0x6) == previousCount+rewardCount;
+        if (!present && !CGQuestLog::GetQuestIndex(questID) && uint64_t(player->GetCoinage()) == uint64_t(coins)+rewardMoney && experience && itemReceived) {
+            if (++settledFrames < 120) return false;
+            std::fprintf(stderr,"Native quest reward: server removed quest %u, money %u -> %u, XP %u -> %u, level %u -> %u, item %u count %u -> %u; original buttons and 120 settled frames passed\n",
+                questID,coins,player->GetCoinage(),xp,player->m_player->m_playerXp,level,player->m_unit->m_unitFieldLevel,requestedItem,previousCount,
+                requestedItem ? player->m_bag.GetItemTypeCount(requestedItem,0x6):0);
+            advance(7); return true;
+        }
+        Require(elapsed < 15,"Quest reward was not confirmed in the server quest log, money and XP");
+    }
+    return false;
+}
+
 bool CheckNativeWorldInventory(WowNativeView* view) {
     static unsigned phase, readyFrames, source, destination;
     static WOWGUID slots[16], item;
@@ -637,7 +797,7 @@ bool CheckNativeWorldMultisample() {
     ++phase; frames=0; return false;
 }
 
-bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant) {
+bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant, bool questGiverOnly) {
     static unsigned phase,readyFrames;
     static WOWGUID target;
     static uint32_t coins;
@@ -659,11 +819,11 @@ bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant) {
     auto next=[&] { ++phase; started=now; };
     if(!phase) {
         Require(!frame->m_isShown,"NPC check requires a closed gossip dialog");
-        struct Search { CGPlayer_C* player; decltype(project)* project; CGUnit_C* unit=nullptr; float distanceSquared=25; } search{player,&project};
+        struct Search { CGPlayer_C* player; decltype(project)* project; uint32_t flag; CGUnit_C* unit=nullptr; float distanceSquared=25; } search{player,&project,questGiverOnly ? 2u:1u};
         ClntObjMgrEnumVisibleObjects([](WOWGUID guid,void* context)->int32_t {
             auto& search=*static_cast<Search*>(context);
             auto* unit=static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid,TYPEMASK_UNIT,__FILE__,__LINE__));
-            if(!unit || unit==search.player || (unit->m_obj->m_type&TYPEMASK_PLAYER) || !(unit->m_unit->m_unitNpcFlags&1) ||
+            if(!unit || unit==search.player || (unit->m_obj->m_type&TYPEMASK_PLAYER) || !(unit->m_unit->m_unitNpcFlags&search.flag) ||
                unit->IsDeadOrGhost() || !search.player->CanInteract(unit)) return 1;
             const auto d=unit->GetPosition()-search.player->GetPosition(); const float distance=d.x*d.x+d.y*d.y+d.z*d.z; float x,y;
             if(distance<search.distanceSquared && (*search.project)(unit,x,y)) { search.unit=unit; search.distanceSquared=distance; }
@@ -687,9 +847,14 @@ bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant) {
         Require(event,"Cannot create native NPC right click"); NSEvent* native=[NSEvent eventWithCGEvent:event];
         if(down) [view rightMouseDown:native]; else [view rightMouseUp:native]; CFRelease(event); next();
     } else if(phase==3) {
-        if(CGGossipInfo::m_gossip==target && CGGossipInfo::m_gossipOptionsCount && CGGossipInfo::m_gossipText[0] && frame->m_isVisible) {
+        auto* questFrame=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("QuestFrame",CSimpleFrame::GetObjectType()));
+        const bool gossip=CGGossipInfo::m_gossip==target && CGGossipInfo::m_gossipText[0] && frame->m_isVisible &&
+            (CGGossipInfo::m_gossipOptionsCount || CGGossipInfo::GetNumActiveQuests() || CGGossipInfo::GetNumAvailableQuests());
+        const bool quest=questGiverOnly && CGQuestInfo::m_npc==target && questFrame && questFrame->m_isVisible;
+        if(gossip || quest) {
             Require(CGGameUI::m_lockedTarget==target,"Native NPC click did not select the original target");
-            std::fprintf(stderr,"Native NPC: original target, server gossip text and %u options displayed; no option selected\n",CGGossipInfo::m_gossipOptionsCount);
+            std::fprintf(stderr,"Native NPC: original target and server %s displayed; %u gossip options, %d active quests; no option selected\n",
+                quest ? "quest dialog":"gossip",CGGossipInfo::m_gossipOptionsCount,CGGossipInfo::GetNumActiveQuests());
             next(); return !browseMerchant;
         }
         Require(elapsed<8,"Native NPC right click did not display the original server gossip");

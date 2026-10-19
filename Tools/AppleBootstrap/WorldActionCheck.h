@@ -16,7 +16,7 @@ bool CheckNativeWorldShadows();
 // Original gxMultisample/gxRestart through live world frames and restoration.
 bool CheckNativeWorldMultisample();
 // Native picking and an existing nearby NPC's original server gossip dialog.
-bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant = false);
+bool CheckNativeWorldNPC(WowNativeView* view, bool browseMerchant = false, bool questGiverOnly = false);
 // An already learned Teleport: Moonglade through the original spellbook entry.
 bool CheckNativeWorldTravel();
 // Existing backpack Hearthstone, native item click and server-directed travel.
@@ -28,6 +28,10 @@ bool CheckNativeWorldReentry(WowNativeView* view);
 bool CheckNativeWorldPanels(WowNativeView* view);
 // Read a nearby game-object quest offer through native picking; no acceptance.
 bool CheckNativeWorldQuest(WowNativeView* view);
+// Turn in an explicitly selected, completed quest without required payment.
+// WOW_WORLD_QUEST is its ID; choices require WOW_WORLD_REWARD_ITEM. Original UI
+// performs every action, then server quest/money/XP/item state is checked.
+bool CheckNativeWorldReward(WowNativeView* view);
 // Move/swap the existing backpack Hearthstone and restore the full layout using
 // the original item cursor, native left clicks and server inventory updates.
 bool CheckNativeWorldInventory(WowNativeView* view);

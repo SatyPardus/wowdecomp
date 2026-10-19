@@ -471,6 +471,20 @@ object picking passed a 1,000-frame Mac ASan/UBSan and Metal run, with all 25
 quest-log IDs and money unchanged, final capture and normal shutdown. This
 checks the dialog path, not quest acceptance/completion or reward delivery.
 
+`--check-world-reward` turns in a completed quest at a visible NPC within five
+units, using the original gossip/title, progress, reward and item-choice buttons.
+Set `WOW_WORLD_QUEST` to its ID; a choice reward additionally requires an explicit
+`WOW_WORLD_REWARD_ITEM` item ID. The check refuses payments and verifies the
+server quest-log removal, money, experience/level and selected item count.
+Do not combine it with `--check-world-npc` or `--check-world-merchant`.
+Feral's quest 176 passed with item 6085 (0→1), 2,625 XP, level 14→15, 120 settled
+frames and normal shutdown under Mac ASan/UBSan and Metal validation. The prior
+quest 123 reward triggered a stale POI lookup at index -1; it now checks the
+negative index before reading the array, preserving the original zero result.
+The missing-quest regression and subsequent real reward passed; both iOS clients
+compile with this fix. Quest 123 was absent on reconnect, but its full money/XP
+update was interrupted by that fault and is not counted as a passing check.
+
 `--check-world-inventory` uses the original B binding and left-click item cursor
 to move the existing Hearthstone to an empty backpack slot, or swap with a
 different unlocked item if the backpack is full, then restore every slot and
