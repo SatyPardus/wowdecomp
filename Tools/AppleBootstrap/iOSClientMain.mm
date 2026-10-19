@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <MetalKit/MetalKit.h>
 #include "LoginInput.h"
+#include "ClientMemory.h"
 #include "WoW/Source/Apple/LocalServerPolicy.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "WoW/Source/WowServices/Apple/ClientSettings.h"
@@ -47,7 +48,8 @@ std::string settings, enterCharacter;
 std::string loginPipe;
 #endif
 std::shared_ptr<NativeLoginInput> pendingLogin;
-bool initialized, localDevelopment, stdinLogin, entryQueued;
+bool initialized, localDevelopment, stdinLogin, entryQueued, processingEvents;
+NativeClientMemory memoryPressure;
 uint32_t synchronousFrames;
 void Require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
 [[noreturn]] void Fatal(const char* message) {
@@ -294,8 +296,11 @@ void Capture(MTLRenderPassDescriptor* pass, id<CAMetalDrawable> drawable, NSStri
     try {
         const auto previousLoadingFrames = synchronousFrames;
         device->BeginFrame(pass, drawable);
-        const bool running = EventProcessPending(); PropSelectContext(context);
+        processingEvents = true;
+        const bool running = EventProcessPending();
+        processingEvents = false; PropSelectContext(context);
         if (device->FrameCommand()) device->ScenePresent();
+        if (initialized) memoryPressure.Frame(*device, CGGameUI::s_inWorld);
         if (pendingLogin && self.frames >= 2) {
             Require(CGlueMgr::m_acceptedTOS && CGlueMgr::m_acceptedEULA, "Original agreement preferences are required before stdin login");
             Require(!std::strcmp(CGlueMgr::m_currentScreen, "login") && CGlueMgr::m_idleState == IDLE_NONE, "Stdin login requires the idle original login screen");
@@ -320,6 +325,15 @@ void Capture(MTLRenderPassDescriptor* pass, id<CAMetalDrawable> drawable, NSStri
 @interface NativeClientApplication : UIResponder <UIApplicationDelegate>
 @end
 @implementation NativeClientApplication
+- (void)applicationDidReceiveMemoryWarning:(UIApplication*)application {
+    memoryPressure.Request();
+    // Also service a suspended application, whose display callback is stopped.
+    // Nested notifications during original loading/dispatch remain deferred.
+    if (initialized && !processingEvents) {
+        try { PropSelectContext(context); memoryPressure.Process(*device); }
+        catch (const std::exception& error) { Fatal(error.what()); }
+    }
+}
 @end
 
 int main(int argc, char** argv) {

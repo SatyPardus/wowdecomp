@@ -15,6 +15,7 @@ public:
         uint64_t geometryDraws = 0, renderPasses = 0, bufferUploadPasses = 0;
         uint64_t streamedBytes = 0, streamPageAllocations = 0;
         uint64_t visibilityPageAllocations = 0, querySubmissions = 0, queryWaits = 0;
+        uint64_t cacheEvictions = 0, discardedStreamBytes = 0;
     };
     EncodingStatistics EncodingStats() const;
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);
@@ -27,6 +28,7 @@ public:
     int32_t DeviceCreate(GxWindowProc proc, const CGxFormat& format) override;
     int32_t DeviceCreate(void* window, const CGxFormat& format) override;
     void DeviceDestroy() override;
+    void DeviceEvictResources() override;
     int32_t DeviceSetFormat(const CGxFormat& format) override;
     void* DeviceWindow() override;
     int32_t DeviceWM(EGxWM, uintptr_t, uintptr_t) override;

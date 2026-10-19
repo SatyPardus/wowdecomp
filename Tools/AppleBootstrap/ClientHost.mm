@@ -1,5 +1,6 @@
 #include "NativeView.h"
 #include "LoginInput.h"
+#include "ClientMemory.h"
 #include "WorldActionCheck.h"
 #include "WoW/Source/Apple/LocalServerPolicy.h"
 #include "WoW/Source/WowServices/ClientData.h"
@@ -51,6 +52,7 @@ namespace {
 CGxDeviceMetal* device;
 HPROPCONTEXT context;
 bool initialized;
+NativeClientMemory memoryPressure;
 std::unique_ptr<NativeLoginInput> pendingLogin;
 std::string enterCharacter;
 bool entryQueued;
@@ -295,6 +297,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 
 @interface OriginalClientHost : NSObject <MTKViewDelegate, NSWindowDelegate, NSApplicationDelegate>
 @property(nonatomic, weak) WowNativeView* view;
+@property(nonatomic, strong) dispatch_source_t memoryPressureSource;
 @property(nonatomic) BOOL active;
 @property(nonatomic) BOOL stopping;
 @property(nonatomic) BOOL sleeping;
@@ -362,6 +365,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         const bool running = EventProcessPending();
         PropSelectContext(context);
         if (device->FrameCommand()) device->ScenePresent();
+        if (initialized) memoryPressure.Frame(*device, CGGameUI::s_inWorld);
         if (!running) [self stop:nil];
         else [self updatePresentation];
     } catch (const std::exception& error) { Fatal(error.what()); }
@@ -588,6 +592,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             self.checkFailed = YES; self.frameLimit = self.frames + 1;
         }
         if (device->FrameCommand()) device->ScenePresent();
+        if (initialized) memoryPressure.Frame(*device, CGGameUI::s_inWorld);
         if (!self.active && ++self.backgroundFrames == 120)
             std::fprintf(stderr,"Native client: 120 background scheduler/render frames, in world %u, input %d, requested FPS %ld\n",
                 CGGameUI::s_inWorld,self.view.gameInputActive,long(preferred));
@@ -773,6 +778,11 @@ int main(int argc, char** argv) {
             g_clientEventContext = EventCreateContextEx(1, Initialize, Destroy, 1, 0);
             Require(g_clientEventContext != nullptr, "Cannot create the original client context");
             OriginalClientHost* host = [OriginalClientHost new]; host.view = view;
+            host.memoryPressureSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_MEMORYPRESSURE, 0,
+                DISPATCH_MEMORYPRESSURE_WARN | DISPATCH_MEMORYPRESSURE_CRITICAL, dispatch_get_main_queue());
+            Require(host.memoryPressureSource != nil, "Cannot observe native memory pressure");
+            dispatch_source_set_event_handler(host.memoryPressureSource, ^{ memoryPressure.Request(); });
+            dispatch_resume(host.memoryPressureSource);
             auto* workspaceNotifications = NSWorkspace.sharedWorkspace.notificationCenter;
             [workspaceNotifications addObserver:host selector:@selector(systemWillSleep:) name:NSWorkspaceWillSleepNotification object:nil];
             [workspaceNotifications addObserver:host selector:@selector(systemDidWake:) name:NSWorkspaceDidWakeNotification object:nil];
@@ -781,6 +791,7 @@ int main(int argc, char** argv) {
             [window center]; [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
             [host gainInputFocus]; [NSApp run]; [host loseInputFocus];
             [workspaceNotifications removeObserver:host];
+            dispatch_source_cancel(host.memoryPressureSource); host.memoryPressureSource = nil;
             view.paused = YES; device->Drain();
             view.delegate = nil; window.delegate = nil; NSApp.delegate = nil;
             OsIMEDestroy(); OsTimeShutdown(); EventDestroy();

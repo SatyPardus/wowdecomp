@@ -279,6 +279,7 @@ struct CGxDeviceMetal::Impl {
     std::unordered_map<CGxQuery*, std::shared_ptr<QueryResult>> queries;
     std::vector<std::shared_ptr<QueryResult>> activeQueries;
     std::vector<std::shared_ptr<VisibilityPage>> visibilityPages;
+    bool evictAfterPresent = false;
     std::shared_ptr<VisibilityPage> renderVisibility;
     bool countingVisibility = false;
     id<MTLCommandBuffer> command;
@@ -676,6 +677,25 @@ void CGxDeviceMetal::Drain() {
     id<MTLCommandBuffer> fence = [m->gpu.queue commandBuffer];
     [fence commit]; [fence waitUntilCompleted];
 }
+void CGxDeviceMetal::DeviceEvictResources() {
+    // World unload can request eviction inside an original loading frame.
+    // Preserve that frame's snapshots and allocation cursors until submission.
+    if (m->command) { m->evictAfterPresent = true; return; }
+    m->evictAfterPresent = false;
+    for (auto& entry : m->pools) entry.second.snapshots.clear();
+    for (auto& frame : m->streamFrames) {
+        for (auto page : frame.pages) m->statistics.discardedStreamBytes += page.length;
+        frame.pages.clear(); frame.Reset();
+    }
+    // Submitted commands retain their buffers until completion. Dropping our
+    // reusable-page references neither waits for the GPU nor reuses their bytes.
+    // Queries and the current render encoder retain any results still needed.
+    auto& pages = m->visibilityPages;
+    pages.erase(std::remove_if(pages.begin(), pages.end(), [](const auto& page) {
+        return page.use_count() == 1;
+    }), pages.end());
+    ++m->statistics.cacheEvictions;
+}
 int32_t CGxDeviceMetal::DeviceCreate(GxWindowProc proc, const CGxFormat& format) {
     // Native hosts create their view before original ConsoleDevice startup.
     // A Windows-style callback does not create an AppKit/UIKit window.
@@ -799,6 +819,7 @@ void CGxDeviceMetal::ScenePresent() {
     if (m->drawable) { [m->command presentDrawable:m->drawable]; }
     [m->command commit]; m->command = nil; m->drawable = nil;
     m->pass = m->defaultPass = nil;
+    if (m->evictAfterPresent) DeviceEvictResources();
     CGxDevice::ScenePresent();
     auto restart = m->displayRestart;
     m->displayRestart = nullptr;

@@ -94,7 +94,7 @@ void CheckGxDevice(const char* focus) {
     if (focus && !std::strcmp(focus, "ui")) { CheckOriginalUI(device); device.DeviceDestroy(); return; }
     CheckDisplaySettings(device);
     if (!focus) CheckGxQueries(device);
-    if (focus && std::strcmp(focus, "render-target")) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "models")) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }
     auto& gpu = device.GPU();
     CGxShader* vertex[2]{}; CGxShader* pixel = nullptr;
     device.ShaderCreate(vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
@@ -338,26 +338,46 @@ void CheckGxDevice(const char* focus) {
         afterStreams.renderPasses - beforeStreams.renderPasses == 9 &&
         afterStreams.bufferUploadPasses == beforeStreams.bufferUploadPasses &&
         afterStreams.streamPageAllocations == warmedAllocations, "Streaming geometry did not reuse frame pages/render passes");
+    const auto beforeEviction = device.EncodingStats();
+    for (unsigned frame = 0; frame < 9; ++frame) {
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
+        descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+        frames.push_back([gpu.device newTextureWithDescriptor:descriptor]);
+        MTLRenderPassDescriptor* framePass = [pass copy]; framePass.colorAttachments[0].texture = frames.back();
+        const uint32_t intensity = 16 + frame * 23;
+        device.BeginFrame(framePass);
+        draw(0.5f, -0.5f, 0xFF000000 | (intensity << 8) | intensity);
+        const auto evictions = device.EncodingStats().cacheEvictions;
+        device.DeviceEvictResources();
+        Require(device.EncodingStats().cacheEvictions == evictions, "Eviction discarded an active frame's cursors");
+        draw(0.5f, 0.5f, 0xFF000000 | ((255 - intensity) << 8) | (255 - intensity));
+        device.ScenePresent();
+        Require(device.EncodingStats().cacheEvictions == evictions + 1, "Deferred eviction did not run after submission");
+        device.DeviceEvictResources(); // A repeated between-frame request is safe.
+    }
+    Require(device.EncodingStats().discardedStreamBytes > beforeEviction.discardedStreamBytes,
+        "Resource eviction retained all streaming pages");
     device.Drain();
     for (unsigned frame = 0; frame < frames.size(); ++frame) {
         MTLRenderPassDescriptor* framePass = [pass copy]; framePass.colorAttachments[0].texture = frames[frame];
         framePass.colorAttachments[0].loadAction = MTLLoadActionLoad;
         device.BeginFrame(framePass); result = read();
         for (size_t y = 0; y < 16; ++y) { for (size_t x = 0; x < 16; ++x) {
-            const uint32_t intensity = x < 8 ? 16 + frame * 23 : 239 - frame * 23;
+            const uint32_t intensity = x < 8 ? 16 + (frame % 9) * 23 : 239 - (frame % 9) * 23;
             const uint32_t expected = 0xFF000000 | (intensity << (x % 8 >= 4 && y >= 8 ? 0 : 8));
             Require(result[y * 16 + x] == expected, "Streaming page reuse overwrote an in-flight draw");
         } }
     }
     std::fprintf(stderr, "Gx streaming: 18 wrapped draws in 9 passes across three in-flight slots, no upload blits or page allocations after warmup; exact pixels preserved\n");
+    std::fputs("Gx eviction: mid-frame requests, repeated idle requests and 18 further draws preserved all in-flight pixels\n", stderr);
     Require(pixels.locks == pixels.unlocks && device.TexIsReadyNow(texture), "Gx texture callback lifecycle mismatch");
     bool rejected = false;
     try { device.ShaderCreate(&shared, GxSh_Pixel, "Shaders\\Pixel", "NotImplemented", 1); } catch (const std::runtime_error&) { rejected = true; }
     Require(rejected, "Unknown game shader silently accepted");
-    CheckPackedTextureFormats(device);
-    CheckGxRenderTargets(device);
+    if (!focus || std::strcmp(focus, "memory")) { CheckPackedTextureFormats(device); CheckGxRenderTargets(device); }
     GxTexDestroy(texture); device.BufDestroy(indices); device.PoolDestroy(indicesPool);
     device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
+    if (focus && !std::strcmp(focus, "memory")) { device.DeviceDestroy(); return; }
     CheckGxFont(device);
     CheckGxFFXPasses(device);
     CheckGxFFXEffect(device);

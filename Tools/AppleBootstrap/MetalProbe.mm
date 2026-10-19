@@ -198,6 +198,7 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
             if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
+                if (!std::strcmp(selection, "memory")) { CheckGxDevice(selection); report = "Metal cache eviction preserved active and in-flight draws.\n"; return true; }
                 if (!std::strcmp(selection, "weather-world")) { CheckGxDevice(selection); report = "Original weather/world integration checks passed.\n"; return true; }
                 if (!std::strcmp(selection, "weather")) { CheckGxDevice(selection); report = "Native weather shader checks passed.\n"; return true; }
                 if (!std::strcmp(selection, "msaa")) {

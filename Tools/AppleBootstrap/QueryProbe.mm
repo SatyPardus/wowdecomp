@@ -98,6 +98,7 @@ void CheckGxQueries(CGxDeviceMetal& device) {
     // Keep an old answer while other frames recycle streaming and result pages.
     for (unsigned i=0;i<18;++i) {
         device.BeginFrame(pass); device.QueryBegin(b); draw(); device.QueryEnd(b); device.ScenePresent(); answer(b,256);
+        device.DeviceEvictResources();
     }
     answer(a,512);
     device.BeginFrame(pass); const auto beforeMany=device.EncodingStats();

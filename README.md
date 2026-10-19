@@ -326,6 +326,22 @@ with original `extShadowQuality=3` also completed local world entry, 1,800 frame
 That run did not recheck foreground recovery. Both iOS targets build; signed
 physical-device deployment remains unverified.
 
+Native client hosts now respond to macOS warning/critical memory pressure and
+UIKit memory warnings. Requests during game dispatch are serviced at a frame
+boundary; a suspended iOS client can trim without acquiring a drawable. Only the
+original zero-reference model cache and detached reusable texture cache are
+purged. Metal drops reusable stream-page references and unowned visibility pages,
+retaining live resources and query answers. In-flight commands retain their own
+buffers; eviction adds no GPU wait and a frame-local request waits until submission.
+`WOW_CLIENT_MEMORY_CHECK=1` exercises three requests, separated by 120 world
+frames, without allocating artificial system pressure or sending gameplay input.
+Mac ASan/UBSan/Metal completed 850 world-session frames and iOS simulator completed
+900, each with three trims and original shutdown (6/9 MiB stream cache references
+retired per request respectively). These are cache-reference counts, not a claim
+about immediate process footprint reduction or physical-device low-memory survival.
+`WOW_METAL_CHECK=memory` checks exact pixels across frame-local and repeated
+between-frame evictions; query checks also retain an old answer across eviction.
+
 For a local development server, `--local-unchecked` explicitly omits executable
 challenge verification and restricts Grunt authentication to `127.0.0.1:3724`
 and realm endpoints to literal `127.0.0.1` with a valid port. The server must
