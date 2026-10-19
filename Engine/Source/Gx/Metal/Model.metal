@@ -6,6 +6,8 @@ constant bool modelTextureAlpha [[function_constant(7)]];
 constant uint modelColorMode [[function_constant(8)]];
 constant bool modelEnvironment [[function_constant(9)]];
 constant uint modelLayerOperation [[function_constant(10)]];
+constant uint modelBaseOperation [[function_constant(43)]];
+enum ModelBaseOperation { BaseMultiply, BaseDecal, BaseFade };
 constant bool modelDualUV [[function_constant(11)]];
 constant bool modelProjected [[function_constant(20)]];
 constant bool modelReflectionOnly [[function_constant(33)]];
@@ -218,7 +220,14 @@ fragment ModelFragmentOutput modelDiffuseFragment(ModelVaryings v [[stage_in]], 
     if (modelShaderAlphaTest && shaderAlpha < 0) discard_fragment();
     if (alphaTest && alpha < p.stateAlphaRef) discard_fragment();
     float3 shaded;
-    if (modelLayerOperation == LayerAdd || modelLayerOperation == LayerAddAlpha) {
+    if (modelBaseOperation == BaseDecal) {
+        // Original LRP alpha, vertex RGB, texture RGB. Only vertex RGB receives
+        // the shadow modulation above; texture alpha does not enter the result.
+        shaded = fma(float3(v.color.a), v.color.rgb - texel.rgb, texel.rgb) - p.fogColorAlphaRef.rgb;
+    } else if (modelBaseOperation == BaseFade) {
+        // The opposite LRP direction is a distinct authored material.
+        shaded = fma(float3(v.color.a), texel.rgb - v.color.rgb, v.color.rgb) - p.fogColorAlphaRef.rgb;
+    } else if (modelLayerOperation == LayerAdd || modelLayerOperation == LayerAddAlpha) {
         // AddNA contributes RGB independently of either texture's alpha.
         shaded = fma(texel.rgb, v.color.rgb, layer.rgb) - p.fogColorAlphaRef.rgb;
     } else if (modelLayerOperation == LayerAlphaWeightedAdd) {

@@ -706,6 +706,18 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
             {"2c7cc8a12f96d5bbc8d1834d736528b1", "5dcae422a3b839c3e352059ae831f681"},
         },
     };
+    static const char* interpolatedShadowPixel[2][3][2] = {
+        {
+            {"7f41f921e34a9563f3724763a109a8ba", "a1bcb1388ee72d493f06279edac98611"},
+            {"aa09da527787dcf93f5704d747320c3c", "a9aeb0ce8b3007161fc2f3082573b15f"},
+            {"871b261b537d5a27865c87b993c8ca27", "5d3b9ac51b9dbdaaa3effea7ab023fee"},
+        },
+        {
+            {"bc12beab031ab626591876b4d8a47cb1", "28e3af571dc6d585e6e2ffec8484ad01"},
+            {"05ed9ae37a1bb56d32dadf2e5497d1cb", "d1856f6d4642abd96b905b694db67cec"},
+            {"b0c6ba84a5f8d886ee3ee788895c136f", "f7cda17361fa5116d4733002126e2ffc"},
+        },
+    };
     static const char* pixel[][2] = {
         {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"},
         {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"},
@@ -723,7 +735,9 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         {"2735099ee0bce8460f617fa6df19384b", "1ddeb50aa344b743b01ed5be076157c0"},
         {"b098473291cd31e012ba66ed1d9794ec", "f545a667c95321e225ef6b617f51190e"},
         {"73f16d8588bfa64811252c711f8a69ee", "93534948da25e1af00a152616beeaa71"},
-        {"ba923edf7013ce87ee58592348079551", "789e67b62b9e5acd255c2c4337768d8d"}
+        {"ba923edf7013ce87ee58592348079551", "789e67b62b9e5acd255c2c4337768d8d"},
+        {"c7a79c04a75c74ebd3e53a6d0b13858e", "be007b698a54d564734b7bb6f28a42b3"},
+        {"8110dbbe1682dad2b22d35c3b7ff7ee7", "bb00bffcd69c4df46ac0da30ad965d47"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i, vertexEffect, effect)) continue;
@@ -769,6 +783,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
                     break;
                 }
                 case FragmentEffect::ModelModOpaque: expected = modOpaqueShadowPixel[mode-1][alphaTest]; break;
+                case FragmentEffect::ModelDecal: expected = interpolatedShadowPixel[0][mode-1][alphaTest]; break;
+                case FragmentEffect::ModelFade: expected = interpolatedShadowPixel[1][mode-1][alphaTest]; break;
                 case FragmentEffect::ModelOpaqueOpaque: expected = multiplyShadowPixel[0][mode-1][alphaTest]; break;
                 case FragmentEffect::ModelOpaqueMod: expected = multiplyShadowPixel[1][mode-1][alphaTest]; break;
                 case FragmentEffect::ModelModMod2xNA: expected = multiplyShadowPixel[2][mode-1][alphaTest]; break;

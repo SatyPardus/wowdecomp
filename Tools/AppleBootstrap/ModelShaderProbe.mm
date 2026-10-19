@@ -189,7 +189,7 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
         }
         const float normalFade=Sat(std::pow(1.2f-std::abs(test.normal*normalZ),4)); visibility+=normalFade*(1-visibility);
         const float brightness=mode ? .7f+.3f*visibility:1;
-        for(unsigned materialIndex=0;materialIndex<19;++materialIndex) for(unsigned alphaCase=0;alphaCase<3;++alphaCase) {
+        for(unsigned materialIndex=0;materialIndex<21;++materialIndex) for(unsigned alphaCase=0;alphaCase<3;++alphaCase) {
             if(projectedOnly && materialIndex!=3 && materialIndex!=9) continue;
             if(colored && !projectedOnly && materialIndex>1) continue;
             // Remaining fragment operators share the already exercised receiver
@@ -224,7 +224,7 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
             device.BeginFrame(pass); GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),256); GxShaderConstantsSet(GxSh_Pixel,0,p[0].data(),13);
             GxRsSet(GxRs_Texture0,reflectionOnly && !alphaCase ? environment:material);
             CGxShader** pixelFamilies[]={opaque,mod,environmentPixel,layerPixel[2],layerPixel[4],layerPixel[3],layerPixel[6],
-                layerPixel[0],layerPixel[1],layerPixel[5],layerPixel[7],layerPixel[9],layerPixel[10],opaque,mod,layerPixel[11],layerPixel[12],layerPixel[13],layerPixel[14]};
+                layerPixel[0],layerPixel[1],layerPixel[5],layerPixel[7],layerPixel[9],layerPixel[10],opaque,mod,layerPixel[11],layerPixel[12],layerPixel[13],layerPixel[14],layerPixel[15],layerPixel[16]};
             CGxShader** vertexFamily=projectedOnly ? vertex:reflectionOnly ? reflectionVertex:reflectedLayer ? environmentVertex:materialIndex>=3 ? dualUVVertex:vertex;
             GxRsSet(GxRs_VertexShader,vertexFamily[30*std::min(mode,2u)+permutation]);
             GxRsSet(GxRs_PixelShader,pixelFamilies[materialIndex][mode+(alphaCase ? 8:0)]);
@@ -250,7 +250,9 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
                     if(materialIndex==5) base*=128.0f/255 + 2*layer[channel]*(1-128.0f/255);
                     if(materialIndex==11) base+=(1-baseTexel[3])*layer[channel]*layer[3];
                     const float added=materialIndex==2 ? layer[channel]*layer[3] : materialIndex>=7 && materialIndex<=10 ? layer[channel] : 0;
-                    expected=.6f*(base*lit*brightness+added-p[2][channel])+p[2][channel];
+                    const float surface = materialIndex==19 ? vertexAlpha*lit*brightness+(1-vertexAlpha)*texel :
+                        materialIndex==20 ? vertexAlpha*texel+(1-vertexAlpha)*lit*brightness : base*lit*brightness+added;
+                    expected=.6f*(surface-p[2][channel])+p[2][channel];
                 }
                 if(!visible) expected=0;
                 expected=Sat(expected); // BGRA8 attachment conversion, after shader alpha rejection.
@@ -283,7 +285,7 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
         catch (const std::runtime_error&) { rejected = true; }
         if (!rejected) throw std::runtime_error("Malformed shader effect escaped its bounds checks: " + malformed);
     }
-    CGxShader* vertex[8][90]{}; CGxShader* pixel[16]{}; CGxShader* modPixel[16]{}; CGxShader* layerPixel[15][16]{};
+    CGxShader* vertex[8][90]{}; CGxShader* pixel[16]{}; CGxShader* modPixel[16]{}; CGxShader* layerPixel[17][16]{};
     for (unsigned family = 0; family < 8; ++family)
         device.ShaderCreate(vertex[family], GxSh_Vertex, "Shaders\\Vertex", GxMetal::ModelVertexFamily(GxMetal::ModelVertexEffect(family)), 90);
     device.ShaderCreate(pixel, GxSh_Pixel, "Shaders\\Pixel", "Combiners_Opaque", 16);
@@ -303,6 +305,8 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
     device.ShaderCreate(layerPixel[12], GxSh_Pixel, "Shaders\\Pixel", "Combiners_Opaque_Opaque", 16);
     device.ShaderCreate(layerPixel[13], GxSh_Pixel, "Shaders\\Pixel", "Combiners_Opaque_Mod", 16);
     device.ShaderCreate(layerPixel[14], GxSh_Pixel, "Shaders\\Pixel", "Combiners_Mod_Mod2xNA", 16);
+    device.ShaderCreate(layerPixel[15], GxSh_Pixel, "Shaders\\Pixel", "Combiners_Decal", 16);
+    device.ShaderCreate(layerPixel[16], GxSh_Pixel, "Shaders\\Pixel", "Combiners_Fade", 16);
     device.RsPush();
     struct Cleanup {
         CGxDeviceMetal& device; CGxShader* (*vertex)[90]; CGxShader** pixel; CGxShader** modPixel; CGxShader* (*layerPixel)[16]; CGxTex* texture[8]{};
@@ -312,7 +316,7 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
             for (unsigned family = 0; family < 8; ++family) for (unsigned i = 0; i < 90; ++i) device.ShaderDestroy(vertex[family][i]);
             for (unsigned i = 0; i < 16; ++i) {
                 device.ShaderDestroy(pixel[i]); device.ShaderDestroy(modPixel[i]);
-                for (unsigned layer = 0; layer < 15; ++layer) device.ShaderDestroy(layerPixel[layer][i]);
+                for (unsigned layer = 0; layer < 17; ++layer) device.ShaderDestroy(layerPixel[layer][i]);
             }
         }
     } cleanup{device, vertex, pixel, modPixel, layerPixel};
@@ -429,7 +433,7 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
         const Vec environment = projected ? LayerReference(Dot(c[8],view), Dot(c[9],view)) : family == 4 ? LayerReference(Dot(c[8], secondUV), Dot(c[9], secondUV)) : EnvironmentReference(view, transformedNormal);
         const float w = Dot(c[5], view);
         const unsigned x = std::floor((Dot(c[2], view) / w + 1) * 16), y = std::floor((1 - Dot(c[3], view) / w) * 16);
-        for (unsigned slot = 0; slot < ((projected || reflectionOnly) ? 2u : family >= 3 ? 16u : 2u); ++slot) for (unsigned pixelPermutation : {0u, 4u, 8u, 12u}) {
+        for (unsigned slot = 0; slot < ((projected || reflectionOnly) ? 2u : family >= 3 ? 18u : 2u); ++slot) for (unsigned pixelPermutation : {0u, 4u, 8u, 12u}) {
             const unsigned material = projected ? (slot ? 7 : 4) : slot >= 7 ? slot + 1 : slot;
             const bool mod = material == 1 || material == 3 || material == 4 || material == 7 || material == 8 || material == 13 || material == 16, layered = material >= 2;
             device.RsSet(GxRs_Texture0, cleanup.texture[mod || material == 5 || material == 11]);
@@ -447,6 +451,8 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
                 if (material == 4 || material == 13 || material == 14 || material == 15) shaded *= environment[channel];
                 if (material == 6 || material == 8 || material == 12 || material == 16) shaded *= 2 * environment[channel];
                 if (material == 5) shaded *= 128.0f / 255 + 2 * environment[channel] * (1 - 128.0f / 255);
+                if (material == 17) shaded = color[3]*color[channel] + (1-color[3])*texel[channel];
+                if (material == 18) shaded = color[3]*texel[channel] + (1-color[3])*color[channel];
                 expected[channel] = Sat(fog * (shaded - fogColor[channel]) + fogColor[channel]);
             }
             if (reflectionOnly && (pixelPermutation & 8) && expected[3] < pixelFog[3]) expected = {};
@@ -472,7 +478,7 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
     std::memcpy(device.BufLock(alphaVertex), &source, sizeof(source)); device.BufUnlock(alphaVertex, 0);
     GxPrimVertexPtr(alphaVertex, GxVBF_PBNT2);
     struct AlphaCase { unsigned pixel, stateRef; float shaderRef; bool visible; };
-    for (unsigned material = 0; material < 17; ++material) {
+    for (unsigned material = 0; material < 19; ++material) {
         const bool mod = material == 1 || material == 3 || material == 4 || material == 7 || material == 8 || material == 13 || material == 16, layered = material >= 2;
         device.RsSet(GxRs_Texture0, cleanup.texture[mod || material == 5 || material == 11]);
         device.RsSet(GxRs_Texture1, cleanup.texture[material == 4 || material == 6 || material == 7 || material == 8 || material == 9 || material == 15 ? 3 : 2]);

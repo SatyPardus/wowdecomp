@@ -15,6 +15,11 @@ constexpr bool UsesModelProjection(ModelVertexEffect effect) {
 constexpr unsigned ModelColorMode(ModelVertexEffect effect) {
     return UsesModelMaterial(effect) ? 0 : effect == ModelVertexEffect::ColorDiffuse ? 2 : 1;
 }
+enum class ModelBaseOperation : uint32_t { Multiply, Decal, Fade };
+constexpr ModelBaseOperation ModelBase(FragmentEffect effect) {
+    return effect == FragmentEffect::ModelDecal ? ModelBaseOperation::Decal :
+        effect == FragmentEffect::ModelFade ? ModelBaseOperation::Fade : ModelBaseOperation::Multiply;
+}
 enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate, AddAlpha, AlphaWeightedAdd, BlendAlphaWeightedAdd, DoubleModulateRGB, MultiplyRGB };
 constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
     return (effect == FragmentEffect::ModelModOpaque || effect == FragmentEffect::ModelOpaqueOpaque) ? ModelLayerOperation::MultiplyRGB :
