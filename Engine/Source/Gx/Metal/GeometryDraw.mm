@@ -238,6 +238,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         if (geometry.fixed->weather != WeatherVertex::None)
             [encoder setVertexBytes:&geometry.fixed->weatherParameters length:sizeof(WeatherParameters) atIndex:0];
         else [encoder setVertexBytes:&geometry.fixed->vertex length:sizeof(FixedUnlitVertexParameters) atIndex:0];
+        if (geometry.fixed->lighting)
+            [encoder setVertexBytes:&geometry.fixed->lightingParameters length:sizeof(FixedLightingParameters) atIndex:2];
     } else if (geometry.effect == FragmentEffect::WaterRipple) {
         [encoder setVertexBytes:&geometry.clipFromModel length:sizeof(C44Matrix) atIndex:0];
     } else if (detail) {

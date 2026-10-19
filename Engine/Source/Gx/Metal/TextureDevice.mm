@@ -176,7 +176,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
                            (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow || detailHardwareShadow || terrainHardwareShadow) << 10);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
-        terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
+        fixed ? fixed->lightMask | (uint32_t(fixed->lighting) << 4) | (uint32_t(fixed->normalizeNormals) << 5) | (uint32_t(fixed->specular) << 6) : terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
         fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : wmo ? wmo->shadowMode : detail ? detail->shadowMode : modelShadowMode,
         fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) | (uint32_t(fixed->pointSprite) << 5) | (uint32_t(fixed->weather) << 6) : terrain ? uint32_t(terrain->layerPass) : 0, sampleCount};
@@ -610,6 +610,10 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&uv0 type:MTLDataTypeBool atIndex:31];
         [constants setConstantValue:&uv1 type:MTLDataTypeBool atIndex:32];
         [constants setConstantValue:&fixed->positionCoords type:MTLDataTypeUInt atIndex:34];
+        [constants setConstantValue:&fixed->lighting type:MTLDataTypeBool atIndex:45];
+        [constants setConstantValue:&fixed->normalizeNormals type:MTLDataTypeBool atIndex:46];
+        [constants setConstantValue:&fixed->specular type:MTLDataTypeBool atIndex:47];
+        [constants setConstantValue:&fixed->lightMask type:MTLDataTypeUInt atIndex:48];
         [constants setConstantValue:&sampleDepthOffset type:MTLDataTypeBool atIndex:40];
         NSError* error = nil;
         descriptor.vertexFunction = [m_library newFunctionWithName:weatherKind ? @"weatherVertex" : @"fixedUnlitVertex" constantValues:constants error:&error];
@@ -618,7 +622,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             throw std::runtime_error(error.localizedDescription.UTF8String ?: "Unlit fixed-function specialization failed");
         if (fixed->weather == WeatherVertex::Snow || fixed->weather == WeatherVertex::Sand)
             descriptor.vertexDescriptor.layouts[1].stepFunction = MTLVertexStepFunctionPerInstance;
-        if (weatherKind && fixed->weather != WeatherVertex::Splash) {
+        if (fixed->lighting || (weatherKind && fixed->weather != WeatherVertex::Splash)) {
             descriptor.vertexDescriptor.attributes[4].bufferIndex = 1;
             descriptor.vertexDescriptor.attributes[4].offset = GxVertexAttribOffset(format, GxVA_Normal);
             descriptor.vertexDescriptor.attributes[4].format = MTLVertexFormatFloat3;

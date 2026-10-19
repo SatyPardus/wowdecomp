@@ -1524,9 +1524,11 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         draw.depthOffset = batch->m_primType >= GxPrim_Triangles ? -offset : 0;
     }
     if (fixed) {
-        Require(!integer(GxRs_Lighting), "Lit fixed-function materials are not implemented");
         Require(inputs <= 4, "Unlit fixed-function texture stage limit exceeded");
         auto& native = fixedParameters.emplace(); draw.fixed = &native;
+        native.lighting = integer(GxRs_Lighting) && MasterEnable(GxMasterEnable_Lighting);
+        Require(!native.lighting || (!weather && GxVertexHasAttrib(draw.format, GxVA_Normal)),
+                "Fixed-function lighting requires authored normals");
         native.stages = inputs;
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
         const C44Matrix worldView = world.m_mtx[world.m_level] * view.m_mtx[view.m_level];
@@ -1539,9 +1541,48 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             return simd_make_float4((value >> 16) & 255, (value >> 8) & 255, value & 255, value >> 24) / 255.0f;
         };
         native.vertex.materialColor = color(GxRs_MatDiffuse);
-        if (integer(GxRs_MatDiffuse) != 0xffffffffu) {
+        if (!integer(GxRs_Lighting) && integer(GxRs_MatDiffuse) != 0xffffffffu) {
             const auto emissive = color(GxRs_MatEmissive);
             for (unsigned i = 0; i < 3; ++i) native.vertex.materialColor[i] = std::min(1.0f, native.vertex.materialColor[i] + emissive[i]);
+        }
+        if (native.lighting) {
+            // Original IStateSyncLights/IStateSyncMaterial: four world-space
+            // lights, no global ambient, diffuse == ambient material and a local viewer.
+            auto& lighting = native.lightingParameters;
+            const auto inverseTranspose = simd_transpose(simd_inverse(native.vertex.viewFromModel));
+            for (unsigned i = 0; i < 3; ++i) {
+                lighting.normalFromModel.columns[i] = inverseTranspose.columns[i].xyz;
+                const auto column = lighting.normalFromModel.columns[i];
+                Require(std::isfinite(column.x) && std::isfinite(column.y) && std::isfinite(column.z), "Singular fixed-function normal transform");
+            }
+            native.normalizeNormals = integer(GxRs_NormalizeNormals) != 0;
+            lighting.emissive = color(GxRs_MatEmissive);
+            lighting.specularPower = color(GxRs_MatSpecular);
+            lighting.specularPower.w = m_appRenderStates[GxRs_MatSpecularExp].m_value.m_data.f[0];
+            native.specular = lighting.specularPower.w > 0 && integer(GxRs_MatSpecular) != 0;
+            lighting.materialSource.x = integer(GxRs_ColorMaterial);
+            simd_float4x4 viewMatrix;
+            std::memcpy(&viewMatrix, &view.m_mtx[view.m_level], sizeof(C44Matrix));
+            for (unsigned i = 0; i < 4; ++i) {
+                const auto& source = m_lights[i];
+                if (!source.m_enable) continue;
+                native.lightMask |= 1u << i;
+                auto& light = lighting.lights[i];
+                light.positionOrDirection = simd_mul(viewMatrix, simd_make_float4(source.m_dir.x, source.m_dir.y, source.m_dir.z, source.m_dir.w));
+                if (source.m_dir.w != 1) {
+                    const auto direction = light.positionOrDirection.xyz;
+                    const float length = simd_length(direction);
+                    light.positionOrDirection = simd_make_float4(length > 0 ? -direction / length : simd_make_float3(0, 0, 0), 0);
+                }
+                light.ambient = {source.m_ambColor.x, source.m_ambColor.y, source.m_ambColor.z, 0};
+                light.diffuse = {source.m_dirColor.x, source.m_dirColor.y, source.m_dirColor.z, 0};
+                light.specular = {source.m_specColor.x, source.m_specColor.y, source.m_specColor.z, 0};
+                light.attenuation = {source.m_constantAttenuation, source.m_linearAttenuation, source.m_quadraticAttenuation, 10000};
+            }
+        } else if (integer(GxRs_Lighting)) {
+            // Master lighting disabled bypasses materials in D3D9. Colorless
+            // vertices use the default white diffuse vertex output.
+            native.vertex.materialColor = {1, 1, 1, 1};
         }
         native.fog = MasterEnable(GxMasterEnable_Fog) && integer(GxRs_Fog);
         if (native.fog && !weather) {

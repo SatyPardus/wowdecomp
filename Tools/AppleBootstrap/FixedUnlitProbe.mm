@@ -253,6 +253,129 @@ void CheckFixedUnlit(CGxDeviceMetal& device) {
     GxRsSet(GxRs_TextureShader0, 0); GxXformSet(GxXform_Tex0,C44Matrix(1));
     device.XformSetView(C44Matrix(1)); GxXformSet(GxXform_World,C44Matrix(1)); device.m_projNative=C44Matrix(1);
     draw(Stage(diffuse,Unpack(texels[0][0]),0,0,diffuse[3]));
+    // Exercise the existing Gx light/material setters, independently evaluate
+    // vertex lighting on the CPU, then interpolate before texture/specular/fog.
+    std::array<CGxApiLight,4> savedLights;
+    std::memcpy(savedLights.data(),device.m_lights,sizeof(device.m_lights));
+    const bool savedMasterLighting=device.MasterEnable(GxMasterEnable_Lighting);
+    struct RestoreLights {
+        CGxDeviceMetal& device; std::array<CGxApiLight,4>& lights; bool master;
+        ~RestoreLights() {
+            std::memcpy(device.m_lights,lights.data(),sizeof(device.m_lights));
+            device.MasterEnableSet(GxMasterEnable_Lighting,master);
+        }
+    } restoreLights{device,savedLights,savedMasterLighting};
+    device.MasterEnableSet(GxMasterEnable_Lighting,1);
+    CGxLight lights[4];
+    for (unsigned i=0;i<4;++i) {
+        auto& light=lights[i];
+        light.m_flags=1 | ((i&1) ? 2 : 0);
+        light.m_dir={.3f+float(i)*.1f,-.2f,.6f};
+        if (!(i&1)) light.m_dir.z=-.7f;
+        light.m_ambientColor={.06f,.04f,.08f};
+        light.m_dirColor={.4f,.3f,.5f};
+        light.m_specularColor={.3f,.5f,.2f};
+        light.m_constantAttenuation=.4f; light.m_linearAttenuation=.2f; light.m_quadraticAttenuation=.03f;
+        device.LightSet(i,light,C3Vector(0,0,0));
+    }
+    C3Vector normals[4]{{.25f,.1f,1.2f},{.6f,-.2f,1},{-.5f,.1f,.8f},{.2f,.3f,-.8f}};
+    const auto material=Unpack(0xA0709060), emission=Unpack(0xFF080407), specularMaterial=Unpack(0xFF5A3651), fogColor=Unpack(0xFF182838);
+    GxRsSet(GxRs_MatDiffuse,int32_t(0xA0709060)); GxRsSet(GxRs_MatEmissive,int32_t(0xFF080407));
+    GxRsSet(GxRs_MatSpecular,int32_t(0xFF5A3651)); GxRsSet(GxRs_FogColor,int32_t(0xFF182838));
+    GxRsSet(GxRs_FogStart,0.0f); GxRsSet(GxRs_FogEnd,8.0f);
+    GxRsSet(GxRs_Lighting,1);
+    auto unit=[](std::array<double,4> v) {
+        const double length=std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+        for(unsigned c=0;c<3;++c) v[c]=length>0 ? v[c]/length : 0;
+        return v;
+    };
+    auto dot=[](const auto& a,const auto& b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; };
+    unsigned lightingSamples=0;
+    for (unsigned transformed=0;transformed<2;++transformed) {
+        world=C44Matrix(1); view=C44Matrix(1); world.d2=-3;
+        if(transformed) {
+            world.a0=2; world.b1=.5f; world.c2=1.5f; world.d0=.2f; world.d1=-.1f;
+            view.a0=0; view.a1=-1; view.b0=1; view.b1=0; view.d0=.3f; view.d1=.2f; view.d2=-1;
+        }
+        device.XformSetView(view); GxXformSet(GxXform_World,world);
+        device.m_projNative=(world*view).Inverse();
+        const auto inverse=(world*view).Inverse();
+        GxRsSet(GxRs_Fog,int(transformed));
+        for(unsigned source=0;source<4;++source) for(bool normalize : {false,true})
+        for(bool specular : {false,true}) for(unsigned mask : {0u,1u,10u,15u}) {
+            const bool vertexColor=source<3;
+            GxRsSet(GxRs_ColorMaterial,int(source%3)); GxRsSet(GxRs_NormalizeNormals,int(normalize));
+            GxRsSet(GxRs_MatSpecularExp,specular ? 8.0f : 0.0f);
+            for(unsigned i=0;i<4;++i) device.LightEnable(i,(mask>>i)&1);
+            std::array<Color,4> vertexDiffuse{},vertexSpecular{};
+            std::array<double,4> vertexFog{};
+            for(unsigned vertex=0;vertex<4;++vertex) {
+                const auto camera=transform(transform({positions[vertex].x,positions[vertex].y,positions[vertex].z,1},world),view);
+                std::array<double,4> normal{};
+                const double authored[]{normals[vertex].x,normals[vertex].y,normals[vertex].z};
+                const float* inv=&inverse.a0;
+                for(unsigned c=0;c<3;++c) for(unsigned k=0;k<3;++k) normal[c]+=authored[k]*inv[c*4+k];
+                if(normalize) normal=unit(normal);
+                const auto selected=vertexColor && source==0 ? diffuse : material;
+                auto& d=vertexDiffuse[vertex]; d=vertexColor && source==2 ? diffuse : emission; d[3]=selected[3];
+                auto& s=vertexSpecular[vertex];
+                for(unsigned i=0;i<4;++i) if(mask&(1u<<i)) {
+                    const auto& light=lights[i];
+                    auto direction=transform({light.m_dir.x,light.m_dir.y,light.m_dir.z,double(i&1)},view);
+                    double attenuation=1;
+                    if(i&1) {
+                        for(unsigned c=0;c<3;++c) direction[c]-=camera[c];
+                        const double distance=std::sqrt(dot(direction,direction));
+                        attenuation=distance>10000 ? 0 : 1/(light.m_constantAttenuation+light.m_linearAttenuation*distance+light.m_quadraticAttenuation*distance*distance);
+                    } else for(unsigned c=0;c<3;++c) direction[c]=-direction[c];
+                    direction=unit(direction);
+                    auto halfway=unit({-camera[0],-camera[1],-camera[2],0});
+                    for(unsigned c=0;c<3;++c) halfway[c]+=direction[c];
+                    halfway=unit(halfway);
+                    const double ndl=std::max(dot(normal,direction),0.0), highlight=specular ? std::pow(std::max(dot(normal,halfway),0.0),8) : 0;
+                    const float ambient[]{light.m_ambientColor.x,light.m_ambientColor.y,light.m_ambientColor.z};
+                    const float direct[]{light.m_dirColor.x,light.m_dirColor.y,light.m_dirColor.z};
+                    const float spec[]{light.m_specularColor.x,light.m_specularColor.y,light.m_specularColor.z};
+                    for(unsigned c=0;c<3;++c) {
+                        d[c]+=selected[c]*(ambient[c]+direct[c]*ndl)*attenuation;
+                        s[c]+=spec[c]*highlight*attenuation;
+                    }
+                }
+                for(unsigned c=0;c<3;++c) {
+                    d[c]=std::clamp(d[c],0.0f,1.0f);
+                    s[c]=std::clamp(s[c]*(vertexColor && source==1 ? diffuse[c] : specularMaterial[c]),0.0f,1.0f);
+                }
+                vertexFog[vertex]=transformed ? std::clamp((8-std::abs(camera[2]))/8,0.0,1.0) : 1;
+            }
+            device.BeginFrame(pass);
+            GxPrimVertexPtr(4,positions,sizeof(C3Vector),normals,sizeof(C3Vector),vertexColor ? &color : nullptr,0,&uv0,0,nullptr,0);
+            device.Draw(&batch,0);
+            TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels); device.ScenePresent(); ++draws;
+            for(unsigned y : {3u,8u,12u}) for(unsigned x : {3u,8u,12u}) {
+                const double u=(x+.5)/16,v=(y+.5)/16;
+                const std::array<double,4> weights=u+v<=1 ? std::array<double,4>{1-u-v,u,v,0} : std::array<double,4>{0,1-v,1-u,u+v-1};
+                Color d{},s{}; double fog=0;
+                for(unsigned vertex=0;vertex<4;++vertex) {
+                    for(unsigned c=0;c<4;++c) { d[c]+=weights[vertex]*vertexDiffuse[vertex][c]; s[c]+=weights[vertex]*vertexSpecular[vertex][c]; }
+                    fog+=weights[vertex]*vertexFog[vertex];
+                }
+                auto want=Stage(d,Unpack(texels[0][0]),0,0,d[3]);
+                for(unsigned c=0;c<3;++c) want[c]=std::clamp(want[c]+s[c],0.0f,1.0f)*fog+fogColor[c]*(1-fog);
+                const auto& actual=pixels[y*16+x]; const unsigned got[]{actual.r,actual.g,actual.b,actual.a};
+                for(unsigned c=0;c<4;++c) if(std::abs(int(got[c])-int(std::lround(want[c]*255)))>1)
+                    throw std::runtime_error("Fixed lighting mismatch at sample "+std::to_string(lightingSamples)+", channel "+std::to_string(c)+": got "+std::to_string(got[c])+", expected "+std::to_string(std::lround(want[c]*255)));
+                ++lightingSamples;
+            }
+        }
+    }
+    // Master disable bypasses materials; restoring lighting must not reuse its pipeline.
+    device.MasterEnableSet(GxMasterEnable_Lighting,0); GxRsSet(GxRs_Fog,0);
+    device.XformSetView(C44Matrix(1)); GxXformSet(GxXform_World,C44Matrix(1)); device.m_projNative=C44Matrix(1);
+    draw(Stage(diffuse,Unpack(texels[0][0]),0,0,diffuse[3]));
+    draw(Unpack(texels[0][0]),false);
+    GxRsSet(GxRs_Lighting,0); GxRsSet(GxRs_MatDiffuse,-1); GxRsSet(GxRs_MatEmissive,0);
+    draw(Stage(diffuse,Unpack(texels[0][0]),0,0,diffuse[3]));
+    std::fprintf(stderr,"Fixed-function lighting: %u pixel references, four directional/point lights, material sources, local-viewer specular after texturing, fog, inverse-transpose normals, normalization and master disable passed\n",lightingSamples);
     std::fprintf(stderr,"Generated linear texture coordinates: %u independent pixel references, object/world/camera source, disabled/affine/projected transforms, missing UVs and view/state changes passed\n",generatedSamples);
     std::fprintf(stderr, "Native fixed-function: %u numerical draws, six independent RGB/alpha operations, four stages, disabled cascade, UV sets/transforms, material color, vertex fog, alpha boundary and normalized post-raster depth offset passed\n", draws);
 }

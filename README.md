@@ -1463,7 +1463,7 @@ checks pass through resource recreation, and the mixed tile presents 120 frames
 with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
-world loading. Non-base cube layers remain explicitly unsupported. Lit fixed-function terrain and complete world effect/state coverage remain
+world loading. Non-base cube layers remain explicitly unsupported. Fixed-function terrain reflection and complete world effect/state coverage remain
 pending; the native world scene entry is described above.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
@@ -1562,8 +1562,27 @@ original object/world/camera sources, transform flags and Gx state update timing
 UVs and changing cameras. These checks pass on Mac with ASan/UBSan and Metal
 validation and on the iOS simulator. SM3 terrain/model/world shaders
 keep their own fog even when the retained Gx fog-enable state is set, as required
-by the original profile. Lighting, normal/reflection fixed-function coordinates and
-mixed programmable/fixed-function pairs still fail explicitly.
+by the original profile. The same native texture-stage path now accepts original
+fixed-function lighting: four directional/point lights, per-light ambient/diffuse,
+constant/linear/quadratic attenuation and the original 10,000-unit range,
+material/vertex color sources, emissive color, inverse-transpose normals and the
+normalization switch. Local-viewer specular is interpolated separately and added
+after the texture stages, before fog. Alpha retains its diffuse material source.
+The implementation follows the original D3D9 state mapping and Microsoft's
+[camera-space transforms](https://learn.microsoft.com/en-us/windows/win32/direct3d9/camera-space-transformations)
+and [lighting equations](https://learn.microsoft.com/en-us/windows/win32/direct3d9/mathematics-of-lighting).
+Lighting constants and variants are only bound for lit draws. `WOW_METAL_CHECK=fixed`
+adds 1,152 pixel references covering four-light combinations, disabled slots,
+material sources, specular, fog, nonuniform transforms and master disable, while
+retaining the unlit/coordinate/depth checks. Mac ASan/UBSan/Metal and iOS simulator
+pass; both iOS targets and the Mac client build. The simulator's default world
+also continues for 120 frames. `WOW_WMO_FIXED=1` with the Metal preview's existing
+`WOW_WMO` selects the original WMO fixed-function material/light branch; the real
+AltarOfStorms group (9,657 vertices, 9,624 triangles, ten batches) runs 120 frames
+on Mac and iOS. This explicit diagnostic does not change the default client
+profile. Normal/reflection fixed-function coordinates and mixed programmable/fixed
+pairs still fail explicitly; full fixed-function world coverage and Windows
+lighting comparison remain outstanding.
 
 The native unlit geometry primitive now links the shared Gx vertex-layout tables
 and consumes packed vertex buffers and 16-bit indexed/nonindexed batches directly.

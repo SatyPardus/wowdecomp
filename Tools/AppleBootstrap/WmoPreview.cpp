@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstring>
 #include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace {
@@ -50,7 +51,7 @@ struct WmoPreview::Impl {
     CMapLight light;
     C3Vector center;
     float radius = 1, rotation = 0;
-    bool buffersInitialized = false;
+    bool buffersInitialized = false, fixedFunction = false;
 
     Impl() { std::copy(std::begin(CMapObj::s_unifiedShaders), std::end(CMapObj::s_unifiedShaders), previousEffects.begin()); }
     ~Impl() {
@@ -67,6 +68,8 @@ struct WmoPreview::Impl {
 };
 
 WmoPreview::WmoPreview(const std::string &selection) : m(std::make_unique<Impl>()) {
+    const char* fixed = std::getenv("WOW_WMO_FIXED");
+    m->fixedFunction = fixed && !std::strcmp(fixed, "1");
     auto name = selection;
     uint32_t index = 0;
     const auto separator = name.rfind(':');
@@ -164,6 +167,7 @@ WmoPreview::WmoPreview(const std::string &selection) : m(std::make_unique<Impl>(
     std::fprintf(stderr, "WMO original group %s:%u: %d vertices, %d triangles, %d batches (%u two-pass transition batches)\n", name.c_str(),
                  index, m->group->m_vertexListCount, m->group->m_indicesCount / 3, m->group->m_batchListCount,
                  m->group->m_transparencyBatchesCount);
+    if (m->fixedFunction) std::fputs("WMO preview: original fixed-function material and light selection enabled\n", stderr);
 }
 WmoPreview::~WmoPreview() = default;
 uint32_t WmoPreview::BatchCount() const { return m->group->m_batchListCount + m->group->m_transparencyBatchesCount + unsigned(bool(m->liquid)); }
@@ -184,6 +188,9 @@ bool WmoPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, boo
     if (!Ready())
         return false;
     auto &device = *g_theGxDevicePtr;
+    Restore<int32_t> shaderEnable{CShaderEffect::s_enableShaders};
+    CShaderEffect::s_enableShaders = !m->fixedFunction;
+    Restore<C44Matrix> savedProjection{device.m_projNative};
     device.RsPush();
     GxXformPush(GxXform_View);
     CFrustum previous = CWorldScene::frustumStack[CWorldScene::frustumIndex];
@@ -210,6 +217,11 @@ bool WmoPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height, boo
         projection.a0 /= aspect;
     else
         projection.b1 *= aspect;
+    device.m_projNative = projection;
+    if (m->fixedFunction) {
+        GxRsSet(GxRs_VertexShader, 0);
+        GxRsSet(GxRs_PixelShader, 0);
+    }
     const auto projectionRows = projection.Transpose(), viewRows = view.Transpose();
     GxShaderConstantsSet(GxSh_Vertex, 2, reinterpret_cast<const float *>(&projectionRows), 4);
     GxShaderConstantsSet(GxSh_Vertex, 31, reinterpret_cast<const float *>(&viewRows), 3);
