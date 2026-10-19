@@ -458,8 +458,11 @@ then picks the corpse and uses the original loot buttons. `--check-world-loot`
 exercises only the loot portion on an existing nearby lootable corpse. Loot must
 fit the current inventory; the checks never delete items. Manual looting uses
 the existing Shift modifier if auto-loot is enabled, leaving the preference intact.
-Two real boar fights have passed sustained-combat checks; complete loot acquisition
-has not yet passed. Explicit world-action assertions now save the requested capture,
+The complete encounter passed near Goldshire: a Stonetusk Boar's health went
+102→0 through five outgoing and six incoming swings, with 123 dealt/23 taken
+damage, unchanged mana, original corpse picking and item 769 received (0→1).
+The loot UI released the corpse and the client shut down normally under Mac
+ASan/UBSan and Metal validation. Explicit world-action assertions save the requested capture,
 run normal shutdown and return failure; game/rendering exceptions still fail at
 the native fatal boundary.
 
