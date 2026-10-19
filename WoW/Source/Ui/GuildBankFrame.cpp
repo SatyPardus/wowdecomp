@@ -692,7 +692,11 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
         s_pendingItemQueries = 0;
 
         for (uint32_t i = 0; i < CGGuildBankInfo::m_tabSlots[tab].m_count; i++) {
-            g_nameDBCache.CancelCallback(*reinterpret_cast<uint64_t*>(&CGGuildBankInfo::m_tabSlots[tab].m_data[i]), Signal_EVENT_GUILDBANKBAGSLOTS_CHANGED, nullptr);
+            // Wow.exe 0x005A72B6 loads the signed item ID and uses CDQ, not
+            // the following suffix factor. Slots have a 44-byte stride, so
+            // reading a uint64_t through their address is also misaligned.
+            const auto itemId = CGGuildBankInfo::m_tabSlots[tab].m_data[i].m_itemID;
+            g_nameDBCache.CancelCallback(static_cast<uint64_t>(static_cast<int64_t>(itemId)), Signal_EVENT_GUILDBANKBAGSLOTS_CHANGED, nullptr);
         }
     }
 
