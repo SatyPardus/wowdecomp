@@ -3,17 +3,22 @@
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
 #include "Engine/Source/Frame/CSimpleButton.h"
+#include "Engine/Source/Frame/CSimpleCheckbox.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Model2/M2Model.h"
+#include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
 #include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/Services/Texture.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/DB/Rec/SpellRangeRec.h"
+#include "WoW/Source/DB/Rec/SpellShapeshiftFormRec.h"
+#include "WoW/Source/DB/Rec/CreatureDisplayInfoRec.h"
 #include "WoW/Source/DB/Rec/AreaTableRec.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
@@ -47,9 +52,106 @@
 #include <stdexcept>
 #include <vector>
 #include <algorithm>
+#include <array>
 
 namespace {
 void Require(bool ok, const char* message) { if (!ok) throw NativeWorldCheckFailure(message); }
+void CaptureWorldCheckFrame(WowNativeView* view, NSString* suffix) {
+    NSString* requested = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"];
+    if (!requested) return;
+    auto& gpu = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
+    MTLRenderPassDescriptor* pass = [view.currentRenderPassDescriptor copy]; auto drawable = view.currentDrawable;
+    Require(pass && drawable, "World check capture requires the current drawable");
+    if (gpu.FrameCommand()) gpu.ScenePresent();
+    pass.colorAttachments[0].loadAction = MTLLoadActionLoad; pass.depthAttachment.loadAction = MTLLoadActionLoad;
+    gpu.BeginFrame(pass);
+    const uint32_t width = uint32_t(drawable.texture.width), height = uint32_t(drawable.texture.height);
+    TSGrowableArray<CImVector> pixels; CiRect rect(0, 0, height, width); GxReadPixels(rect, pixels);
+    gpu.ScenePresent();
+    NSBitmapImageRep* image = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nullptr pixelsWide:width pixelsHigh:height
+        bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:width * 4 bitsPerPixel:32];
+    Require(image != nil, "Cannot allocate world check capture");
+    for (uint32_t i = 0; i < pixels.Count(); ++i) {
+        auto* p = image.bitmapData + i * 4; p[0] = pixels[i].r; p[1] = pixels[i].g; p[2] = pixels[i].b; p[3] = 255;
+    }
+    NSString* path = [[requested.stringByDeletingPathExtension stringByAppendingString:suffix] stringByAppendingPathExtension:@"png"];
+    Require([[image representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:path atomically:YES],
+        "Cannot save world check capture");
+}
+}
+bool CheckNativeWorldShapeshift(WowNativeView* view) {
+    static unsigned phase, stableFrames, slot;
+    static uint32_t display, power, form;
+    static int32_t bonusBar;
+    static std::array<uint32_t, 144> actions;
+    static NSPoint point;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 5) return true;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) { Require(!phase, "World left during form switching"); return false; }
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now - started).count();
+    auto next = [&] { ++phase; stableFrames = 0; started = now; };
+    auto button = [&] {
+        const auto name = "ShapeshiftButton" + std::to_string(slot + 1);
+        auto* result = static_cast<CSimpleCheckbox*>(CScriptObject::GetScriptObjectByName(name.c_str(), CSimpleCheckbox::GetObjectType()));
+        Require(result && result->m_isVisible, "Original form button is unavailable");
+        return result;
+    };
+    auto mouse = [&](NSEventType type) {
+        auto event = [NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+        if (type == NSEventTypeMouseMoved) [view mouseMoved:event];
+        else if (type == NSEventTypeLeftMouseDown) [view mouseDown:event];
+        else [view mouseUp:event];
+    };
+    auto click = [&] {
+        CRect rect; Require(button()->GetRect(&rect), "Original form button has no rectangle");
+        float x, y; DDCToNDC((rect.minX + rect.maxX) * .5f, (rect.minY + rect.maxY) * .5f, &x, &y);
+        Require(x > 0 && x < 1 && y > 0 && y < 1, "Original form button is outside the window");
+        point = [view convertPoint:NSMakePoint(x * view.bounds.size.width, (view.isFlipped ? 1-y : y) * view.bounds.size.height) toView:nil];
+        mouse(NSEventTypeMouseMoved); mouse(NSEventTypeLeftMouseDown);
+    };
+    if (!phase) {
+        if (++stableFrames < 120) return false;
+        Require(player->m_unit->m_unitFieldBytes0[1] == 11 && !player->GetShapeshiftForm() && player->m_unit->m_unitFieldHealth > 0,
+            "Form check requires a living druid in normal form");
+        for (slot = 0; slot < s_shapeshiftSpells.Count() && s_shapeshiftSpells[slot].m_spellId != 5487; ++slot) {}
+        Require(slot < s_shapeshiftSpells.Count() && s_shapeshiftSpells[slot].m_usable && !s_shapeshiftSpells[slot].m_noMana,
+            "Existing Bear Form is not learned or usable");
+        SpellRec spell; Require(g_spellDB.GetRecord(5487, &spell), "Original Bear Form spell is missing");
+        for (unsigned i = 0; i < 3; ++i) if (spell.m_effectAura[i] == 36) form = spell.m_effectMiscValue[i];
+        Require(form && g_spellShapeshiftFormDB.GetRecord(form), "Original Bear Form definition is missing");
+        display = player->m_unit->m_unitFieldDisplayid; power = player->m_unit->m_unitFieldBytes0[3];
+        bonusBar = CGActionBar::m_bonusBarOffset;
+        std::copy(std::begin(CGActionBar::m_slotActions), std::end(CGActionBar::m_slotActions), actions.begin());
+        Require(!button()->m_checked, "Bear Form button was already selected");
+        click(); next();
+    } else if (phase == 1 && elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); next(); }
+    else if (phase == 2) {
+        Require(elapsed < 30, "Original Bear Form did not complete its server/model/UI transition");
+        if (player->GetShapeshiftForm() != form || !player->m_worldModel || !player->m_worldModel->IsLoaded(0, 1)) return false;
+        if (!(player->m_unit->m_unitFieldDisplayid != display && player->m_displayInfo && uint32_t(player->m_displayInfo->m_id) == player->m_unit->m_unitFieldDisplayid &&
+            player->m_unit->m_unitFieldBytes0[3] == 1 && CGSpellBook::GetShapeshiftForm(1) == slot + 1 && button()->m_checked &&
+            CGActionBar::m_bonusBarOffset == g_spellShapeshiftFormDB.GetRecord(form)->m_bonusActionBar)) { stableFrames = 0; return false; }
+        if (++stableFrames < 120) return false;
+        CaptureWorldCheckFrame(view, @"-bear");
+        std::fprintf(stderr, "Native form: spell 5487, form %u, display %u -> %u, power %u -> %u, bonus bar %d -> %d; 120 rendered frames\n",
+            form, display, player->m_unit->m_unitFieldDisplayid, power, player->m_unit->m_unitFieldBytes0[3], bonusBar, CGActionBar::m_bonusBarOffset);
+        click(); next();
+    } else if (phase == 3 && elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); next(); }
+    else if (phase == 4) {
+        Require(elapsed < 30, "Original form cancellation did not restore the player");
+        if (player->GetShapeshiftForm() || !player->m_worldModel || !player->m_worldModel->IsLoaded(0, 1)) return false;
+        if (!(player->m_unit->m_unitFieldDisplayid == display && player->m_displayInfo && uint32_t(player->m_displayInfo->m_id) == display &&
+            player->m_unit->m_unitFieldBytes0[3] == power && !CGSpellBook::GetShapeshiftForm(1) && !button()->m_checked &&
+            CGActionBar::m_bonusBarOffset == bonusBar)) { stableFrames = 0; return false; }
+        if (++stableFrames < 120) return false;
+        Require(std::equal(actions.begin(), actions.end(), std::begin(CGActionBar::m_slotActions)), "Form switching changed stored action slots");
+        std::fputs("Native form: original button cancellation restored display, mana and action bar; 120 rendered frames, stored actions unchanged\n", stderr);
+        next(); return true;
+    }
+    return false;
 }
 bool CheckNativeWorldWalk(WowNativeView* view, bool recoverCorpse) {
     static std::vector<C2Vector> points;

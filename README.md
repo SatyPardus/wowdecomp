@@ -374,6 +374,17 @@ capture and normal shutdown passed Mac ASan/UBSan and Metal validation; both
 iOS client targets still build. Actual system sleep/wake and
 multiple displays remain unverified.
 
+`--check-world-shapeshift` runs alone with `--enter-world` on a living druid
+with Bear Form already learned, initially in normal form. It clicks the original
+form button, waits for the server's form/display/power, loaded model, selected
+button and bonus action bar to agree, then cancels with the same button. Each
+state renders for 120 stable frames; all 144 stored action slots must remain
+unchanged. Allow 1000 frames. With `WOW_CLIENT_CAPTURE`, the bear image is saved
+beside the final restored image with a `-bear` suffix. Feral's real transition
+(form 5, display 56 to 29415, mana to rage, bonus bar 0 to 3) and restoration
+passed Mac ASan/UBSan and Metal validation, including normal shutdown. This
+check consumes the normal spell mana and does not teach spells or change rules.
+
 `--check-world-input` with `--enter-world` is an explicit local development check
 that briefly moves the character, turns it, zooms the camera and jumps through
 native events. It first checks the existing W/S, arrow, wheel and Space bindings;

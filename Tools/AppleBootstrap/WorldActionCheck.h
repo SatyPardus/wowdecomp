@@ -11,6 +11,9 @@ public:
 bool CheckNativeWorldActions(WowNativeView* view);
 // Original cast bar, native Escape cancellation and a completed healing cast.
 bool CheckNativeWorldCasting(WowNativeView* view);
+// Existing Bear Form button, server form/display/power and action-bar switching,
+// then cancellation through the same original button and full restoration.
+bool CheckNativeWorldShapeshift(WowNativeView* view);
 // Original live shadow-quality/PCF CVars, all quality modes and cache recreation.
 // Restore both settings after the check.
 bool CheckNativeWorldShadows();

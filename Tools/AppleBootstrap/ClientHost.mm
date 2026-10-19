@@ -75,6 +75,7 @@ bool checkWorldInventory, worldInventoryDone;
 bool checkWorldWalk, worldWalkDone;
 bool checkWorldCorpse, worldCorpseDone;
 bool checkWorldVisibility;
+bool checkWorldShapeshift, worldShapeshiftDone;
 bool appBundle;
 uint32_t synchronousFrames;
 bool backgroundUpdateActive;
@@ -531,6 +532,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         const bool running = EventProcessPending();
         PropSelectContext(context);
         try { if (self.active) {
+            if (checkWorldShapeshift) worldShapeshiftDone = CheckNativeWorldShapeshift(self.view);
             if(checkWorldCorpse) worldCorpseDone = CheckNativeWorldCorpse(self.view);
             if (!checkWorldCorpse || worldCorpseDone) {
                 if (checkWorldMSAA) worldMSAADone = CheckNativeWorldMultisample();
@@ -610,6 +612,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             [self startVisibilityCheck];
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldVisibility || self.visibilityCheckDone, "Frame limit reached before native window visibility checks completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldShapeshift || worldShapeshiftDone, "Frame limit reached before native form switching completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldInput || worldInputDone,"Frame limit reached before native world input check completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldActions || worldActionsDone,"Frame limit reached before native world action check completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldCasting || worldCastingDone,"Frame limit reached before native world casting check completed");
@@ -680,13 +683,14 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-corpse")) checkWorldCorpse = true;
         else if (!std::strcmp(argv[argument], "--check-world-walk")) checkWorldWalk = true;
         else if (!std::strcmp(argv[argument], "--check-world-visibility")) checkWorldVisibility = true;
+        else if (!std::strcmp(argv[argument], "--check-world-shapeshift")) checkWorldShapeshift = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
     const bool actionChecks = checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest || checkWorldInventory || checkWorldWalk || checkWorldCorpse;
-    if ((checkWorldVisibility && actionChecks) || (receiveQuestReward && acceptQuest) || ((receiveQuestReward || acceptQuest) && checkWorldNPC) || (checkWorldWalk && checkWorldCorpse) || (argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((actionChecks || checkWorldVisibility) && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry | --check-world-hidden-reentry] [--check-world-panels] [--check-world-quest | --check-world-reward | --check-world-accept] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] [--check-world-visibility] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    if ((checkWorldVisibility && checkWorldShapeshift) || ((checkWorldVisibility || checkWorldShapeshift) && actionChecks) || (receiveQuestReward && acceptQuest) || ((receiveQuestReward || acceptQuest) && checkWorldNPC) || (checkWorldWalk && checkWorldCorpse) || (argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((actionChecks || checkWorldVisibility || checkWorldShapeshift) && enterCharacter.empty())) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry | --check-world-hidden-reentry] [--check-world-panels] [--check-world-quest | --check-world-reward | --check-world-accept] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] [--check-world-visibility | --check-world-shapeshift] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
