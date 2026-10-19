@@ -17,13 +17,13 @@ constexpr unsigned ModelColorMode(ModelVertexEffect effect) {
 }
 enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate, AddAlpha, AlphaWeightedAdd, BlendAlphaWeightedAdd, DoubleModulateRGB, MultiplyRGB };
 constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
-    return effect == FragmentEffect::ModelModOpaque ? ModelLayerOperation::MultiplyRGB :
-        effect == FragmentEffect::ModelOpaqueMod2xNA ? ModelLayerOperation::DoubleModulateRGB :
+    return (effect == FragmentEffect::ModelModOpaque || effect == FragmentEffect::ModelOpaqueOpaque) ? ModelLayerOperation::MultiplyRGB :
+        (effect == FragmentEffect::ModelOpaqueMod2xNA || effect == FragmentEffect::ModelModMod2xNA) ? ModelLayerOperation::DoubleModulateRGB :
         effect == FragmentEffect::ModelOpaqueAddAlpha ? ModelLayerOperation::AlphaWeightedAdd :
         effect == FragmentEffect::ModelOpaqueAddAlphaAlpha ? ModelLayerOperation::BlendAlphaWeightedAdd :
         (effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelOpaqueAdd) ? ModelLayerOperation::AddAlpha :
         (effect == FragmentEffect::ModelOpaqueMod2x || effect == FragmentEffect::ModelModMod2x) ? ModelLayerOperation::DoubleModulate :
-        effect == FragmentEffect::ModelModMod ? ModelLayerOperation::Multiply :
+        (effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod) ? ModelLayerOperation::Multiply :
         effect == FragmentEffect::ModelOpaqueMod2xNAAlpha ? ModelLayerOperation::BlendDoubleModulate :
         ModelTextureCount(effect) == 2 ? ModelLayerOperation::Add : ModelLayerOperation::None;
 }

@@ -689,6 +689,23 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         {"606a00a228bae7642746c91e34dc748b", "5f043ce1669efc8591bee9fa119f1cac"},
         {"04ae6dae3ba5f8ea4c8fdb446d1b2a05", "50f975c0cc4783c7bce24c41bdf92200"},
     };
+    static const char* multiplyShadowPixel[3][3][2] = {
+        {
+            {"2be49b7eac6b30781e01a7870b635d99", "fab6cf4c34617c6e6408289b515cea97"},
+            {"0fb8621b148e684183cd1195323f5d65", "33a5463c09144fda3812d193e3d74bbe"},
+            {"cbee7e4055a85ab0cedf44fe0ba37eae", "7da4fbd7648fdce2547bda833119b8f0"},
+        },
+        {
+            {"01fbe954d303ebcf67bb67edffc37715", "ff25cb5f1d4507246aff1d231e0dc52f"},
+            {"513ac0f99af1969a75c709a2f9b97740", "ec4f9873253cdbc1a46f543f372e950e"},
+            {"a778eff04d486dddb392f6090c7a4af8", "0c16eca7382c923fd96401b7b37bbe1d"},
+        },
+        {
+            {"9fe208e554df915bdfdee04b6e769af2", "1c3ea4b2545d392527132c9a698f60b7"},
+            {"3ecf020e29e3a5d4896bc48e64371a2b", "fe44694d4101de516b7548948c763b90"},
+            {"2c7cc8a12f96d5bbc8d1834d736528b1", "5dcae422a3b839c3e352059ae831f681"},
+        },
+    };
     static const char* pixel[][2] = {
         {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"},
         {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"},
@@ -703,7 +720,10 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         {"8a6f9019a0d8eefbaafc6cb2a4297504", "edd96442ff48c808c5699802f0ddb183"},
         {"14c860d5d1dc515d2494909da7259cba", "7bfb833f935b83e2834bcd6edcc04b2f"},
         {"8a64d4b05e2398a2ba4c62a5fe4aa997", "fd945970147ffd0cff289204ef658ab1"},
-        {"2735099ee0bce8460f617fa6df19384b", "1ddeb50aa344b743b01ed5be076157c0"}
+        {"2735099ee0bce8460f617fa6df19384b", "1ddeb50aa344b743b01ed5be076157c0"},
+        {"b098473291cd31e012ba66ed1d9794ec", "f545a667c95321e225ef6b617f51190e"},
+        {"73f16d8588bfa64811252c711f8a69ee", "93534948da25e1af00a152616beeaa71"},
+        {"ba923edf7013ce87ee58592348079551", "789e67b62b9e5acd255c2c4337768d8d"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i, vertexEffect, effect)) continue;
@@ -749,6 +769,9 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
                     break;
                 }
                 case FragmentEffect::ModelModOpaque: expected = modOpaqueShadowPixel[mode-1][alphaTest]; break;
+                case FragmentEffect::ModelOpaqueOpaque: expected = multiplyShadowPixel[0][mode-1][alphaTest]; break;
+                case FragmentEffect::ModelOpaqueMod: expected = multiplyShadowPixel[1][mode-1][alphaTest]; break;
+                case FragmentEffect::ModelModMod2xNA: expected = multiplyShadowPixel[2][mode-1][alphaTest]; break;
                 case FragmentEffect::ModelOpaqueAddAlpha: expected = environmentShadowPixel[mode-1][alphaTest]; break;
                 case FragmentEffect::ModelModMod: expected = dualUVShadowPixel[0][mode-1][alphaTest]; break;
                 case FragmentEffect::ModelOpaqueMod2x: expected = dualUVShadowPixel[1][mode-1][alphaTest]; break;
