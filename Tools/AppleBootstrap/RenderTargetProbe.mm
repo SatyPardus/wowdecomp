@@ -128,6 +128,77 @@ void CheckTargetProducer(CGxDeviceMetal& device, CGxTex* white) {
     }
     GxRsSet(GxRs_Texture0,static_cast<CGxTex*>(nullptr)); GxTexDestroy(p.target); GxScenePresent();
 }
+void CheckDepthTargets(CGxDeviceMetal& device, CGxTex* white) {
+    device.RsPush();
+    struct Cleanup {
+        CGxDeviceMetal& device; CGxTex* target[4]{};
+        ~Cleanup() {
+            GxRenderTargetSet(GxBuffers_Depth,nullptr,0); GxRenderTargetSet(GxBuffers_Color,nullptr,0);
+            if(device.FrameCommand()) device.ScenePresent();
+            for(auto* texture:target) if(texture) device.TexDestroy(texture);
+            device.RsPop();
+        }
+    } cleanup{device};
+    CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget=1;
+    for(unsigned i=0;i<4;++i) {
+        const auto format=i==0 ? GxTex_Argb8888:GxTex_D24X8;
+        const unsigned size=i==0 || i==3 ? 8:16;
+        Require(device.TexCreate(GxTex_2d,size,size,0,format,format,flags,nullptr,nullptr,"Independent depth attachment",cleanup.target[i]),"Cannot create depth fixture");
+    }
+    auto descriptor=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:16 height:16 mipmapped:NO];
+    descriptor.storageMode=MTLStorageModePrivate; descriptor.usage=MTLTextureUsageRenderTarget;
+    auto pass=[MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture=[device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction=MTLLoadActionClear; pass.colorAttachments[0].clearColor=MTLClearColorMake(0,0,1,1);
+    descriptor.pixelFormat=MTLPixelFormatDepth32Float;
+    pass.depthAttachment.texture=[device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.depthAttachment.loadAction=MTLLoadActionClear; pass.depthAttachment.clearDepth=.75;
+    for(auto state:{GxRs_DepthTest,GxRs_ScissorTest,GxRs_AlphaRef,GxRs_Culling,GxRs_ClipPlaneMask,GxRs_PolygonOffset}) GxRsSet(state,0);
+    GxRsSet(GxRs_DepthWrite,1); GxRsSet(GxRs_ColorWrite,15); GxRsSet(GxRs_BlendingMode,GxBlend_Opaque);
+    GxXformSetViewport(0,1,0,1,0,1);
+    auto depths=[&](unsigned size) {
+        CiRect rect(0,0,size,size); TSGrowableArray<float> values; device.DeviceReadDepths(rect,values);
+        return std::vector<float>(values.Ptr(),values.Ptr()+values.Count());
+    };
+    device.BeginFrame(pass);
+    GxRenderTargetSet(GxBuffers_Depth,cleanup.target[1],0);
+    device.SceneClear(2,CImVector(0,0,0,0)); Draw(device,white,0xFFFF0000,.25f);
+    for(float value:depths(16)) Require(value==.25f,"Explicit depth did not receive original UI geometry");
+    GxRenderTargetSet(GxBuffers_Color,cleanup.target[0],0);
+    device.SceneClear(3,CImVector(0,255,0,255));
+    for(float value:depths(8)) Require(value==1,"Small color viewport did not clear explicit depth");
+    GxRenderTargetSet(GxBuffers_Color,nullptr,0);
+    const auto retained=depths(16);
+    for(unsigned y=0;y<16;++y) for(unsigned x=0;x<16;++x)
+        Require(retained[y*16+x]==(x<8 && y<8 ? 1:.25f),"Small clear changed depth outside its color extent");
+    device.DeviceCopyTex(cleanup.target[1],0,cleanup.target[2],0);
+    GxRenderTargetSet(GxBuffers_Depth,cleanup.target[2],0);
+    Require(depths(16)==retained,"Depth blit changed samples or command order");
+    Solid(Read(device,16,16),0xFFFF0000,"Depth target switch repeated the host color clear");
+    device.ScenePresent();
+    device.BeginFrame(pass);
+    Require(depths(16)==retained,"Explicit depth contents did not persist across frames");
+    GxXformSetViewport(0,.5f,0,1,0,1); Draw(device,white,0xFF00FF00,.5f);
+    GxXformSetViewport(0,1,0,1,0,1);
+    const auto beforeDelete=Read(device,16,16);
+    device.TexDestroy(cleanup.target[2]); cleanup.target[2]=nullptr;
+    for(float value:depths(16)) Require(value==.75f,"Destroying bound depth did not restore independent host depth");
+    Require(Read(device,16,16)==beforeDelete,"Destroying explicit depth changed host color");
+    GxRenderTargetSet(GxBuffers_Color,cleanup.target[0],0);
+    GxRenderTargetSet(GxBuffers_Depth,cleanup.target[3],0);
+    device.SceneClear(3,CImVector(0,0,0,0)); Draw(device,white,0xFFFFFFFF,.625f);
+    for(float value:depths(8)) Require(value==.625f,"Small explicit depth mismatch");
+    bool rejected=false;
+    try { device.DeviceCopyTex(cleanup.target[1],0,cleanup.target[3],0); } catch(const std::runtime_error&) { rejected=true; }
+    Require(rejected,"Depth copy accepted unequal extents");
+    GxRenderTargetSet(GxBuffers_Color,nullptr,0);
+    rejected=false; try { Draw(device,white,0xFFFFFFFF,0); } catch(const std::runtime_error&) { rejected=true; }
+    Require(rejected,"Undersized explicit depth was submitted to Metal");
+    GxRenderTargetSet(GxBuffers_Depth,nullptr,0);
+    rejected=false; try { GxRenderTargetSet(GxBuffers_Color,cleanup.target[1],0); } catch(const std::runtime_error&) { rejected=true; }
+    Require(rejected,"Depth texture was accepted as a color attachment");
+    std::fprintf(stderr,"Explicit depth targets: independent host/scratch/depth lifetimes, regional clear, ordered exact copy, cross-frame binding, destruction and invalid format/extent rejection passed; native Depth32Float precision, PCF capability remains disabled\n");
+}
 void CheckRecreation(CGxDeviceMetal& device) {
     RecreationScope scope(device);
     RecreationData data;
@@ -429,6 +500,7 @@ void CheckGxRenderTargets(CGxDeviceMetal& device) {
     CheckClears(device, large, white);
     CheckRecreation(device);
     CheckTargetProducer(device, white);
+    CheckDepthTargets(device, white);
     GxTexDestroy(large); GxTexDestroy(white);
 }
 

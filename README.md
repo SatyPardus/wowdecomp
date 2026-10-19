@@ -807,6 +807,17 @@ filtering and blending fail explicitly. The original wolf shadow gather/draw
 path exercises both opaque and cutout batches. Complete world shadow queries
 and PCF depth textures are still incomplete.
 
+The depth-attachment foundation now accepts explicit Gx D24X8 render targets
+using native Apple Depth32Float storage, with the original single mip level.
+It preserves independent host/color/scratch/depth lifetimes, partial clears,
+equal-size ordered depth blits, cross-frame bindings and destruction of bound
+targets. Invalid attachment formats, undersized depth surfaces and unequal-size
+depth copies fail before GPU submission. Mac ASan/UBSan/Metal and iOS simulator
+checks pass alongside existing color-target regressions; both iOS clients build
+and the simulator continued for 120 frames. PCF capability stays disabled until
+comparison sampling and receivers are integrated. Native float depth is not a
+claim of original D24 quantization equivalence.
+
 `Diffuse_T1` also supports its 60 R32F dynamic/banded-shadow vertex variants, paired
 with `Combiners_Opaque` / `Combiners_Mod` pixel variants 1/2/3 and 9/10/11.
 Native typed constants preserve the original projected coordinates, five/nine LOD-zero samples, lit depth

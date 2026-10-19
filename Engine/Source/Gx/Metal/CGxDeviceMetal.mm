@@ -377,8 +377,14 @@ struct CGxDeviceMetal::Impl {
         visibilityPages.push_back(page); ++statistics.visibilityPageAllocations;
         return page;
     }
+    static void ValidateAttachments(MTLRenderPassDescriptor* descriptor) {
+        const auto color=descriptor.colorAttachments[0].texture, depth=descriptor.depthAttachment.texture;
+        Require(!depth || (depth.sampleCount==color.sampleCount && depth.width>=color.width && depth.height>=color.height),
+            "Gx depth attachment is smaller than color or has a different sample count");
+    }
     id<MTLRenderCommandEncoder> Render() {
         if (!renderEncoder) {
+            ValidateAttachments(pass);
             MTLRenderPassDescriptor* descriptor = [pass copy];
             if (!queries.empty()) {
                 renderVisibility = VisibilityStorage();
@@ -409,6 +415,7 @@ struct CGxDeviceMetal::Impl {
         if (descriptor.colorAttachments[0].loadAction != MTLLoadActionLoad ||
             (descriptor.depthAttachment.texture && descriptor.depthAttachment.loadAction != MTLLoadActionLoad)) {
             EndRender();
+            ValidateAttachments(descriptor);
             id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:descriptor];
             Require(encoder != nil, "Cannot encode Gx attachment load/clear");
             ++statistics.renderPasses;
@@ -962,7 +969,7 @@ int32_t CGxDeviceMetal::TexCreate(EGxTexTarget target, uint32_t width, uint32_t 
             "Cube textures require square power-of-two faces; cube render targets are not implemented");
     Require(!flags.m_generateMipMaps, "Gx automatic mip generation is not implemented");
     if (flags.m_renderTarget) {
-        Require(format == GxTex_Argb8888 || format == GxTex_R32F, "Gx render target format is not implemented");
+        Require(format == GxTex_Argb8888 || format == GxTex_R32F || format == GxTex_D24X8, "Gx render target format is not implemented");
     } else {
         Require(SupportedConversion(format, dataFormat) && callback, "Unsupported Gx texture conversion or missing callback");
         Require(!Packed16(format) || m_caps.m_texFmt[format], "Device cannot preserve packed Gx texture filtering precision");
@@ -973,6 +980,7 @@ int32_t CGxDeviceMetal::TexCreate(EGxTexTarget target, uint32_t width, uint32_t 
 void CGxDeviceMetal::TexDestroy(CGxTex* texture) {
     if (!texture) { return; }
     if (m_textureTarget[GxBuffers_Color].m_texture == texture) { DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0); }
+    if (m_textureTarget[GxBuffers_Depth].m_texture == texture) { DeviceSetRenderTarget(GxBuffers_Depth, nullptr, 0); }
     for (int state = GxRs_Texture0; state <= GxRs_Texture15; ++state) {
         if (m_appRenderStates[state].m_value.m_data.p == texture) { RsSet(EGxRenderState(state), nullptr); }
     }
@@ -1006,8 +1014,13 @@ void CGxDeviceMetal::EnsureRenderTarget(CGxTex* texture) {
     uint32_t width, height, base, end;
     ITexWHDStartEnd(texture, width, height, base, end);
     width = std::max(width, 1u); height = std::max(height, 1u);
+    const bool depth=texture->m_format==GxTex_D24X8;
+    // Original D3D9 depth textures have exactly one level, independently of
+    // ordinary color RTT mip allocation. Apple GPUs use native float depth;
+    // D24 precision equivalence and PCF capability remain separately gated.
+    if(depth) end=base+1;
     auto& storage = m->textures[texture];
-    Require((texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F) && !texture->m_flags.m_generateMipMaps,
+    Require((depth || texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F) && !texture->m_flags.m_generateMipMaps,
         "Unsupported Gx render target format or mip generation");
     const bool recreate = texture->m_needsCreation || !storage.gpu || !storage.renderTarget || storage.base != base ||
         storage.gpu.mipmapLevelCount != end - base;
@@ -1015,14 +1028,14 @@ void CGxDeviceMetal::EnsureRenderTarget(CGxTex* texture) {
         size_t total = 0;
         for (uint32_t mip = 0; mip < end - base; ++mip) { total += size_t(std::max(1u, width >> mip)) * std::max(1u, height >> mip) * 4; }
         Require(total <= ResourceBudget, "Gx render target exceeds memory budget");
-        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:texture->m_format == GxTex_R32F ? MTLPixelFormatR32Float : MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:depth ? MTLPixelFormatDepth32Float : texture->m_format == GxTex_R32F ? MTLPixelFormatR32Float : MTLPixelFormatBGRA8Unorm width:width height:height mipmapped:NO];
         descriptor.mipmapLevelCount = end - base;
         descriptor.storageMode = MTLStorageModePrivate;
         descriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
         if (texture->m_format == GxTex_R32F) descriptor.usage |= MTLTextureUsagePixelFormatView;
         id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
-        Require(replacement != nil, "Cannot allocate Gx color render target");
-        replacement.label = @"Gx color render target";
+        Require(replacement != nil, "Cannot allocate Gx render target");
+        replacement.label = depth ? @"Gx explicit depth target" : @"Gx color render target";
         storage.gpu = replacement;
         storage.base = base;
         storage.renderTarget = true;
@@ -1700,7 +1713,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model ? GxMetal::ShadowReceiverTextureMask(modelParameters->shadowMode) : wmo ? GxMetal::ShadowReceiverTextureMask(wmoParameters->shadowMode) : detail ? GxMetal::ShadowReceiverTextureMask(detailParameters->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
-        Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture, "Missing Gx shader texture or active target feedback");
+        Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture && texture != m_textureTarget[GxBuffers_Depth].m_texture,
+            "Missing Gx shader texture or active target feedback");
         const bool cube = terrain && i == 0 && (terrainParameters->pixelPermutation & 1);
         Require((texture->m_target == GxTex_CubeMap) == cube, "Shader and texture target mismatch");
         ITexMarkAsUpdated(texture);
@@ -1788,41 +1802,54 @@ void CGxDeviceMetal::DeviceReadDepths(CiRect& rect, TSGrowableArray<float>& dept
 }
 void CGxDeviceMetal::DeviceTakeScreenShot() { CGxDevice::DeviceTakeScreenShot(); }
 void CGxDeviceMetal::ApplyRenderTarget() {
-    auto* texture = m_textureTarget[GxBuffers_Color].m_texture;
-    if (!texture) {
+    auto* colorTexture = m_textureTarget[GxBuffers_Color].m_texture;
+    auto* depthTexture = m_textureTarget[GxBuffers_Depth].m_texture;
+    if (!colorTexture && !depthTexture) {
         m_curWindowRect = m_defWindowRect;
         if (m->command) { m->pass = m->defaultPass; }
         return;
     }
-    EnsureRenderTarget(texture);
-    id<MTLTexture> color = m->textures.at(texture).gpu;
-    // D3D9 reuses a scratch depth surface while it is large enough. Preserve
-    // that lifetime, including depth values when switching to a smaller target.
-    if (!m->targetDepth || m->targetDepth.width < color.width || m->targetDepth.height < color.height) {
-        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float width:color.width height:color.height mipmapped:NO];
-        descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
-        id<MTLTexture> replacement = [m->gpu.device newTextureWithDescriptor:descriptor];
-        Require(replacement != nil, "Cannot allocate Gx scratch depth surface");
-        m->targetDepth = replacement;
+    if (colorTexture) EnsureRenderTarget(colorTexture);
+    if (depthTexture) EnsureRenderTarget(depthTexture);
+    id<MTLTexture> color = colorTexture ? m->textures.at(colorTexture).gpu : m->defaultPass.colorAttachments[0].texture;
+    id<MTLTexture> depth = depthTexture ? m->textures.at(depthTexture).gpu : nil;
+    if (colorTexture && !depthTexture) {
+        // D3D9 reuses a sufficiently large scratch depth surface. Explicit
+        // depth attachments have independent contents and never replace it.
+        if (!m->targetDepth || m->targetDepth.width < color.width || m->targetDepth.height < color.height) {
+            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float width:color.width height:color.height mipmapped:NO];
+            descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+            m->targetDepth = [m->gpu.device newTextureWithDescriptor:descriptor];
+            Require(m->targetDepth != nil, "Cannot allocate Gx scratch depth surface");
+        }
+        depth = m->targetDepth;
     }
-    m_curWindowRect.minX = m_curWindowRect.minY = 0;
-    m_curWindowRect.maxX = color.width; m_curWindowRect.maxY = color.height;
+    m_curWindowRect = m_defWindowRect;
+    if(colorTexture) {
+        m_curWindowRect.minX = m_curWindowRect.minY = 0;
+        m_curWindowRect.maxX = color.width; m_curWindowRect.maxY = color.height;
+    }
     if (m->command) {
-        m->pass = [MTLRenderPassDescriptor renderPassDescriptor];
+        // A depth-only override shares the host color surface. Consume its
+        // pending default clears once before creating an independent descriptor.
+        if(!colorTexture) m->EnsureLoads(m->defaultPass);
+        m->pass = colorTexture ? [MTLRenderPassDescriptor renderPassDescriptor] : [m->defaultPass copy];
         m->pass.colorAttachments[0].texture = color;
         m->pass.colorAttachments[0].loadAction = MTLLoadActionLoad;
-        m->pass.colorAttachments[0].storeAction = MTLStoreActionStore;
-        m->pass.depthAttachment.texture = m->targetDepth;
+        if(colorTexture) m->pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+        m->pass.depthAttachment.texture = depth;
+        m->pass.depthAttachment.resolveTexture = nil;
         m->pass.depthAttachment.loadAction = MTLLoadActionLoad;
         m->pass.depthAttachment.storeAction = MTLStoreActionStore;
+        m->pass.depthAttachment.storeActionOptions = MTLStoreActionOptionNone;
         m->pass.renderTargetWidth = color.width; m->pass.renderTargetHeight = color.height;
     }
 }
 void CGxDeviceMetal::DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, uint32_t plane) {
     if (!m_context) { return; }
     Require((buffer == GxBuffers_Color || buffer == GxBuffers_Depth) && plane == 0, "Unsupported Gx target buffer or plane");
-    Require(buffer == GxBuffers_Color || !texture, "Gx explicit depth texture targets are not implemented");
-    Require(!texture || (texture->m_flags.m_renderTarget && (texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F)), "Invalid Gx color render target");
+    Require(!texture || (texture->m_flags.m_renderTarget && (buffer == GxBuffers_Depth ? texture->m_format == GxTex_D24X8 :
+        (texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F))), "Invalid Gx render target attachment format");
     auto& target = m_textureTarget[buffer];
     if (target.m_texture == texture && target.m_plane == plane) { return; }
     if (texture) { EnsureRenderTarget(texture); }
@@ -1837,6 +1864,22 @@ void CGxDeviceMetal::DeviceRestoreDepthSurface() { Unsupported("restore depth su
 void CGxDeviceMetal::DeviceResolveDepthBuffer(CGxTex*) { Unsupported("resolve depth"); }
 void CGxDeviceMetal::DeviceCopyTex(CGxTex* source, uint32_t sourcePlane, CGxTex* dest, uint32_t destPlane) {
     if (!m_context || !source || !dest) { return; }
+    if(source->m_format==GxTex_D24X8 || dest->m_format==GxTex_D24X8) {
+        Require(source->m_format==GxTex_D24X8 && dest->m_format==GxTex_D24X8 && source->m_flags.m_renderTarget && dest->m_flags.m_renderTarget &&
+            source->m_target!=GxTex_CubeMap && dest->m_target!=GxTex_CubeMap && !sourcePlane && !destPlane,
+            "Invalid Gx depth texture copy");
+        EnsureRenderTarget(source); EnsureRenderTarget(dest);
+        const auto src=m->textures.at(source).gpu, dst=m->textures.at(dest).gpu;
+        Require(src.width==dst.width && src.height==dst.height,"Depth copies require equal extents");
+        EnsureFrame(); m->EnsurePass(); m->EndRender();
+        if(src!=dst) {
+            auto blit=[m->command blitCommandEncoder];
+            [blit copyFromTexture:src sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0)
+                sourceSize:MTLSizeMake(src.width,src.height,1) toTexture:dst destinationSlice:0 destinationLevel:0 destinationOrigin:MTLOriginMake(0,0,0)];
+            [blit endEncoding];
+        }
+        return;
+    }
     Require(source->m_target != GxTex_CubeMap && dest->m_target != GxTex_CubeMap && sourcePlane == 0 && destPlane == 0 &&
                 dest->m_flags.m_renderTarget && (source->m_format == GxTex_Argb8888 || source->m_format == GxTex_R32F) &&
                 dest->m_format == source->m_format,
