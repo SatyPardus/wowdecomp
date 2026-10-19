@@ -55,7 +55,12 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
     const float4 point = float4(position, 1);
     const float3 view = float3(dot(viewFromModel.x, point), dot(viewFromModel.y, point), dot(viewFromModel.z, point));
     float3 direction = 0;
-    if (modelShadowMode || modelEnvironment || (modelColorMode != 1 && (modelPermutation & 1))) {
+    // Color_T1 and Color_Proj_Proj output a fixed view-space +Z receiver normal,
+    // including their white variants. CDiffuse_T1 uses its authored normal even
+    // when unlit; neither rule follows from whether vertex lighting is enabled.
+    if (modelShadowMode && modelColorMode == 1) {
+        direction = float3(0, 0, 1);
+    } else if (modelShadowMode || modelEnvironment || (modelColorMode != 1 && (modelPermutation & 1))) {
         direction = normalize(float3(dot(viewFromModel.x.xyz, normal),
             dot(viewFromModel.y.xyz, normal), dot(viewFromModel.z.xyz, normal)));
     }

@@ -17,7 +17,7 @@ void CheckGameWorldLifecycle();
 void CheckFixedUnlit(CGxDeviceMetal&);
 void CheckWeatherShaders(CGxDeviceMetal&);
 void CheckGameTextureAtlases();
-void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly=false);
+void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly=false,bool coloredShadowsOnly=false);
 void CheckModelClipPlanes(CGxDeviceMetal& device);
 void CheckModelDepthOffset(CGxDeviceMetal& device);
 void CheckShadowMapShaders(CGxDeviceMetal& device);
@@ -84,6 +84,7 @@ void CheckGxDevice(const char* focus) {
     if (focus && !std::strcmp(focus, "model-clipping")) { CheckModelClipPlanes(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-depth")) { CheckModelDepthOffset(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-projected-shadows")) { CheckModelShaders(device,true); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "model-colored-shadows")) { CheckModelShaders(device,false,true); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-shaders")) { CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "wmo-shaders")) { CheckWmoShaders(device); CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ffx")) { CheckGxFFXPasses(device); CheckGxFFXEffect(device); device.DeviceDestroy(); return; }

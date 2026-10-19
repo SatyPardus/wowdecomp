@@ -19,7 +19,7 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
 }
 bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect, FragmentEffect effect) {
     if (target == GxSh_Vertex)
-        return permutation < (UsesModelMaterial(vertexEffect) ? 90u : 10u);
+        return permutation < 90 && (UsesModelMaterial(vertexEffect) || permutation % 30 < 10);
     return permutation < 16 && ((permutation & 3) == 0 ||
         (ModelShadowMaterial(effect) && (permutation & 4) == 0));
 }
@@ -423,6 +423,75 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         "9bb27855b3402efb82ef7e0968a74df0",
         "019ecb8d12142f5ae5beccdf102196fc",
     };
+    // Rigid Color_T1, CDiffuse_T1 and Color_Proj_Proj, dynamic then banded.
+    static const char* coloredShadowVertex[3][20] = {
+        {
+            "e3f98f52e84b5d8c03bb9fcd2b6e5f70",
+            "a14df0a1da40ab29f899b92f9efd7e47",
+            "e3f98f52e84b5d8c03bb9fcd2b6e5f70",
+            "a14df0a1da40ab29f899b92f9efd7e47",
+            "e3f98f52e84b5d8c03bb9fcd2b6e5f70",
+            "a14df0a1da40ab29f899b92f9efd7e47",
+            "e3f98f52e84b5d8c03bb9fcd2b6e5f70",
+            "a14df0a1da40ab29f899b92f9efd7e47",
+            "e3f98f52e84b5d8c03bb9fcd2b6e5f70",
+            "a14df0a1da40ab29f899b92f9efd7e47",
+            "b8232534265db5455849abe7ba4c8b73",
+            "42801da64b65d0c703dc4011c4d43754",
+            "b8232534265db5455849abe7ba4c8b73",
+            "42801da64b65d0c703dc4011c4d43754",
+            "b8232534265db5455849abe7ba4c8b73",
+            "42801da64b65d0c703dc4011c4d43754",
+            "b8232534265db5455849abe7ba4c8b73",
+            "42801da64b65d0c703dc4011c4d43754",
+            "b8232534265db5455849abe7ba4c8b73",
+            "42801da64b65d0c703dc4011c4d43754",
+        },
+        {
+            "1cf41f19e4528422f83e598558262400",
+            "17302ac6f5c99765f0aa027d8f867a24",
+            "1cf41f19e4528422f83e598558262400",
+            "adbb000de44f0feb5f033c63b1e27636",
+            "1cf41f19e4528422f83e598558262400",
+            "10b68317e9a0a9e985c84674a45313ef",
+            "1cf41f19e4528422f83e598558262400",
+            "388d42ab961fb89feee28ca08fcc0610",
+            "1cf41f19e4528422f83e598558262400",
+            "21754aebf1dd5b2417402e2721c7fecc",
+            "4459d2772de0edb4ac12aed1fcf0b1cc",
+            "58d775153662c65ade368f069937539c",
+            "4459d2772de0edb4ac12aed1fcf0b1cc",
+            "7cd11ccfaeb486574344a9028506530a",
+            "4459d2772de0edb4ac12aed1fcf0b1cc",
+            "87b85d1eaec928e2835c1c8037511f78",
+            "4459d2772de0edb4ac12aed1fcf0b1cc",
+            "6981e5906984af5491c615f366cc4861",
+            "4459d2772de0edb4ac12aed1fcf0b1cc",
+            "9d740b480ee729d42e1590ff439b2065",
+        },
+        {
+            "061fbf55e1fd2151952c80f9e90089c0",
+            "388bf6e3f4b23ac3d4546d09c060a5b4",
+            "061fbf55e1fd2151952c80f9e90089c0",
+            "388bf6e3f4b23ac3d4546d09c060a5b4",
+            "061fbf55e1fd2151952c80f9e90089c0",
+            "388bf6e3f4b23ac3d4546d09c060a5b4",
+            "061fbf55e1fd2151952c80f9e90089c0",
+            "388bf6e3f4b23ac3d4546d09c060a5b4",
+            "061fbf55e1fd2151952c80f9e90089c0",
+            "388bf6e3f4b23ac3d4546d09c060a5b4",
+            "2a7026c46be41a141f65b3ff0161e794",
+            "a646b68070f7cc60cdd2f75c7d96776a",
+            "2a7026c46be41a141f65b3ff0161e794",
+            "a646b68070f7cc60cdd2f75c7d96776a",
+            "2a7026c46be41a141f65b3ff0161e794",
+            "a646b68070f7cc60cdd2f75c7d96776a",
+            "2a7026c46be41a141f65b3ff0161e794",
+            "a646b68070f7cc60cdd2f75c7d96776a",
+            "2a7026c46be41a141f65b3ff0161e794",
+            "a646b68070f7cc60cdd2f75c7d96776a",
+        },
+    };
     static const char* projectedColor[] = {
         "8ebba96931c1072b46a9c6aeb0b2c26f",
         "edaba469f2df9db576f0e43724b68006",
@@ -647,6 +716,9 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
                     case ModelVertexEffect::DiffuseDualUV: expected = dualUVShadowVertex[i-30]; break;
                     case ModelVertexEffect::DiffuseReflection: expected = reflectionShadowVertex[i-30]; break;
                     case ModelVertexEffect::DiffuseProjected: expected = projectedShadowVertex[i-30]; break;
+                    case ModelVertexEffect::Color: expected = coloredShadowVertex[0][(i / 30 - 1) * 10 + i % 30]; break;
+                    case ModelVertexEffect::ColorDiffuse: expected = coloredShadowVertex[1][(i / 30 - 1) * 10 + i % 30]; break;
+                    case ModelVertexEffect::ColorProjected: expected = coloredShadowVertex[2][(i / 30 - 1) * 10 + i % 30]; break;
                     case ModelVertexEffect::Diffuse: expected = i >= 60 ? bandedShadowVertex[i-60] : dynamicShadowVertex[i-30]; break;
                     default: break;
                 }

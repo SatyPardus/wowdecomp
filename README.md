@@ -780,6 +780,18 @@ nonzero local lights, separate texture projections, band/depth/fade boundaries,
 ModMod/ModAdd alpha rejection, output saturation and fog. This validates the
 new shader path with explicit inputs, not a complete projected-spell encounter.
 
+`Color_T1`, `CDiffuse_T1` and `Color_Proj_Proj` each support 20 rigid R32F shadow
+vertex variants. Pure color/projected color retain their fixed view-space +Z
+receiver normal; diffuse color transforms its authored normal even when unlit.
+`WOW_METAL_CHECK=model-colored-shadows` checks 13,320 outputs across rotated
+transforms, BGRA/white/lit colors, nonzero local lights, dynamic/banded shadows,
+alpha boundaries and fog, including the 30 original unshadowed variants. Mac
+ASan/UBSan and Metal checks and the existing model/character/spell scenes pass;
+both iOS clients and the simulator check app build. Simulator GPU execution is
+pending external Data access. Colored skinning, hardware PCF and Windows visual
+comparison remain unverified or unsupported; these explicit-input checks do not
+establish a live colored-shadow encounter.
+
 The macOS preview and iOS Metal view run that original M2 scene beside the texture
 and font preview. Model/skin/texture loading is asynchronous; the game Event update
 drives animation time. The default is CreatureDisplayInfo 165 (timber wolf), playing

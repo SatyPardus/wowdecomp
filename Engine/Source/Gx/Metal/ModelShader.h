@@ -32,7 +32,7 @@ constexpr bool ModelShadowMaterial(FragmentEffect effect) {
 }
 // Original SM3 model materials, environment reflection and colored particles.
 // Diffuse, environment, reflection, dual UV and projected materials support rigid/1/4 weights and R32F receivers;
-// colored vertices currently support rigid streams. Other skinning/shadow
+// colored vertices support rigid streams and R32F receivers. Other skinning/shadow
 // handles fail explicitly when drawn.
 void ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse);
 bool SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse,

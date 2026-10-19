@@ -387,7 +387,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         const uint32_t colorMode = ModelColorMode(vertexEffect);
         const bool secondTexture = ModelTextureCount(effect) == 2;
         const uint32_t layerOperation = unsigned(ModelLayer(effect));
-        const bool normal = (material && (!projected || modelShadowMode || (modelPermutation & 1))) || (colorMode == 2 && (modelPermutation & 1));
+        const bool normal = (material && (!projected || modelShadowMode || (modelPermutation & 1))) ||
+            (colorMode == 2 && (modelShadowMode || (modelPermutation & 1)));
         const bool color = !material && !(colorMode == 1 && (modelPermutation & 1));
         Require(SupportsModelPermutation(GxSh_Vertex, modelPermutation, vertexEffect) && !screenAtDepth && (!secondTexture || (!reflectionOnly && (environment || dualUV || projected))) &&
             (basePermutation < 10 || format == GxVBF_PBNT2) &&

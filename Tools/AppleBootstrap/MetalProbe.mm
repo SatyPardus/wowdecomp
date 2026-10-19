@@ -250,6 +250,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
                     report = "Original projected model materials and R32F shadow receivers passed (focused run).\n";
                     return true;
                 }
+                if (!std::strcmp(selection, "model-colored-shadows")) {
+                    CheckGxDevice(selection);
+                    report = "Original colored model materials and R32F shadow receivers passed (focused run).\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "wmo-shaders")) {
                     CheckGxDevice(selection);
                     report = "Original WMO materials/dynamic-banded shadows and shared M2 receiver regression passed (focused run).\n";
