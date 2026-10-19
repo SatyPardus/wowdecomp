@@ -1345,6 +1345,14 @@ visual comparison and sustained physical-device performance remain outstanding.
 Use `WOW_WORLD=Azeroth:-9465:64:85` with the existing Mac `--preview` command or
 as an iOS environment variable. The format is `Map:worldX:worldY:worldZ`; the
 viewer uses an explicit camera (near 0.2, far 500, FOV 1 radian).
+The map directory is resolved through the original Map DBC, and both geometry
+and DayNight receive that record's numeric map ID, as in the full client.
+Earlier non-Azeroth standalone previews incorrectly passed zero: those runs
+validated geometry/resource lifetimes, but not the selected map's lighting.
+With this corrected, Outland's Netherstorm (`Expansion01:3082:3596:147`, ID 530)
+and Dalaran (`Northrend:5800:650:660`, ID 571) each pass 120 Mac world/UI frames
+under ASan/UBSan/Metal validation. Netherstorm also passes 120 simulator frames;
+both iOS targets build. The full client's map selection was already correct.
 On Mac, WASD moves the viewer, Q/E moves down/up, Shift moves faster, and holding
 the right mouse button rotates it. Escape releases the mouse and Home restores
 the initial viewpoint. This is a free viewer with no player or collision response;
@@ -1355,10 +1363,9 @@ and is mutually exclusive with terrain/WMO/model previews. Mac and iOS simulator
 both present 120 world frames; the 900x600 Goldshire-area frame selects 125 terrain
 chunks and 182 doodads, with trees, roads, fences and lights visible in GPU
 readback. Mac ASan/UBSan and Metal validation pass, and both iOS targets build.
-The native host still has no active player, login/network
-session or complete game UI. All-map materials, interior
-portal traversal, dynamic shadows and the complete WorldFrame/FFX/audio policy
-remain to be integrated or validated.
+This standalone viewer has no active player or network session; use AppleClient
+for the original login, player controls and game UI. Broader all-map material,
+portal and scene coverage remains to be validated.
 
 Original DayNight selection/interpolation now links on all Apple targets with
 715 lights, 850 parameter sets, 124 skyboxes, and 15,300 color / 5,100 float bands.

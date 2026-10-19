@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <cstdio>
 
 namespace {
 template <class T> void Load(T& table) {
@@ -50,7 +51,7 @@ WorldPreview::WorldPreview(const std::string& selection) {
         for (int32_t i = 0; i < g_mapDB.m_numRecords; ++i) {
             const auto* record = g_mapDB.GetRecordByIndex(i);
             if (!SStrCmpI(record->m_directory, m_map.c_str(), STORM_MAX_STR)) {
-                mapFound = true; m_timeOverride = record->m_timeOfDayOverride; break;
+                mapFound = true; m_mapId = record->m_id; m_timeOverride = record->m_timeOfDayOverride; break;
             }
         }
         if (!mapFound) throw std::runtime_error("WOW_WORLD map is absent from the original Map database");
@@ -165,7 +166,15 @@ bool WorldPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     CRect screen; screen.minX = screen.minY = 0; screen.maxX = float(width); screen.maxY = float(height);
     m_camera.SetGxProjectionAndView(screen);
     World::ViewCameraScope cameraScope(m_camera);
-    if (!m_loaded) { CWorld::LoadMap(m_map.c_str(), &m_camera.m_position, 0, 0, m_camera); m_loaded = true; EventResetElapsedTime(); }
+    if (!m_loaded) {
+        // The directory selects geometry, but the numeric map ID selects the
+        // original lights, skies, fog mode and distance rules. Match Client.cpp.
+        CWorld::LoadMap(m_map.c_str(), &m_camera.m_position, m_mapId, 0, m_camera);
+        if (World::QueryMapId() != m_mapId || DayNight::s_mapId != m_mapId)
+            throw std::runtime_error("World preview did not load the selected map's lighting");
+        std::fprintf(stderr,"World preview: directory %s, world/lighting map %d\n",m_map.c_str(),m_mapId);
+        m_loaded = true; EventResetElapsedTime();
+    }
     m_elapsed += elapsedSeconds;
     m_daySeconds = std::fmod(m_daySeconds + elapsedSeconds, 86400.0);
     FrameTime::Update(elapsedSeconds, uint32_t(std::fmod(m_elapsed * 1000, 4294967296.0)));

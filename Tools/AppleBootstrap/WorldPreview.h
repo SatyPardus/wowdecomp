@@ -28,6 +28,6 @@ private:
     std::string m_map;
     CSimpleCamera m_camera{0.2f, 500, 1};
     bool m_blob = false, m_models = false, m_world = false, m_shadows = false, m_loaded = false;
-    int32_t m_timeOverride = -1;
+    int32_t m_mapId = -1, m_timeOverride = -1;
     double m_elapsed = 0, m_daySeconds = 43200;
 };
