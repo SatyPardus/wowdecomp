@@ -1205,6 +1205,18 @@ Dalaran's projected materials. Mac Scrn/UI composition passes 120 frames and
 538,628 main-scene depth pixels with ASan/UBSan/Metal, and the simulator repeats
 120 world frames. Texture failures identify their shader family and slot.
 
+WDT layout loading now validates complete file/chunk reads before publishing
+the original header, 4,096 area records and optional global WMO placement. It
+preserves the original first-name/first-placement selection and transforms;
+the old unchecked 256-byte filename read is removed, and failures close the
+archive file. Six real layouts preserve their bytes under unaligned input and
+independent ownership, with malformed size/name/placement rejection. A separate
+read-only Map DBC scan accepts all 106 readable layouts, including 39 global
+WMO maps; 29 entries have no readable resource and are not counted as passes.
+MoltenCore's global-WMO world and UI pass 120 Mac frames under ASan/UBSan/Metal.
+The simulator repeats the resource checks and 120 world frames; both iOS
+client targets and optimized/ASan Mac clients build.
+
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct
 UV sources, unnormalized normals, zero to three local lights, specular/alpha

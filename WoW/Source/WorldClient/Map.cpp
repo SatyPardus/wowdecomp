@@ -1,4 +1,7 @@
 #include "Map.h"
+#include "MapLayoutData.h"
+#include <stdexcept>
+#include <vector>
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
 #if defined(_MSC_VER)
 #include <malloc.h>
@@ -2901,25 +2904,21 @@ void CMap::LoadWdt() {
         SErrDisplayAppFatal("CMap::LoadWdt() failed %s\n", CMap::wdtFilename);
     }
 
-    SIffChunk iffChunk;
-    iffChunk.m_token = 0;
-    iffChunk.m_size = 0;
-
-    SFileReadFile(file, &iffChunk, offsetof(SIffChunk, m_data), nullptr, nullptr, 0);
-    SFileReadFile(file, &CMap::version, sizeof(CMap::version), nullptr, nullptr, 0);
-    SFileReadFile(file, &iffChunk, offsetof(SIffChunk, m_data), nullptr, nullptr, 0);
-    SFileReadFile(file, &CMap::header, sizeof(CMap::header), nullptr, nullptr, 0);
-    SFileReadFile(file, &iffChunk, offsetof(SIffChunk, m_data), nullptr, nullptr, 0);
-    SFileReadFile(file, CMap::m_areaInfo, sizeof(CMap::m_areaInfo), nullptr, nullptr, 0);
+    struct Close { SFileImpl* file; ~Close() { SFileCloseFile(file); } } close{file};
+    uint32_t high = 0, read = 0;
+    const uint32_t size = SFileGetFileSize(file, &high);
+    if (high || size < 12 || size > MapLayoutData::MaxBytes)
+        throw std::runtime_error(std::string("Invalid WDT file size: ") + CMap::wdtFilename);
+    std::vector<uint8_t> bytes(size);
+    if (!SFileReadFile(file, bytes.data(), size, &read, nullptr, 0) || read != size)
+        throw std::runtime_error(std::string("Incomplete WDT read: ") + CMap::wdtFilename);
+    MapLayoutData layout(bytes.data(), bytes.size());
+    CMap::version = layout.version;
+    CMap::header = layout.header;
+    std::memcpy(CMap::m_areaInfo, layout.areas.data(), sizeof(CMap::m_areaInfo));
 
     if (CMap::header.m_flags & 1) {
-        char fileName[256];
-        SFileReadFile(file, &iffChunk, offsetof(SIffChunk, m_data), nullptr, nullptr, 0);
-        SFileReadFile(file, fileName, iffChunk.m_size, nullptr, nullptr, 0);
-        SFileReadFile(file, &iffChunk, offsetof(SIffChunk, m_data), nullptr, nullptr, 0);
-
-        SMMapObjDef def;
-        SFileReadFile(file, &def, sizeof(def), nullptr, nullptr, 0);
+        SMMapObjDef def = layout.globalObject;
         def.m_uniqueId = CMap::uniqueId--;
 
         CMapObjDef* mapObjDef = CMap::mapObjDefHash.Ptr(def.m_uniqueId, CMap::s_mapObjDefHashKey);
@@ -2985,7 +2984,7 @@ void CMap::LoadWdt() {
             mapObjDef->m_sphere.r = sqrtf(dx * dx + dy * dy + dz * dz);
 
             mapObjDef->m_lightsArray.m_count = 0;
-            mapObjDef->m_owner = CMapObj::Create(fileName);
+            mapObjDef->m_owner = CMapObj::Create(layout.globalName.data());
         }
 
         CMapBaseObjLink* link = CMap::AllocBaseObjLink(mapObjDef);
@@ -3001,7 +3000,6 @@ void CMap::LoadWdt() {
     }
 
     CMap::ValidateShaders();
-    SFileCloseFile(file);
 }
 
 // VERIFY: 99e76495 manual

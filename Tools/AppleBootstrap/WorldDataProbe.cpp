@@ -2,6 +2,7 @@
 #include "WoW/Common/Types.h"
 #include "WoW/Source/WorldClient/Types.h"
 #include "WoW/Source/WorldClient/MapLowDetailData.h"
+#include "WoW/Source/WorldClient/MapLayoutData.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Base/BitArray.h"
@@ -34,6 +35,47 @@ template<class T> std::vector<T> Chunk(const std::vector<uint8_t>& bytes, uint32
         offset += 8+size;
     }
     throw std::runtime_error("Required WMO group child missing");
+}
+void CheckWdt(const ClientData& client, std::ostream& report) {
+    unsigned globals = 0;
+    for (const char* map : {"Azeroth", "Northrend", "Expansion01", "DeadminesInstance", "Stratholme Raid", "MoltenCore"}) {
+        const auto asset = client.Read(std::string("World\\Maps\\") + map + "\\" + map + ".wdt", MapLayoutData::MaxBytes);
+        const auto& bytes = asset.bytes;
+        std::vector<uint8_t> shifted(bytes.size() + 1);
+        std::memcpy(shifted.data() + 1, bytes.data(), bytes.size());
+        MapLayoutData data(shifted.data() + 1, bytes.size());
+        std::fill(shifted.begin(), shifted.end(), 0);
+        Require(data.version == Word(bytes, 8) && !std::memcmp(&data.header, bytes.data() + 20, sizeof(data.header)) &&
+                !std::memcmp(data.areas.data(), bytes.data() + 60, sizeof(data.areas)), "WDT header/area bytes changed or borrowed input");
+        auto reject = [](const std::vector<uint8_t>& bad) {
+            bool failed = false;
+            try { MapLayoutData invalid(bad.data(), bad.size()); } catch (const std::runtime_error&) { failed = true; }
+            Require(failed, "Invalid WDT was accepted");
+        };
+        auto changed = bytes; changed.resize(59); reject(changed);
+        changed = bytes; changed[16] = 31; reject(changed); // Partial MPHD.
+        changed = bytes; changed[56] = 1; reject(changed); // MAIN has a partial area.
+        changed = bytes; changed.push_back(0); reject(changed); // Truncated trailing chunk.
+        if (data.header.m_flags & 1) {
+            ++globals;
+            const size_t namesAt = 60 + sizeof(data.areas);
+            const size_t namesSize = Word(bytes, namesAt + 4), objectAt = namesAt + 8 + namesSize;
+            Require(data.globalName == reinterpret_cast<const char*>(bytes.data() + namesAt + 8) &&
+                    !std::memcmp(&data.globalObject, bytes.data() + objectAt + 8, sizeof(data.globalObject)), "WDT global WMO bytes changed");
+            changed = bytes;
+            std::fill(changed.begin() + namesAt + 8, changed.begin() + objectAt, 'X'); reject(changed);
+            changed = bytes; changed.resize(objectAt + 8 + sizeof(SMMapObjDef) - 1); reject(changed);
+            changed = bytes;
+            const uint32_t nan = 0x7FC00000;
+            std::memcpy(changed.data() + objectAt + 16, &nan, 4); reject(changed);
+            changed = bytes;
+            changed.insert(changed.begin() + objectAt - 1, 256, 'X');
+            const uint32_t longNameSize = uint32_t(namesSize + 256);
+            std::memcpy(changed.data() + namesAt + 4, &longNameSize, 4); reject(changed);
+        }
+    }
+    Require(globals != 0, "WDT fixtures did not exercise a global WMO");
+    report << "WDT: six real map layouts retain header, 24576 area records and global WMO bytes; unaligned/independent storage, truncation, filename and placement rejection passed.\n";
 }
 void CheckWdl(const ClientData& client, std::ostream& report) {
     unsigned total = 0, placements = 0;
@@ -105,6 +147,7 @@ void CheckWdl(const ClientData& client, std::ostream& report) {
 }
 
 void CheckWorldData(const ClientData& client, std::ostream& report) {
+    CheckWdt(client, report);
     CheckWdl(client, report);
     CheckWmoRoots(client, report);
     g_footprintTexturesDB.Load(__FILE__, __LINE__);
