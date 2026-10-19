@@ -16,6 +16,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <TargetConditionals.h>
 #include "Engine/Source/Os/System.h"
+#include "Engine/Source/Os/Apple/Directory.h"
 #include "Engine/Source/Os/Path.h"
 #include "Engine/Source/Os/Time.h"
 #include "Tools/AppleBootstrap/Probe.h"
@@ -417,6 +418,54 @@ struct ScratchFile {
     }
     ~ScratchFile() { unlink(path.c_str()); rmdir(directory.c_str()); }
 };
+
+template <class Iterator>
+struct InterruptedDirectory : Iterator {
+    inline static unsigned calls = 0;
+    inline static unsigned failures = 0;
+    inline static std::errc failure = std::errc::interrupted;
+    InterruptedDirectory(const std::filesystem::path& path, std::error_code& error) {
+        if (++calls <= failures) error = std::make_error_code(failure);
+        else static_cast<Iterator&>(*this) = Iterator(path, error);
+    }
+};
+
+template <class Iterator>
+void CheckDirectoryOpenType(const ScratchFile& scratch) {
+    using Injected = InterruptedDirectory<Iterator>;
+    for (unsigned failures = 0; failures != 4; ++failures) {
+        Injected::calls = 0;
+        Injected::failures = failures;
+        Injected::failure = std::errc::interrupted;
+        Iterator iterator = OsOpenDirectory<Injected>(scratch.directory);
+        Require(Injected::calls == failures + 1 && iterator != Iterator() &&
+            iterator->path() == scratch.path, "Interrupted directory open did not recover its entries");
+        Require(++iterator == Iterator(), "Recovered directory open duplicated entries");
+    }
+    for (std::errc failure : {std::errc::interrupted, std::errc::permission_denied,
+                              std::errc::no_such_file_or_directory}) {
+        Injected::calls = 0;
+        Injected::failures = 8;
+        Injected::failure = failure;
+        bool rejected = false;
+        try { OsOpenDirectory<Injected>(scratch.directory); }
+        catch (const std::filesystem::filesystem_error& error) {
+            rejected = error.code() == failure && error.path1() == scratch.directory;
+        }
+        Require(rejected && Injected::calls == (failure == std::errc::interrupted ? 4u : 1u),
+            "Directory open swallowed a permanent error or retried without a bound");
+    }
+}
+
+void CheckDirectoryOpen(const std::string& scratchDirectory) {
+    ScratchFile scratch(scratchDirectory);
+    std::ofstream file(scratch.path);
+    file << "directory-open";
+    file.close();
+    Require(bool(file), "Cannot create directory-open fixture");
+    CheckDirectoryOpenType<std::filesystem::directory_iterator>(scratch);
+    CheckDirectoryOpenType<std::filesystem::recursive_directory_iterator>(scratch);
+}
 
 struct CloseSFile { void operator()(SFileImpl* file) const { SFileCloseFile(file); } };
 void CheckClientFile(const char* name, const std::vector<uint8_t>& expected) {
@@ -877,6 +926,7 @@ bool AppleBootstrap::CheckCore(const std::string& scratchDirectory, std::string&
         Require(!range->Read(buffer.data(), 0, buffer.size(), nullptr), "exact read incorrectly accepted EOF");
         Require(!range->Read(buffer.data(), -1, 1, &bytes), "negative offset accepted");
         CheckFileStack(scratchDirectory);
+        CheckDirectoryOpen(scratchDirectory);
         CheckOsFiles(scratchDirectory);
         CheckCVars(scratchDirectory);
         CheckNativeSettings();
@@ -896,7 +946,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
     std::ostringstream out;
     try {
         std::vector<std::filesystem::path> archives;
-        for (const auto& item : std::filesystem::recursive_directory_iterator(dataRoot)) {
+        for (const auto& item : OsOpenDirectory<std::filesystem::recursive_directory_iterator>(dataRoot)) {
             if (!item.is_regular_file()) { continue; }
             std::string extension = item.path().extension().string();
             std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });

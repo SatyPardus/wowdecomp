@@ -13,6 +13,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/File/File.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Os/Apple/Directory.h"
 
 namespace {
 std::string Substitute(std::string value, const char* token, const std::string& locale) {
@@ -60,7 +61,7 @@ std::string ClientData::Resolve(const std::string& relative) const {
         if (std::filesystem::exists(exact, error)) { path = exact; continue; }
         if (error) { throw std::system_error(error, "Inspect Data path"); }
         std::filesystem::path found;
-        for (const auto& entry : std::filesystem::directory_iterator(path)) {
+        for (const auto& entry : OsOpenDirectory(path)) {
             if (Blizzard::String::EqualI(entry.path().filename().string().c_str(), component.string().c_str())) {
                 if (!found.empty()) { throw std::runtime_error("Ambiguous archive filename casing: " + relative); }
                 found = entry.path();
@@ -120,7 +121,7 @@ ClientData::ClientData(const std::string& dataRoot, const std::string& requested
             const std::string physical = directory.empty() ? m_root : Resolve(directory);
             if (physical.empty()) { continue; }
             const std::string pattern = Substitute(spec.m_pattern, "%s", m_locale);
-            for (const auto& entry : std::filesystem::directory_iterator(physical)) {
+            for (const auto& entry : OsOpenDirectory(physical)) {
                 const std::string filename = entry.path().filename().string();
                 if (entry.is_regular_file() && Blizzard::File::SimpleGlob(filename.c_str(), pattern.c_str())) {
                     patches.push_back(directory + filename);
