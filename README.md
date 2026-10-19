@@ -1431,7 +1431,16 @@ supported. The socket boundary has not yet been exercised by game networking.
 reproducible title MP3 decoding, looping, spline resampling and stereo pan. Add
 `--output` to play a short title-music sample and verify native callback suspension
 and resumption. The iOS app runs the resource checks during startup; set
-`WOW_AUDIO_CHECK=1` for the same output check. macOS ASan/UBSan and both iOS builds
+`WOW_AUDIO_CHECK=1` for the same output check. The iOS check also posts the
+native session notifications to verify active/suspended media-service reset,
+retained stream position and format, delayed user activation, and ordinary or
+coalesced interruption recovery. A reset disposes the orphaned Audio Unit and
+recreates it on user activation, following [Apple QA1749](https://developer.apple.com/library/archive/qa/qa1749/_index.html).
+Notification handlers publish atomic flags; only the output owner controls the
+unit. Original mixer channels, pending PCM and playback counters survive. The
+simulator passed notification-driven recovery and 120 subsequent scene/audio
+frames; this does not simulate a real system media-server crash or verify physical
+route changes. macOS ASan/UBSan and both iOS builds
 pass. Windows audio equivalence, surround output and device-route changes still
 need validation. The port fixes negative resampler look-behind offsets on LP64,
 MP3 Huffman bit shifts and overlapping ID3 tag copies without re-encoding assets.

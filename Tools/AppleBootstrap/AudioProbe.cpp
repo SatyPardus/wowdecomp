@@ -130,7 +130,7 @@ void CheckAudioResources(const ClientData& client, std::ostream& report) {
            << " decoded bytes reproducible; spline-resampled looping stereo pan verified.\n";
 }
 
-void CheckAudioOutput(const ClientData& client, std::ostream& report) {
+void CheckAudioOutput(const ClientData& client, std::ostream& report, void (*notify)(AudioSessionCheck)) {
     auto system = CreateSystem(true);
     const auto asset = client.Read("Sound\\Music\\GlueScreenMusic\\Wotlk_main_title.mp3", 16 * 1024 * 1024, true);
     auto sound = Open(system.get(), asset.bytes, FMOD_CREATESTREAM | FMOD_LOOP_NORMAL);
@@ -155,6 +155,40 @@ void CheckAudioOutput(const ClientData& client, std::ostream& report) {
     advance();
     Check(FMODAppleGetOutputStats(system.get(), &resumed), "Read resumed counters");
     Require(resumed.running && resumed.frames > suspended.frames && resumed.nonzeroSamples > before.nonzeroSamples, "Native audio did not resume nonzero output");
+    if (notify) {
+        for (bool suspendedReset : {false, true}) {
+            if (suspendedReset) Check(FMODAppleSetActive(system.get(), false), "Suspend before media reset");
+            notify(AudioSessionCheck::Reset);
+            Check(system->update(), "Consume media-services reset");
+            Check(FMODAppleGetOutputStats(system.get(), &before), "Read reset counters");
+            advance();
+            Check(FMODAppleGetOutputStats(system.get(), &suspended), "Read waiting counters");
+            Require(!suspended.running && suspended.frames == before.frames, "Media reset resumed output without user activation");
+            unsigned positionBefore = 0, positionAfter = 0;
+            Check(channel->getPosition(&positionBefore, FMOD_TIMEUNIT_MS), "Read retained playback position");
+            Check(FMODAppleSetActive(system.get(), true), "User activation after media reset");
+            advance();
+            Check(FMODAppleGetOutputStats(system.get(), &resumed), "Read recreated output");
+            Check(channel->getPosition(&positionAfter, FMOD_TIMEUNIT_MS), "Read resumed playback position");
+            Require(resumed.running && resumed.frames > before.frames && resumed.nonzeroSamples > before.nonzeroSamples &&
+                resumed.sampleRate == before.sampleRate && positionAfter > positionBefore,
+                "Recreated Audio Unit lost the mixer, stream position or format");
+        }
+        notify(AudioSessionCheck::Interrupt);
+        Check(system->update(), "Consume audio interruption");
+        Check(FMODAppleGetOutputStats(system.get(), &before), "Read interrupted counters");
+        advance();
+        Check(FMODAppleGetOutputStats(system.get(), &suspended), "Read paused interruption counters");
+        Require(!suspended.running && suspended.frames == before.frames, "Interrupted audio continued rendering");
+        notify(AudioSessionCheck::Resume); advance();
+        Check(FMODAppleGetOutputStats(system.get(), &resumed), "Read interruption recovery");
+        Require(resumed.running && resumed.nonzeroSamples > before.nonzeroSamples, "Audio did not recover after interruption");
+        // Both notifications may arrive before the owner next pumps update.
+        notify(AudioSessionCheck::Interrupt); notify(AudioSessionCheck::Resume); advance();
+        Check(FMODAppleGetOutputStats(system.get(), &before), "Read coalesced interruption recovery");
+        Require(before.running && before.frames > resumed.frames, "Coalesced interruption left output stopped");
+        report << "Audio session notifications: active/suspended reset retained stream position and awaited activation; interruption/restart passed.\n";
+    }
     Check(channel->stop(), "Stop music channel");
     report << "Audio Unit: " << resumed.sampleRate << " Hz, " << resumed.channels << " channels, "
            << resumed.frames << " frames / " << resumed.callbacks << " callbacks; suspend/resume passed.\n";

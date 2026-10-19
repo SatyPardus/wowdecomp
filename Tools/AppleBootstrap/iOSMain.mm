@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#import <AVFAudio/AVFAudio.h>
 #import <os/log.h>
 #include <memory>
 #include "Tools/AppleBootstrap/Probe.h"
@@ -59,7 +60,17 @@
         try {
             if (NSProcessInfo.processInfo.environment[@"WOW_AUDIO_CHECK"].boolValue) {
                 std::ostringstream audio;
-                CheckAudioOutput(*_client, audio);
+                CheckAudioOutput(*_client, audio, [](AudioSessionCheck event) {
+                    auto* center = NSNotificationCenter.defaultCenter;
+                    auto* session = AVAudioSession.sharedInstance;
+                    // Exercise our real observers without restarting the system
+                    // media server or interrupting other applications' audio.
+                    if (event == AudioSessionCheck::Reset)
+                        [center postNotificationName:AVAudioSessionMediaServicesWereResetNotification object:session];
+                    else [center postNotificationName:AVAudioSessionInterruptionNotification object:session userInfo:@{
+                        AVAudioSessionInterruptionTypeKey: @(event == AudioSessionCheck::Interrupt ? AVAudioSessionInterruptionTypeBegan : AVAudioSessionInterruptionTypeEnded),
+                        AVAudioSessionInterruptionOptionKey: @(AVAudioSessionInterruptionOptionShouldResume)}];
+                });
                 report += audio.str();
                 NSLog(@"%s", audio.str().c_str());
             }

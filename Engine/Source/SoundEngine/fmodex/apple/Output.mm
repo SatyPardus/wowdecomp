@@ -32,6 +32,8 @@ struct OutputState {
     std::atomic<FMOD_RESULT> error{FMOD_OK};
     std::atomic<uint64_t> frames{0}, callbacks{0}, nonzero{0};
 #if TARGET_OS_IPHONE
+    std::atomic<bool> resetPending{false}, interruptionChanged{false};
+    bool awaitingUserResume = false;
     id interruptionObserver = nil;
     id resetObserver = nil;
 #endif
@@ -88,12 +90,100 @@ OSStatus Render(void* ref, AudioUnitRenderActionFlags* flags, const AudioTimeSta
     state->callbacks.fetch_add(1, std::memory_order_relaxed);
     return noErr;
 }
+void DisposeUnit(OutputState* state) {
+    if (state->unit) {
+        // A media-services reset orphans this unit. Apple explicitly permits
+        // ignoring disposal errors; the original mixer and queued PCM survive.
+        AudioOutputUnitStop(state->unit);
+        AudioUnitUninitialize(state->unit);
+        AudioComponentInstanceDispose(state->unit);
+        state->unit = nullptr;
+    }
+    state->running = false;
+}
+#if TARGET_OS_IPHONE
+FMOD_RESULT ConfigureSession(OutputState* state) {
+    AVAudioSession* session = [AVAudioSession sharedInstance];
+    NSError* error = nil;
+    if (![session setCategory:AVAudioSessionCategoryAmbient error:&error] ||
+        ![session setPreferredSampleRate:state->rate error:&error] ||
+        ![session setPreferredIOBufferDuration:double(state->blockFrames) / state->rate error:&error] ||
+        ![session setActive:YES error:&error]) {
+        NSLog(@"Apple audio session: %@", error);
+        return FMOD_ERR_OUTPUT_INIT;
+    }
+    return FMOD_OK;
+}
+#endif
+FMOD_RESULT CreateUnit(OutputState* state) {
+    AudioComponentDescription description{};
+    description.componentType = kAudioUnitType_Output;
+    description.componentManufacturer = kAudioUnitManufacturer_Apple;
+#if TARGET_OS_IPHONE
+    description.componentSubType = kAudioUnitSubType_RemoteIO;
+#else
+    description.componentSubType = kAudioUnitSubType_DefaultOutput;
+#endif
+    AudioComponent component = AudioComponentFindNext(nullptr, &description);
+    if (!component) return FMOD_ERR_OUTPUT_INIT;
+    OSStatus result = AudioComponentInstanceNew(component, &state->unit);
+    AudioStreamBasicDescription stream{};
+    // Keep the established mixer rate after a reset/route change. RemoteIO
+    // converts this client format to the current hardware format.
+    stream.mSampleRate = state->rate;
+    stream.mFormatID = kAudioFormatLinearPCM;
+    stream.mFormatFlags = state->floatSamples ? kAudioFormatFlagsNativeFloatPacked :
+        kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked | kAudioFormatFlagsNativeEndian;
+    stream.mBytesPerPacket = stream.mBytesPerFrame = UInt32(state->channels) * state->sampleBytes;
+    stream.mFramesPerPacket = 1;
+    stream.mChannelsPerFrame = state->channels;
+    stream.mBitsPerChannel = state->sampleBytes * 8;
+    if (!result) result = AudioUnitSetProperty(state->unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &stream, sizeof(stream));
+    AURenderCallbackStruct callback{Render, state};
+    if (!result) result = AudioUnitSetProperty(state->unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
+    if (!result) result = AudioUnitInitialize(state->unit);
+    if (result) DisposeUnit(state);
+    return DriverError(result);
+}
+void ConsumeSessionReset(OutputState* state) {
+#if TARGET_OS_IPHONE
+    if (state->resetPending.exchange(false, std::memory_order_acq_rel)) {
+        DisposeUnit(state);
+        state->awaitingUserResume = true;
+        state->interrupted.store(false, std::memory_order_release);
+        state->interruptionChanged.store(false, std::memory_order_release);
+        // QA1749: recreate output on a subsequent user activation, not merely
+        // because the update loop still requests audio after a server reset.
+    }
+#endif
+}
 FMOD_RESULT ApplyState(OutputState* state) {
+    ConsumeSessionReset(state);
+#if TARGET_OS_IPHONE
+    // Notifications only publish flags. AudioUnit control stays on the owning
+    // application/update thread, including an interruption that ends between updates.
+    if (state->interruptionChanged.exchange(false, std::memory_order_acq_rel) && state->running) {
+        const auto result = DriverError(AudioOutputUnitStop(state->unit));
+        if (result != FMOD_OK) return result;
+        state->running = false;
+    }
+#endif
     bool run = state->requested && state->active && !state->interrupted.load(std::memory_order_acquire);
+#if TARGET_OS_IPHONE
+    run &= !state->awaitingUserResume;
+#endif
     if (run == state->running) return state->error.load(std::memory_order_relaxed);
 #if TARGET_OS_IPHONE
-    if (run && ![[AVAudioSession sharedInstance] setActive:YES error:nil]) return FMOD_ERR_OUTPUT_INIT;
+    if (run) {
+        const auto result = state->unit ?
+            ([[AVAudioSession sharedInstance] setActive:YES error:nil] ? FMOD_OK : FMOD_ERR_OUTPUT_INIT) : ConfigureSession(state);
+        if (result != FMOD_OK) return result;
+    }
 #endif
+    if (run && !state->unit) {
+        const auto result = CreateUnit(state);
+        if (result != FMOD_OK) return result;
+    }
     FMOD_RESULT result = DriverError(run ? AudioOutputUnitStart(state->unit) : AudioOutputUnitStop(state->unit));
     if (result == FMOD_OK) state->running = run;
 #if TARGET_OS_IPHONE
@@ -109,11 +199,7 @@ FMOD_RESULT Close(FMOD_OUTPUT_STATE* output) {
     if (state->interruptionObserver) [[NSNotificationCenter defaultCenter] removeObserver:state->interruptionObserver];
     if (state->resetObserver) [[NSNotificationCenter defaultCenter] removeObserver:state->resetObserver];
 #endif
-    if (state->unit) {
-        AudioOutputUnitStop(state->unit);
-        AudioUnitUninitialize(state->unit);
-        AudioComponentInstanceDispose(state->unit);
-    }
+    DisposeUnit(state);
 #if TARGET_OS_IPHONE
     [[AVAudioSession sharedInstance] setActive:NO withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
 #endif
@@ -123,7 +209,7 @@ FMOD_RESULT Close(FMOD_OUTPUT_STATE* output) {
 }
 FMOD_RESULT Init(FMOD_OUTPUT_STATE* output, int driver, FMOD_INITFLAGS, int* rate, int channels,
                  FMOD_SOUND_FORMAT* format, int blockFrames, int, void*) {
-    if (driver != 0 || !rate || !format || blockFrames <= 0) return FMOD_ERR_INVALID_PARAM;
+    if (driver != 0 || !rate || *rate <= 0 || !format || blockFrames <= 0) return FMOD_ERR_INVALID_PARAM;
     // First output path supports the game's mono/stereo configuration. Surround
     // needs an explicit FMOD-to-CoreAudio channel layout before it can be exposed.
     if (channels < 1 || channels > 2) return FMOD_ERR_OUTPUT_FORMAT;
@@ -140,21 +226,11 @@ FMOD_RESULT Init(FMOD_OUTPUT_STATE* output, int driver, FMOD_INITFLAGS, int* rat
     state->sampleBytes = state->floatSamples ? sizeof(float) : sizeof(int16_t);
     try { state->block.resize(size_t(blockFrames) * channels * state->sampleBytes); }
     catch (...) { Close(output); return FMOD_ERR_MEMORY; }
-    AudioComponentDescription description{};
-    description.componentType = kAudioUnitType_Output;
-    description.componentManufacturer = kAudioUnitManufacturer_Apple;
+    state->rate = *rate;
 #if TARGET_OS_IPHONE
-    description.componentSubType = kAudioUnitSubType_RemoteIO;
     AVAudioSession* session = [AVAudioSession sharedInstance];
-    NSError* error = nil;
-    if (![session setCategory:AVAudioSessionCategoryAmbient error:&error] ||
-        ![session setPreferredSampleRate:*rate error:&error] ||
-        ![session setPreferredIOBufferDuration:double(blockFrames) / *rate error:&error] ||
-        ![session setActive:YES error:&error]) {
-        NSLog(@"Apple audio session: %@", error);
-        Close(output);
-        return FMOD_ERR_OUTPUT_INIT;
-    }
+    const auto configured = ConfigureSession(state);
+    if (configured != FMOD_OK) { Close(output); return configured; }
     // Preferences are hints; query the actual device rate after activation.
     *rate = int(session.sampleRate);
     std::weak_ptr<OutputState> observed = *owner;
@@ -167,15 +243,14 @@ FMOD_RESULT Init(FMOD_OUTPUT_STATE* output, int driver, FMOD_INITFLAGS, int* rat
             if (begin) state->interrupted.store(true, std::memory_order_release);
             else if ([notification.userInfo[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue] & AVAudioSessionInterruptionOptionShouldResume)
                 state->interrupted.store(false, std::memory_order_release);
-            ApplyState(state.get());
+            state->interruptionChanged.store(true, std::memory_order_release);
         }];
     state->resetObserver = [[NSNotificationCenter defaultCenter]
         addObserverForName:AVAudioSessionMediaServicesWereResetNotification object:session queue:[NSOperationQueue mainQueue]
         usingBlock:^(NSNotification*) {
-            if (auto state = observed.lock()) state->error.store(FMOD_ERR_OUTPUT_INIT, std::memory_order_relaxed);
+            if (auto state = observed.lock()) state->resetPending.store(true, std::memory_order_release);
         }];
 #else
-    description.componentSubType = kAudioUnitSubType_DefaultOutput;
     AudioDeviceID device = kAudioObjectUnknown;
     AudioObjectPropertyAddress address{kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
     UInt32 size = sizeof(device);
@@ -189,23 +264,8 @@ FMOD_RESULT Init(FMOD_OUTPUT_STATE* output, int driver, FMOD_INITFLAGS, int* rat
     *rate = int(hardwareRate);
 #endif
     state->rate = *rate;
-    AudioComponent component = AudioComponentFindNext(nullptr, &description);
-    if (!component) { Close(output); return FMOD_ERR_OUTPUT_INIT; }
-    OSStatus result = AudioComponentInstanceNew(component, &state->unit);
-    AudioStreamBasicDescription stream{};
-    stream.mSampleRate = *rate;
-    stream.mFormatID = kAudioFormatLinearPCM;
-    stream.mFormatFlags = state->floatSamples ? kAudioFormatFlagsNativeFloatPacked :
-        kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked | kAudioFormatFlagsNativeEndian;
-    stream.mBytesPerPacket = stream.mBytesPerFrame = UInt32(channels) * state->sampleBytes;
-    stream.mFramesPerPacket = 1;
-    stream.mChannelsPerFrame = channels;
-    stream.mBitsPerChannel = state->sampleBytes * 8;
-    if (!result) result = AudioUnitSetProperty(state->unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &stream, sizeof(stream));
-    AURenderCallbackStruct callback{Render, state};
-    if (!result) result = AudioUnitSetProperty(state->unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
-    if (!result) result = AudioUnitInitialize(state->unit);
-    if (result) { Close(output); return DriverError(result); }
+    const auto result = CreateUnit(state);
+    if (result != FMOD_OK) { Close(output); return result; }
     return FMOD_OK;
 }
 FMOD_RESULT NumDrivers(FMOD_OUTPUT_STATE*, int* count) { *count = 1; return FMOD_OK; }
@@ -221,6 +281,10 @@ FMOD_RESULT Caps(FMOD_OUTPUT_STATE*, int driver, FMOD_CAPS* caps) {
 }
 FMOD_RESULT Start(FMOD_OUTPUT_STATE* output) {
     auto* state = State(output);
+    ConsumeSessionReset(state);
+#if TARGET_OS_IPHONE
+    state->awaitingUserResume = false;
+#endif
     state->requested = true;
     return ApplyState(state);
 }
@@ -274,6 +338,10 @@ FMOD_RESULT FMODAppleSetActive(FMOD::System* system, bool active) {
     FMOD_RESULT result = GetState(system, &state);
     if (result != FMOD_OK) return result;
     if (!state) return FMOD_ERR_UNINITIALIZED;
+    ConsumeSessionReset(state);
+#if TARGET_OS_IPHONE
+    if (active) state->awaitingUserResume = false;
+#endif
     state->active = active;
     return ApplyState(state);
 }
