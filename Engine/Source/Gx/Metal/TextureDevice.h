@@ -169,7 +169,7 @@ static_assert(sizeof(DetailDoodadVertexParameters) == 352 && sizeof(DetailDoodad
 struct DetailDoodadDrawParameters {
     DetailDoodadVertexParameters vertex{};
     DetailDoodadFragmentParameters fragment{};
-    bool pointLights = false;
+    bool pointLights = false, hardwareShadow = false;
     uint32_t shadowMode = 0;
     ShadowReceiverParameters shadow{};
 };
@@ -312,7 +312,7 @@ private:
     id<MTLFunction> m_rippleVertex;
     id<MTLFunction> m_rippleFragment[2][2][3]{};
     id<MTLFunction> m_detailVertex[2][3]{};
-    id<MTLFunction> m_detailFragment[2][2][4]{};
+    id<MTLFunction> m_detailFragment[2][2][4][2]{};
     id<MTLFunction> m_shadowVertex[3][2]{};
     id<MTLFunction> m_shadowFragment[2][2][2]{};
     id<MTLFunction> m_liquidVertex[3][4]{};

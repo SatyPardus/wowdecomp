@@ -227,7 +227,7 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
                 }
                 if (!std::strcmp(selection, "detail-shaders")) {
                     CheckGxDevice(selection);
-                    report = "Original detail-doodad lighting, baked colors and dynamic/banded R32F shadows passed (focused run).\n";
+                    report = "Original detail-doodad lighting, baked colors and dynamic/banded R32F/PCF shadows passed (focused run).\n";
                     return true;
                 }
                 if (!std::strcmp(selection, "model-depth")) {

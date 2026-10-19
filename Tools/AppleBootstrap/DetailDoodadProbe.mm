@@ -12,6 +12,7 @@
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
+#include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -20,6 +21,8 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+void CreateShadowComparisonDepths(CGxDeviceMetal&, MTLRenderPassDescriptor*, CGxTex*, CGxTex**);
 
 namespace {
 using Vec = std::array<float, 4>;
@@ -51,9 +54,9 @@ void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,voi
     }();
     if(command==GxTex_Latch) { stride=20; data=values[*static_cast<unsigned*>(context)].data(); }
 }
-void CheckDetailShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** pixel,MTLRenderPassDescriptor* pass) {
+void CheckDetailShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** pixel,MTLRenderPassDescriptor* pass,CGxTex* material) {
     struct Cleanup {
-        CGxDeviceMetal& device; CGxTex* textures[4]{};
+        CGxDeviceMetal& device; CGxTex* textures[8]{};
         ~Cleanup() { if(device.FrameCommand()) device.ScenePresent(); for(auto* texture:textures) device.TexDestroy(texture); }
     } cleanup{device};
     unsigned bands[]={0,1,2,3};
@@ -61,6 +64,7 @@ void CheckDetailShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** pi
         device.TexCreate(GxTex_2d,5,5,0,GxTex_Argb8888,GxTex_Argb8888,CGxTexFlags(GxTex_Nearest),bands+b,ShadowPattern,"Ground shadow reference",cleanup.textures[b]);
         GxRsSet(EGxRenderState(GxRs_Texture4+b),cleanup.textures[b]);
     }
+    CreateShadowComparisonDepths(device,pass,material,cleanup.textures+4);
     std::array<Vec,35> c{}; std::array<Vec,13> p{};
     c[0]={1,0,0,0};c[1]={0,1,0,0};c[2]={0,0,1,0};c[3]={0,0,0,1};
     c[4]={1,0,0,0};c[5]={0,1,0,0};c[7]={0,0,.5,1};
@@ -81,8 +85,10 @@ void CheckDetailShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** pi
     Case far{.5,0,0,0,0,1};far.bands[2]={0,-.95,1,0};cases.push_back(far);
     Case order{10,0,0,1,1,.7};order.bands[0]={.1,.2,128.0f/255,0};cases.push_back(order);
     CGxBatch batch{GxPrim_Points,0,1,0,0}; unsigned draws=0;
+    for(bool comparison:{false,true})
     for(unsigned mode=1;mode<=3;++mode) for(unsigned lights=0;lights<2;++lights)
     for(unsigned tint:{0u,128u,255u}) for(size_t n=0;n<(mode==1 ? dynamicCases:cases.size());++n) for(unsigned alpha:{0u,128u,129u}) {
+        for(unsigned b=0;b<4;++b) GxRsSet(EGxRenderState(GxRs_Texture4+b),cleanup.textures[b+(comparison ? 4:0)]);
         const auto& t=cases[n]; CGxVertexPNCT source{};
         source.m_position=C3Vector(.03125,.03125,t.z);source.m_normal=C3Vector(.3,-.4,t.normal);
         source.m_color=CImVector(192,128,160,tint);source.m_texture=C2Vector(.5,.5);
@@ -97,9 +103,13 @@ void CheckDetailShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** pi
         p[3]={.25,-.5,0,t.distance+.0078125f};p[4]={0,0,1,0};
         auto samples=[&](unsigned band,bool nine) {
             auto sample=[&](float dx,float dy) {
-                unsigned x=unsigned(std::clamp(int(std::floor((coordinates[band][0]*.5f+.5f+dx)*5)),0,4));
-                unsigned y=unsigned(std::clamp(int(std::floor((coordinates[band][1]*.5f+.5f+dy)*5)),0,4));
-                return ShadowDepth(x,y,band)>=coordinates[band][2] ? 1.0f:0.0f;
+                const float x=(coordinates[band][0]*.5f+.5f+dx)*5, y=(coordinates[band][1]*.5f+.5f+dy)*5;
+                auto compare=[&](int x,int y) { return ShadowDepth(unsigned(std::clamp(x,0,4)),unsigned(std::clamp(y,0,4)),band)>=coordinates[band][2] ? 1.0f:0.0f; };
+                if(!comparison) return compare(int(std::floor(x)),int(std::floor(y)));
+                const int left=int(std::floor(x-.5f)), top=int(std::floor(y-.5f));
+                const float fx=x-.5f-left, fy=y-.5f-top;
+                return (compare(left,top)*(1-fx)+compare(left+1,top)*fx)*(1-fy)+
+                    (compare(left,top+1)*(1-fx)+compare(left+1,top+1)*fx)*fy;
             };
             float value=sample(0,0); for(unsigned i=0;i<8;i+=nine ? 1:2) value+=sample(offsets[i][0],offsets[i][1]);
             return value/(nine ? 9:5);
@@ -124,14 +134,14 @@ void CheckDetailShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** pi
         }
         expected[3]=128.0f/255;if(alpha>128)expected={};
         device.BeginFrame(pass);GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),c.size());GxShaderConstantsSet(GxSh_Pixel,0,p[0].data(),p.size());
-        GxRsSet(GxRs_VertexShader,vertex[lights*3+std::min(mode,2u)]);GxRsSet(GxRs_PixelShader,pixel[mode]);GxRsSet(GxRs_AlphaRef,int32_t(alpha));
+        GxRsSet(GxRs_VertexShader,vertex[lights*3+std::min(mode,2u)]);GxRsSet(GxRs_PixelShader,pixel[mode+(comparison ? 4:0)]);GxRsSet(GxRs_AlphaRef,int32_t(alpha));
         GxDraw(&batch,0);CiRect rect(0,0,32,32);TSGrowableArray<CImVector> image;device.DeviceReadPixels(rect,image);
         const auto& sample=image[15*32+16];const unsigned channels[]={sample.r,sample.g,sample.b,sample.a};
         for(unsigned j=0;j<4;++j)if(std::abs(int(channels[j])-int(std::lround(expected[j]*255)))>2)
-            throw std::runtime_error("Detail-doodad shadow/baked color/band/fade/alpha reference mismatch at mode "+std::to_string(mode)+" case "+std::to_string(n));
+            throw std::runtime_error("Detail-doodad shadow/baked color/band/fade/alpha reference mismatch PCF "+std::to_string(comparison)+" at mode "+std::to_string(mode)+" case "+std::to_string(n));
         device.ScenePresent();++draws;
     }
-    std::fprintf(stderr,"Detail-doodad R32F shadows: %u independent dynamic/banded, baked-alpha composition, five/nine samples, band edges, distance/normal fades and coverage checks passed\n",draws);
+    std::fprintf(stderr,"Detail-doodad R32F/PCF shadows: %u independent dynamic/banded, baked-alpha composition, five/nine samples, band edges, distance/normal fades and coverage checks passed\n",draws);
 }
 } // namespace
 
@@ -269,7 +279,7 @@ void CheckDetailDoodadShaders(CGxDeviceMetal& device) {
                     ++draws;
                 }
     std::fprintf(stderr, "Detail-doodad sun/three-light paths: %u independent tint/normal/fade/fog/alpha reference draws\n", draws);
-    CheckDetailShadows(device,cleanup.vertex,cleanup.pixel,pass);
+    CheckDetailShadows(device,cleanup.vertex,cleanup.pixel,pass,cleanup.texture);
 }
 
 void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPassDescriptor* pass) {
@@ -310,6 +320,12 @@ void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPa
     CMap::s_mapLight = &light;
     CWorld::enables |= Enable_PixelShaders;
     CWorld::enables2 |= Enable_VertexShader;
+    // The world CVar updates both flags; this isolated scene selects the same
+    // pixel family as the shadow cache's comparison-texture selection.
+    if (CShaderEffect::s_usePcfFiltering)
+        CWorld::enables2 |= Enable_HwPcf;
+    else
+        CWorld::enables2 &= ~Enable_HwPcf;
     CWorld::detailDoodadAlphaRef = 64;
     CWorld::detailDoodadDist = 100;
     GxMasterEnableSet(GxMasterEnable_Fog, 0);
@@ -352,8 +368,8 @@ void CheckGameDetailDoodads(CM2Scene* scene, CGxDeviceMetal& device, MTLRenderPa
         for (unsigned i = 0; i < pixels.Count(); ++i)
             covered += pixels[i].r || pixels[i].g || pixels[i].b;
         const auto draws = device.EncodingStats().geometryDraws - before.geometryDraws;
-        std::fprintf(stderr, "Original ground decoration %u (%s, flags %u), shadow mode %u: %u instances, %llu draws, %u covered pixels\n", id,
-                     data->m_record->m_doodadpath, data->m_record->m_flags, CShadowCache::GetShadowValue(), additions, static_cast<unsigned long long>(draws), covered);
+        std::fprintf(stderr, "Original ground decoration %u (%s, flags %u), shadow mode %u PCF %u: %u instances, %llu draws, %u covered pixels\n", id,
+                     data->m_record->m_doodadpath, data->m_record->m_flags, CShadowCache::GetShadowValue(), CShaderEffect::s_usePcfFiltering, additions, static_cast<unsigned long long>(draws), covered);
         if (draws != batches || covered < 32)
             throw std::runtime_error("Original ground decoration produced no visible batch");
         device.ScenePresent();

@@ -836,7 +836,7 @@ iOS simulator pass 80,154 independent PCF outputs; both iOS clients build.
 On Mac and iOS simulator, the original water elemental and motorcycle walking/death poses select
 their real PCF materials in all three shadow modes across two scene lifetimes,
 with unchanged alpha coverage; the simulator then presents 120 frames.
-Terrain and detail-doodad PCF remain pending; WMO progress is below.
+Terrain PCF remains pending; WMO and detail-doodad progress is below.
 These results do not establish Windows D24 precision or full-world PCF equivalence.
 
 `Diffuse_T1` also supports its 60 R32F dynamic/banded-shadow vertex variants, paired
@@ -915,12 +915,15 @@ pixel variants now preserve dynamic five/nine-tap sampling and all three distant
 bands. Low mode combines dynamic visibility with baked vertex alpha before
 distance fading and fades normals back to that baked value; higher modes use
 the distant maps instead. Texture/distance alpha and state cutouts remain
-independent. `WOW_METAL_CHECK=detail-shaders` adds 1,314 numeric references;
+independent. The three PCF variants now use native comparison textures with
+linear comparison filtering and the same baked-alpha composition.
+`WOW_METAL_CHECK=detail-shaders` covers 2,628 R32F/PCF numeric references;
 `WOW_METAL_CHECK=models` exercises original grass/bone batching and cache binding
-with the generated R32F map in all modes across two resource lifetimes. Both pass
-on Mac ASan/UBSan and iOS simulator with Metal validation; both iOS client targets
-and the Mac application build. Full world density/placement, PCF and Windows
-visual comparison remain incomplete.
+with generated R32F and depth maps in all modes across two resource lifetimes.
+Numeric checks pass on Mac ASan/UBSan and iOS simulator with Metal validation;
+Mac real scenes pass, and iOS real scenes are being checked. Both iOS client
+targets and the Mac application build. Full world density/placement, global PCF
+and Windows visual comparison remain incomplete.
 
 Native `WaterRipples` preserves texture RGB, vertex-controlled alpha and additive
 blending. Its normalized D3D9 polygon offset is applied after clipping and
@@ -1086,8 +1089,8 @@ Native depth comparison shares the original shadow tap/fade calculations with
 M2 while retaining WMO's own baked/dynamic color, doubled diffuse, environment,
 composite and alpha rules. The focused check now makes 18,330 WMO draws across
 R32F and PCF; Mac ASan/UBSan/Metal and iOS simulator pass these references, and
-both iOS clients build. Shared M2 regression continues in the same check.
-Global PCF capability remains disabled while terrain/detail receivers and
+both iOS clients build. Shared M2 regression and the simulator 120-frame preview
+also pass. Global PCF capability remains disabled while terrain receivers and
 depth precision are completed; full-world PCF rendering is not yet verified.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without

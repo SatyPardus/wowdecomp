@@ -332,8 +332,8 @@ void CheckGameModels() {
                 std::fprintf(stderr,"Original wolf %s shadow receivers mode %u: %u batches, %u darker pixels, unchanged alpha coverage\n",comparison ? "PCF":"R32F",expectedShadow,receivers,darker);
                 device.ScenePresent();
                 // Exercise the original ground-decoration selector and cache
-                // bindings with the same generated R32F map and all three modes.
-                if(!comparison) CheckGameDetailDoodads(scene, device, pass);
+                // bindings with the generated map and all three sampling modes.
+                CheckGameDetailDoodads(scene, device, pass);
             }
         };
         checkReceivers(false);

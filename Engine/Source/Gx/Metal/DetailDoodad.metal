@@ -61,17 +61,10 @@ vertex DetailDoodadRaster detailDoodadVertex(DetailDoodadVertex v [[stage_in]], 
     }
     return result;
 }
-fragment float4 detailDoodadFragment(DetailDoodadRaster v [[stage_in]], constant DetailDoodadFragmentParameters& p [[buffer(0)]],
-    texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
-    constant ShadowReceiverParameters& shadow [[buffer(3)]],
-    texture2d<float> dynamicMap [[texture(4)]], sampler dynamicSampler [[sampler(4)]],
-    texture2d<float> nearMap [[texture(5)]], sampler nearSampler [[sampler(5)]],
-    texture2d<float> middleMap [[texture(6)]], sampler middleSampler [[sampler(6)]],
-    texture2d<float> farMap [[texture(7)]], sampler farSampler [[sampler(7)]]) {
-    const float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale);
-    const float alpha = texel.a * v.fade;
-    if (alphaTest && alpha < p.stateAlphaRef)
-        discard_fragment();
+template <typename ShadowTexture>
+inline float detailShadowBrightness(DetailDoodadRaster v, constant ShadowReceiverParameters& shadow,
+    ShadowTexture dynamicMap, sampler dynamicSampler, ShadowTexture nearMap, sampler nearSampler,
+    ShadowTexture middleMap, sampler middleSampler, ShadowTexture farMap, sampler farSampler) {
     float brightness = fma(v.color.a, 0.3f, 0.7f);
     if (detailShadowMode == 1) {
         // Unlike model receivers, low quality limits visibility by the baked
@@ -91,6 +84,26 @@ fragment float4 detailDoodadFragment(DetailDoodadRaster v [[stage_in]], constant
         const float bands = receiverBandedVisibility(v.nearShadow,v.middleShadow,v.farShadow,shadow,nearMap,nearSampler,middleMap,middleSampler,farMap,farSampler);
         brightness = receiverShadowModulation(min(dynamic,bands),v.normal,shadow.lightDirection.xyz);
     }
+    return brightness;
+}
+fragment float4 detailDoodadFragment(DetailDoodadRaster v [[stage_in]], constant DetailDoodadFragmentParameters& p [[buffer(0)]],
+    texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
+    constant ShadowReceiverParameters& shadow [[buffer(3)]],
+    texture2d<float> dynamicMap [[texture(4), function_constant(shadowFloatSampling)]], sampler dynamicSampler [[sampler(4)]],
+    texture2d<float> nearMap [[texture(5), function_constant(shadowFloatSampling)]], sampler nearSampler [[sampler(5)]],
+    texture2d<float> middleMap [[texture(6), function_constant(shadowFloatSampling)]], sampler middleSampler [[sampler(6)]],
+    texture2d<float> farMap [[texture(7), function_constant(shadowFloatSampling)]], sampler farSampler [[sampler(7)]],
+    depth2d<float> dynamicDepth [[texture(4), function_constant(shadowComparison)]],
+    depth2d<float> nearDepth [[texture(5), function_constant(shadowComparison)]],
+    depth2d<float> middleDepth [[texture(6), function_constant(shadowComparison)]],
+    depth2d<float> farDepth [[texture(7), function_constant(shadowComparison)]]) {
+    const float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale);
+    const float alpha = texel.a * v.fade;
+    if (alphaTest && alpha < p.stateAlphaRef)
+        discard_fragment();
+    const float brightness = shadowComparison ?
+        detailShadowBrightness(v,shadow,dynamicDepth,dynamicSampler,nearDepth,nearSampler,middleDepth,middleSampler,farDepth,farSampler) :
+        detailShadowBrightness(v,shadow,dynamicMap,dynamicSampler,nearMap,nearSampler,middleMap,middleSampler,farMap,farSampler);
     const float3 tint = brightness * v.color.rgb;
     return float4(fma(float3(v.fog), fma(texel.rgb, tint, -p.fogColor.rgb), p.fogColor.rgb), alpha);
 }

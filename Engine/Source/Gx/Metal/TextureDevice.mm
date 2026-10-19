@@ -135,10 +135,12 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(!modelHardwareShadow || modelShadowMode,"Model comparison sampling requires a shadow receiver");
     const bool wmoHardwareShadow = wmo && wmo->hardwareShadow;
     Require(!wmoHardwareShadow || wmo->shadowMode,"WMO comparison sampling requires a shadow receiver");
+    const bool detailHardwareShadow = detail && detail->hardwareShadow;
+    Require(!detailHardwareShadow || detail->shadowMode,"Detail comparison sampling requires a shadow receiver");
     const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
                            (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
-                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow) << 10);
+                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow || detailHardwareShadow) << 10);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
@@ -331,10 +333,11 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
         [constants setConstantValue:&decodePacked type:MTLDataTypeBool atIndex:4];
         [constants setConstantValue:&detail->pointLights type:MTLDataTypeBool atIndex:23];
+        [constants setConstantValue:&detailHardwareShadow type:MTLDataTypeBool atIndex:44];
         const uint32_t vertexShadow = std::min(detail->shadowMode, 2u);
         [constants setConstantValue:&vertexShadow type:MTLDataTypeUInt atIndex:37];
         auto& vertex = m_detailVertex[detail->pointLights][vertexShadow];
-        auto& fragment = m_detailFragment[alpha][decodePacked][detail->shadowMode];
+        auto& fragment = m_detailFragment[alpha][decodePacked][detail->shadowMode][detailHardwareShadow];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:@"detailDoodadVertex" constantValues:constants error:&error];
         [constants setConstantValue:&detail->shadowMode type:MTLDataTypeUInt atIndex:37];

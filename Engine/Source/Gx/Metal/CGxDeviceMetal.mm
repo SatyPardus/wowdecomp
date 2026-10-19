@@ -1354,7 +1354,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     if (model) Require(m->shaders.at(vertex).permutation / 30 == std::min(m->shaders.at(pixel).permutation & 3, 2u), "Mismatched model shadow coordinates and material");
     if (detail) {
         Require(GxMetal::SupportsDetailDoodadPermutation(GxSh_Vertex, m->shaders.at(vertex).permutation) &&
-            GxMetal::SupportsDetailDoodadPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation), "Detail-doodad PCF shadow receivers are not implemented");
+            GxMetal::SupportsDetailDoodadPermutation(GxSh_Pixel, m->shaders.at(pixel).permutation), "Invalid detail-doodad shader permutation");
         Require(m->shaders.at(vertex).permutation % 3 == std::min(m->shaders.at(pixel).permutation & 3, 2u), "Mismatched detail-doodad shadow coordinates and material");
     }
     if (wmo) {
@@ -1514,6 +1514,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         auto& native = detailParameters.emplace(); draw.detail = &native;
         native.pointLights = m->shaders.at(vertex).permutation >= 3;
         native.shadowMode = m->shaders.at(pixel).permutation & 3;
+        native.hardwareShadow = native.shadowMode && (m->shaders.at(pixel).permutation & 4);
         const float* constants = s_shadowConstants[1].constants;
         auto vector = [&](unsigned index) { simd_float4 value; std::memcpy(&value, constants + index * 4, sizeof(value)); return value; };
         std::memcpy(&native.vertex.worldView, constants, sizeof(simd_float4x4));
@@ -1722,7 +1723,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         ITexMarkAsUpdated(texture);
         textures[i] = m->textures.at(texture).sampled ?: m->textures.at(texture).gpu;
         states[i] = state;
-        const bool comparison=i>=4 && ((model && modelParameters->hardwareShadow) || (wmo && wmoParameters->hardwareShadow));
+        const bool comparison=i>=4 && ((model && modelParameters->hardwareShadow) || (wmo && wmoParameters->hardwareShadow) ||
+            (detail && detailParameters->hardwareShadow));
         Require((texture->m_format==GxTex_D24X8)==comparison,"Gx shader depth comparison and texture format mismatch");
         states[i].decodeScale = m->gpu.DecodeScale((comparison || texture->m_format == GxTex_R32F) ? BLP::Format::BGRA8 : ImageFormat(texture->m_format));
         states[i].filter = EGxTexFilter(texture->m_flags.m_filter);
