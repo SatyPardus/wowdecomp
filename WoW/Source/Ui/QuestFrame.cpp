@@ -841,7 +841,7 @@ int32_t CGQuestInfo::QuestItemInfo(const char* type, uint32_t index, char* name,
     *quality = 0;
     *usable = 1;
 
-    if (index > 6) {
+    if (index >= 6) {
         return 0;
     }
 

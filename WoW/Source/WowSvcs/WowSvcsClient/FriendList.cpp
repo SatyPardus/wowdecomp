@@ -2041,7 +2041,7 @@ uint32_t FriendList::GetNumMutes() {
 // VERIFY: 7cdd7e91 manual
 // OFFSET: 0x006B36D0
 uint64_t FriendList::GetIgnore(uint32_t index) {
-    if (index > 50) {
+    if (index >= 50) {
         return 0;
     }
 
