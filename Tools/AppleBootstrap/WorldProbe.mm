@@ -18,6 +18,7 @@
 #include "WoW/Source/Game/GameTime.h"
 #include "Engine/Source/Tempest/CRect.h"
 #include <array>
+#include <cmath>
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/ConsoleCommand.h"
@@ -55,7 +56,7 @@ int32_t DestroyServices(const void*, void*) {
     return 1;
 }
 unsigned portraitRefreshes;
-void CheckMapTransfers() {
+void CheckMapTransfers(bool continuous = false) {
     auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
     const auto projection = device.m_projection;
     device.XformPush(GxXform_View);
@@ -71,7 +72,12 @@ void CheckMapTransfers() {
         }
     } restore{device, projection};
     struct Destination { const char* name; int32_t id; C3Vector position; bool dungeon; };
-    const Destination route[] = {
+    const std::vector<Destination> route = continuous ? std::vector<Destination>{
+        {"Azeroth", 0, {-9465, 64, 85}, false},
+        {"Azeroth", 0, {-10500, 1000, 120}, false},
+        {"Azeroth", 0, {-8913, 554, 130}, false},
+        {"Azeroth", 0, {-9465, 64, 85}, false}
+    } : std::vector<Destination>{
         {"Azeroth", 0, {-9465, 64, 85}, false},
         {"Northrend", 571, {5800, 650, 660}, false},
         {"Expansion01", 530, {3082, 3596, 147}, false},
@@ -88,28 +94,40 @@ void CheckMapTransfers() {
     pass.depthAttachment.loadAction = MTLLoadActionClear; pass.depthAttachment.clearDepth = 1;
     auto* scene = World::s_m2Scene;
     unsigned tick = 0;
+    C3Vector previous = route.front().position;
+    unsigned leg = 0, loaded = 0, retired = 0, revisited = 0, peakAreas = 0;
+    std::array<bool,4096> resident{}, visited{};
     for (const auto& destination : route) {
         // Match Client.cpp's world transfer order, without a player/server or
         // destroying the shared world, M2 cache, Services or Metal device.
-        World::UnloadMap();
-        World::s_weather->Reset();
-        Require(!CMap::bActive && !CMap::bDungeon && !CWorldScene::s_viewerMapObjDef,
-                "Map transfer retained active map/viewer state");
-        for (auto* area : CMap::m_areaTable) Require(!area, "Map transfer retained an ADT area");
+        if (!continuous || !leg) {
+            World::UnloadMap();
+            World::s_weather->Reset();
+            Require(!CMap::bActive && !CMap::bDungeon && !CWorldScene::s_viewerMapObjDef,
+                    "Map transfer retained active map/viewer state");
+            for (auto* area : CMap::m_areaTable) Require(!area, "Map transfer retained an ADT area");
+        }
         CSimpleCamera camera(0.2f, 500, 1);
         camera.m_position = destination.position;
         C3Vector direction(1, .3f, -.2f); direction.Normalize(); camera.SetFacing(direction);
         CRect viewport{0, 0, 128, 128};
         camera.SetGxProjectionAndView(viewport);
         World::ViewCameraScope cameraScope(camera);
-        CWorld::LoadMap(destination.name, &camera.m_position, destination.id, 1, camera);
+        if (!continuous || !leg) CWorld::LoadMap(destination.name, &camera.m_position, destination.id, 1, camera);
         Require(CMap::bActive && bool(CMap::bDungeon) == destination.dungeon && World::s_m2Scene == scene &&
                 World::QueryMapId() == destination.id && DayNight::s_mapId == destination.id,
                 "Map transfer selected stale geometry, lighting or world ownership");
         const auto* record = g_mapDB.GetRecord(destination.id);
         unsigned scenePixels = 0, varied = 0;
         const auto first = device.EncodingStats();
-        for (unsigned frame = 0; frame < 120; ++frame) {
+        // Bounded diagnostic camera, not a player teleport. Each moving step
+        // is at most four world units; no unload/reload or forced wait occurs
+        // between waypoints. The original local-resource loading policy applies.
+        const unsigned movingFrames = continuous ? unsigned(std::ceil(std::sqrt((destination.position-previous).SquaredMag()) / 4)) : 0;
+        const unsigned frames = movingFrames + 120;
+        for (unsigned frame = 0; frame < frames; ++frame) {
+            if (continuous && movingFrames) camera.m_position = previous + (destination.position-previous) * std::min(1.0f,float(frame+1)/movingFrames);
+            if (continuous) Require(EventProcessPending(), "Streaming world Event context stopped");
             FrameTime::Update(1.0f/60, ++tick*17);
             auto& lighting = *DayNight::GetInfo();
             lighting.m_dayProgression = .5f; lighting.m_timeOfDay = 720; lighting.m_day = 0;
@@ -125,12 +143,24 @@ void CheckMapTransfers() {
             camera.SetGxProjectionAndView(viewport);
             C3Vector target = camera.m_position + direction;
             CWorld::Update(&camera.m_position, &target, &camera.m_position, camera);
-            if (frame < 2) AsyncFileReadWaitAll();
+            if (!continuous && frame < 2) AsyncFileReadWaitAll();
+            if (continuous) {
+                unsigned areas = 0;
+                for (unsigned index=0;index<resident.size();++index) {
+                    const bool present = CMap::m_areaTable[index] != nullptr;
+                    areas += present;
+                    if (present && !resident[index]) { ++loaded; revisited += visited[index]; visited[index] = true; }
+                    if (!present && resident[index]) ++retired;
+                    resident[index] = present;
+                }
+                peakAreas = std::max(peakAreas,areas);
+                if (frame && !(frame % 240)) std::fprintf(stderr,"World streaming leg %u: frame %u/%u, %u resident ADTs, %u loads/%u retirements\n",leg,frame,frames,areas,loaded,retired);
+            }
             device.BeginFrame(pass);
             GxXformSetViewport(0,1,0,1,0,CWorld::s_unk_ADEEE4);
             CWorldScene::Render(camera.m_position,1.0f/60,camera);
             CMap::RenderFootprints(); CWorldScene::RenderScenePasses(1.0f/60);
-            if (frame == 119) {
+            if (frame == frames-1) {
                 CiRect rect(0,0,128,128); TSGrowableArray<CImVector> pixels; TSGrowableArray<float> depths;
                 device.DeviceReadPixels(rect,pixels); device.DeviceReadDepths(rect,depths);
                 for (unsigned i=0;i<pixels.Count();++i) {
@@ -141,9 +171,15 @@ void CheckMapTransfers() {
             device.ScenePresent();
         }
         Require(scenePixels > 1024 && varied > 1024, "Transferred map did not produce real scene geometry/color");
-        std::fprintf(stderr,"World transfer %s (map %d, dungeon %d): 120 frames, %u scene / %u varied pixels, %llu draws; original world/Metal ownership retained\n",
-                     destination.name,destination.id,destination.dungeon,scenePixels,varied,
+        std::fprintf(stderr,"World %s %s (map %d, dungeon %d): %u frames, %u scene / %u varied pixels, %llu draws; original world/Metal ownership retained\n",
+                     continuous ? "streaming" : "transfer",destination.name,destination.id,destination.dungeon,frames,scenePixels,varied,
                      static_cast<unsigned long long>(device.EncodingStats().geometryDraws-first.geometryDraws));
+        previous = destination.position;
+        ++leg;
+    }
+    if (continuous) {
+        Require(loaded > 12 && retired > 6 && revisited > 0, "Streaming route did not exercise ADT loading, retirement and reentry");
+        std::fprintf(stderr,"Continuous world streaming: %u frames, %u ADT loads, %u retirements, %u revisits, peak %u resident areas; one map/world/device lifetime\n",tick,loaded,retired,revisited,peakAreas);
     }
 }
 std::array<unsigned, 5> CheckLoadedMap() {
@@ -340,7 +376,8 @@ void CheckGameWorldLifecycle() {
 
     const char* focus = std::getenv("WOW_METAL_CHECK");
     const bool transfers = focus && !std::strcmp(focus,"world-transfers");
-    for (unsigned cycle = 0; cycle < (transfers ? 1u : 2u); ++cycle) {
+    const bool streaming = focus && !std::strcmp(focus,"world-streaming");
+    for (unsigned cycle = 0; cycle < (transfers || streaming ? 1u : 2u); ++cycle) {
         // CWorld teardown destroys shader effects. The application-owned M2
         // cache must finish that lifetime too, before another world is started.
         M2Initialize(8, 16);
@@ -363,11 +400,11 @@ void CheckGameWorldLifecycle() {
         World::s_weather->m_densityChanged = 0;
         Require(weatherDensity->Set(cycle ? "3" : "0", true, false, false, false) && World::s_weather->m_densityChanged,
                 "Weather configuration did not notify the current world");
-        if (transfers) {
+        if (transfers || streaming) {
             scope.shadows = true; ShadowInit();
             Require(s_cvExtShadowQuality && s_cvExtShadowQuality->Set("5",true,false,false,false),"Cannot select original PCF shadow quality");
             Require(CShaderEffect::s_usePcfFiltering, "Map transfer check requires native comparison shadows");
-            CheckMapTransfers();
+            CheckMapTransfers(streaming);
             ShadowDestroy(); scope.shadows = false;
         } else {
             CheckDayNightMap(cycle);
@@ -393,8 +430,8 @@ void CheckGameWorldLifecycle() {
         // the next constructor must not touch the destroyed Weather instance.
         Require(weatherDensity->Set("2", true, false, false, false), "Weather configuration failed between world lifetimes");
     }
-    if (transfers) {
-        std::fputs("World transfer lifecycle: five map loads in one world/device lifetime and final destruction passed\n",stderr);
+    if (transfers || streaming) {
+        std::fputs(streaming ? "Continuous world streaming and final destruction passed\n" : "World transfer lifecycle: five map loads in one world/device lifetime and final destruction passed\n",stderr);
         return;
     }
     CheckDayNightTerrain();

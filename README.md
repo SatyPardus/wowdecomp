@@ -1364,6 +1364,17 @@ validation and on the iOS simulator, followed by 120 visible MoltenCore frames.
 This diagnostic has no character or server session; it does not validate network
 transfer packets, dungeon encounters or original Windows visual equivalence.
 
+`WOW_METAL_CHECK=world-streaming` instead keeps Azeroth loaded while a diagnostic
+camera moves from Elwynn through Westfall and Stormwind and returns to its start.
+Each step is at most four world units; the original Event poll, area loading and
+retirement run without explicit waits or map reloads between destinations.
+The 1,427-frame Mac ASan/UBSan/Metal run observed 46 ADT entries, 34 retirements,
+15 revisits and a peak of 16 resident areas. Native PCF stays enabled; each
+destination has real color/depth output and final destruction releases the world.
+The iOS simulator passes the same route with the same area counts and then renders
+120 visible world frames; both iOS targets build. This exercises local resource
+streaming, not remote downloads or player movement.
+
 Use `WOW_WORLD=Azeroth:-9465:64:85` with the existing Mac `--preview` command or
 as an iOS environment variable. The format is `Map:worldX:worldY:worldZ`; the
 viewer uses an explicit camera (near 0.2, far 500, FOV 1 radian).
