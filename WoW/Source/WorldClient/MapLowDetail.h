@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/C2iVector.h"
 #include "Engine/Source/Tempest/C3Vector.h"
@@ -12,6 +13,7 @@
 
 class CMapObjDef;
 struct SMMapObjDef;
+class MapLowDetailData;
 
 class CMapAreaLow {
     public:
@@ -47,8 +49,10 @@ class CMapLowDetail {
     /* 0014 */ uint32_t* m_areaOffsets;
     /* 0018 */ CMapAreaLow* m_areas [4096];
     /* 4018 */ TSGrowableArray<CMapObjDef*> m_mapObjDefList;
+    std::unique_ptr<MapLowDetailData> m_nativeData;
 
     CMapLowDetail();
+    ~CMapLowDetail();
     void CullHorizonAreas(const C3Vector* pos);
     void Load(const char* mapPath, const char* mapName);
     void Purge();

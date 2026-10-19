@@ -1,6 +1,7 @@
 #include "WoW/Common/AaBsp.h"
 #include "WoW/Common/Types.h"
 #include "WoW/Source/WorldClient/Types.h"
+#include "WoW/Source/WorldClient/MapLowDetailData.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Base/BitArray.h"
@@ -34,9 +35,77 @@ template<class T> std::vector<T> Chunk(const std::vector<uint8_t>& bytes, uint32
     }
     throw std::runtime_error("Required WMO group child missing");
 }
+void CheckWdl(const ClientData& client, std::ostream& report) {
+    unsigned total = 0, placements = 0;
+    for (const char* map : {"Azeroth", "Northrend", "Expansion01"}) {
+        const std::string path = std::string("World\\Maps\\") + map + "\\" + map + ".wdl";
+        const auto asset = client.Read(path, MapLowDetailData::MaxBytes);
+        const auto& bytes = asset.bytes;
+        // Move the file base too: every typed output must own its alignment.
+        std::vector<uint8_t> shifted(bytes.size() + 1);
+        std::memcpy(shifted.data() + 1, bytes.data(), bytes.size());
+        MapLowDetailData data(shifted.data() + 1, bytes.size());
+        size_t indexAt = 12, objectAt = 0, namesAt = 0;
+        if (Word(bytes, indexAt) == 0x4D574D4F) {
+            const auto namesSize = Word(bytes, indexAt + 4);
+            Require(data.names.size() == namesSize && (!namesSize || !std::memcmp(data.names.data(), bytes.data() + indexAt + 8, namesSize)), "WDL filenames changed");
+            namesAt = indexAt;
+            indexAt += namesSize + 8;
+            const auto offsetsSize = Word(bytes, indexAt + 4);
+            Require(data.nameOffsets.size() * 4 == offsetsSize && (!offsetsSize || !std::memcmp(data.nameOffsets.data(), bytes.data() + indexAt + 8, offsetsSize)), "WDL filename offsets changed");
+            indexAt += offsetsSize + 8;
+            objectAt = indexAt;
+            const auto objectsSize = Word(bytes, indexAt + 4);
+            Require(data.objects.size() * sizeof(SMMapObjDef) == objectsSize && (!objectsSize || !std::memcmp(data.objects.data(), bytes.data() + indexAt + 8, objectsSize)), "WDL placements changed");
+            indexAt += objectsSize + 8;
+        }
+        Require(!std::memcmp(data.areaOffsets.data(), bytes.data() + indexAt + 8, sizeof(data.areaOffsets)), "WDL area offsets changed");
+        size_t first = data.areaOffsets.size();
+        for (size_t i = 0; i < data.areaOffsets.size(); ++i) {
+            const auto offset = Word(bytes, indexAt + 8 + i * 4);
+            if (!offset) { Require(data.areaIndices[i] == -1, "Missing WDL area acquired data"); continue; }
+            if (first == data.areaOffsets.size()) first = i;
+            const auto& area = data.areas.at(data.areaIndices[i]);
+            Require(!std::memcmp(area.heights.data(), bytes.data() + offset + 8, sizeof(area.heights)), "WDL heights changed");
+            const size_t next = size_t(offset) + Word(bytes, offset + 4) + 8;
+            const bool holes = next < bytes.size() && Word(bytes, next) == 0x4D41484F;
+            Require(area.hasHoles == holes && (!holes || !std::memcmp(area.holes.data(), bytes.data() + next + 8, sizeof(area.holes))), "WDL hole masks changed");
+            ++total;
+        }
+        Require(first < data.areaOffsets.size(), "WDL fixture contains no horizon tiles");
+        placements += data.objects.size();
+        const auto originalHeight = data.areas.at(data.areaIndices[first]).heights[0];
+        std::fill(shifted.begin(), shifted.end(), 0);
+        Require(data.areas.at(data.areaIndices[first]).heights[0] == originalHeight, "WDL retained source storage");
+        auto reject = [&](std::vector<uint8_t> changed) {
+            bool failed = false;
+            try { MapLowDetailData invalid(changed.data(), changed.size()); } catch (const std::runtime_error&) { failed = true; }
+            Require(failed, "Invalid WDL was accepted");
+        };
+        auto write = [](std::vector<uint8_t>& target, size_t offset, uint32_t value) { std::memcpy(target.data() + offset, &value, 4); };
+        auto changed = bytes; changed.pop_back(); reject(changed);
+        changed = bytes; write(changed, indexAt + 8 + first * 4, data.areaOffsets[first] + 1); reject(changed);
+        changed = bytes; write(changed, indexAt + 8 + first * 4, uint32_t(bytes.size())); reject(changed);
+        changed = bytes; write(changed, data.areaOffsets[first] + 4, 1088); reject(changed);
+        changed = bytes; write(changed, 8, 17); reject(changed);
+        if (!data.objects.empty()) {
+            changed = bytes; write(changed, objectAt + 8, uint32_t(data.nameOffsets.size())); reject(changed);
+            const size_t nameIndex = namesAt + 8 + Word(bytes, namesAt + 4);
+            changed = bytes; write(changed, nameIndex + 8, uint32_t(data.names.size())); reject(changed);
+        }
+        // The final area may omit MAHO. No speculative read beyond EOF is valid.
+        changed = bytes;
+        for (size_t i = 0; i < data.areaOffsets.size(); ++i) if (i != first) write(changed, indexAt + 8 + i * 4, 0);
+        changed.resize(size_t(data.areaOffsets[first]) + 8 + 1090);
+        MapLowDetailData noHoles(changed.data(), changed.size());
+        Require(noHoles.areas.size() == 1 && !noHoles.areas[0].hasHoles && noHoles.areas[0].heights[0] == originalHeight, "WDL optional final hole mask failed");
+    }
+    report << "Original WDL: " << total << " horizon tiles and " << placements << " WMO placements preserve all height/hole/table bytes; odd alignment, source independence, bounds and optional final holes passed.\n";
+}
 }
 
 void CheckWorldData(const ClientData& client, std::ostream& report) {
+    CheckWdl(client, report);
     CheckWmoRoots(client, report);
     g_footprintTexturesDB.Load(__FILE__, __LINE__);
     g_groundEffectDoodadDB.Load(__FILE__, __LINE__);

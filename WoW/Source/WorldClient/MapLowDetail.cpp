@@ -1,6 +1,8 @@
 #include "MapLowDetail.h"
+#include "MapLowDetailData.h"
 #include <cmath>
 #include <cstring>
+#include <stdexcept>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CMath.h"
@@ -15,14 +17,6 @@
 #include "Engine/Source/Gx/Gx.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "Engine/Source/Gx/CGxVertexPC.h"
-
-namespace {
-uint32_t ReadWdlWord(const void* data) {
-    uint32_t value;
-    std::memcpy(&value, data, sizeof(value));
-    return value;
-}
-}
 
 // VERIFY: 3763adce auto
 // OFFSET: 0x007C06E0
@@ -50,6 +44,8 @@ CMapLowDetail::CMapLowDetail() {
     this->m_areaOffsets = nullptr;
     memset(this->m_areas, 0, sizeof(this->m_areas));
 }
+
+CMapLowDetail::~CMapLowDetail() = default;
 
 // OFFSET: 0x007CBFE0
 void CMapLowDetail::Purge() {
@@ -125,49 +121,47 @@ void CMapLowDetail::CullHorizonAreas(const C3Vector* pos) {
 // VERIFY: ba76c774 manual
 // OFFSET: 0x007CC310
 void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
+    if (m_data || m_nativeData) throw std::runtime_error("WDL is already loaded");
     char fileName[256];
-    SFileImpl* file;
-
+    SFileImpl* file = nullptr;
     SStrPrintf(fileName, sizeof(fileName), "%s\\%s.wdl", mapPath, mapName);
-    SFileOpenFile(fileName, &file);
+    if (!SFileOpenFile(fileName, &file)) return;
+    const auto closeFile = [](SFileImpl* value) { SFileCloseFile(value); };
+    std::unique_ptr<SFileImpl, decltype(closeFile)> handle(file, closeFile);
+    uint32_t high = 0;
+    const uint32_t size = SFileGetFileSize(file, &high);
+    if (high || size < 12 || size > MapLowDetailData::MaxBytes)
+        throw std::runtime_error("Invalid WDL file size or budget exceeded");
+    const auto freeBytes = [](char* value) { SMemFree(value, nullptr, 0, 0); };
+    std::unique_ptr<char, decltype(freeBytes)> bytes(static_cast<char*>(SMemAlloc(size, __FILE__, __LINE__, 0)), freeBytes);
+    uint32_t read = 0;
+    if (!bytes || !SFileReadFile(file, bytes.get(), size, &read, nullptr, 0) || read != size)
+        throw std::runtime_error("Incomplete WDL file read");
+    handle.reset();
+    auto native = std::make_unique<MapLowDetailData>(bytes.get(), size);
+    m_data = bytes.release();
+    m_mapObjNames = native->names.data();
+    m_mapObjNameOffsets = native->nameOffsets.data();
+    m_mapObjDefs = native->objects.data();
+    m_mapObjDefCount = uint32_t(native->objects.size());
+    m_areaOffsets = native->areaOffsets.data();
+    m_nativeData = std::move(native);
 
-    if (!file) {
-        return;
-    }
-
-    uint32_t size = SFileGetFileSize(file, nullptr);
-    this->m_data = static_cast<char*>(SMemAlloc(size, __FILE__, __LINE__, 0));
-    SFileReadFile(file, this->m_data, size, nullptr, nullptr, 0);
-    SFileCloseFile(file);
-
-    char* chunk = this->m_data + ReadWdlWord(this->m_data + 4) + 8;
-    char* data = chunk + 8;
-
-    if (ReadWdlWord(chunk) == 0x4D574D4F) {
-        this->m_mapObjNames = data;
-        char* mwid = data + ReadWdlWord(chunk + 4);
-        this->m_mapObjNameOffsets = reinterpret_cast<uint32_t*>(mwid + 8);
-        char* modf = mwid + ReadWdlWord(mwid + 4) + 8;
-        this->m_mapObjDefs = reinterpret_cast<SMMapObjDef*>(modf + 8);
-        this->m_mapObjDefCount = ReadWdlWord(modf + 4) >> 6;
-        data = modf + 16 + ReadWdlWord(modf + 4);
-    }
-
-    this->m_areaOffsets = reinterpret_cast<uint32_t*>(data);
-
+    struct LoadScope {
+        CMapLowDetail* target;
+        ~LoadScope() { if (target) target->Unload(); }
+    } cleanup{this};
     uint32_t index = 0;
 
     for (uint32_t y = 0; y < 1024; y += 16) {
         for (uint32_t x = 0; x < 1024; x += 16) {
-            const uint32_t areaOffset = ReadWdlWord(this->m_areaOffsets + index);
+            const uint32_t areaOffset = this->m_areaOffsets[index];
             if (areaOffset) {
-                char* mare = this->m_data + areaOffset;
+                auto& table = m_nativeData->areas[m_nativeData->areaIndices[index]];
                 CMapAreaLow* area = CMap::AllocAreaLow();
+                if (!area) throw std::runtime_error("Cannot allocate WDL area");
                 this->m_areas[index] = area;
-                area->m_heights = reinterpret_cast<int16_t*>(mare + 8);
-                // MARE contains 545 int16 heights, so its following header is
-                // only two-byte aligned even in the original game archives.
-                char* next = mare + ReadWdlWord(mare + 4) + 8;
+                area->m_heights = table.heights.data();
 
                 int32_t minHeight = 100000;
                 int32_t maxHeight = -100000;
@@ -207,8 +201,8 @@ void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
                 float dx = area->m_bbox.t.x - area->m_sphere.c.x;
                 area->m_sphere.r = sqrtf(dx * dx + dy * dy + dz * dz);
 
-                if (ReadWdlWord(next) == 0x4D41484F) {
-                    uint16_t* holes = reinterpret_cast<uint16_t*>(next + 8);
+                if (table.hasHoles) {
+                    uint16_t* holes = table.holes.data();
                     area->m_holes = holes;
                     area->m_indexCount = 0;
 
@@ -230,12 +224,16 @@ void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
     }
 
     C3Vector center(17066.666f, 17066.666f, 0.0f);
-    this->m_mapObjDefList.SetCount(this->m_mapObjDefCount);
+    this->m_mapObjDefList.SetCount(0);
+    this->m_mapObjDefList.Reserve(this->m_mapObjDefCount, false);
 
     for (uint32_t i = 0; i < this->m_mapObjDefCount; i++) {
         SMMapObjDef* def = &this->m_mapObjDefs[i];
         CMapObjDef* mapObjDef = CMap::CreateMapObjDef(this->m_mapObjNames + this->m_mapObjNameOffsets[def->m_nameId], def, &center, false);
 
+        if (!mapObjDef) throw std::runtime_error("Cannot allocate WDL world object");
+        mapObjDef->m_refCount++;
+        *this->m_mapObjDefList.New() = mapObjDef;
         if (!CMap::s_isStreamingMode) {
             CMapObj* mapObj = mapObjDef->m_owner;
 
@@ -252,10 +250,8 @@ void CMapLowDetail::Load(const char* mapPath, const char* mapName) {
                 }
             }
         }
-
-        mapObjDef->m_refCount++;
-        this->m_mapObjDefList.m_data[i] = mapObjDef;
     }
+    cleanup.target = nullptr;
 }
 
 // VERIFY: c20afbce manual
@@ -440,6 +436,7 @@ void CMapLowDetail::Unload() {
     this->m_mapObjDefs = nullptr;
     this->m_mapObjDefCount = 0;
     this->m_areaOffsets = nullptr;
+    m_nativeData.reset();
 
     if (this->m_data) {
         SMemFree(this->m_data, nullptr, 0, 0);

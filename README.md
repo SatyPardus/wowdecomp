@@ -1122,6 +1122,16 @@ pass Mac ASan/UBSan/Metal and iOS simulator checks; both iOS targets build.
 The simulator preview completes 120 frames. Actual PCF worlds pass 720 Mac and
 900 iOS frames with normal shutdown, and the 2622x1206 iOS fringe is gone.
 
+WDL horizon data now uses bounded, naturally aligned owned tables. Northrend's
+175-byte WMO filename block leaves the following offsets, placements, heights
+and hole masks unaligned. All 2,618 tiles and four placements from Azeroth,
+Northrend and Outland preserve their original bytes, including deliberately
+unaligned input, independent source lifetime, invalid offsets/truncation and a
+final area without holes. Mac ASan/UBSan and iOS simulator resource checks pass;
+both iOS targets build. The simulator renders 120 frames of the complete Dalaran
+map. The Mac Scrn/UI composition reaches a separate missing-texture draw after
+loading; that integration issue remains under investigation.
+
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct
 UV sources, unnormalized normals, zero to three local lights, specular/alpha
