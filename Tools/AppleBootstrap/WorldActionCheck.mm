@@ -7,6 +7,7 @@
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
 #include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/Services/Texture.h"
@@ -1477,11 +1478,14 @@ bool CheckNativeWorldCasting(WowNativeView* view) {
     return false;
 }
 
-bool CheckNativeWorldReentry(WowNativeView* view) {
+bool CheckNativeWorldReentry(WowNativeView* view, bool whileHidden) {
     static unsigned phase, stableFrames;
     static WOWGUID character;
     static NSPoint point;
     static std::chrono::steady_clock::time_point started;
+    static NSTimer* hiddenTimer;
+    static std::string hiddenFailure;
+    static bool hiddenCompleted;
     if (phase == 7) return true;
     const auto now = std::chrono::steady_clock::now();
     const double elapsed = std::chrono::duration<double>(now - started).count();
@@ -1529,10 +1533,33 @@ bool CheckNativeWorldReentry(WowNativeView* view) {
         if (++stableFrames < 120) return false;
         std::fputs("Native world reentry: character selection rendered after server logout\n", stderr);
         click("CharSelectEnterWorldButton"); next();
-    } else if (phase == 5 && elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); next(); }
+    } else if (phase == 5 && elapsed >= .05) {
+        mouse(NSEventTypeLeftMouseUp); next();
+        if (whileHidden) dispatch_async(dispatch_get_main_queue(), ^{
+            [view.window miniaturize:nil];
+            const double began = NSProcessInfo.processInfo.systemUptime;
+            std::fputs("Native world reentry: minimizing after the original Enter World click\n", stderr);
+            hiddenTimer = [NSTimer timerWithTimeInterval:0.1 repeats:YES block:^(NSTimer*) {
+                const double seconds = NSProcessInfo.processInfo.systemUptime - began;
+                if (!CGGameUI::s_inWorld && seconds < 60) return;
+                if (!CGGameUI::s_inWorld) hiddenFailure = "World did not finish loading while minimized";
+                else if (!view.window.miniaturized || !view.paused || GxIsWindowVisible())
+                    hiddenFailure = "World entry completed without remaining minimized";
+                else {
+                    hiddenCompleted = true;
+                    std::fprintf(stderr, "Native world reentry: original world loaded while minimized in %.3f seconds\n", seconds);
+                }
+                [hiddenTimer invalidate]; hiddenTimer = nil;
+                [view.window deminiaturize:nil]; [view.window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
+            }];
+            [[NSRunLoop mainRunLoop] addTimer:hiddenTimer forMode:NSRunLoopCommonModes];
+        });
+    }
     else if (phase == 6) {
+        Require(hiddenFailure.empty(), hiddenFailure.c_str());
         Require(elapsed < 60, "Original character-selection button did not reenter the world");
         if (!CGGameUI::s_inWorld) return false;
+        if (whileHidden && !hiddenCompleted) return false;
         Require(ClntObjMgrGetActivePlayer() == character, "Original world reentry selected a different character");
         if (++stableFrames < 120) return false;
         std::fputs("Native world reentry: same player returned and rendered 120 frames through the original UI/server lifecycle\n", stderr);

@@ -421,6 +421,13 @@ Mac ASan/UBSan and Metal validation.
 waits for the server and character-selection screen, then clicks Enter World for
 the same selected character. It never forces a logout or resets game objects.
 Allow 3000 frames to include both world loads and a possible logout countdown.
+`--check-world-hidden-reentry` performs the same UI/server round trip but
+minimizes the window immediately after clicking Enter World. An independent
+native timer restores it only after the original world is ready. Feral's world
+loaded while minimized in 4.243 seconds, then rendered 120 stable frames with
+the same character. The full 1800-visible-frame run, 22 synchronous loading
+frames, final capture and normal shutdown passed Mac ASan/UBSan and Metal
+validation; no coordinates, character data or server rules were changed.
 
 `--check-world-npc` right-clicks a visible friendly gossip NPC within five units
 through native mouse events and checks the original target, server text/options

@@ -24,7 +24,9 @@ bool CheckNativeWorldTravel();
 bool CheckNativeWorldHearthstone(WowNativeView* view);
 // Original game-menu logout and character-selection reentry, using native UI
 // events and the same character. No forced logout or object-manager reset.
-bool CheckNativeWorldReentry(WowNativeView* view);
+// Optional minimization after the native Enter World click; an independent
+// AppKit timer restores the window only after the original world has loaded.
+bool CheckNativeWorldReentry(WowNativeView* view, bool whileHidden = false);
 // Native character, spellbook, quest, talent and map toggles with live drawing.
 bool CheckNativeWorldPanels(WowNativeView* view);
 // Read a nearby game-object quest offer through native picking; no acceptance.

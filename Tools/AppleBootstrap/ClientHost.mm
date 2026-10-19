@@ -63,6 +63,7 @@ bool checkWorldCombat, worldCombatDone;
 bool checkWorldMelee;
 bool checkWorldEncounter, checkWorldLoot;
 bool checkWorldReentry, worldReentryDone;
+bool checkWorldHiddenReentry;
 bool checkWorldNPC, worldNPCDone;
 bool browseMerchant;
 bool checkWorldTravel, worldTravelDone;
@@ -540,7 +541,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
                 if (checkWorldShadows && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) && (!checkWorldCasting || worldCastingDone))
                     worldShadowsDone = CheckNativeWorldShadows();
                 if (checkWorldReentry && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) && (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone))
-                    worldReentryDone = CheckNativeWorldReentry(self.view);
+                    worldReentryDone = CheckNativeWorldReentry(self.view, checkWorldHiddenReentry);
                 if (checkWorldNPC && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
                     (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone))
                     worldNPCDone = CheckNativeWorldNPC(self.view, browseMerchant);
@@ -670,6 +671,7 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-travel")) checkWorldTravel = true;
         else if (!std::strcmp(argv[argument], "--check-world-hearthstone")) checkWorldHearthstone = true;
         else if (!std::strcmp(argv[argument], "--check-world-reentry")) checkWorldReentry = true;
+        else if (!std::strcmp(argv[argument], "--check-world-hidden-reentry")) checkWorldReentry = checkWorldHiddenReentry = true;
         else if (!std::strcmp(argv[argument], "--check-world-panels")) checkWorldPanels = true;
         else if (!std::strcmp(argv[argument], "--check-world-quest")) checkWorldQuest = true;
         else if (!std::strcmp(argv[argument], "--check-world-reward")) checkWorldQuest = receiveQuestReward = true;
@@ -684,7 +686,7 @@ int main(int argc, char** argv) {
     }
     const bool actionChecks = checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest || checkWorldInventory || checkWorldWalk || checkWorldCorpse;
     if ((checkWorldVisibility && actionChecks) || (receiveQuestReward && acceptQuest) || ((receiveQuestReward || acceptQuest) && checkWorldNPC) || (checkWorldWalk && checkWorldCorpse) || (argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((actionChecks || checkWorldVisibility) && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry] [--check-world-panels] [--check-world-quest | --check-world-reward | --check-world-accept] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] [--check-world-visibility] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry | --check-world-hidden-reentry] [--check-world-panels] [--check-world-quest | --check-world-reward | --check-world-accept] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] [--check-world-visibility] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
