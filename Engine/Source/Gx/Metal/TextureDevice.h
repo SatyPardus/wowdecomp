@@ -264,6 +264,7 @@ struct GeometryDraw {
     bool depthTest = false, depthWrite = false;
     uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
     uint32_t culling = 0; // Gx: none, clockwise, counterclockwise
+    bool wireframe = false;
     bool scissorEnabled = false;
     MTLScissorRect scissor{};
     bool viewportEnabled = false;

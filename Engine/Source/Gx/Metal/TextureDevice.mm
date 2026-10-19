@@ -889,6 +889,8 @@ void GxMetal::TextureDevice::ClearRegion(id<MTLCommandBuffer> command, MTLRender
     if (ownsEncoder) encoder = [command renderCommandEncoderWithDescriptor:pass];
     Require(encoder != nil, "Cannot encode regional Gx clear");
     [encoder setRenderPipelineState:pipeline]; [encoder setDepthStencilState:depth];
+    // An encoder may still hold the preceding game's wireframe state.
+    [encoder setTriangleFillMode:MTLTriangleFillModeFill];
     [encoder setCullMode:MTLCullModeNone];
     [encoder setViewport:MTLViewport{double(region.x), double(region.y), double(region.width), double(region.height), 0, 1}];
     [encoder setScissorRect:region];

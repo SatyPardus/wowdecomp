@@ -223,6 +223,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setRenderPipelineState:pipeline];
     [encoder setDepthStencilState:depth->second];
     [encoder setFrontFacingWinding:MTLWindingClockwise];
+    // Native weather points expand to triangle instances, but the original
+    // point primitive is unaffected by D3DRS_FILLMODE. Keep those quads filled.
+    [encoder setTriangleFillMode:geometry.wireframe && batch.m_primType >= GxPrim_Triangles ? MTLTriangleFillModeLines : MTLTriangleFillModeFill];
     [encoder setViewport:geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1}];
     [encoder setCullMode:weatherPoints || geometry.culling == 0 ? MTLCullModeNone : geometry.culling == 1 ? MTLCullModeFront : MTLCullModeBack];
     [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];

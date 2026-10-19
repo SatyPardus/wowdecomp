@@ -21,23 +21,26 @@ struct SplashVertex { C3Vector position; CImVector corner; C2Vector lifetime; };
 struct Reference { C3Vector position; CImVector color; C2Vector uv; };
 }
 
-void CheckWeatherShaders(CGxDeviceMetal& device) {
+void CheckWeatherShaders(CGxDeviceMetal& device, bool wireframePointsOnly) {
     device.RsPush();
     const auto projection = device.m_projNative;
     for (auto transform : {GxXform_View, GxXform_World}) device.XformPushAndSet(transform, C44Matrix(1));
     for (unsigned i=0;i<4;++i) device.XformPushAndSet(EGxXform(i), C44Matrix(1));
     struct Cleanup {
         CGxDeviceMetal& device; C44Matrix projection; CGxShader* shaders[4]{}; CGxTex* texture{};
+        int filled = device.MasterEnable(GxMasterEnable_PolygonFill);
         ~Cleanup() {
             if (device.FrameCommand()) device.ScenePresent();
+            device.MasterEnableSet(GxMasterEnable_PolygonFill,filled);
             device.RsPop(); device.TexDestroy(texture);
             for (auto& shader : shaders) device.ShaderDestroy(shader);
             for (unsigned i=0;i<4;++i) GxXformPop(EGxXform(i));
             GxXformPop(GxXform_World); GxXformPop(GxXform_View); device.m_projNative=projection;
         }
     } cleanup{device,projection};
+    if (wireframePointsOnly) device.MasterEnableSet(GxMasterEnable_PolygonFill,0);
     const char* names[] = {"snowpoint", "sand", "rain", "patter"};
-    for (unsigned i=0;i<4;++i) {
+    for (unsigned i=0;i<(wireframePointsOnly?2u:4u);++i) {
         device.ShaderCreate(&cleanup.shaders[i],GxSh_Vertex,"Shaders\\Vertex",names[i],1);
         CGxShader* cached{}; device.ShaderCreate(&cached,GxSh_Vertex,"Shaders\\Vertex",names[i],1);
         Require(cached==cleanup.shaders[i] && cached->Valid(),"Weather shader cache failed"); device.ShaderDestroy(cached);
@@ -103,6 +106,10 @@ void CheckWeatherShaders(CGxDeviceMetal& device) {
                 throw std::runtime_error(std::string(names[kind])+" lifetime/size/point coordinates mismatch at "+std::to_string(px)+","+std::to_string(py)+" age "+std::to_string(age)+" expected "+std::to_string(want.r)+","+std::to_string(want.g)+","+std::to_string(want.b)+","+std::to_string(want.a)+" got "+std::to_string(actual.r)+","+std::to_string(actual.g)+","+std::to_string(actual.b)+","+std::to_string(actual.a));
         }
         if (!offset) Require(covered>40,"Weather reference did not cover enough pixels"); ++sequences;
+    }
+    if (wireframePointsOnly) {
+        std::fprintf(stderr,"Native wireframe: %u snow/sand point-sprite cases retained filled coverage, lifetime, texture coordinates, alpha and viewport-edge clipping\n",sequences);
+        return;
     }
     // Compare original packed triangle input against independently constructed
     // camera-facing geometry. UVs remain unquantized; vertex colors allow one

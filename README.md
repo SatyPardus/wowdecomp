@@ -1649,6 +1649,18 @@ index buffer. This path currently uses BGRA8 color and Depth32Float attachments;
 it does not implement lighting, fog, skinning, triangle fans or arbitrary
 game shaders, and is not a D3D9 depth-precision or rasterization-equivalence result.
 
+The original `GxMasterEnable_PolygonFill` state now maps to Metal's native triangle
+fill mode, including the world and WMO collision-debug callers. It preserves
+triangle/strip edges, winding culling and depth writes; regional clears select
+solid fill, and each subsequent draw restores its requested mode without splitting
+the render pass. Snow/sand point sprites remain filled even though their native
+implementation uses instanced quads. `WOW_METAL_CHECK=wireframe` passes 26 geometry
+checks and 96 weather cases on Mac ASan/UBSan/Metal and the iOS simulator.
+`WOW_WORLD_WIREFRAME=1` optionally selects this original state for `WOW_WORLD`
+diagnostic rendering, restoring solid UI afterward. Real Elwynn runs complete
+120 frames on both platforms, and both iOS clients build. This does not establish
+pixel-exact D3D9 line rasterization or change the normal client's rendering mode.
+
 The default framebuffer supports hardware MSAA counts advertised by Metal and
 the original video-options Lua/CVars (2x/4x on the tested M2 Pro). Gx owns private
 multisample color/depth attachments and preserves their samples across pass

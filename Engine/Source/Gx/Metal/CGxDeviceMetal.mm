@@ -1496,7 +1496,6 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     if (integer(GxRs_PointSprite) && !weather) unsupportedState("Point sprites require a native weather shader");
     if (!ripple && !fixed && !model && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
         unsupportedState("Depth bias is not implemented");
-    if (!MasterEnable(GxMasterEnable_PolygonFill)) unsupportedState("Wireframe is not implemented");
     Require(postProcess || (m_primVertexFormat < GxVertexBufferFormats_Last && GxVertexSize(m_primVertexFormat) == vertices->m_itemSize),
         "Custom or split Gx vertex streams are not implemented");
     Require(!m_bufLocked[GxPoolTarget_Vertex] && !m_bufLocked[GxPoolTarget_Index], "Gx draw uses locked buffers");
@@ -1518,6 +1517,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         draw.indices = indexBinding.buffer; draw.indexOffset = indexBinding.offset;
     }
     draw.format = netherBlur ? GxVBF_PCT : m_primVertexFormat; draw.batch = *batch; draw.effect = effect;
+    draw.wireframe = !MasterEnable(GxMasterEnable_PolygonFill);
     if (fixed || ripple || model) {
         const float offset = m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0];
         Require(std::isfinite(offset), "Invalid normalized depth offset");

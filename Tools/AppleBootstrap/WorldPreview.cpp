@@ -35,6 +35,8 @@ template <class T> void Load(T& table) {
 WorldPreview::WorldPreview(const std::string& selection) {
     const char* fixed = std::getenv("WOW_WORLD_FIXED_TERRAIN");
     m_fixedTerrain = fixed && !std::strcmp(fixed, "1");
+    const char* wireframe = std::getenv("WOW_WORLD_WIREFRAME");
+    m_wireframe = wireframe && !std::strcmp(wireframe, "1");
     if (!CVar::m_initialized || g_modelPool || World::s_m2Scene)
         throw std::logic_error("World view requires configuration and exclusive world/model ownership");
     const auto first = selection.find(':');
@@ -162,7 +164,9 @@ bool WorldPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     device.XformPush(GxXform_View);
     struct Restore {
         CGxDevice& device; C44Matrix projection; float viewport[6]{};
+        int filled = device.MasterEnable(GxMasterEnable_PolygonFill);
         ~Restore() {
+            device.MasterEnableSet(GxMasterEnable_PolygonFill,filled);
             GxXformSetViewport(viewport[0], viewport[1], viewport[2], viewport[3], viewport[4], viewport[5]);
             GxXformPop(GxXform_View); device.XformSetProjection(projection); device.RsPop();
         }
@@ -216,6 +220,7 @@ bool WorldPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     }
     C3Vector target = m_camera.m_position + m_camera.Forward();
     CWorld::Update(&m_camera.m_position, &target, &m_camera.m_position, m_camera);
+    if (m_wireframe) device.MasterEnableSet(GxMasterEnable_PolygonFill,0);
     // Match WorldFrame::OnWorldRender: main geometry ends before the separate
     // horizon and sky depth bands, or distant silhouettes occlude near terrain.
     GxXformSetViewport(0, 1, 0, 1, 0, CWorld::s_unk_ADEEE4);
