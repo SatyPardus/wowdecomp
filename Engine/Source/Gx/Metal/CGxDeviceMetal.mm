@@ -628,7 +628,10 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     for (auto format : {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_texFmt[GxTex_Argb4444] = 1;
     for (auto format : {GxTex_Argb1555, GxTex_Rgb565}) { m_caps.m_texFmt[format] = 1; }
-    m_caps.m_rttFormat[GxTex_Argb8888] = m_caps.m_rttFormat[GxTex_R32F] = 1;
+    m_caps.m_rttFormat[GxTex_Argb8888] = m_caps.m_rttFormat[GxTex_R32F] = m_caps.m_rttFormat[GxTex_D24X8] = 1;
+    // Apple GPUs use Depth32Float for the original comparison-depth contract.
+    // Keep the authored projection, bias, comparison and PCF taps; storage
+    // precision differs from Windows D24 and is not a bitwise-equivalence claim.
     m_caps.m_texTarget[GxTex_CubeMap] = m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
     m_caps.m_texMaxSize[GxTex_CubeMap] = m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
     m_caps.m_texNonPow2 = 1;
@@ -1019,7 +1022,7 @@ void CGxDeviceMetal::EnsureRenderTarget(CGxTex* texture) {
     const bool depth=texture->m_format==GxTex_D24X8;
     // Original D3D9 depth textures have exactly one level, independently of
     // ordinary color RTT mip allocation. Apple GPUs use native float depth;
-    // D24 precision equivalence and PCF capability remain separately gated.
+    // comparison sampling is native; D24 quantization is not emulated.
     if(depth) end=base+1;
     auto& storage = m->textures[texture];
     Require((depth || texture->m_format == GxTex_Argb8888 || texture->m_format == GxTex_R32F) && !texture->m_flags.m_generateMipMaps,

@@ -11,7 +11,8 @@ public:
 bool CheckNativeWorldActions(WowNativeView* view);
 // Original cast bar, native Escape cancellation and a completed healing cast.
 bool CheckNativeWorldCasting(WowNativeView* view);
-// Original live shadow-quality CVar, resource recreation and restoration.
+// Original live shadow-quality/PCF CVars, all quality modes and cache recreation.
+// Restore both settings after the check.
 bool CheckNativeWorldShadows();
 // Original gxMultisample/gxRestart through live world frames and restoration.
 bool CheckNativeWorldMultisample();

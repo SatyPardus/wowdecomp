@@ -197,7 +197,7 @@ void CheckDepthTargets(CGxDeviceMetal& device, CGxTex* white) {
     GxRenderTargetSet(GxBuffers_Depth,nullptr,0);
     rejected=false; try { GxRenderTargetSet(GxBuffers_Color,cleanup.target[1],0); } catch(const std::runtime_error&) { rejected=true; }
     Require(rejected,"Depth texture was accepted as a color attachment");
-    std::fprintf(stderr,"Explicit depth targets: independent host/scratch/depth lifetimes, regional clear, ordered exact copy, cross-frame binding, destruction and invalid format/extent rejection passed; native Depth32Float precision, PCF capability remains disabled\n");
+    std::fprintf(stderr,"Explicit depth targets: independent host/scratch/depth lifetimes, regional clear, ordered exact copy, cross-frame binding, destruction and invalid format/extent rejection passed; native Depth32Float precision\n");
 }
 void CheckRecreation(CGxDeviceMetal& device) {
     RecreationScope scope(device);

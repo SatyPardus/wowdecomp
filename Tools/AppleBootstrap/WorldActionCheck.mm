@@ -8,6 +8,7 @@
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
+#include "Engine/Source/ShaderEffect/ShaderEffect.h"
 #include "Engine/Source/Services/Texture.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
@@ -757,42 +758,59 @@ bool CheckNativeWorldActions(WowNativeView* view) {
 }
 
 bool CheckNativeWorldShadows() {
+    struct Setting { int quality; bool comparison; };
+    static constexpr Setting settings[] = {
+        {0,false},{1,false},{2,false},{3,false},{4,false},{5,false},{0,false},{3,false},
+        {0,true},{1,true},{2,true},{3,true},{4,true},{5,true},{0,true},{3,true},{3,false},{3,true}
+    };
     static unsigned phase, frames;
-    static int original;
-    static constexpr int modes[] = {0, 1, 2, 3, 4, 5, 0, 3};
-    if (phase == 10) return true;
+    static int originalQuality, originalPcf;
+    constexpr unsigned count = sizeof(settings) / sizeof(settings[0]);
+    if (phase == count + 2) return true;
     if (!CGGameUI::s_inWorld || !ClntObjMgrGetActivePlayerObj()) {
         Require(!phase, "World left during live shadow-quality check"); return false;
     }
-    auto* setting = CVar::LookupRegistered("extShadowQuality");
-    Require(setting != nullptr, "Original shadow-quality setting is missing");
+    auto* quality = CVar::LookupRegistered("extShadowQuality");
+    auto* pcf = CVar::LookupRegistered("hwPCF");
+    Require(quality && pcf, "Original shadow-quality or PCF setting is missing");
     if (++frames < 120) return false;
-    if (!phase) original = setting->m_intValue;
-    else {
-        const int mode = phase == 9 ? original : modes[phase - 1];
-        Require(setting->m_intValue == mode && CShadowCache::GetShadowMode() == mode && !CShadowCache::s_recreateTextures,
-            "Original shadow setting did not recreate its active cache");
+    Require(g_theGxDevicePtr->Caps().m_rttFormat[GxTex_D24X8], "Native world PCF depth targets are unavailable");
+    if (!phase) {
+        originalQuality = quality->m_intValue;
+        originalPcf = pcf->m_intValue;
+        Require(bool(originalPcf) == bool(CShaderEffect::s_usePcfFiltering), "Initial PCF CVar and world state disagree");
+    } else {
+        const Setting expected = phase == count + 1 ? Setting{originalQuality, bool(originalPcf)} : settings[phase - 1];
+        const int mode = expected.quality;
+        Require(quality->m_intValue == mode && CShadowCache::GetShadowMode() == mode && !CShadowCache::s_recreateTextures &&
+                bool(pcf->m_intValue) == expected.comparison && bool(CShaderEffect::s_usePcfFiltering) == expected.comparison &&
+                bool(CWorld::enables2 & Enable_HwPcf) == expected.comparison,
+                "Original shadow setting did not recreate its active cache");
         const unsigned size = mode == 2 || mode >= 4 ? 2048 : 1024;
-        auto texture = [&](CTexture* value, bool present) {
+        auto texture = [&](CTexture* value, bool present, EGxTexFormat format) {
             Require(bool(value) == present, "Shadow-quality change retained the wrong texture set");
-            if (value) Require(value->m_gxWidth == size && value->m_gxHeight == size && value->m_gxTexFormat == GxTex_R32F,
+            if (value) Require(value->m_gxWidth == size && value->m_gxHeight == size && value->m_gxTexFormat == format,
                 "Shadow-quality change used the wrong texture size/format");
         };
-        texture(CShadowCache::s_extDynShadow.m_textures[0], mode != 0);
-        texture(CShadowCache::s_intDynShadow, mode != 0);
+        const auto format = expected.comparison ? GxTex_D24X8 : GxTex_R32F;
+        texture(CShadowCache::s_extDynShadow.m_textures[0], mode != 0, expected.comparison ? GxTex_Argb8888 : format);
+        texture(CShadowCache::s_extDynShadow.m_textures[1], mode != 0 && expected.comparison, format);
+        texture(CShadowCache::s_intDynShadow, mode != 0, format);
         for (const auto& band : CShadowCache::s_extShadowBands) {
-            texture(band.m_textures[0], mode > 2);
-            texture(band.m_textures[1], mode > 2 && mode < 5);
+            texture(band.m_textures[0], mode > 2, format);
+            texture(band.m_textures[1], mode > 2 && mode < 5, format);
         }
-        std::fprintf(stderr, "Native world shadows: quality %d, %u-pixel cache, 120 rendered frames passed\n", mode, size);
-        if (phase == 9) {
+        std::fprintf(stderr, "Native world shadows: quality %d PCF %u, %u-pixel cache, 120 rendered frames passed\n",
+                     mode, expected.comparison, size);
+        if (phase == count + 1) {
             ++phase;
-            std::fputs("Native world shadows: all six original qualities, disable/recreate and original setting restoration passed\n", stderr);
+            std::fputs("Native world shadows: all six original qualities in R32F/PCF, disable/recreate, PCF switching and original settings restored\n", stderr);
             return true;
         }
     }
-    const int next = phase == 8 ? original : modes[phase];
-    Require(setting->Set(next, true, false, false, false), "Original shadow-quality callback rejected the requested mode");
+    const Setting next = phase == count ? Setting{originalQuality, bool(originalPcf)} : settings[phase];
+    Require(pcf->Set(next.comparison, true, false, false, false), "Original PCF callback rejected the requested mode");
+    Require(quality->Set(next.quality, true, false, false, false), "Original shadow-quality callback rejected the requested mode");
     ++phase; frames = 0;
     return false;
 }

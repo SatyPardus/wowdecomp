@@ -381,12 +381,19 @@ mana change (449 to 401) passed with spell 5186 in a 1500-frame local session,
 including normal shutdown, Mac ASan/UBSan and Metal validation. This check heals
 the selected player; it does not validate hostile combat or damage.
 
-`--check-world-shadows` cycles the original live `extShadowQuality` CVar through
-all six settings, checks its active R32F texture sizes/band ownership after 120
-frames per setting, disables/recreates shadows and restores the starting value.
-It can precede `--check-world-reentry`; a 4,000-frame Mac ASan/UBSan and Metal run
-completed all modes, both world loads and normal shutdown in Stormwind.
-This exercises the original R32F path; hardware PCF remains incomplete.
+`--check-world-shadows` cycles the original live `extShadowQuality` and `hwPCF`
+CVars through all six qualities in R32F and PCF, checks the active color/depth
+texture sizes and band ownership after 120 frames per setting, disables/recreates
+shadows, toggles PCF at the same quality, then restores both starting values.
+The complete sequence passed in Goldshire during a 4,200-frame Mac ASan/UBSan
+and Metal run, including normal shutdown. Direct PCF startup also passed 720
+Mac frames and 900 iOS simulator client frames with normal shutdown. The iOS
+image revealed a separate pink fringe at the bottom/right edge; its cause is
+still under investigation. It can precede
+`--check-world-reentry`; the earlier R32F-only 4,000-frame Stormwind run also
+completed character reentry. Native PCF retains original projection/bias and
+sampling rules while using Apple Depth32Float storage. Windows D24 quantization
+and complete cross-GPU visual equivalence remain unverified.
 
 `--check-world-msaa` uses the original `gxMultisample` setting and deferred
 `gxRestart` to switch through 2x, 4x, off and 4x again, then restore the starting
@@ -1090,8 +1097,9 @@ M2 while retaining WMO's own baked/dynamic color, doubled diffuse, environment,
 composite and alpha rules. The focused check now makes 18,330 WMO draws across
 R32F and PCF; Mac ASan/UBSan/Metal and iOS simulator pass these references, and
 both iOS clients build. Shared M2 regression and the simulator 120-frame preview
-also pass. Global PCF capability remains disabled pending full-world integration and depth
-precision assessment. `Terrain2_pcf` and `Terrain3_pcf` now retain their 32/96
+also pass. The device now exposes comparison-depth target capability after
+all receiver families and both complete world cache paths have run.
+`Terrain2_pcf` and `Terrain3_pcf` now retain their 32/96
 pixel variants through typed native depth comparison. Material slots 0–4 remain
 independent of comparison slots 5–8; baked alpha, cube reflection, layer mixing,
 specular and fog keep the original rules. Highest quality selects nine close
@@ -1100,8 +1108,9 @@ samples within the dynamic footprint and distant bands outside it, as authored.
 comparison/filter references, original CMap shader-cache switching and
 ShadowCache binding, plus 512 TerrainSM depth-generation references. Mac
 ASan/UBSan/Metal and iOS simulator pass; both iOS client targets build and the
-simulator completes its subsequent 120-frame preview. These checks do not yet
-establish full-world PCF or Windows D24 precision equivalence.
+simulator completes its subsequent 120-frame preview. The full-world R32F/PCF
+quality-switch check is described above; Windows D24
+precision equivalence remains unverified.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct
@@ -1485,8 +1494,10 @@ load actions; regional clears preserve surrounding pixels and the unused portion
 of a larger shared depth surface. Windowed gamma requests retain the original
 gamma ramp without changing display output, matching D3D9 windowed behavior;
 loading a non-default gamma no longer aborts the native client. Exclusive
-fullscreen gamma ramps, other render-target formats, explicit depth textures
-and stereo remain explicit unsupported operations. Geometry draws
+fullscreen gamma ramps, additional render-target formats and stereo remain
+explicit unsupported operations. Single-mip D24X8 requests use native
+Depth32Float targets with independent binding/lifetimes, regional clears, exact
+depth blits and comparison sampling; their precision is not quantized to D24. Geometry draws
 share an encoder while attachments and resource ordering permit. Buffer uploads,
 copies, synchronous readback and target switches end the pass; full clears can be
 consumed by the next draw. A focused check encodes 130 geometry draws and a regional
