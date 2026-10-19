@@ -81,6 +81,11 @@ void SI2::InitEmoteSounds() {
 
     s_numTextEmotes = count;
 
+    // s_textEmoteLookupById keeps pointers returned by New(), so New() must not reallocate
+    // s_textEmoteLookups under them. The binary does not reserve here either (a latent bug in the
+    // original client); count is at least the number of New() calls below.
+    s_textEmoteLookups.Reserve(count, 0);
+
     for (int32_t i = 0; i < g_emotesTextSoundDB.m_numRecords; i++) {
         EmotesTextSoundRec* rec = (i < 0 || i >= g_emotesTextSoundDB.m_numRecords) ? nullptr : &g_emotesTextSoundDB.m_records[i];
         uint32_t id = rec->m_emotesTextID;
