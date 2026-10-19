@@ -2125,7 +2125,9 @@ uint32_t CGQuestLog::ComputeBlobQuestObjectives(int32_t questId) {
     uint32_t result = 0;
     int32_t index = CGQuestLog::GetQuestIndex(questId) - 1;
 
-    if (index >= CGQuestLog::m_numQuest || CGQuestLog::m_quests[index].m_isHeader || index < 0) {
+    // Completed/removed quests may still have a pending POI update. The
+    // original returns zero for a missing index; reject it before dereference.
+    if (index < 0 || index >= CGQuestLog::m_numQuest || CGQuestLog::m_quests[index].m_isHeader) {
         return 0;
     }
 
