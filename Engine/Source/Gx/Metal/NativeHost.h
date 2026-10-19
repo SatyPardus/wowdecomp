@@ -7,11 +7,18 @@
 // Dock/menu presentation to its own key-window lifetime.
 @interface GxMetalWindow : NSWindow
 @end
+@protocol GxMetalCursorHost
+- (void)updateGameCursor;
+@end
 #endif
 #endif
 class CGxFormat;
 
 namespace GxMetal {
+void RefreshHostCursor(void* nativeView);
+#if defined(__OBJC__) && TARGET_OS_OSX
+NSCursor* CursorForHostView(void* nativeView);
+#endif
 // The native host owns its window/scene. Defaults describe its real drawable,
 // independently of the legacy DBC's Windows framebuffer choice.
 bool GetHostFormat(CGxFormat& format);

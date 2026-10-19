@@ -58,6 +58,42 @@
 @end
 #endif
 
+void GxMetal::RefreshHostCursor(void* nativeView) {
+#if TARGET_OS_OSX
+    if (!nativeView) return;
+    if (!NSThread.isMainThread) throw std::runtime_error("Native cursor updates require the host thread");
+    NSView* view = (__bridge NSView*)nativeView;
+    if ([view conformsToProtocol:@protocol(GxMetalCursorHost)]) [(id<GxMetalCursorHost>)view updateGameCursor];
+#else
+    (void)nativeView;
+#endif
+}
+
+#if TARGET_OS_OSX
+NSCursor* GxMetal::CursorForHostView(void* nativeView) {
+    NSView* view = (__bridge NSView*)nativeView;
+    auto* device = g_theGxDevicePtr;
+    if (!device || device->DeviceApi() != GxApi_Metal || device->DeviceWindow() != nativeView || !device->m_context)
+        return NSCursor.arrowCursor;
+    const CGFloat scale = view.window.backingScaleFactor;
+    if (!(scale > 0)) return NSCursor.arrowCursor;
+    // Original cursor pixels are straight-alpha BGRA, 32 physical pixels.
+    // Giving NSImage its backing-scaled point size preserves that footprint.
+    NSBitmapImageRep* bitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nullptr pixelsWide:32 pixelsHigh:32
+        bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace
+        bitmapFormat:NSBitmapFormatAlphaNonpremultiplied bytesPerRow:128 bitsPerPixel:32];
+    if (!bitmap) throw std::runtime_error("Cannot allocate native cursor image");
+    for (size_t i = 0; i < 1024; ++i) {
+        const uint32_t pixel = device->m_hwCursor && device->m_cursorVisible ? device->m_cursor[i] : 0;
+        auto* rgba = bitmap.bitmapData + i * 4;
+        rgba[0] = (pixel >> 16) & 255; rgba[1] = (pixel >> 8) & 255; rgba[2] = pixel & 255; rgba[3] = pixel >> 24;
+    }
+    NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize(32 / scale, 32 / scale)];
+    [image addRepresentation:bitmap];
+    return [[NSCursor alloc] initWithImage:image hotSpot:NSMakePoint(device->m_cursorHotspotX / scale, device->m_cursorHotspotY / scale)];
+}
+#endif
+
 bool GxMetal::GetHostFormat(CGxFormat& format) {
     if (!NSThread.isMainThread) return false;
     MTKView* view = (__bridge MTKView*)OsGuiGetWindow(0);

@@ -610,6 +610,9 @@ struct CGxDeviceMetal::Impl {
 
 CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(device)) {
     m_api = GxApi_Metal;
+#if TARGET_OS_OSX
+    m_caps.m_hwCursor = 1;
+#endif
     m_caps.m_numTmus = 4;
     m_caps.m_numStreams = 1;
     // The original weather shaders request at most 24 pixels. Bound the native
@@ -659,6 +662,7 @@ CGxDeviceMetal::~CGxDeviceMetal() {
         m->command = nil;
     }
     Drain();
+    ICursorDestroy();
     while (auto* query = m_queryList.Head()) QueryDestroy(query);
     while (auto* texture = m_textures.Head()) { TexDestroy(texture); }
     while (!m->shaders.empty()) {
@@ -716,6 +720,7 @@ int32_t CGxDeviceMetal::DeviceCreate(void* window, const CGxFormat& format) {
     m_windowVisible = m_windowFocus = 1;
     if (!m_vertexPool) { DeviceCreatePools(); DeviceCreateStreamBufs(); }
     RsInit();
+    if (m->window) { ICursorCreate(m_format); GxMetal::RefreshHostCursor(m->window); }
     return 1;
 }
 int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
@@ -736,7 +741,18 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
     m_defWindowRect = m_curWindowRect;
     m->scissor = {0, 0, size_t(applied.m_size.x), size_t(applied.m_size.y)};
     m_viewportDirty = m_scissorRectDirty = 1;
+    if (m_context && m->window) { ICursorCreate(m_format); GxMetal::RefreshHostCursor(m->window); }
     return 1;
+}
+void CGxDeviceMetal::CursorUnlock(uint32_t x, uint32_t y) {
+    Require(x < 32 && y < 32, "Native cursor hotspot exceeds its image");
+    CGxDevice::CursorUnlock(x, y);
+    GxMetal::RefreshHostCursor(m->window);
+}
+void CGxDeviceMetal::CursorSetVisible(int32_t visible) {
+    if (m_cursorVisible == visible) return;
+    CGxDevice::CursorSetVisible(visible);
+    GxMetal::RefreshHostCursor(m->window);
 }
 void CGxDeviceMetal::DeviceDestroy() {
     Require(!m->command, "End the Metal frame before destroying its host");
@@ -744,7 +760,8 @@ void CGxDeviceMetal::DeviceDestroy() {
     m->acquireFrame = nullptr; m->frameOwner = nullptr;
     Drain(); OsInputApplyWindowResizeLock(nullptr);
     if (m->window && OsGuiGetWindow(0) == m->window) OsGuiSetGxWindow(nullptr);
-    m_context = 0; m->window = nullptr; CGxDevice::DeviceDestroy();
+    m_context = 0; GxMetal::RefreshHostCursor(m->window);
+    m->window = nullptr; CGxDevice::DeviceDestroy();
     m->multisampleColor = m->multisampleDepth = m->resolvedDepth = nil;
 }
 void* CGxDeviceMetal::DeviceWindow() { return m->window; }
@@ -806,6 +823,7 @@ void CGxDeviceMetal::ScenePresent() {
     // through the host frame provider as usual.
     if (!m->command && !CapsIsWindowVisible(-1)) { CGxDevice::ScenePresent(); return; }
     Require(m->command != nil, "No active Metal frame to present");
+    if (m->window && m_cursorTexture && CapsWindowHasFocus(-1)) ICursorDraw();
     if (m_scrShotClick) { DeviceScreenShot(); }
     m->EnsurePass();
     m->EnsureLoads(m->defaultPass);

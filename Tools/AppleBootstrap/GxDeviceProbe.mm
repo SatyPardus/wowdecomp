@@ -1,6 +1,7 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Os/Apple/Input.h"
 #include <cstring>
 #include <cmath>
 #include <cstdio>
@@ -64,6 +65,52 @@ void Vertices(Vertex* output, uint32_t color, float z) {
         {1, 1, z, color, 1, 0}, {1, -1, z, color, 1, 1}};
     std::memcpy(output, vertices, sizeof(vertices));
 }
+void CheckSoftwareCursor(CGxDeviceMetal& device) {
+    auto format = device.m_format; format.m_hwCursor = false;
+    device.ICursorCreate(format);
+    auto* cursor = device.CursorLock();
+    for (unsigned y = 0; y < 32; ++y) for (unsigned x = 0; x < 32; ++x)
+        cursor[y * 32 + x] = (x < 2 ? 0u : x < 5 ? 128u : x < 8 ? 218u + x : 255u) << 24 | (20 + x * 7) << 16 | (30 + y * 7) << 8 | 120;
+    device.CursorUnlock(3, 5);
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:64 height:64 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(32 / 255.0, 64 / 255.0, 96 / 255.0, 1);
+    C44Matrix projection(1); projection.a0 = projection.b1 = 2; projection.d0 = projection.d1 = -1;
+    GxXformSetProjection(projection);
+    GxRsSet(GxRs_ScissorTest, 0);
+    GxRsSet(GxRs_Texture0, nullptr);
+    int32_t savedX, savedY; OsInputGetQueuedPointer(&savedX, &savedY);
+    for (unsigned scenario = 0; scenario < 3; ++scenario) {
+        const int px = scenario == 2 ? 60 : 20, py = scenario == 2 ? 62 : 15;
+        device.CursorSetVisible(scenario != 1);
+        OsQueuePut(OS_INPUT_MOUSE_MOVE, 0, px, py, 0);
+        device.BeginFrame(pass); device.ICursorDraw();
+        Require(device.m_appRenderStates[GxRs_Texture0].m_value.m_data.p == nullptr, "Software cursor leaked texture state");
+        CiRect rect(0,0,64,64); TSGrowableArray<CImVector> pixels;
+        device.DeviceReadPixels(rect, pixels); device.ScenePresent();
+        for (int y = 0; y < 64; ++y) for (int x = 0; x < 64; ++x) {
+            const int cx = x - (px - 3), cy = y - (py - 5);
+            const uint32_t source = scenario != 1 && cx >= 0 && cx < 32 && cy >= 0 && cy < 32 ? cursor[cy * 32 + cx] : 0;
+            // Original ICursorDraw selects AlphaKey (threshold 224), not
+            // translucent blending. Keep its software/hardware distinction.
+            const double alpha = (source >> 24) >= 224 ? 1 : 0;
+            const auto& actual = pixels[y * 64 + x];
+            const int expected[] = {int(std::lround(((source >> 16) & 255) * alpha + 32 * (1-alpha))),
+                int(std::lround(((source >> 8) & 255) * alpha + 64 * (1-alpha))), int(std::lround((source & 255) * alpha + 96 * (1-alpha)))};
+            if (std::abs(int(actual.r)-expected[0]) > 1 || std::abs(int(actual.g)-expected[1]) > 1 || std::abs(int(actual.b)-expected[2]) > 1) {
+                char message[200]; std::snprintf(message, sizeof(message), "Software cursor scenario %u pixel %d,%d: actual %u,%u,%u expected %d,%d,%d source %08x",
+                    scenario,x,y,actual.r,actual.g,actual.b,expected[0],expected[1],expected[2],source);
+                throw std::runtime_error(message);
+            }
+        }
+    }
+    OsQueuePut(OS_INPUT_MOUSE_MOVE, 0, savedX, savedY, 0);
+    device.ICursorDestroy(); device.CursorSetVisible(1);
+    std::fputs("Software cursor: original Gx drawing, AlphaKey 223/224/225 boundary, BGRA, hotspot, hidden state and edge clipping passed\n", stderr);
+}
 }
 
 void CheckGxDevice(const char* focus) {
@@ -74,6 +121,7 @@ void CheckGxDevice(const char* focus) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (focus && !std::strcmp(focus, "cursor")) { CheckSoftwareCursor(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "weather-world")) { CheckGameWorldLifecycle(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "weather")) { CheckWeatherShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "msaa")) { CheckMultisample(device); device.DeviceDestroy(); return; }

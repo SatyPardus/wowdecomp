@@ -8,6 +8,7 @@
 #include "WoW/Source/Console/ConsoleClient.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Ui/CGCooldown.h"
+#include "WoW/Source/UIUtil/Cursor.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Metal/NativeHost.h"
@@ -47,6 +48,38 @@ void Step() {
     EventProcessPending(); PropSelectContext(context);
 }
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+void CheckNativeCursor(CGxDeviceMetal& device, WowNativeView* view) {
+    const auto savedFormat = device.m_format;
+    uint32_t saved[1024]; std::memcpy(saved, device.m_cursor, sizeof(saved));
+    CursorInitialize();
+    auto format = savedFormat; format.m_hwCursor = true;
+    Require(device.DeviceSetFormat(format) && device.m_hwCursor, "Native hardware cursor mode was not applied");
+    const CGFloat scale = view.window.backingScaleFactor;
+    for (const auto mode : {1u, 4u, 8u}) {
+        CursorSetMode(mode); device.CursorUnlock(7, 11);
+        NSCursor* cursor = GxMetal::CursorForHostView((__bridge void*)view);
+        Require(cursor.image.size.width * scale == 32 && cursor.image.size.height * scale == 32 &&
+            cursor.hotSpot.x * scale == 7 && cursor.hotSpot.y * scale == 11, "Native cursor backing size or hotspot changed");
+        auto* bitmap = (NSBitmapImageRep*)cursor.image.representations.firstObject;
+        unsigned visible = 0;
+        for (unsigned i = 0; i < 1024; ++i) {
+            const auto color = device.m_cursor[i]; const auto* rgba = bitmap.bitmapData + i * 4;
+            visible += (color >> 24) != 0;
+            Require(rgba[0] == ((color >> 16) & 255) && rgba[1] == ((color >> 8) & 255) && rgba[2] == (color & 255) && rgba[3] == (color >> 24),
+                "Native cursor changed original straight-alpha pixels");
+        }
+        Require(visible > 20, "Original cursor asset did not load");
+    }
+    for (bool software : {false, true}) {
+        device.CursorSetVisible(software);
+        if (software) { format.m_hwCursor = false; Require(device.DeviceSetFormat(format) && !device.m_hwCursor && device.m_cursorTexture, "Software cursor mode was not created"); }
+        auto* bitmap = (NSBitmapImageRep*)GxMetal::CursorForHostView((__bridge void*)view).image.representations.firstObject;
+        for (unsigned i = 0; i < 4096; ++i) Require(bitmap.bitmapData[i] == 0, "Hidden/software cursor retained a duplicate native pointer");
+    }
+    CursorDestroy(); std::memcpy(device.CursorLock(), saved, sizeof(saved)); device.CursorUnlock(0, 0);
+    Require(device.DeviceSetFormat(savedFormat), "Cannot restore native cursor preference");
+    std::puts("Native cursor: original Point/Attack/Pickup BGRA and alpha, backing size/hotspot, hidden/software modes and restoration passed");
+}
 NSPasteboard* editingPasteboard;
 NSPasteboard* TestEditingPasteboard(id,SEL) { return editingPasteboard; }
 void CheckNativeEditing(WowNativeView* view,CSimpleEditBox* edit) {
@@ -253,6 +286,7 @@ int main(int argc, char** argv) {
             std::puts("Native window resize lock/unlock and fixed-window preservation passed");
             PropInitialize(); EventInitialize(1, 0);
             EventCreateContextEx(1, Initialize, Destroy, 1, 0); Step(); OsInputSetDrawableSize(600, 300);
+            CheckNativeCursor(device, view);
             auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:600 height:300 mipmapped:NO];
             descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
             renderPass = [MTLRenderPassDescriptor renderPassDescriptor];

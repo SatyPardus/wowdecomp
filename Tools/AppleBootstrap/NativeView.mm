@@ -72,6 +72,7 @@ int32_t Integral(double& remainder, double delta) {
     NSTrackingArea* _tracking;
     double _relativeX, _relativeY, _wheel;
     OS_MOUSE_MODE _lastMouseMode;
+    NSCursor* _gameCursor;
 }
 - (instancetype)initWithFrame:(NSRect)frame device:(id<MTLDevice>)device {
     if ((self = [super initWithFrame:frame device:device])) {
@@ -91,6 +92,19 @@ int32_t Integral(double& remainder, double delta) {
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
     OsInputApplyWindowResizeLock((__bridge void*)self);
+    [self updateGameCursor];
+}
+- (void)viewDidChangeBackingProperties { [super viewDidChangeBackingProperties]; [self updateGameCursor]; }
+- (void)resetCursorRects {
+    [super resetCursorRects];
+    [self addCursorRect:self.bounds cursor:_gameInputActive && _gameCursor ? _gameCursor : NSCursor.arrowCursor];
+}
+- (void)updateGameCursor {
+    _gameCursor = GxMetal::CursorForHostView((__bridge void*)self);
+    [self.window invalidateCursorRectsForView:self];
+    if (self.window.isKeyWindow && OsInputGetMouseMode() == OS_MOUSE_MODE_NORMAL &&
+        NSPointInRect([self convertPoint:[self.window convertPointFromScreen:NSEvent.mouseLocation] fromView:nil], self.bounds))
+        [(_gameInputActive ? _gameCursor : NSCursor.arrowCursor) set];
 }
 - (BOOL)acceptsFirstResponder { return YES; }
 - (BOOL)acceptsFirstMouse:(NSEvent*)event { return YES; }
@@ -110,6 +124,7 @@ int32_t Integral(double& remainder, double delta) {
         OsInputSetMouseMode(OS_MOUSE_MODE_NORMAL);
     }
     if (active) [self languageChanged:nil];
+    [self updateGameCursor];
     [self textStateChanged];
 }
 - (void)languageChanged:(NSNotification*)notification {

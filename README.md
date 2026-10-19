@@ -326,6 +326,27 @@ with original `extShadowQuality=3` also completed local world entry, 1,800 frame
 That run did not recheck foreground recovery. Both iOS targets build; signed
 physical-device deployment remains unverified.
 
+Original game cursor images now reach the Apple display. `gxCursor=1` uses an
+AppKit cursor on macOS, preserving the 32-pixel BGRA image, straight alpha and
+hotspot in backing-scaled points. Cursor rectangles restore the system pointer
+outside the game view or when it loses input focus; hiding and relative mouse
+capture remain distinct. `gxCursor=0` creates the original Gx cursor texture and
+draws it before presentation and software screenshots. The same software path is
+available to iOS; touch interaction remains deferred. Cursor changes, restart,
+backing-scale updates and host destruction refresh native cursor state.
+
+Mac native checks loaded original Point/Attack/Pickup assets and checked image
+bytes, size, hotspot, hiding, software selection and restoration across two
+lifetimes. `WOW_METAL_CHECK=cursor` checks original software drawing, its **AlphaKey
+threshold of 224**, hotspot placement, hiding and right/bottom clipping on Mac
+ASan/UBSan/Metal and iOS simulator. The original unsigned negative-origin behavior
+for nonzero software hotspots is retained (confirmed in Wow.exe at 0x00687DC8);
+game CursorUnlock callers use hotspot (0,0). Do not replace the software AlphaKey
+rule with translucent blending to match the hardware cursor. A real 1,000-frame
+Feral session completed original Hearthstone swap/restore, all 16 backpack slots
+and counts, empty held-item cursor, unchanged money and normal shutdown. Both iOS
+targets compile, and simulator rendering continued for 120 frames.
+
 Native client hosts now respond to macOS warning/critical memory pressure and
 UIKit memory warnings. Requests during game dispatch are serviced at a frame
 boundary; a suspended iOS client can trim without acquiring a drawable. Only the

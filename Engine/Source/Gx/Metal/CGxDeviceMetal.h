@@ -29,6 +29,8 @@ public:
     int32_t DeviceCreate(void* window, const CGxFormat& format) override;
     void DeviceDestroy() override;
     void DeviceEvictResources() override;
+    void CursorUnlock(uint32_t x, uint32_t y) override;
+    void CursorSetVisible(int32_t visible) override;
     int32_t DeviceSetFormat(const CGxFormat& format) override;
     void* DeviceWindow() override;
     int32_t DeviceWM(EGxWM, uintptr_t, uintptr_t) override;

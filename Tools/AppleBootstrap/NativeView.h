@@ -2,8 +2,9 @@
 #import <MetalKit/MetalKit.h>
 #import <TargetConditionals.h>
 #if TARGET_OS_OSX
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 // The native window boundary. All gameplay/UI input goes through Os/Event.
-@interface WowNativeView : MTKView <NSTextInputClient, NSUserInterfaceValidations>
+@interface WowNativeView : MTKView <NSTextInputClient, NSUserInterfaceValidations, GxMetalCursorHost>
 @property(nonatomic) BOOL gameInputActive;
 // Focused game caret in normalized coordinates, with the origin at bottom left.
 // An empty rectangle means that the UI currently has no text insertion point.
