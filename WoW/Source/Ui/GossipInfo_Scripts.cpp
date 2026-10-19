@@ -69,7 +69,9 @@ static int32_t Script_GetGossipText(lua_State* L) {
 static int32_t Script_GetGossipOptions(lua_State* L) {
     int32_t count = 0;
 
-    for (GossipOption* option = CGGossipInfo::m_options; option < reinterpret_cast<GossipOption*>(CGGossipInfo::m_gossipText); option++) {
+    // The binary ends the loop at the end of m_options (0x00C00EF0, which is also where m_gossipText starts there);
+    // bound by the array itself, since other compilers and linkers need not place m_gossipText right after it
+    for (GossipOption* option = CGGossipInfo::m_options; option < CGGossipInfo::m_options + 32; option++) {
         if (option && option->m_index >= 0) {
             lua_checkstack(L, 2);
             lua_pushstring(L, option->m_text);
