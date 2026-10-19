@@ -133,10 +133,12 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     const bool modelClipping = model && model->clip.mask != 0;
     const bool modelHardwareShadow = model && model->hardwareShadow;
     Require(!modelHardwareShadow || modelShadowMode,"Model comparison sampling requires a shadow receiver");
+    const bool wmoHardwareShadow = wmo && wmo->hardwareShadow;
+    Require(!wmoHardwareShadow || wmo->shadowMode,"WMO comparison sampling requires a shadow receiver");
     const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
                            (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
-                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow) << 10);
+                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow) << 10);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
@@ -498,7 +500,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             (WmoTextureCount(effect) == 1 || (effect == FragmentEffect::WmoComposite ? composite : WmoEnvironment(wmo->vertexEffect))),
             "Unsupported WMO vertex layout or shader pairing");
         auto& vertex = m_wmoVertex[family][permutation][std::min(shadowMode,2u)];
-        auto& fragment = m_wmoFragment[material][wmo->shaderAlphaTest][state.alphaRef != 0][decodePacked][shadowMode];
+        auto& fragment = m_wmoFragment[material][wmo->shaderAlphaTest][state.alphaRef != 0][decodePacked][shadowMode][wmoHardwareShadow];
         const bool alpha = state.alphaRef != 0;
         auto constants = [MTLFunctionConstantValues new];
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -508,6 +510,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&material type:MTLDataTypeUInt atIndex:16];
         [constants setConstantValue:&wmo->shaderAlphaTest type:MTLDataTypeBool atIndex:17];
         [constants setConstantValue:&shadowMode type:MTLDataTypeUInt atIndex:36];
+        [constants setConstantValue:&wmoHardwareShadow type:MTLDataTypeBool atIndex:44];
         NSError* error = nil;
         if (!vertex) vertex = [m_library newFunctionWithName:composite ? @"wmoCompositeVertex" : normal ? @"wmoLitVertex" : @"wmoVertex" constantValues:constants error:&error];
         if (!fragment) fragment = [m_library newFunctionWithName:@"wmoFragment" constantValues:constants error:&error];

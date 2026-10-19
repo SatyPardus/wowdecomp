@@ -1,3 +1,6 @@
+// Specialize resource types and sampling without per-fragment branching.
+constant bool shadowComparison [[function_constant(44)]];
+constant bool shadowFloatSampling = !shadowComparison;
 struct ShadowReceiverParameters {
     ModelAffine projection[4];
     float4 distanceFade, lightDirection, offsets[8], decodeScale;

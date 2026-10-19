@@ -187,7 +187,7 @@ struct WmoDrawParameters {
     ModelFragmentParameters fragment{};
     uint32_t permutation = 0, shadowMode = 0;
     WmoVertexEffect vertexEffect = WmoVertexEffect::Diffuse;
-    bool shaderAlphaTest = false;
+    bool shaderAlphaTest = false, hardwareShadow = false;
     ShadowReceiverParameters shadow{};
 };
 
@@ -318,7 +318,7 @@ private:
     id<MTLFunction> m_liquidVertex[3][4]{};
     id<MTLFunction> m_liquidFragment[3][2][2]{};
     id<MTLFunction> m_wmoVertex[7][10][3]{};
-    id<MTLFunction> m_wmoFragment[7][2][2][2][4]{};
+    id<MTLFunction> m_wmoFragment[7][2][2][2][4][2]{};
     id<MTLFunction> m_terrainVertex[128]{};
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};

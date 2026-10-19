@@ -11,8 +11,6 @@ enum ModelBaseOperation { BaseMultiply, BaseDecal, BaseFade, BaseAdd, BaseDouble
 constant uint modelSecondaryUV [[function_constant(11)]];
 enum ModelUVSource { UVNone, UVAuthoredFirst, UVAuthoredSecond, UVReflection, UVProjectedFirst, UVProjectedSecond };
 constant uint modelShadowMode [[function_constant(35)]];
-constant bool modelHardwareShadow [[function_constant(44)]];
-constant bool modelFloatShadow = !modelHardwareShadow;
 constant bool modelClipping [[function_constant(38)]];
 constant bool modelDepthOffset [[function_constant(39)]];
 struct ModelClipParameters { float4 planes[6]; uint mask; uint padding[3]; };
@@ -203,16 +201,16 @@ fragment ModelFragmentOutput modelDiffuseFragment(ModelVaryings v [[stage_in]], 
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
     constant ShadowReceiverParameters& shadow [[buffer(3)]],
-    texture2d<float> shadowImage [[texture(4), function_constant(modelFloatShadow)]], sampler shadowFiltering [[sampler(4)]],
-    texture2d<float> nearImage [[texture(5), function_constant(modelFloatShadow)]], sampler nearSampler [[sampler(5)]],
-    texture2d<float> middleImage [[texture(6), function_constant(modelFloatShadow)]], sampler middleSampler [[sampler(6)]],
-    texture2d<float> farImage [[texture(7), function_constant(modelFloatShadow)]], sampler farSampler [[sampler(7)]],
-    depth2d<float> shadowDepth [[texture(4), function_constant(modelHardwareShadow)]],
-    depth2d<float> nearDepth [[texture(5), function_constant(modelHardwareShadow)]],
-    depth2d<float> middleDepth [[texture(6), function_constant(modelHardwareShadow)]],
-    depth2d<float> farDepth [[texture(7), function_constant(modelHardwareShadow)]]) {
+    texture2d<float> shadowImage [[texture(4), function_constant(shadowFloatSampling)]], sampler shadowFiltering [[sampler(4)]],
+    texture2d<float> nearImage [[texture(5), function_constant(shadowFloatSampling)]], sampler nearSampler [[sampler(5)]],
+    texture2d<float> middleImage [[texture(6), function_constant(shadowFloatSampling)]], sampler middleSampler [[sampler(6)]],
+    texture2d<float> farImage [[texture(7), function_constant(shadowFloatSampling)]], sampler farSampler [[sampler(7)]],
+    depth2d<float> shadowDepth [[texture(4), function_constant(shadowComparison)]],
+    depth2d<float> nearDepth [[texture(5), function_constant(shadowComparison)]],
+    depth2d<float> middleDepth [[texture(6), function_constant(shadowComparison)]],
+    depth2d<float> farDepth [[texture(7), function_constant(shadowComparison)]]) {
     if (modelShadowMode) {
-        if(modelHardwareShadow) v.color.rgb *= modelShadowVisibility(v,shadow,shadowDepth,shadowFiltering,nearDepth,nearSampler,middleDepth,middleSampler,farDepth,farSampler);
+        if(shadowComparison) v.color.rgb *= modelShadowVisibility(v,shadow,shadowDepth,shadowFiltering,nearDepth,nearSampler,middleDepth,middleSampler,farDepth,farSampler);
         else v.color.rgb *= modelShadowVisibility(v,shadow,shadowImage,shadowFiltering,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler);
     }
     const float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale[0]);

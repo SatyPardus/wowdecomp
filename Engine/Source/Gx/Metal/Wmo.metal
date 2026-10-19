@@ -85,18 +85,29 @@ vertex WmoRaster wmoLitVertex(WmoLitVertex v [[stage_in]], constant WmoVertexPar
 vertex WmoRaster wmoCompositeVertex(WmoCompositeVertex v [[stage_in]], constant WmoVertexParameters& p [[buffer(0)]], constant ShadowReceiverParameters& shadow [[buffer(3)]]) {
     return wmoTransform(v.position, v.normal, v.color, v.secondaryColor, v.uv, v.secondaryUV, p, shadow);
 }
+template <typename ShadowTexture>
+inline float wmoShadowVisibility(WmoRaster v, constant ShadowReceiverParameters& shadow,
+    ShadowTexture shadowImage, sampler shadowFiltering, ShadowTexture nearImage, sampler nearSampler,
+    ShadowTexture middleImage, sampler middleSampler, ShadowTexture farImage, sampler farSampler) {
+    float visibility=receiverDynamicVisibility(v.shadowCoordinate,v.viewPosition,shadow,shadowImage,shadowFiltering,wmoShadowMode);
+    if (wmoShadowMode >= 2)
+        visibility=min(visibility,receiverBandedVisibility(v.nearShadow,v.middleShadow,v.farShadow,shadow,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
+    return receiverShadowModulation(visibility,v.normal,shadow.lightDirection.xyz);
+}
 fragment float4 wmoFragment(WmoRaster v [[stage_in]], constant ModelFragmentParameters& p [[buffer(0)]],
     texture2d<float> image [[texture(0)]], sampler filtering [[sampler(0)]],
     texture2d<float> layerTexture [[texture(1)]], sampler layerFiltering [[sampler(1)]],
-    constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4)]], sampler shadowFiltering [[sampler(4)]],
-    texture2d<float> nearImage [[texture(5)]], sampler nearSampler [[sampler(5)]],
-    texture2d<float> middleImage [[texture(6)]], sampler middleSampler [[sampler(6)]],
-    texture2d<float> farImage [[texture(7)]], sampler farSampler [[sampler(7)]]) {
+    constant ShadowReceiverParameters& shadow [[buffer(3)]], texture2d<float> shadowImage [[texture(4), function_constant(shadowFloatSampling)]], sampler shadowFiltering [[sampler(4)]],
+    texture2d<float> nearImage [[texture(5), function_constant(shadowFloatSampling)]], sampler nearSampler [[sampler(5)]],
+    texture2d<float> middleImage [[texture(6), function_constant(shadowFloatSampling)]], sampler middleSampler [[sampler(6)]],
+    texture2d<float> farImage [[texture(7), function_constant(shadowFloatSampling)]], sampler farSampler [[sampler(7)]],
+    depth2d<float> shadowDepth [[texture(4), function_constant(shadowComparison)]],
+    depth2d<float> nearDepth [[texture(5), function_constant(shadowComparison)]],
+    depth2d<float> middleDepth [[texture(6), function_constant(shadowComparison)]],
+    depth2d<float> farDepth [[texture(7), function_constant(shadowComparison)]]) {
     if (wmoShadowMode) {
-        float visibility=receiverDynamicVisibility(v.shadowCoordinate,v.viewPosition,shadow,shadowImage,shadowFiltering,wmoShadowMode);
-        if (wmoShadowMode >= 2)
-            visibility=min(visibility,receiverBandedVisibility(v.nearShadow,v.middleShadow,v.farShadow,shadow,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler));
-        v.color.rgb*=receiverShadowModulation(visibility,v.normal,shadow.lightDirection.xyz);
+        if(shadowComparison) v.color.rgb*=wmoShadowVisibility(v,shadow,shadowDepth,shadowFiltering,nearDepth,nearSampler,middleDepth,middleSampler,farDepth,farSampler);
+        else v.color.rgb*=wmoShadowVisibility(v,shadow,shadowImage,shadowFiltering,nearImage,nearSampler,middleImage,middleSampler,farImage,farSampler);
     }
     float4 texel = decoded(image.sample(filtering, v.uv), p.decodeScale[0]);
     float4 layer = 0;

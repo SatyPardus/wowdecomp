@@ -62,7 +62,9 @@ void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,voi
     }();
     if (command == GxTex_Latch) { stride=5*sizeof(uint32_t); data=values[context ? *static_cast<const unsigned*>(context):0].data(); }
 }
-void CreateComparisonDepths(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass, CGxTex* material, CGxTex** depths) {
+} // namespace
+
+void CreateShadowComparisonDepths(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass, CGxTex* material, CGxTex** depths) {
     device.RsPush();
     struct Cleanup {
         CGxDeviceMetal& device; CGxShader* vertex[2]{}; CGxShader* pixel[1]{}; CGxTex* color=nullptr;
@@ -103,6 +105,7 @@ void CreateComparisonDepths(CGxDeviceMetal& device, MTLRenderPassDescriptor* pas
             Require(values[y*5+x]==ShadowDepth(x,y,band),"PCF fixture depth rasterization mismatch");
     }
 }
+namespace {
 void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opaque,CGxShader** mod,CGxShader** environmentVertex,CGxShader** environmentPixel,
     CGxShader** dualUVVertex,CGxShader** reflectionVertex,CGxShader* (*layerPixel)[16],
     MTLRenderPassDescriptor* pass,CGxTex* material,CGxTex* environment,CGxTex* const* shadows,bool projectedOnly=false,
@@ -594,7 +597,7 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
     bool rejected = false; try { GxDraw(&batch, 0); } catch (const std::runtime_error&) { rejected = true; }
     Require(rejected, "Model comparison sampling accepted a color texture as depth");
     device.ScenePresent();
-    CreateComparisonDepths(device,pass,cleanup.texture[3],cleanup.texture+8);
+    CreateShadowComparisonDepths(device,pass,cleanup.texture[3],cleanup.texture+8);
     CheckModelShadows(device,vertex[0],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[3],cleanup.texture[2],cleanup.texture+8,false,GxMetal::ModelVertexEffect::Diffuse,true);
     CheckModelShadows(device,vertex[0],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[3],cleanup.texture[2],cleanup.texture+4);
     CheckModelShadows(device,vertex[5],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[1],cleanup.texture[2],cleanup.texture+4,true);

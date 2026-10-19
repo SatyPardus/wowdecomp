@@ -833,9 +833,10 @@ All 23 existing M2 material families now support their six original PCF receiver
 variants (138 pixel variants), including independent additive, multiplicative,
 interpolated, reflected and combined-layer alpha rules. Mac ASan/UBSan/Metal and
 iOS simulator pass 80,154 independent PCF outputs; both iOS clients build.
-On Mac, the original water elemental and motorcycle walking/death poses select
+On Mac and iOS simulator, the original water elemental and motorcycle walking/death poses select
 their real PCF materials in all three shadow modes across two scene lifetimes,
-with unchanged alpha coverage. WMO, terrain and detail-doodad PCF remain pending.
+with unchanged alpha coverage; the simulator then presents 120 frames.
+Terrain and detail-doodad PCF remain pending; WMO progress is below.
 These results do not establish Windows D24 precision or full-world PCF equivalence.
 
 `Diffuse_T1` also supports its 60 R32F dynamic/banded-shadow vertex variants, paired
@@ -1080,7 +1081,14 @@ readback and normal shutdown after adding the actual environment-reflection M2
 receiver (vertex 71, pixel 2). This is one Stormwind view, not complete world or
 quality-switch validation elsewhere. The explicit live quality check additionally
 passed all six settings, cache recreation and character reentry in this view.
-WMO hardware PCF remains explicitly unsupported.
+All seven WMO pixel families now also accept their 42 PCF receiver variants.
+Native depth comparison shares the original shadow tap/fade calculations with
+M2 while retaining WMO's own baked/dynamic color, doubled diffuse, environment,
+composite and alpha rules. The focused check now makes 18,330 WMO draws across
+R32F and PCF; Mac ASan/UBSan/Metal and iOS simulator pass these references, and
+both iOS clients build. Shared M2 regression continues in the same check.
+Global PCF capability remains disabled while terrain/detail receivers and
+depth precision are completed; full-world PCF rendering is not yet verified.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct

@@ -182,7 +182,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     std::array<id<MTLSamplerState>, 9> samplers{};
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         Require(textures[i] && textures[i] != target && textures[i] != pass.depthAttachment.texture, "Missing FFX input or render-target feedback");
-        const bool comparison=model && geometry.model->hardwareShadow && i>=4;
+        const bool comparison=i>=4 && ((model && geometry.model->hardwareShadow) || (wmo && geometry.wmo->hardwareShadow));
         Require((textures[i].pixelFormat==MTLPixelFormatDepth32Float)==comparison,"Shader depth comparison and texture format mismatch");
         samplers[i] = Sampler(states[i],comparison);
     }
