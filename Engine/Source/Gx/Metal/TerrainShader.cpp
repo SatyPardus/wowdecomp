@@ -122,6 +122,53 @@ void GxMetal::ValidateTerrainShader(const std::vector<uint8_t>& bytes, EGxShTarg
         "3bd18ec871ccd16c959cdfedfbb01104", "cafbc8e580a2db0742c78ceb4a34031a", "70d8041b4091416e5a99cbebf546bb8d",
         "08208bb6dc49dcc9f80d9234c19872b2", "4e266bc8dac813e6d4d4e5dee73f22a2", "d8f47727622297a1e1476a30320487ab",
     };
+    static const char* pixel2Pcf[] = {
+        "2a7d5495837d6efe67e932bc8a45c890", "039cc258331aaf6a2eb1cd2e2607333f", "7dd8d9c618eeabd5226588aefbb50721",
+        "002181cba569c9609efd763cf457e47d", "c52b9a627b582e60153824a5c4190b9a", "94128f9737fda92f295adcf5241412b6",
+        "603f254dc1b79f9309c9eca9f612e6d6", "52b362695dd88ad563400f5b2ccd275b", "a2bbb43e37fa092ee5e5a0ae4ba97e8d",
+        "db1d23caba5cd7245318974e62370238", "52b2ce39de42622ffe710f41ee164a10", "54355db0dbf8db9d2a7adad28554cafe",
+        "f0ac7d2aa9133dbf6ccde9243e00ec6e", "f8b29852eafb0a65add950c60617286c", "2675bb824ebfe200913c3ca8240d837f",
+        "fbd59a4094495c08140c5865733f3292", "19a6fc132517d5211dbf4983a27e5f6f", "d3eec6c1cff4b3a0fdf96937df113b0e",
+        "f8cb8dcae0865338940117968c241ec1", "8f7662ea5b2971c6c8ac8a26ee0b36e9", "9ffa98c04d963d0b003a7565f0fb318c",
+        "4512683d098b074e7902a7eb3dcfb58d", "59794ae605bb30eab89e2afa1281a14b", "24aa656fcc2acda436a9a16bce27193f",
+        "5eabaf88ab8863ca127bc5bf76546e08", "057d52a9910a5b8249f4ea24770718c0", "1c350138e1ea14033907560672df7656",
+        "69c61a3617f633be22dfafefc94a6758", "d39dac8d25cf95e503c7ea43972fa41c", "42c7768a583fe194ac51a447f136f844",
+        "140d746367df5c3c4d696c441f4cb5ef", "f24a8b96b7c6d9cfe45445a0f831b3e0",
+    };
+    static const char* pixel3Pcf[] = {
+        "e42da34f4642a9e4d54c9ba6bc0a60dc", "f652abf6b20f1a02268c7bedb0462a9d", "bfc3b141b88e4eca96941ea3a40ac548",
+        "ecfc6851c94effefdb3a1aeb72a6f9d5", "0ac969db70a65793bee05b6b8be856a3", "02006d627916a66a28a1673d98c618ed",
+        "7a52d91b898c1a3bf6404483d510cf4a", "394180f44e663067b70ded1f017fe9d7", "6a18d363858258798a69cd31d04814c5",
+        "c38b24ff3337785e6a965f1ca1bc9517", "ad167d8b2f5d06ea5ba4d74210311f40", "5b6fe63b515af95befc5495a9e0836e3",
+        "8f5e3f78108af10df922d8d0738724fe", "c57ab346ad210ba53dff14dd3ec82ade", "ad223bd78b700b097c7c3c98dc591653",
+        "47b6ba9af582ad7f64c5109321ef92ca", "183b326343119ced9eca9b31d0387cc3", "0f3cc220887228f58ba07f622337cfbd",
+        "8fe70ebb456f53c055680d0baeb0e536", "976aa0c5999222e701eda573d07b57dc", "a7c40ec5072935c076a15e3759ee1203",
+        "2178c4c552a8363da4fd06c7ed24e4fb", "fa5e8f12c6ddda8f961adafd37a2e417", "4fccfcd10fdfccfd1b89bf7b1dd23688",
+        "b1d584eb664341fdeaa643a70e48d3aa", "c706a0cbe04408124363a8187e0cf2c3", "f56b4578c765858b2d1737c094e7858f",
+        "8ffeafa831e9131dcd5bc179270bf34e", "bfc436d5b43ab4d91efab7c9e71677a6", "b1468e8d8ed5fafd441b15e4faf8489f",
+        "aff90fe66be7970c10d0b394edbb0fb6", "0be3a02ff63c597bdd8bf3ce2b4fab83", "f4009a5520c8d66d9ddd7f77e0332cdf",
+        "a1180b00e918dc42a59a8d44ea97bedb", "9c3b6af0f46db36b7d1ada2c740a91e6", "5420f01a7f56bae7aa6826355d0780f6",
+        "b3df29e307686daf4d8b9d7ba5c31dc8", "67b7c9bb6e022ff4585897d40519370f", "389906ceedfa3435fdbd8b69e2f02a48",
+        "3bc36e753fd493f5a351fd640f267823", "4a95d25d98ae804977a423da5c2d564c", "a66e50fccae36eaf8d1a84c8e727bfa0",
+        "64cd074b7b5bfe4decbdc4258a75790d", "23ac62ef077937e7a1c5331c9602e901", "15884b51872ae88d923bcde27e211a3e",
+        "9cb546ebbde970086f1734631bbd722b", "a4f72c30a75f17b68f8d30686968410d", "4c7b81c2faac864ebe645b4c1c34da17",
+        "b29586b7fa61d5d2046c6a167e2d97d9", "e1978ae0f674776e7dff326e46f157d7", "490ddfac3329e5c9a3959b6043ab4993",
+        "7719341ea5517162364fde121dd5e472", "8829295b3e1d5023f616844c3d7b198e", "7d1b5cda4a41e2b19b8f7f81bdd29d5b",
+        "00f31283e873e5939d868b4aae3312bf", "6459c37990e0bc715bf025d79b028d14", "4021ba14b2444168dcf773953401ebbb",
+        "d1a4863f20a81353edc4ea2dd5b8ea1c", "64f60ea7b1fd8e9cdb3318e81e1ba8bc", "fa08937afe1f137873d791301844733f",
+        "ce16770acd1094b0900d1aeb829f0ca8", "26f29d249d02ad9cd5b441f6fc3f4253", "65eb2d3b99e32d7213ed4a7661ae69aa",
+        "791fd7ba32893400b80121d25e630de8", "68697b96aa4ea14b009d1474400d6282", "00e36667eb7d9d8fe5920b034874a250",
+        "69fdae59ec352546b6d31f2d8b50909a", "4d065aa2cf560cc77ff95a83fc8ca169", "2dfafa462cf2e831dacbb81f87bf0ae1",
+        "38fa130d89a10b28d3082b6cd1dbeab8", "9f5764a0a9a9cec8de3da9e72b4f09ec", "09676e8dfc8b5b26b02d38d841ad53cb",
+        "672fc4eab224f9d4b65b0a6f8e0b6bd5", "1a933d35413ec14b559b5d585a2e1050", "72a8f1021114aa9c180d85244feed3f9",
+        "2360158db26509ba49cd4b7b34943edd", "6351ccf6dde635de8f1d04ecd9b8752a", "cbbc1b7ac10bef4a47ef8551b4ff715d",
+        "a9f78082da048c181507b66a4795ec2c", "38994223bd4e52ebf0849ac8b09f2c76", "a5a63b508588b77ec6c920bc2bcbbe00",
+        "28dff0772d9a57e06163319e4beaf9eb", "280b3cdf29a382d389fe2ea7e5ff8ec7", "bc88576d8051a7ec19a22e22f142f4c5",
+        "c0ccfd12ba4326357aef14ca27399df1", "22851b9a247916760bf32c917ebfcf09", "482afb0d3ba74e4ae8ba5f4d2180114f",
+        "8d9b319a09137e085d8ee6810e14dc7a", "8a1b29cd7856996e80c61a7d0bc56737", "001b6c7308af0796cc85ec5a2fb512d4",
+        "614e2de7b98459d9f8706d3e352ec920", "4062a8463b43e1d763b189504c476203", "de4f2f6cd07d4abf102333fb034863e9",
+        "9d6dc3f2a8a3a2b06db30d085484172e", "f2a236e4e0893d9b25173334ff438ebc", "ca5b469a59409e445c7e39def7236c8b",
+    };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsTerrainPermutation(target, i, effect))
             continue;
@@ -141,6 +188,8 @@ void GxMetal::ValidateTerrainShader(const std::vector<uint8_t>& bytes, EGxShTarg
                             : effect == FragmentEffect::Terrain0Environment ? pixel0env[i]
                             : effect == FragmentEffect::Terrain2            ? pixel2[i]
                             : effect == FragmentEffect::Terrain3            ? pixel3[i]
+                            : effect == FragmentEffect::Terrain2PCF         ? pixel2Pcf[i]
+                            : effect == FragmentEffect::Terrain3PCF         ? pixel3Pcf[i]
                                                                             : pixel[i]))
             throw std::runtime_error("Terrain shader in current Data has no verified native implementation");
     }

@@ -1,3 +1,4 @@
+#include "ShadowComparisonProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "WoW/Source/WorldClient/MapObjGroup.h"
@@ -22,7 +23,6 @@
 #include <string>
 #include <vector>
 
-void CreateShadowComparisonDepths(CGxDeviceMetal&, MTLRenderPassDescriptor*, CGxTex*, CGxTex**);
 
 namespace {
 using Vec = std::array<float, 4>;

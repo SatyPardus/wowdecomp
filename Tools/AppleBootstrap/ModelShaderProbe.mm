@@ -1,3 +1,4 @@
+#include "ShadowComparisonProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Model2/M2Data.h"
@@ -64,7 +65,11 @@ void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,voi
 }
 } // namespace
 
-void CreateShadowComparisonDepths(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass, CGxTex* material, CGxTex** depths) {
+void CreateShadowComparisonDepths(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass, CGxTex* material, CGxTex** depths, unsigned size, const float* samples) {
+    Require(size > 0 && size <= 64, "Invalid PCF reference size");
+    auto depthAt = [&](unsigned x, unsigned y, unsigned band) {
+        return samples ? samples[(band * size + y) * size + x] : ShadowDepth(x, y, band);
+    };
     device.RsPush();
     struct Cleanup {
         CGxDeviceMetal& device; CGxShader* vertex[2]{}; CGxShader* pixel[1]{}; CGxTex* color=nullptr;
@@ -83,26 +88,26 @@ void CreateShadowComparisonDepths(CGxDeviceMetal& device, MTLRenderPassDescripto
     GxRsSet(GxRs_ScissorTest,0); GxRsSet(GxRs_ClipPlaneMask,0); GxRsSet(GxRs_Culling,0); GxRsSet(GxRs_PolygonOffset,0);
     GxRsSet(GxRs_Fog,0);
     CGxTexFlags flags(GxTex_Linear); flags.m_renderTarget=1;
-    device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_Argb8888,GxTex_Argb8888,flags,nullptr,nullptr,"PCF color attachment",cleanup.color);
+    device.TexCreate(GxTex_NonPow2,size,size,0,GxTex_Argb8888,GxTex_Argb8888,flags,nullptr,nullptr,"PCF color attachment",cleanup.color);
     C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex,0,&identity.a0,4);
     device.BeginFrame(pass); device.DeviceSetRenderTarget(GxBuffers_Color,cleanup.color,0);
     for(unsigned band=0;band<4;++band) {
-        device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_D24X8,GxTex_D24X8,flags,nullptr,nullptr,"PCF depth comparison reference",depths[band]);
+        if (!depths[band]) device.TexCreate(GxTex_NonPow2,size,size,0,GxTex_D24X8,GxTex_D24X8,flags,nullptr,nullptr,"PCF depth comparison reference",depths[band]);
         device.DeviceSetRenderTarget(GxBuffers_Depth,depths[band],0);
         GxXformSetViewport(0,1,0,1,0,1); device.SceneClear(3,CImVector(0,0,0,0));
         struct Vertex { float x,y,z; uint32_t color; float u,v; };
-        for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x) {
-            const float z=ShadowDepth(x,y,band);
+        for(unsigned y=0;y<size;++y) for(unsigned x=0;x<size;++x) {
+            const float z=depthAt(x,y,band);
             const Vertex data[]={{-1,-1,z,0xFFFFFFFF,0,0},{-1,1,z,0xFFFFFFFF,0,1},{1,-1,z,0xFFFFFFFF,1,0},{1,1,z,0xFFFFFFFF,1,1}};
             auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(Vertex),4);
             std::memcpy(device.BufLock(buffer),data,sizeof(data)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PCT);
-            GxXformSetViewport(float(x)/5,float(x+1)/5,float(y)/5,float(y+1)/5,0,1);
+            GxXformSetViewport(float(x)/size,float(x+1)/size,float(y)/size,float(y+1)/size,0,1);
             CGxBatch batch{GxPrim_TriangleStrip,0,4,0,3}; GxDraw(&batch,0);
         }
         GxXformSetViewport(0,1,0,1,0,1);
-        CiRect rect(0,0,5,5); TSGrowableArray<float> values; device.DeviceReadDepths(rect,values);
-        for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x)
-            Require(values[y*5+x]==ShadowDepth(x,y,band),"PCF fixture depth rasterization mismatch");
+        CiRect rect(0,0,size,size); TSGrowableArray<float> values; device.DeviceReadDepths(rect,values);
+        for(unsigned y=0;y<size;++y) for(unsigned x=0;x<size;++x)
+            Require(values[y*size+x]==depthAt(x,y,band),"PCF fixture depth rasterization mismatch");
     }
 }
 namespace {

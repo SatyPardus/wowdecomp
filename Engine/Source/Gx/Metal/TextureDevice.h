@@ -153,6 +153,7 @@ struct TerrainDrawParameters {
     TerrainFragmentParameters fragment{};
     uint32_t vertexPermutation = 0, pixelPermutation = 0, shadowMode = 0;
     TerrainLayerPass layerPass = TerrainLayerPass::Combined;
+    bool hardwareShadow = false;
 };
 
 struct DetailDoodadVertexParameters {
@@ -321,7 +322,7 @@ private:
     id<MTLFunction> m_wmoFragment[7][2][2][2][4][2]{};
     id<MTLFunction> m_terrainVertex[128]{};
     id<MTLFunction> m_terrainShadowFragment;
-    id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
+    id<MTLFunction> m_terrainFragment[4][4][32][2][2][2]{};
     id<MTLFunction> m_modelVertex[unsigned(ModelVertexEffect::Count)][90][2]{};
     id<MTLFunction> m_modelFragment[23][2][2][2][4][2][3]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};

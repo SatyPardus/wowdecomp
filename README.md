@@ -836,7 +836,7 @@ iOS simulator pass 80,154 independent PCF outputs; both iOS clients build.
 On Mac and iOS simulator, the original water elemental and motorcycle walking/death poses select
 their real PCF materials in all three shadow modes across two scene lifetimes,
 with unchanged alpha coverage; the simulator then presents 120 frames.
-Terrain PCF remains pending; WMO and detail-doodad progress is below.
+Terrain, WMO and detail-doodad PCF receiver progress is below.
 These results do not establish Windows D24 precision or full-world PCF equivalence.
 
 `Diffuse_T1` also supports its 60 R32F dynamic/banded-shadow vertex variants, paired
@@ -921,7 +921,7 @@ linear comparison filtering and the same baked-alpha composition.
 `WOW_METAL_CHECK=models` exercises original grass/bone batching and cache binding
 with generated R32F and depth maps in all modes across two resource lifetimes.
 Numeric checks pass on Mac ASan/UBSan and iOS simulator with Metal validation;
-Mac real scenes pass, and iOS real scenes are being checked. Both iOS client
+Mac/iOS real scenes and the simulator 120-frame preview also pass. Both iOS client
 targets and the Mac application build. Full world density/placement, global PCF
 and Windows visual comparison remain incomplete.
 
@@ -1090,8 +1090,18 @@ M2 while retaining WMO's own baked/dynamic color, doubled diffuse, environment,
 composite and alpha rules. The focused check now makes 18,330 WMO draws across
 R32F and PCF; Mac ASan/UBSan/Metal and iOS simulator pass these references, and
 both iOS clients build. Shared M2 regression and the simulator 120-frame preview
-also pass. Global PCF capability remains disabled while terrain receivers and
-depth precision are completed; full-world PCF rendering is not yet verified.
+also pass. Global PCF capability remains disabled pending full-world integration and depth
+precision assessment. `Terrain2_pcf` and `Terrain3_pcf` now retain their 32/96
+pixel variants through typed native depth comparison. Material slots 0–4 remain
+independent of comparison slots 5–8; baked alpha, cube reflection, layer mixing,
+specular and fog keep the original rules. Highest quality selects nine close
+samples within the dynamic footprint and distant bands outside it, as authored.
+`WOW_METAL_CHECK=terrain-shaders` checks 4,864 R32F/PCF/layer draws with independent
+comparison/filter references, original CMap shader-cache switching and
+ShadowCache binding, plus 512 TerrainSM depth-generation references. Mac
+ASan/UBSan/Metal and iOS simulator pass; both iOS client targets build and the
+simulator completes its subsequent 120-frame preview. These checks do not yet
+establish full-world PCF or Windows D24 precision equivalence.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct

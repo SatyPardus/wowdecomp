@@ -130,6 +130,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             "Unsupported native liquid permutation");
     Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
     Require(effect != FragmentEffect::DetailDoodad || (detail && detail->shadowMode < 4), "Missing detail-doodad parameters");
+    const bool terrainHardwareShadow = terrain && terrain->hardwareShadow;
+    Require(terrainHardwareShadow == IsTerrainComparisonEffect(effect), "Terrain comparison sampling and effect mismatch");
     const bool modelClipping = model && model->clip.mask != 0;
     const bool modelHardwareShadow = model && model->hardwareShadow;
     Require(!modelHardwareShadow || modelShadowMode,"Model comparison sampling requires a shadow receiver");
@@ -140,7 +142,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
                            (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
-                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow || detailHardwareShadow) << 10);
+                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow || detailHardwareShadow || terrainHardwareShadow) << 10);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
@@ -459,7 +461,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         auto& fragment =
             terrainShadow
                 ? m_terrainShadowFragment
-                : m_terrainFragment[uint32_t(terrain->layerPass)][terrain->shadowMode][pixelPermutation][state.alphaRef != 0][decodePacked];
+                : m_terrainFragment[uint32_t(terrain->layerPass)][terrain->shadowMode][pixelPermutation][state.alphaRef != 0][decodePacked][terrainHardwareShadow];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -467,6 +469,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&vertexPermutation type:MTLDataTypeUInt atIndex:12];
         [constants setConstantValue:&pixelPermutation type:MTLDataTypeUInt atIndex:13];
         [constants setConstantValue:&terrain->shadowMode type:MTLDataTypeUInt atIndex:24];
+        [constants setConstantValue:&terrainHardwareShadow type:MTLDataTypeBool atIndex:44];
         const uint32_t layerPass = uint32_t(terrain->layerPass);
         [constants setConstantValue:&layerPass type:MTLDataTypeUInt atIndex:25];
         NSError* error = nil;

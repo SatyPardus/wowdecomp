@@ -88,8 +88,8 @@ vertex TerrainRaster terrainVertex(TerrainVertex v [[stage_in]], constant Terrai
 vertex TerrainRaster terrainColorVertex(TerrainColorVertex v [[stage_in]], constant TerrainVertexParameters& p [[buffer(0)]]) {
     return terrainTransform(v.position, v.normal, v.color.rgb, p);
 }
-// The authored kernels sample LOD zero, compare after sampling (equality is
-// lit), then average. Hardware comparison filtering would change this behavior.
+// The R32F families sample LOD zero and then compare (equality is lit).
+// The separate _pcf families filter comparisons inside each authored tap.
 inline float terrainShadowSamples(float3 coordinate, texture2d<float> image, sampler filtering, constant TerrainFragmentParameters& p,
                                   uint band, bool nineTaps) {
     const float2 uv = fma(coordinate.xy, 0.5f, 0.5f);
@@ -99,12 +99,21 @@ inline float terrainShadowSamples(float3 coordinate, texture2d<float> image, sam
         visible += image.sample(filtering, uv + p.pcfOffsets[i].xy, level(0)).r * scale >= coordinate.z ? 1.0f : 0.0f;
     return visible * (nineTaps ? 1.0f / 9.0f : 0.2f);
 }
+inline float terrainShadowSamples(float3 coordinate, depth2d<float> image, sampler filtering, constant TerrainFragmentParameters& p,
+                                  uint band, bool nineTaps) {
+    const float2 uv = fma(coordinate.xy, 0.5f, 0.5f);
+    float visible = image.sample_compare(filtering, uv, coordinate.z, level(0));
+    for (uint i = 0; i < 8; i += nineTaps ? 1 : 2)
+        visible += image.sample_compare(filtering, uv + p.pcfOffsets[i].xy, coordinate.z, level(0));
+    return visible * (nineTaps ? 1.0f / 9.0f : 0.2f);
+}
 inline float terrainShadowBorder(float3 coordinate, bool farBand) {
     const float edge = max(abs(coordinate.x), abs(coordinate.y));
     return farBand ? saturate(fma(edge, -11.11111068725586f, 11.0f)) : saturate(fma(edge, -3.4482758045196533f, 3.4137930870056152f));
 }
-inline float terrainBandedShadow(TerrainRaster v, constant TerrainFragmentParameters& p, texture2d<float> nearImage, sampler nearSampler,
-                                 texture2d<float> middleImage, sampler middleSampler, texture2d<float> farImage, sampler farSampler) {
+template <typename ShadowTexture>
+inline float terrainBandedShadow(TerrainRaster v, constant TerrainFragmentParameters& p, ShadowTexture nearImage, sampler nearSampler,
+                                 ShadowTexture middleImage, sampler middleSampler, ShadowTexture farImage, sampler farSampler) {
     if (max(abs(v.nearShadow.x), abs(v.nearShadow.y)) < 1)
         return terrainShadowSamples(v.nearShadow, nearImage, nearSampler, p, 1, false);
     if (max(abs(v.middleShadow.x), abs(v.middleShadow.y)) < 1)
@@ -112,10 +121,11 @@ inline float terrainBandedShadow(TerrainRaster v, constant TerrainFragmentParame
     const float farVisibility = terrainShadowSamples(v.farShadow, farImage, farSampler, p, 3, false);
     return fma(terrainShadowBorder(v.farShadow, true), farVisibility - 1, 1.0f);
 }
+template <typename ShadowTexture>
 inline float4 terrainShade(TerrainRaster v, constant TerrainFragmentParameters& p, float4 base, texture2d<float> image1, sampler sampler1,
                            texture2d<float> image2, sampler sampler2, texture2d<float> image3, sampler sampler3, texture2d<float> image4,
-                           sampler sampler4, texture2d<float> dynamicImage, sampler dynamicSampler, texture2d<float> nearImage,
-                           sampler nearSampler, texture2d<float> middleImage, sampler middleSampler, texture2d<float> farImage,
+                           sampler sampler4, ShadowTexture dynamicImage, sampler dynamicSampler, ShadowTexture nearImage,
+                           sampler nearSampler, ShadowTexture middleImage, sampler middleSampler, ShadowTexture farImage,
                            sampler farSampler) {
     const uint layers = 1 + ((terrainPixelPermutation >> 1) & 3);
     float4 texels[5];
@@ -226,11 +236,18 @@ fragment float4 terrainFragment(TerrainRaster v [[stage_in]], constant TerrainFr
                                 texture2d<float> image2 [[texture(2)]], sampler sampler2 [[sampler(2)]],
                                 texture2d<float> image3 [[texture(3)]], sampler sampler3 [[sampler(3)]],
                                 texture2d<float> image4 [[texture(4)]], sampler sampler4 [[sampler(4)]],
-                                texture2d<float> dynamicImage [[texture(5)]], sampler dynamicSampler [[sampler(5)]],
-                                texture2d<float> nearImage [[texture(6)]], sampler nearSampler [[sampler(6)]],
-                                texture2d<float> middleImage [[texture(7)]], sampler middleSampler [[sampler(7)]],
-                                texture2d<float> farImage [[texture(8)]], sampler farSampler [[sampler(8)]]) {
+                                texture2d<float> dynamicImage [[texture(5), function_constant(shadowFloatSampling)]], sampler dynamicSampler [[sampler(5)]],
+                                texture2d<float> nearImage [[texture(6), function_constant(shadowFloatSampling)]], sampler nearSampler [[sampler(6)]],
+                                texture2d<float> middleImage [[texture(7), function_constant(shadowFloatSampling)]], sampler middleSampler [[sampler(7)]],
+                                texture2d<float> farImage [[texture(8), function_constant(shadowFloatSampling)]], sampler farSampler [[sampler(8)]],
+    depth2d<float> dynamicDepth [[texture(5), function_constant(shadowComparison)]],
+    depth2d<float> nearDepth [[texture(6), function_constant(shadowComparison)]],
+    depth2d<float> middleDepth [[texture(7), function_constant(shadowComparison)]],
+    depth2d<float> farDepth [[texture(8), function_constant(shadowComparison)]]) {
     const float4 base = image0.sample(sampler0, v.uv0);
+    if (shadowComparison)
+        return terrainShade(v, p, base, image1, sampler1, image2, sampler2, image3, sampler3, image4, sampler4, dynamicDepth, dynamicSampler,
+                            nearDepth, nearSampler, middleDepth, middleSampler, farDepth, farSampler);
     return terrainShade(v, p, base, image1, sampler1, image2, sampler2, image3, sampler3, image4, sampler4, dynamicImage, dynamicSampler,
                         nearImage, nearSampler, middleImage, middleSampler, farImage, farSampler);
 }
@@ -241,14 +258,21 @@ fragment float4 terrainEnvironmentFragment(TerrainRaster v [[stage_in]], constan
                                            texture2d<float> image2 [[texture(2)]], sampler sampler2 [[sampler(2)]],
                                            texture2d<float> image3 [[texture(3)]], sampler sampler3 [[sampler(3)]],
                                            texture2d<float> image4 [[texture(4)]], sampler sampler4 [[sampler(4)]],
-                                           texture2d<float> dynamicImage [[texture(5)]], sampler dynamicSampler [[sampler(5)]],
-                                           texture2d<float> nearImage [[texture(6)]], sampler nearSampler [[sampler(6)]],
-                                           texture2d<float> middleImage [[texture(7)]], sampler middleSampler [[sampler(7)]],
-                                           texture2d<float> farImage [[texture(8)]], sampler farSampler [[sampler(8)]]) {
+                                           texture2d<float> dynamicImage [[texture(5), function_constant(shadowFloatSampling)]], sampler dynamicSampler [[sampler(5)]],
+                                           texture2d<float> nearImage [[texture(6), function_constant(shadowFloatSampling)]], sampler nearSampler [[sampler(6)]],
+                                           texture2d<float> middleImage [[texture(7), function_constant(shadowFloatSampling)]], sampler middleSampler [[sampler(7)]],
+                                           texture2d<float> farImage [[texture(8), function_constant(shadowFloatSampling)]], sampler farSampler [[sampler(8)]],
+    depth2d<float> dynamicDepth [[texture(5), function_constant(shadowComparison)]],
+    depth2d<float> nearDepth [[texture(6), function_constant(shadowComparison)]],
+    depth2d<float> middleDepth [[texture(7), function_constant(shadowComparison)]],
+    depth2d<float> farDepth [[texture(8), function_constant(shadowComparison)]]) {
     const auto coord = terrainCubeCoordinate(v.environmentDirection);
     // D3D9 applies the requested address/filter mode within the selected face;
     // Metal's seamless texturecube sampling would blend neighboring faces.
     const float4 base = image0.sample(sampler0, coord.uv, coord.face, gradient2d(coord.dx, coord.dy));
+    if (shadowComparison)
+        return terrainShade(v, p, base, image1, sampler1, image2, sampler2, image3, sampler3, image4, sampler4, dynamicDepth, dynamicSampler,
+                            nearDepth, nearSampler, middleDepth, middleSampler, farDepth, farSampler);
     return terrainShade(v, p, base, image1, sampler1, image2, sampler2, image3, sampler3, image4, sampler4, dynamicImage, dynamicSampler,
                         nearImage, nearSampler, middleImage, middleSampler, farImage, farSampler);
 }

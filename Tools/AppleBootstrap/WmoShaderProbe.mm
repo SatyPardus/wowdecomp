@@ -1,3 +1,4 @@
+#include "ShadowComparisonProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include <array>
@@ -8,7 +9,6 @@
 #include <stdexcept>
 #include <string>
 
-void CreateShadowComparisonDepths(CGxDeviceMetal&, MTLRenderPassDescriptor*, CGxTex*, CGxTex**);
 
 namespace {
 using V = std::array<float, 4>;

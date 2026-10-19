@@ -121,6 +121,8 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
             return "Terrain0_env";
         case GxMetal::FragmentEffect::Terrain2: return "Terrain2";
         case GxMetal::FragmentEffect::Terrain3: return "Terrain3";
+        case GxMetal::FragmentEffect::Terrain2PCF: return "Terrain2_pcf";
+        case GxMetal::FragmentEffect::Terrain3PCF: return "Terrain3_pcf";
         case GxMetal::FragmentEffect::Box4: return "FFXBox4";
         case GxMetal::FragmentEffect::Gauss4: return "FFXGauss4";
         case GxMetal::FragmentEffect::Glow: return "FFXGlow";
@@ -1216,7 +1218,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
         if (SStrCmpI(name, GxMetal::LiquidShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::Terrain, target), STORM_MAX_STR) == 0) effect = Effect::Terrain;
     if (target == GxSh_Pixel)
-        for (auto candidate : {Effect::Terrain0, Effect::Terrain0Environment, Effect::TerrainShadowMap, Effect::Terrain2, Effect::Terrain3})
+        for (auto candidate : {Effect::Terrain0, Effect::Terrain0Environment, Effect::TerrainShadowMap, Effect::Terrain2, Effect::Terrain3, Effect::Terrain2PCF, Effect::Terrain3PCF})
             if (SStrCmpI(name, ShaderFamily(candidate, target), STORM_MAX_STR) == 0)
                 effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::ShadowMap, target), STORM_MAX_STR) == 0) effect = Effect::ShadowMap;
@@ -1595,6 +1597,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertexPermutation = m->shaders.at(vertex).permutation;
         native.pixelPermutation = GxMetal::TerrainSurfacePermutation(effect, m->shaders.at(pixel).permutation);
         native.shadowMode = GxMetal::TerrainShadowMode(effect, m->shaders.at(pixel).permutation);
+        native.hardwareShadow = GxMetal::IsTerrainComparisonEffect(effect);
         if (effect == GxMetal::FragmentEffect::Terrain0Environment)
             native.layerPass = GxMetal::TerrainLayerPass::WeightedBase;
         if (effect == GxMetal::FragmentEffect::Terrain0) native.layerPass = GxMetal::TerrainLayerPass(1 + m->shaders.at(pixel).permutation);
@@ -1723,8 +1726,9 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         ITexMarkAsUpdated(texture);
         textures[i] = m->textures.at(texture).sampled ?: m->textures.at(texture).gpu;
         states[i] = state;
-        const bool comparison=i>=4 && ((model && modelParameters->hardwareShadow) || (wmo && wmoParameters->hardwareShadow) ||
-            (detail && detailParameters->hardwareShadow));
+        const bool comparison = (i >= 5 && terrain && terrainParameters->hardwareShadow) ||
+            (i >= 4 && ((model && modelParameters->hardwareShadow) || (wmo && wmoParameters->hardwareShadow) ||
+                        (detail && detailParameters->hardwareShadow)));
         Require((texture->m_format==GxTex_D24X8)==comparison,"Gx shader depth comparison and texture format mismatch");
         states[i].decodeScale = m->gpu.DecodeScale((comparison || texture->m_format == GxTex_R32F) ? BLP::Format::BGRA8 : ImageFormat(texture->m_format));
         states[i].filter = EGxTexFilter(texture->m_flags.m_filter);

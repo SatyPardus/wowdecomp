@@ -1,3 +1,4 @@
+#include "ShadowComparisonProbe.h"
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Services/Texture.h"
@@ -105,10 +106,14 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
     CGxShader* ps[32]{};
     CGxShader* ps2[32]{};
     CGxShader* ps3[96]{};
+    CGxShader* ps2Pcf[32]{};
+    CGxShader* ps3Pcf[96]{};
     device.ShaderCreate(vs, GxSh_Vertex, "Shaders\\Vertex", "Terrain", 128);
     device.ShaderCreate(ps, GxSh_Pixel, "Shaders\\Pixel", "Terrain1", 32);
     device.ShaderCreate(ps2, GxSh_Pixel, "Shaders\\Pixel", "Terrain2", 32);
     device.ShaderCreate(ps3, GxSh_Pixel, "Shaders\\Pixel", "Terrain3", 96);
+    device.ShaderCreate(ps2Pcf, GxSh_Pixel, "Shaders\\Pixel", "Terrain2_pcf", 32);
+    device.ShaderCreate(ps3Pcf, GxSh_Pixel, "Shaders\\Pixel", "Terrain3_pcf", 96);
     device.RsPush();
     struct Cleanup {
         CGxDeviceMetal& device;
@@ -116,8 +121,10 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
         CGxShader** ps;
         CGxShader** ps2;
         CGxShader** ps3;
+        CGxShader** ps2Pcf;
+        CGxShader** ps3Pcf;
         CGxTex* textures[7]{};
-        CTexture* shadows[4]{};
+        CTexture* shadows[8]{};
         ~Cleanup() {
             if (device.FrameCommand())
                 device.ScenePresent();
@@ -136,8 +143,10 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                 device.ShaderDestroy(ps2[i]);
             for (unsigned i = 0; i < 96; ++i)
                 device.ShaderDestroy(ps3[i]);
+            for (unsigned i = 0; i < 32; ++i) device.ShaderDestroy(ps2Pcf[i]);
+            for (unsigned i = 0; i < 96; ++i) device.ShaderDestroy(ps3Pcf[i]);
         }
-    } cleanup{device, vs, ps, ps2, ps3};
+    } cleanup{device, vs, ps, ps2, ps3, ps2Pcf, ps3Pcf};
     OriginalTerrainShadows original;
     device.ShaderCreate(CMap::pixelShader_Terrain0, GxSh_Pixel, "Shaders\\Pixel", "Terrain0", 3);
     device.ShaderCreate(&CMap::pixelShader_Terrain0_env, GxSh_Pixel, "Shaders\\Pixel", "Terrain0_env", 1);
@@ -202,7 +211,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
     // Generate real float shadow targets through Gx regional clears. Distinct
     // bands and asymmetric depths make kernel selection and orientation visible.
     const uint8_t depths[] = {0, 64, 128, 192, 255};
-    std::array<std::array<float, 64>, 4> shadowDepths{};
+    std::array<float, 4 * 64> shadowDepths{};
     device.BeginFrame(pass);
     for (unsigned band = 0; band < 4; ++band) {
         CGxTexFlags flags(GxTex_Nearest);
@@ -226,7 +235,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
         for (unsigned y = 0; y < 8; ++y)
             for (unsigned x = 0; x < 8; ++x) {
                 const auto depth = depths[(x * 3 + y * 2 + band) % 5];
-                shadowDepths[band][y * 8 + x] = depth / 255.0f;
+                shadowDepths[band * 64 + y * 8 + x] = depth / 255.0f;
                 GxXformSetViewport(x / 8.0f, (x + 1) / 8.0f, y / 8.0f, (y + 1) / 8.0f, 0, 1);
                 device.SceneClear(1, CImVector(0, 0, depth, 255));
             }
@@ -234,12 +243,24 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
         TSGrowableArray<float> actual;
         device.ReadFloatColor(rect, actual);
         for (unsigned i = 0; i < 64; ++i)
-            if (actual[i] != shadowDepths[band][i])
+            if (actual[i] != shadowDepths[band * 64 + i])
                 throw std::runtime_error("Terrain shadow reference target initialization mismatch");
     }
     device.DeviceSetRenderTarget(GxBuffers_Color, nullptr, 0);
     GxXformSetViewport(0, 1, 0, 1, 0, 1);
     device.ScenePresent();
+    CGxTex* comparisonDepths[4]{};
+    for (unsigned band = 0; band < 4; ++band) {
+        CGxTexFlags flags(GxTex_Linear);
+        flags.m_renderTarget = 1;
+        flags.m_wrapU = flags.m_wrapV = GxTex_Clamp;
+        cleanup.shadows[4 + band] = TextureCreate(
+            GxTex_2d, 8, 8, 0, GxTex_D24X8, GxTex_D24X8, flags, nullptr,
+            [](EGxTexCommand, uint32_t, uint32_t, uint32_t, uint32_t, void*, uint32_t&, const void*&) {}, "Terrain PCF reference", 0);
+        if (!cleanup.shadows[4 + band] || !(comparisonDepths[band] = TextureGetGxTex(cleanup.shadows[4 + band], 1, nullptr)))
+            throw std::runtime_error("Services terrain comparison target creation failed");
+    }
+    CreateShadowComparisonDepths(device, pass, cleanup.textures[0], comparisonDepths, 8, shadowDepths.data());
     const std::array<Vec, 8> offsets{{{0.8f / 8, -1.0f / 8, 0, 0},
                                       {-0.2f / 8, -0.8f / 8, 0, 0},
                                       {0.2f / 8, -0.6f / 8, 0, 0},
@@ -248,13 +269,22 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                                       {0.6f / 8, 0.2f / 8, 0, 0},
                                       {-1.0f / 8, -0.4f / 8, 0, 0},
                                       {-0.4f / 8, -0.6f / 8, 0, 0}}};
-    auto shadowSamples = [&](unsigned band, const Vec& coord, bool nine) {
-        unsigned visible = 0;
+    auto shadowSamples = [&](unsigned band, const Vec& coord, bool nine, bool comparison) {
+        float visible = 0;
         for (unsigned tap = 0; tap < (nine ? 9u : 5u); ++tap) {
             const float u = coord[0] * 0.5f + 0.5f + (tap ? offsets[(tap - 1) * (nine ? 1 : 2)][0] : 0);
             const float v = coord[1] * 0.5f + 0.5f + (tap ? offsets[(tap - 1) * (nine ? 1 : 2)][1] : 0);
-            const int x = std::clamp(int(std::floor(u * 8)), 0, 7), y = std::clamp(int(std::floor(v * 8)), 0, 7);
-            visible += shadowDepths[band][y * 8 + x] >= coord[2];
+            auto compare = [&](int x, int y) {
+                return shadowDepths[band * 64 + std::clamp(y, 0, 7) * 8 + std::clamp(x, 0, 7)] >= coord[2] ? 1.0f : 0.0f;
+            };
+            if (!comparison) visible += compare(int(std::floor(u * 8)), int(std::floor(v * 8)));
+            else {
+                const float px = u * 8 - 0.5f, py = v * 8 - 0.5f;
+                const int x = int(std::floor(px)), y = int(std::floor(py));
+                const float fx = px - x, fy = py - y;
+                visible += (compare(x, y) * (1 - fx) + compare(x + 1, y) * fx) * (1 - fy) +
+                           (compare(x, y + 1) * (1 - fx) + compare(x + 1, y + 1) * fx) * fy;
+            }
         }
         return visible / (nine ? 9.0f : 5.0f);
     };
@@ -299,6 +329,18 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
     const unsigned x = unsigned((clip[0] / clip[3] + 1) * 16), y = unsigned((1 - clip[1] / clip[3]) * 16);
     CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
     unsigned draws = 0;
+    for (bool comparison : {false, true}) {
+        CShaderEffect::s_usePcfFiltering = comparison;
+        CMap::InitializePCFShaders();
+        for (unsigned i = 0; i < 32; ++i)
+            if (CMap::pixelShader_Terrain2[i] != (comparison ? ps2Pcf[i] : ps2[i]))
+                throw std::runtime_error("Original Terrain2 PCF cache selection mismatch");
+        for (unsigned i = 0; i < 96; ++i)
+            if (CMap::pixelShader_Terrain3[i] != (comparison ? ps3Pcf[i] : ps3[i]))
+                throw std::runtime_error("Original Terrain3 PCF cache selection mismatch");
+        CShadowCache::s_extDynShadow.m_textures[comparison] = cleanup.shadows[comparison ? 4 : 0];
+        for (unsigned band = 1; band < 4; ++band)
+            CShadowCache::s_extShadowBands[band - 1].m_textures[0] = cleanup.shadows[band + (comparison ? 4 : 0)];
     for (unsigned vp = 0; vp < 128; vp += 2) {
         const bool environment = (vp & 2) != 0;
         Vec diffuse{}, specular{};
@@ -341,6 +383,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
             for (unsigned packed = 0; packed < 2; ++packed)
                 for (unsigned receiver = 0; receiver < 8; ++receiver) {
                     const bool multipass = receiver >= 5;
+                    if (comparison && (receiver == 0 || multipass)) continue;
                     if (multipass && (layers != 1 || (environment && receiver != 6)))
                         continue;
                     const unsigned shadowMode = receiver && !multipass ? receiver == 1 ? 1 : receiver - 1 : 0;
@@ -431,7 +474,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                             unsigned band = 1;
                             while (band < 3 && std::max(std::abs(coordinates[band][0]), std::abs(coordinates[band][1])) >= 1)
                                 ++band;
-                            bandVisibility = shadowSamples(band, coordinates[band], false);
+                            bandVisibility = shadowSamples(band, coordinates[band], false, comparison);
                             if (band == 3) {
                                 const float fade =
                                     Sat(std::max(std::abs(coordinates[3][0]), std::abs(coordinates[3][1])) * -11.11111068725586f + 11.0f);
@@ -439,9 +482,9 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                             }
                         }
                         if (shadowMode == 3)
-                            visibility = border > 0 ? shadowSamples(0, coordinates[0], true) : bandVisibility;
+                            visibility = border > 0 ? shadowSamples(0, coordinates[0], true, comparison) : bandVisibility;
                         else
-                            visibility = std::min(1 - border * (1 - shadowSamples(0, coordinates[0], false)),
+                            visibility = std::min(1 - border * (1 - shadowSamples(0, coordinates[0], false, comparison)),
                                                   shadowMode == 1 ? blend[3] : bandVisibility);
                         const auto mask = GxMetal::TerrainTextureMask(pp, shadowMode);
                         for (unsigned slot = 0; slot < 9; ++slot) {
@@ -477,8 +520,8 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                                               unsigned(environment);
                     auto* pixelShader = multipass       ? CMap::GetPixelShader(receiver != 5, receiver != 7, environment)
                                         : receiver == 0 ? ps[pp]
-                                        : receiver == 1 ? ps2[pp]
-                                                        : ps3[shadowPp];
+                                        : receiver == 1 ? (comparison ? ps2Pcf[pp] : ps2[pp])
+                                                        : (comparison ? ps3Pcf[shadowPp] : ps3[shadowPp]);
                     if (receiver && !multipass) {
                         std::memcpy(CShadowCache::s_shadowMatrices, c[37].data(), sizeof(CShadowCache::s_shadowMatrices));
                         CShadowCache::s_shadowMode = shadowMode >= 2 ? SHADOW_HIGH : SHADOW_MEDIUM;
@@ -500,7 +543,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                     const uint8_t actual[] = {sample.r, sample.g, sample.b, sample.a};
                     for (unsigned j = 0; j < 4; ++j)
                         if (std::abs(int(actual[j]) - int(std::lround(expected[j] * 255))) > 2)
-                            throw std::runtime_error("Terrain numeric mismatch receiver " + std::to_string(receiver) + " VS " +
+                            throw std::runtime_error("Terrain numeric mismatch PCF " + std::to_string(comparison) + " receiver " + std::to_string(receiver) + " VS " +
                                                      std::to_string(activeVp) + " PS " + std::to_string(pp) + " packed " +
                                                      std::to_string(packed) + " channel " + std::to_string(j) + " actual " +
                                                      std::to_string(actual[j]) + " expected " + std::to_string(expected[j] * 255));
@@ -511,6 +554,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
                         throw std::runtime_error("Terrain point transform or coverage mismatch");
                     device.ScenePresent();
                 }
+    }
     }
     for (auto pair : {std::pair<unsigned, unsigned>{1, 0}, {2, 0}, {0, 2}}) {
         device.BeginFrame(pass);
@@ -527,7 +571,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
         device.ScenePresent();
     }
     std::fprintf(stderr,
-                 "Terrain: 128 vertex / 164 pixel variants, %u independent UV/reflection/light/fog/layer/shadow draws; original "
+                 "Terrain: 128 vertex / 292 pixel variants, %u independent UV/reflection/light/fog/layer/R32F/PCF draws; original "
                  "CMap/ShadowCache selection verified\n",
                  draws);
 }

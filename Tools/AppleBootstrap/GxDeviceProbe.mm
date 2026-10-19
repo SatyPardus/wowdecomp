@@ -81,6 +81,9 @@ void CheckGxDevice(const char* focus) {
     if (focus && !std::strcmp(focus, "atlas")) { CheckGameTextureAtlases(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "fixed")) { CheckFixedUnlit(device); CheckWaterRippleShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "detail-shaders")) { CheckDetailDoodadShaders(device); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "terrain-shaders")) {
+        CheckTerrainShaders(device); CheckTerrainShadowGenerator(device); device.DeviceDestroy(); return;
+    }
     if (focus && !std::strcmp(focus, "model-clipping")) { CheckModelClipPlanes(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-depth")) { CheckModelDepthOffset(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "model-projected-shadows")) { CheckModelShaders(device,true); device.DeviceDestroy(); return; }

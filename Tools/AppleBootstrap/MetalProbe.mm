@@ -230,6 +230,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
                     report = "Original detail-doodad lighting, baked colors and dynamic/banded R32F/PCF shadows passed (focused run).\n";
                     return true;
                 }
+                if (!std::strcmp(selection, "terrain-shaders")) {
+                    CheckGxDevice(selection);
+                    report = "Original terrain layers, lighting, R32F/PCF receivers and shadow generation passed (focused run).\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "model-depth")) {
                     CheckGxDevice(selection);
                     report = "Original model normalized polygon offset passed (focused run).\n";
