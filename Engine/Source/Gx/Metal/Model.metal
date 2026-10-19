@@ -13,7 +13,7 @@ constant uint modelShadowMode [[function_constant(35)]];
 constant bool modelClipping [[function_constant(38)]];
 constant bool modelDepthOffset [[function_constant(39)]];
 struct ModelClipParameters { float4 planes[6]; uint mask; uint padding[3]; };
-enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB };
+enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB, LayerMultiplyRGB };
 struct ModelVertexParameters {
     float4x4 projection;
     float4 uv[4];
@@ -228,9 +228,11 @@ fragment ModelFragmentOutput modelDiffuseFragment(ModelVaryings v [[stage_in]], 
         const float3 combined = fma(layer.rgb, float3(layer.a), texel.rgb);
         const float3 base = fma(float3(texel.a), texel.rgb - combined, combined);
         shaded = fma(base, v.color.rgb, -p.fogColorAlphaRef.rgb);
-    } else if (modelLayerOperation == LayerMultiply || modelLayerOperation == LayerDoubleModulate || modelLayerOperation == LayerDoubleModulateRGB) {
+    } else if (modelLayerOperation == LayerMultiply || modelLayerOperation == LayerMultiplyRGB || modelLayerOperation == LayerDoubleModulate || modelLayerOperation == LayerDoubleModulateRGB) {
+        // Mod_Opaque multiplies both RGB layers while retaining texture 0's
+        // alpha; LayerMultiplyRGB deliberately leaves the base-alpha path above.
         const float3 product = texel.rgb * layer.rgb;
-        shaded = fma(modelLayerOperation != LayerMultiply ? product + product : product, v.color.rgb, -p.fogColorAlphaRef.rgb);
+        shaded = fma((modelLayerOperation == LayerDoubleModulate || modelLayerOperation == LayerDoubleModulateRGB) ? product + product : product, v.color.rgb, -p.fogColorAlphaRef.rgb);
     } else if (modelLayerOperation == LayerBlendDoubleModulate) {
         // The original combined opaque/reflection/alpha passes: base alpha
         // interpolates from double modulation back to the unmodulated base.

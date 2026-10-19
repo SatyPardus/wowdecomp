@@ -684,6 +684,11 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
             {"fd9ab20b469d0a30e47bdf5f3a28cf5a", "2cb4de4be8a55fc0b772d5b0040e5766"},
         },
     };
+    static const char* modOpaqueShadowPixel[3][2] = {
+        {"5305367607821f9cc0dbb33852b0ec54", "b5adf72f707e4dd0e0ce1ac86a7c750b"},
+        {"606a00a228bae7642746c91e34dc748b", "5f043ce1669efc8591bee9fa119f1cac"},
+        {"04ae6dae3ba5f8ea4c8fdb446d1b2a05", "50f975c0cc4783c7bce24c41bdf92200"},
+    };
     static const char* pixel[][2] = {
         {"de2319c04400e512097a435bbf2977d1", "f1976a55ee52915aabcdec86b8c18a28"},
         {"94998988c219f84b165ba6b13e021739", "da4b42c3e6ad53adaabc34bbbe240aba"},
@@ -697,7 +702,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         {"d5b196dae035baf44d83fc4e303183f8", "3e1297741de4b4505d11e5f0635fac18"},
         {"8a6f9019a0d8eefbaafc6cb2a4297504", "edd96442ff48c808c5699802f0ddb183"},
         {"14c860d5d1dc515d2494909da7259cba", "7bfb833f935b83e2834bcd6edcc04b2f"},
-        {"8a64d4b05e2398a2ba4c62a5fe4aa997", "fd945970147ffd0cff289204ef658ab1"}
+        {"8a64d4b05e2398a2ba4c62a5fe4aa997", "fd945970147ffd0cff289204ef658ab1"},
+        {"2735099ee0bce8460f617fa6df19384b", "1ddeb50aa344b743b01ed5be076157c0"}
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i, vertexEffect, effect)) continue;
@@ -742,6 +748,7 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
                     expected = mode >= 2 ? bandedShadowPixel[material][mode-2][alphaTest] : dynamicShadowPixel[material][alphaTest];
                     break;
                 }
+                case FragmentEffect::ModelModOpaque: expected = modOpaqueShadowPixel[mode-1][alphaTest]; break;
                 case FragmentEffect::ModelOpaqueAddAlpha: expected = environmentShadowPixel[mode-1][alphaTest]; break;
                 case FragmentEffect::ModelModMod: expected = dualUVShadowPixel[0][mode-1][alphaTest]; break;
                 case FragmentEffect::ModelOpaqueMod2x: expected = dualUVShadowPixel[1][mode-1][alphaTest]; break;

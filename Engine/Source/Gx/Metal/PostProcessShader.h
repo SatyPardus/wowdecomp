@@ -3,11 +3,11 @@
 #include <vector>
 
 namespace GxMetal {
-enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod, ModelOpaqueAddNA, ModelModAddNA, ModelModMod, ModelOpaqueMod2xNAAlpha, ModelOpaqueMod2x, ModelModAdd, ModelModMod2x, ModelOpaqueAdd, ModelOpaqueAddAlpha, ModelOpaqueAddAlphaAlpha, ModelOpaqueMod2xNA, Terrain, WmoDiffuse, WmoOpaque, WmoSpecular, WmoMetal, WmoEnvironment, WmoEnvironmentMetal, WmoComposite, LiquidWater, LiquidWaterNoSpec, LiquidMagma, ShadowMap, DetailDoodad, WaterRipple, Terrain2, Terrain3, Terrain0, Terrain0Environment, TerrainShadowMap, FixedUnlit, Desaturate, Death, NetherBlur, NetherCombine, PropagateFog, FogCombine, WeatherSnow, WeatherSand, WeatherRain, WeatherSplash };
+enum class FragmentEffect : uint32_t { Unlit, Box4, Gauss4, Glow, GlowWave, ModelOpaque, ModelMod, ModelOpaqueAddNA, ModelModAddNA, ModelModMod, ModelOpaqueMod2xNAAlpha, ModelOpaqueMod2x, ModelModAdd, ModelModMod2x, ModelOpaqueAdd, ModelOpaqueAddAlpha, ModelOpaqueAddAlphaAlpha, ModelOpaqueMod2xNA, ModelModOpaque, Terrain, WmoDiffuse, WmoOpaque, WmoSpecular, WmoMetal, WmoEnvironment, WmoEnvironmentMetal, WmoComposite, LiquidWater, LiquidWaterNoSpec, LiquidMagma, ShadowMap, DetailDoodad, WaterRipple, Terrain2, Terrain3, Terrain0, Terrain0Environment, TerrainShadowMap, FixedUnlit, Desaturate, Death, NetherBlur, NetherCombine, PropagateFog, FogCombine, WeatherSnow, WeatherSand, WeatherRain, WeatherSplash };
 constexpr bool IsModelEffect(FragmentEffect effect) {
     return effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod ||
         effect == FragmentEffect::ModelOpaqueAddNA || effect == FragmentEffect::ModelModAddNA ||
-        effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod2xNAAlpha || effect == FragmentEffect::ModelOpaqueMod2x || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x || effect == FragmentEffect::ModelOpaqueAdd || effect == FragmentEffect::ModelOpaqueAddAlpha || effect == FragmentEffect::ModelOpaqueAddAlphaAlpha || effect == FragmentEffect::ModelOpaqueMod2xNA;
+        effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod2xNAAlpha || effect == FragmentEffect::ModelOpaqueMod2x || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x || effect == FragmentEffect::ModelOpaqueAdd || effect == FragmentEffect::ModelOpaqueAddAlpha || effect == FragmentEffect::ModelOpaqueAddAlphaAlpha || effect == FragmentEffect::ModelOpaqueMod2xNA || effect == FragmentEffect::ModelModOpaque;
 }
 constexpr unsigned ModelTextureCount(FragmentEffect effect) {
     return IsModelEffect(effect) && effect != FragmentEffect::ModelOpaque && effect != FragmentEffect::ModelMod ? 2 : 1;

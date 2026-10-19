@@ -131,6 +131,7 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::Death: return "FFXDeath";
         case GxMetal::FragmentEffect::GlowWave: return "FFXGlowWave";
         case GxMetal::FragmentEffect::ModelOpaque: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Opaque";
+        case GxMetal::FragmentEffect::ModelModOpaque: return "Combiners_Mod_Opaque";
         case GxMetal::FragmentEffect::ModelMod: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Mod";
         case GxMetal::FragmentEffect::ModelOpaqueAddNA: return "Combiners_Opaque_AddNA";
         case GxMetal::FragmentEffect::ModelModAddNA: return "Combiners_Mod_AddNA";
@@ -1178,7 +1179,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     } else {
         for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave, Effect::Death, Effect::NetherCombine, Effect::PropagateFog, Effect::FogCombine,
             Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
-            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x, Effect::ModelOpaqueAdd, Effect::ModelOpaqueAddAlpha, Effect::ModelOpaqueAddAlphaAlpha, Effect::ModelOpaqueMod2xNA}) {
+            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x, Effect::ModelOpaqueAdd, Effect::ModelOpaqueAddAlpha, Effect::ModelOpaqueAddAlphaAlpha, Effect::ModelOpaqueMod2xNA, Effect::ModelModOpaque}) {
             if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
         }
     }
