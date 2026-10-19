@@ -1595,9 +1595,24 @@ including the original offscreen Y convention. Full-surface clears use attachmen
 load actions; regional clears preserve surrounding pixels and the unused portion
 of a larger shared depth surface. Windowed gamma requests retain the original
 gamma ramp without changing display output, matching D3D9 windowed behavior;
-loading a non-default gamma no longer aborts the native client. Exclusive
-fullscreen gamma ramps, additional render-target formats and stereo remain
-explicit unsupported operations. Single-mip D24X8 requests use native
+loading a non-default gamma no longer aborts the native client. Fullscreen
+presentation now keeps a private, uncorrected BGRA8 game backbuffer and applies
+the original three 256-entry uint16 gamma tables only to the presentation image.
+Screenshots, frame copies, subsequent loads, alpha and game render state remain
+uncorrected; supported MSAA resolves before the lookup. Identity uses a blit,
+and changes submitted in different frames retain independent table snapshots.
+No system display gamma or other applications' colors are changed. This is the
+[D3D9 presentation-stage model](https://learn.microsoft.com/en-us/windows/win32/direct3d9/gamma-controls),
+with the original client's fullscreen-only selection. `WOW_METAL_CHECK=gamma`
+checks all 256 input channel codes, exponent/custom ramps, identity/windowed
+bypass, retained contents, screenshots and nine queued frames. Mac ASan/UBSan
+and Metal validation passed 9,216 pixels including 1x/4x MSAA; iOS simulator
+passed 4,608 pixels at its supported 1x mode. Both iOS clients compile. The final
+image uses BGRA8 output quantization; Windows display calibration, higher-bit
+DAC output and hardware cursor gamma behavior still need comparison. Native
+fullscreen window activation is the next host integration step; this GPU check
+does not claim it is already connected. Additional render-target formats and
+stereo remain explicit unsupported operations. Single-mip D24X8 requests use native
 Depth32Float targets with independent binding/lifetimes, regional clears, exact
 depth blits and comparison sampling; their precision is not quantized to D24. Geometry draws
 share an encoder while attachments and resource ordering permit. Buffer uploads,

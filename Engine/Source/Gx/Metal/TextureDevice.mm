@@ -1,6 +1,7 @@
 #include "Engine/Source/Gx/Metal/TextureDevice.h"
 #include "MetalShaderSource.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Gx/CGxGammaRamp.h"
 #include <TargetConditionals.h>
 #include <algorithm>
 #include <cstring>
@@ -89,6 +90,35 @@ GxMetal::TextureDevice::TextureDevice(id<MTLDevice> selected) : device(selected)
     state.blend = GxBlend_Alpha; state.alphaRef = 1;
     Pipeline(state, quad);
     quad.format = GxVBF_PCT; Pipeline(state, quad);
+}
+
+void GxMetal::TextureDevice::PresentGamma(id<MTLCommandBuffer> command, id<MTLTexture> source,
+    id<MTLTexture> destination, const CGxGammaRamp& ramp) {
+    Require(source && destination && source != destination && source.width == destination.width && source.height == destination.height &&
+        source.sampleCount == 1 && destination.sampleCount == 1 && source.pixelFormat == MTLPixelFormatBGRA8Unorm &&
+        destination.pixelFormat == MTLPixelFormatBGRA8Unorm, "Invalid gamma presentation attachments");
+    if (!m_gammaPipeline) {
+        auto descriptor = [MTLRenderPipelineDescriptor new];
+        descriptor.label = @"Gx presentation gamma";
+        descriptor.vertexFunction = m_clearVertex;
+        descriptor.fragmentFunction = [m_library newFunctionWithName:@"presentationGamma"];
+        descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+        NSError* error = nil;
+        m_gammaPipeline = [device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+        if (!m_gammaPipeline) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Cannot create gamma presentation pipeline");
+    }
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = destination;
+    pass.colorAttachments[0].loadAction = MTLLoadActionDontCare;
+    pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+    auto encoder = [command renderCommandEncoderWithDescriptor:pass];
+    Require(encoder != nil, "Cannot encode gamma presentation");
+    encoder.label = @"Gx presentation gamma";
+    [encoder setRenderPipelineState:m_gammaPipeline];
+    [encoder setFragmentTexture:source atIndex:0];
+    [encoder setFragmentBytes:&ramp length:sizeof(ramp) atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
+    [encoder endEncoding];
 }
 
 id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawState& state, const GeometryDraw& geometry, bool depthAttachment, bool decodePacked, MTLPixelFormat colorFormat, uint32_t sampleCount) {

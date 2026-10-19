@@ -15,6 +15,7 @@
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
+class CGxGammaRamp;
 
 namespace GxMetal {
 // Typed native parameters for the original unlit texture-stage pipeline.
@@ -303,6 +304,9 @@ public:
         const GeometryDraw& geometry, const std::array<TextureDrawState, 3>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void ClearRegion(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const MTLScissorRect& region,
         uint32_t mask, simd_float4 color, id<MTLRenderCommandEncoder> encoder = nil);
+    // Presentation-only lookup: the original BGRA8 game backbuffer is retained
+    // for screenshots, copies and subsequent loads. No desktop gamma changes.
+    void PresentGamma(id<MTLCommandBuffer>, id<MTLTexture> source, id<MTLTexture> destination, const CGxGammaRamp&);
     bool SupportsBC() const;
     bool SupportsPacked16() const;
     simd_float4 DecodeScale(BLP::Format format) const;
@@ -338,6 +342,7 @@ private:
     id<MTLFunction> m_glowVertex, m_glowFragment[2];
     id<MTLFunction> m_waveVertex, m_waveFragment[2][2];
     id<MTLFunction> m_clearVertex, m_clearFragment;
+    id<MTLRenderPipelineState> m_gammaPipeline;
     std::unordered_map<uint32_t, id<MTLRenderPipelineState>> m_clearPipelines;
     id<MTLDepthStencilState> m_clearDepth[2]{};
     // Independent fields avoid collisions as material families and variants grow.

@@ -34,6 +34,16 @@ vertex float4 clearVertex(uint index [[vertex_id]]) {
 }
 fragment float4 clearFragment(constant float4& color [[buffer(0)]]) { return color; }
 
+struct PresentationGamma { ushort red[256], green[256], blue[256]; };
+fragment float4 presentationGamma(float4 position [[position]], texture2d<float, access::read> source [[texture(0)]],
+    constant PresentationGamma& ramp [[buffer(0)]]) {
+    const float4 color = source.read(uint2(position.xy));
+    // The game buffer is UNORM8. Use its exact channel codes to index the
+    // original 256-entry, 16-bit ramps; never approximate them with pow().
+    const uint3 code = uint3(round(color.rgb * 255.0f));
+    return float4(float3(ramp.red[code.r], ramp.green[code.g], ramp.blue[code.b]) / 65535.0f, color.a);
+}
+
 vertex QuadVertex textureQuadVertex(uint index [[vertex_id]], constant QuadParameters& p [[buffer(0)]]) {
     const float2 uv = float2(index >> 1, index & 1);
     // Native Metal clip coordinates, top-left texture origin, no D3D9 half-pixel offset.

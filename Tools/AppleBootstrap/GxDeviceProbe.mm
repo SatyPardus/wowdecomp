@@ -65,6 +65,84 @@ void Vertices(Vertex* output, uint32_t color, float z) {
         {1, 1, z, color, 1, 0}, {1, -1, z, color, 1, 1}};
     std::memcpy(output, vertices, sizeof(vertices));
 }
+void CheckPresentationGamma(CGxDeviceMetal& device) {
+    const auto original = device.m_format;
+    const auto savedRamp = device.m_gammaRamp;
+    auto gpu = device.GPU().device;
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:256 height:1 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [gpu newTextureWithDescriptor:descriptor];
+    auto expectedPixel = [](unsigned i) { return CImVector(255-i, (i*73)&255, i, (i*31)&255); };
+    unsigned checked = 0;
+    for (unsigned samples : {1u, 4u}) {
+        if (samples > 1 && (![gpu supportsTextureSampleCount:samples] || !gpu.areProgrammableSamplePositionsSupported)) continue;
+        for (bool windowed : {true, false}) {
+            auto format = original; format.m_size = {256,1}; format.m_window = windowed; format.m_multisampleCount = samples;
+            Require(device.DeviceSetFormat(format), "Cannot select gamma test format");
+            struct Result { id<MTLBuffer> pixels; id<MTLCommandBuffer> command; CGxGammaRamp ramp; bool active; };
+            std::vector<Result> results;
+            for (unsigned iteration = 0; iteration < 9; ++iteration) {
+                CGxGammaRamp ramp;
+                ramp.Set(iteration%4 == 0 ? 1 : iteration%4 == 1 ? .5f : iteration%4 == 2 ? 2 : 0);
+                if (iteration == 8) for (unsigned i=0;i<256;++i) {
+                    ramp.m_red[i] = uint16_t(i*257);
+                    ramp.m_green[i] = uint16_t(i*i);
+                    ramp.m_blue[i] = uint16_t(65535-i*113);
+                }
+                // Change the ramp during an active frame. Submission snapshots
+                // its complete table; prior in-flight frames must keep theirs.
+                pass.colorAttachments[0].loadAction = iteration ? MTLLoadActionLoad : MTLLoadActionClear;
+                device.BeginFrame(pass);
+                if (!iteration) for (unsigned i=0;i<256;++i) {
+                    device.XformSetViewport(float(i)/256, float(i+1)/256, 0,1,0,1);
+                    device.SceneClear(1, expectedPixel(i));
+                }
+                device.XformSetViewport(0,1,0,1,0,1);
+                device.DeviceSetGamma(ramp);
+                if (iteration == 1) {
+                    CiRect rect(0,0,1,256); TSGrowableArray<CImVector> source;
+                    device.DeviceReadPixels(rect,source);
+                    for (unsigned i=0;i<256;++i) Require(source[i] == expectedPixel(i), "Gamma modified game backbuffer/readback");
+                    device.DeviceTakeScreenShot();
+                }
+                const auto before = device.EncodingStats().gammaPresentations;
+                device.ScenePresent();
+                CGxGammaRamp identity; identity.Set(1);
+                const bool active = !windowed && std::memcmp(&ramp,&identity,sizeof(ramp));
+                Require(device.EncodingStats().gammaPresentations == before+active, "Gamma was applied in windowed/identity mode or skipped in fullscreen");
+                if (iteration == 1) {
+                    uint32_t width=0,height=0; const CImVector* screenshot=nullptr;
+                    device.DeviceReadScreenShot(width,height,screenshot);
+                    Require(width==256 && height==1 && screenshot, "Gamma screenshot missing");
+                    for (unsigned i=0;i<256;++i) Require(screenshot[i] == expectedPixel(i), "Screenshot included presentation gamma");
+                    device.DeviceClearScreenShot();
+                }
+                auto result = [gpu newBufferWithLength:1024 options:MTLResourceStorageModeShared];
+                auto command = [device.GPU().queue commandBuffer]; auto encoder = [command blitCommandEncoder];
+                [encoder copyFromTexture:pass.colorAttachments[0].texture sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0)
+                    sourceSize:MTLSizeMake(256,1,1) toBuffer:result destinationOffset:0 destinationBytesPerRow:1024 destinationBytesPerImage:1024];
+                [encoder endEncoding]; [command commit];
+                results.push_back({result,command,ramp,active});
+            }
+            for (const auto& result : results) {
+                [result.command waitUntilCompleted];
+                Require(!result.command.error, "Gamma presentation readback failed");
+                const auto* pixels = static_cast<const CImVector*>(result.pixels.contents);
+                const auto& ramp = result.ramp;
+                auto remap = [&](uint8_t code, const uint16_t* table) { return result.active ? int(std::lround(double(table[code])*255/65535)) : int(code); };
+                for (unsigned i=0;i<256;++i) {
+                    const auto source=expectedPixel(i), actual=pixels[i];
+                    Require(actual.r == remap(source.r,ramp.m_red) && actual.g == remap(source.g,ramp.m_green) &&
+                        actual.b == remap(source.b,ramp.m_blue) && actual.a == source.a, "Presented gamma did not match original channel lookup");
+                    ++checked;
+                }
+            }
+        }
+    }
+    device.DeviceSetGamma(savedRamp); Require(device.DeviceSetFormat(original), "Cannot restore display after gamma checks");
+    std::fprintf(stderr,"Presentation gamma: %u pixels, all channel codes, original exponent/custom 16-bit ramps, alpha, identity/windowed bypass, retained game buffer, screenshots, queued ramp changes and supported MSAA passed\n",checked);
+}
 void CheckSoftwareCursor(CGxDeviceMetal& device) {
     auto format = device.m_format; format.m_hwCursor = false;
     device.ICursorCreate(format);
@@ -121,6 +199,7 @@ void CheckGxDevice(const char* focus) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (focus && !std::strcmp(focus, "gamma")) { CheckPresentationGamma(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "cursor")) { CheckSoftwareCursor(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "weather-world")) { CheckGameWorldLifecycle(); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "weather")) { CheckWeatherShaders(device); device.DeviceDestroy(); return; }

@@ -16,6 +16,7 @@ public:
         uint64_t streamedBytes = 0, streamPageAllocations = 0;
         uint64_t visibilityPageAllocations = 0, querySubmissions = 0, queryWaits = 0;
         uint64_t cacheEvictions = 0, discardedStreamBytes = 0;
+        uint64_t gammaPresentations = 0;
     };
     EncodingStatistics EncodingStats() const;
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);

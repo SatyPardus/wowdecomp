@@ -289,6 +289,7 @@ struct CGxDeviceMetal::Impl {
     MTLRenderPassDescriptor* defaultPass;
     id<MTLTexture> targetDepth;
     id<MTLTexture> multisampleColor, multisampleDepth, resolvedDepth;
+    id<MTLTexture> fullscreenColor, presentationColor;
     id<MTLDrawable> drawable;
     void* window = nullptr;
     bool scissorEnabled = false;
@@ -736,6 +737,7 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
     CGxFormat applied = format;
     if (m->window && !ApplyHostFormat(applied)) return 0;
     m_format = applied;
+    if (applied.m_window) m->fullscreenColor = nil;
     m_curWindowRect.minX = m_curWindowRect.minY = 0;
     m_curWindowRect.maxX = applied.m_size.x; m_curWindowRect.maxY = applied.m_size.y;
     m_defWindowRect = m_curWindowRect;
@@ -763,6 +765,7 @@ void CGxDeviceMetal::DeviceDestroy() {
     m_context = 0; GxMetal::RefreshHostCursor(m->window);
     m->window = nullptr; CGxDevice::DeviceDestroy();
     m->multisampleColor = m->multisampleDepth = m->resolvedDepth = nil;
+    m->fullscreenColor = m->presentationColor = nil;
 }
 void* CGxDeviceMetal::DeviceWindow() { return m->window; }
 void CGxDeviceMetal::CapsWindowSize(CRect& rect) { rect = m_curWindowRect; }
@@ -775,6 +778,24 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
         pass.depthAttachment.slice == 0, "Metal host frame must use base-level attachments");
     Require(!pass.depthAttachment.texture || (pass.depthAttachment.texture.pixelFormat == MTLPixelFormatDepth32Float &&
         pass.depthAttachment.texture.sampleCount == 1), "Unsupported Metal frame depth");
+    bool initializeFullscreen = false;
+    m->presentationColor = nil;
+    if (!m_format.m_window) {
+        const auto target = pass.colorAttachments[0].texture;
+        Require(target.width <= ResourceBudget / 4 / target.height, "Fullscreen backbuffer exceeds memory budget");
+        if (!m->fullscreenColor || m->fullscreenColor.width != target.width || m->fullscreenColor.height != target.height) {
+            auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                width:target.width height:target.height mipmapped:NO];
+            descriptor.storageMode = MTLStorageModePrivate;
+            descriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+            m->fullscreenColor = [m->gpu.device newTextureWithDescriptor:descriptor];
+            Require(m->fullscreenColor != nil, "Cannot allocate fullscreen game backbuffer");
+            m->fullscreenColor.label = @"Gx uncorrected fullscreen backbuffer";
+            initializeFullscreen = pass.colorAttachments[0].loadAction == MTLLoadActionLoad;
+        }
+        m->presentationColor = target;
+        pass = [pass copy]; pass.colorAttachments[0].texture = m->fullscreenColor;
+    }
     auto defaultPass = m->DefaultPass(pass, m_format.m_multisampleCount);
     const size_t slot = (m->frameSlot + 1) % m->streamFrames.size();
     auto& frame = m->streamFrames[slot];
@@ -784,6 +805,13 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     m->frameSlot = slot; frame.Reset();
     for (auto& entry : m->pools) entry.second.snapshots.clear();
     m->command.label = @"Gx game frame";
+    if (initializeFullscreen && m_format.m_multisampleCount == 1) {
+        Require(!m->presentationColor.framebufferOnly, "Cannot initialize fullscreen contents from a framebuffer-only target");
+        auto encoder = [m->command blitCommandEncoder];
+        Require(encoder != nil, "Cannot initialize fullscreen backbuffer");
+        [encoder copyFromTexture:m->presentationColor toTexture:m->fullscreenColor];
+        [encoder endEncoding];
+    }
     m->defaultPass = defaultPass; m->drawable = drawable;
     const bool resized = m_defWindowRect.maxX != pass.colorAttachments[0].texture.width || m_defWindowRect.maxY != pass.colorAttachments[0].texture.height;
     m_defWindowRect.minX = m_defWindowRect.minY = 0;
@@ -828,6 +856,18 @@ void CGxDeviceMetal::ScenePresent() {
     m->EnsurePass();
     m->EnsureLoads(m->defaultPass);
     m->EndRender();
+    if (m->presentationColor) {
+        CGxGammaRamp identity; identity.Set(1);
+        if (std::memcmp(&identity, &m_gammaRamp, sizeof(identity)) == 0) {
+            auto encoder = [m->command blitCommandEncoder];
+            Require(encoder != nil, "Cannot present fullscreen backbuffer");
+            [encoder copyFromTexture:m->fullscreenColor toTexture:m->presentationColor];
+            [encoder endEncoding];
+        } else {
+            m->gpu.PresentGamma(m->command, m->fullscreenColor, m->presentationColor, m_gammaRamp);
+            ++m->statistics.renderPasses; ++m->statistics.gammaPresentations;
+        }
+    }
     m->CurrentFrame().Trim();
     dispatch_semaphore_t frames = m->CurrentFrame().ready;
     [m->command addCompletedHandler:^(id<MTLCommandBuffer> command) {
@@ -836,7 +876,7 @@ void CGxDeviceMetal::ScenePresent() {
     }];
     if (m->drawable) { [m->command presentDrawable:m->drawable]; }
     [m->command commit]; m->command = nil; m->drawable = nil;
-    m->pass = m->defaultPass = nil;
+    m->pass = m->defaultPass = nil; m->presentationColor = nil;
     if (m->evictAfterPresent) DeviceEvictResources();
     CGxDevice::ScenePresent();
     auto restart = m->displayRestart;
@@ -2064,13 +2104,8 @@ void CGxDeviceMetal::DeviceSetGamma(float gamma) {
     CGxGammaRamp ramp; ramp.Set(gamma); DeviceSetGamma(ramp);
 }
 void CGxDeviceMetal::DeviceSetGamma(const CGxGammaRamp& ramp) {
-    if (!m_format.m_window) {
-        CGxGammaRamp identity; identity.Set(1);
-        Require(std::memcmp(&identity, &ramp, sizeof(ramp)) == 0, "Metal fullscreen gamma ramp is not implemented");
-    }
-    // Match D3D9: keep the requested ramp in windowed mode, but only apply it
-    // to an exclusive fullscreen display. Native hosts are currently windowed.
-    // A stored non-default gamma must not make configuration loading fail.
+    // Original D3D9 only applies the stored ramp in fullscreen. Keep game
+    // surfaces unmodified and remap once at presentation, including UI/cursor.
     CGxDevice::DeviceSetGamma(ramp);
 }
 CGxDevice* CreateCGxDeviceMetal() { return new CGxDeviceMetal(MTLCreateSystemDefaultDevice()); }
