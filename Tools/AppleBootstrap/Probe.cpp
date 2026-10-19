@@ -1021,7 +1021,7 @@ bool AppleBootstrap::InspectData(const std::string& dataRoot, std::string& repor
             reject([&] { GxReadShaderBinary(vertex.bytes, 16); });
         }
         out << "Original UI vs/ps_2_0 and vs/ps_3_0 BLS recognized; modified code, truncation and memory budget checks passed.\n";
-        out << "Full local archive layout and locale fallback are active. Client signature policy, full world/game startup, remaining Gx/Metal effects and game networking remain to be integrated.\n";
+        out << "Full local archive layout and locale fallback are active. Use AppleClient/WowAppleClient for original login, world and game UI; this resource probe does not validate complete gameplay or Windows visual parity.\n";
         report = out.str();
         return success;
     } catch (const std::exception& error) {

@@ -126,7 +126,7 @@
                 data += "Metal preview resource: " + std::string(textureName.UTF8String) + " from " + asset.archive + "\n";
             } catch (const std::exception& error) { data += std::string("Preview resource load failed: ") + error.what() + "\n"; }
         }
-        NSString* status = [NSString stringWithFormat:@"%@\n%s%s\nCopy the original Data folder into this app's Documents using Files or Finder.\nNative resource and scene preview. WOW_WORLD runs original world updates and rendering; login, player control and game UI remain incomplete.",
+        NSString* status = [NSString stringWithFormat:@"%@\n%s%s\nCopy the original Data folder into this app's Documents using Files or Finder.\nThis app previews resources and world scenes. Open WoW Apple Client for login and the original game UI; complete gameplay and visual parity are still being verified.",
             coreOK && dataOK ? @"Foundation checks passed" : @"Checks incomplete — see details", core.c_str(), data.c_str()];
         // A full report can fill simctl's console pipe and stall activation.
         // Keep details in the view; unified logging gets a bounded status.
