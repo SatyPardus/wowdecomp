@@ -26,6 +26,7 @@ const char* BLP::FormatName(Format format) {
         case Format::RGB565: return "RGB565";
         case Format::ARGB1555: return "ARGB1555";
         case Format::ARGB4444: return "ARGB4444";
+        case Format::UV88: return "UV88";
     }
     return "unknown";
 }
@@ -88,6 +89,7 @@ BLP::Image BLP::Image::Load(const uint8_t* data, size_t size, size_t memoryBudge
 }
 
 BLP::Mip BLP::Image::DecodeBGRA(size_t level) const {
+    if (format == Format::UV88) throw std::runtime_error("Signed displacement cannot be represented as BGRA8 color");
     const Mip& source = mips.at(level);
     if (format == Format::BGRA8) { return source; }
     Mip result{source.width, source.height, source.width * 4, std::vector<uint8_t>(size_t(source.width) * source.height * 4)};

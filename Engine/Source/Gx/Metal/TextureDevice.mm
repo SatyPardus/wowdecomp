@@ -14,6 +14,7 @@ void Require(bool condition, const char* message) {
 size_t Align(size_t value) { return (value + 255) & ~size_t(255); }
 MTLPixelFormat PixelFormat(BLP::Format format) {
     if (format == BLP::Format::BGRA8) { return MTLPixelFormatBGRA8Unorm; }
+    if (format == BLP::Format::UV88) { return MTLPixelFormatRG8Snorm; }
     if (format == BLP::Format::RGB565) { return MTLPixelFormatB5G6R5Unorm; }
     if (format == BLP::Format::ARGB1555) { return MTLPixelFormatBGR5A1Unorm; }
     if (format == BLP::Format::ARGB4444) { return MTLPixelFormatABGR4Unorm; }
@@ -694,10 +695,12 @@ id<MTLTexture> GxMetal::TextureDevice::UploadFaces(const BLP::Image* faces, size
         }
     }
     const bool compressed = BLP::IsBlockCompressed(image.format);
-    const bool packed16 = !compressed && image.format != BLP::Format::BGRA8;
+    const bool signedUV = image.format == BLP::Format::UV88;
+    const bool packed16 = !compressed && image.format != BLP::Format::BGRA8 && !signedUV;
     const bool packedFallback = packed16 && !SupportsPacked16();
     const bool codedFallback = packedFallback && image.format != BLP::Format::ARGB4444;
     Require(!packed16 || !forceExpansion, "Packed 16-bit GPU textures must retain native UNORM precision");
+    Require(!signedUV || !forceExpansion, "Signed displacement textures must retain native SNORM values");
     // Store UNORM5/6 integer codes exactly in filterable UNORM8, then apply
     // 255/(2^bits-1) in the shader. Scaling commutes with texture filtering;
     // there is no additional quantization to an approximate 8-bit color.

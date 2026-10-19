@@ -118,7 +118,7 @@ struct DayNightGlowScope {
     float previous = DayNight::GetInfo()->m_bands.m_glow;
     ~DayNightGlowScope() { DayNight::GetInfo()->m_bands.m_glow = previous; }
 };
-Image WaveReference(const Image& scene, const Image& blur, const Image& wave, const FFX::VertexPCT3* vertices, CImVector color) {
+Image WaveReference(const Image& scene, const Image& blur, const Image& wave, const FFX::VertexPCT3* vertices, CImVector color, bool directDisplacement) {
     Image result = scene;
     for (unsigned y = 0; y < scene.height; ++y) { for (unsigned x = 0; x < scene.width; ++x) {
         C2Vector uv[3];
@@ -129,7 +129,12 @@ Image WaveReference(const Image& scene, const Image& blur, const Image& wave, co
             uv[i].y = topLeft.y + (topRight.y - topLeft.y) * fx + (bottomLeft.y - topLeft.y) * fy;
         }
         const auto sample = Sample(wave, uv[0].x * wave.width - 0.5f, uv[0].y * wave.height - 0.5f, true);
-        const float dx = sample[2] * (2.0f / 255) - 1, dy = sample[1] * (2.0f / 255) - 1;
+        // Original 0x008C2CE0 creates BGRA8 for SM2/3, but selects the shader
+        // from the UV88 capability. Preserve that original combination: BLS
+        // 0/1 consumes samples directly, while 2/3 remaps UNORM into [-1,1].
+        const float scale = directDisplacement ? 1.0f / 255 : 2.0f / 255;
+        const float bias = directDisplacement ? 0 : -1;
+        const float dx = sample[2] * scale + bias, dy = sample[1] * scale + bias;
         const auto original = Sample(scene, uv[1].x * scene.width - 0.5f + dx * 3, uv[1].y * scene.height - 0.5f + dy * 3);
         const auto filtered = Sample(blur, uv[2].x * blur.width - 0.5f + dx * 0.75f, uv[2].y * blur.height - 0.5f + dy * 0.75f);
         for (unsigned c = 0; c < 3; ++c) {
@@ -280,7 +285,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
     }
     FFX::Tex* waveInputs[] = {&PassGlowWave::s_waveTex, &input, &output};
     PassGlowWave wave(waveInputs, 3, &screen, GxBlend_Opaque, true);
-    Require(wave.Valid() && wave.m_shaderIndex == 2, "FFX wave did not select the original RG-in-UNORM permutation");
+    Require(wave.Valid() && wave.m_shaderIndex == (device.Caps().m_texFmt[GxTex_Uv88] ? 0 : 2), "FFX wave did not select the original capability-dependent permutation");
     const Image waveData = WaveData();
     // Capture the real pass's time-dependent UVs from the existing CPU shadow,
     // then independently evaluate texture filtering, displacement and composition.
@@ -293,7 +298,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
         const float* constants = device.ShaderConstantsLock(GxSh_Pixel);
         Require(constants[0] == 3.0f / 32 && constants[3] == 3.0f / 32 && constants[4] == 0.75f / 8 && constants[7] == 0.75f / 8,
             "Original FFX wave pixel constants changed");
-        Compare(Read(device, screen), WaveReference(source, expected, waveData, vertices, color), 2);
+        Compare(Read(device, screen), WaveReference(source, expected, waveData, vertices, color, wave.m_shaderIndex < 2), 2);
         GxScenePresent();
     }
     GxRsSet(GxRs_AlphaRef, 0);
@@ -476,7 +481,7 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
                 const auto* buffer = device.m_primVertexFormatBuf[GxVA_Position];
                 FFX::VertexPCT3 vertices[4];
                 std::memcpy(vertices, static_cast<const uint8_t*>(buffer->m_pool->m_mem) + buffer->m_index, sizeof(vertices));
-                Compare(actual, WaveReference(source, filtered, wave, vertices, color), 2);
+                Compare(actual, WaveReference(source, filtered, wave, vertices, color, device.Caps().m_texFmt[GxTex_Uv88] != 0), 2);
             }
         }
         GxScenePresent();

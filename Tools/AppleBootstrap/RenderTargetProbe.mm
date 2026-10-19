@@ -5,6 +5,7 @@
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -623,4 +624,67 @@ void CheckPackedTextureFormats(CGxDeviceMetal& device) {
             GxTexDestroy(texture);
         }
     }
+    // R32F preserves negative values through the existing UI shader. This
+    // checks all signed byte codes before/after filtering, rather than hiding
+    // negative displacement by clamping it into a color readback.
+    source.converted = source.partial = false;
+    for (unsigned x = 0; x < 256; ++x) source.packed[x] = uint8_t(int(x) - 128) | (uint16_t(uint8_t(127 - int(x))) << 8);
+    CGxTex* signedTexture = nullptr;
+    CGxTexFlags signedFlags(GxTex_Nearest);
+    device.TexCreate(GxTex_2d, 256, 1, 0, GxTex_Uv88, GxTex_Uv88, signedFlags, &source, callback, "signed displacement reference", signedTexture);
+    for (bool partial : {false, true}) {
+        if (partial) {
+            source.partial = true; source.packed[127] = 0x7f80;
+            signedFlags.m_bit15 = 1; GxTexSetFlags(signedTexture, signedFlags);
+            GxTexUpdate(signedTexture, 127, 0, 128, 1, 1);
+        }
+        for (bool linear : {false, true}) {
+            const unsigned width = linear ? 512 : 256;
+            signedFlags.m_filter = linear ? GxTex_Linear : GxTex_Nearest; GxTexSetFlags(signedTexture, signedFlags);
+            auto channel = [&](int x, unsigned component) {
+                const int code = (source.packed[std::clamp(x, 0, 255)] >> (8 * component)) & 255;
+                return std::max(-1.0, double(code < 128 ? code : code - 256) / 127);
+            };
+            auto sample = [&](unsigned x, unsigned component) {
+                const double position = (x + 0.5) * 256 / width - 0.5;
+                const int left = int(std::floor(position)); const double weight = position - left;
+                return linear ? channel(left, component) * (1 - weight) + channel(left + 1, component) * weight : channel(x, component);
+            };
+            for (bool floating : {true, false}) {
+                CGxTex* floatTarget = nullptr;
+                if (floating) {
+                    CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget = 1;
+                    device.TexCreate(GxTex_2d, width, 1, 0, GxTex_R32F, GxTex_R32F, flags, nullptr, nullptr, "Signed float readback", floatTarget);
+                }
+                auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                    width:width height:1 mipmapped:NO];
+                descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
+                auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+                pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+                pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+                device.BeginFrame(pass);
+                if (floating) GxRenderTargetSet(GxBuffers_Color, floatTarget, 0);
+                Draw(device, signedTexture, 0xffffffff, 0);
+                if (floating) {
+                    CiRect rect(0, 0, 1, width); TSGrowableArray<float> values; device.ReadFloatColor(rect, values);
+                    Require(values.Count() == width, "Signed displacement float readback extent changed");
+                    for (unsigned x = 0; x < width; ++x)
+                        Require(std::abs(values[x] - sample(x, 0)) < 0.00001, "UV88 signed normalization/filter/partial update mismatch");
+                } else {
+                    const auto values = Read(device, width, 1);
+                    for (unsigned x = 0; x < width; ++x) {
+                        const int red = (values[x] >> 16) & 255, green = (values[x] >> 8) & 255;
+                        Require(std::abs(red - std::lround(std::clamp(sample(x, 0), 0.0, 1.0) * 255)) <= 1 &&
+                            std::abs(green - std::lround(std::clamp(sample(x, 1), 0.0, 1.0) * 255)) <= 1 &&
+                            (values[x] & 0xff0000ff) == 0xff000000, "UV88 channel order or missing-component defaults changed");
+                    }
+                }
+                if (floating) GxRenderTargetSet(GxBuffers_Color, nullptr, 0);
+                GxScenePresent();
+                if (floatTarget) GxTexDestroy(floatTarget);
+            }
+        }
+    }
+    GxTexDestroy(signedTexture);
+    std::fputs("Native UV88: all 256 signed codes, point/linear sampling, partial updates and RG channel defaults passed\n", stderr);
 }

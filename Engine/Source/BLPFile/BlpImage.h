@@ -8,7 +8,8 @@
 namespace BLP {
 // Packed formats use the original Gx/D3D little-endian bit layout. They are
 // upload payloads produced by the texture service, not new BLP encodings.
-enum class Format { BGRA8, BC1, BC2, BC3, RGB565, ARGB1555, ARGB4444 };
+// UV88 stores signed U then V bytes and must not be expanded into UNORM color.
+enum class Format { BGRA8, BC1, BC2, BC3, RGB565, ARGB1555, ARGB4444, UV88 };
 inline bool IsBlockCompressed(Format format) {
     return format == Format::BC1 || format == Format::BC2 || format == Format::BC3;
 }

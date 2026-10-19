@@ -241,7 +241,7 @@ struct GeometryDraw {
     NetherBlurParameters netherBlur{};
     simd_float4 netherTintFade{};
     FogEffectParameters fogEffect{};
-    bool signedWave = false; // original UV88 versus RG-in-UNORM displacement
+    bool signedWave = false; // BLS 0/1: direct sample; 2/3: UNORM remap (SM2/3 may bind BGRA8 to either)
     bool screenAtDepth = false; // UI vertex permutation 1: clip.xy *= clip.w
     float depthOffset = 0; // normalized post-raster depth offset (fixed unlit / water ripples / M2)
     bool depthTest = false, depthWrite = false;

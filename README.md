@@ -1587,7 +1587,17 @@ composition parameters, saturation and texture-coordinate scaling. `PassGlowWave
 also runs its original procedural wave texture and time-dependent PCT3 vertices,
 with independent scene/blur displacement scales from pixel constants. Its GPU
 output is checked against the actual generated RG data and submitted coordinates.
-The reachable RG-in-BGRA8 branch is verified; UV88 texture support remains pending.
+UV88 uploads now use native RG8Snorm, preserving both signed bytes through
+point/linear sampling and local updates. All 256 codes, including -128/-127,
+zero and 127, passed Mac and iOS simulator GPU checks; R32F readback retains
+negative values. BGRA diagnostic expansion is rejected for signed displacement.
+The original executable at 0x008C2CE0 creates BGRA8 for SM2/3 but selects BLS 0/1
+when UV88 is supported; those shaders use samples directly, whereas 2/3 remap
+UNORM into [-1,1]. The Metal capability now follows the supported format and the
+unchanged original pass makes that selection. Both the pass and complete FFX
+chain passed independent CPU-reference checks on Mac and iOS simulator. This
+preserves the observed original program logic, not a redesigned wave algorithm;
+original Windows GPU visual comparison remains outstanding.
 The original `FFX::Init/Start/Finish` and `EffectGlow` now run through shared
 CVar registration and command dispatch, including default-framebuffer capture,
 both effect modes, enable/disable and target reallocation after resize. GPU

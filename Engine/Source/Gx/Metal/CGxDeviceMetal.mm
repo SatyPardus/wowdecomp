@@ -237,6 +237,7 @@ BLP::Format ImageFormat(EGxTexFormat format) {
         case GxTex_Argb4444: return BLP::Format::ARGB4444;
         case GxTex_Argb1555: return BLP::Format::ARGB1555;
         case GxTex_Rgb565: return BLP::Format::RGB565;
+        case GxTex_Uv88: return BLP::Format::UV88;
         case GxTex_Dxt1: return BLP::Format::BC1;
         case GxTex_Dxt3: return BLP::Format::BC2;
         case GxTex_Dxt5: return BLP::Format::BC3;
@@ -627,6 +628,7 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
 #endif
     for (auto format : {GxTex_Argb8888, GxTex_Dxt1, GxTex_Dxt3, GxTex_Dxt5}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_texFmt[GxTex_Argb4444] = 1;
+    m_caps.m_texFmt[GxTex_Uv88] = 1;
     for (auto format : {GxTex_Argb1555, GxTex_Rgb565}) { m_caps.m_texFmt[format] = 1; }
     m_caps.m_rttFormat[GxTex_Argb8888] = m_caps.m_rttFormat[GxTex_R32F] = m_caps.m_rttFormat[GxTex_D24X8] = 1;
     // Apple GPUs use Depth32Float for the original comparison-depth contract.
@@ -1103,8 +1105,8 @@ void CGxDeviceMetal::ITexMarkAsUpdated(CGxTex* texture) {
     auto images = recreate ? std::vector<BLP::Image>(faceCount) : storage.images;
     const auto format = ImageFormat(texture->m_format);
     const uint32_t block = BLP::IsBlockCompressed(format) ? 4 : 1;
-    const uint32_t bytes = block == 4 ? (format == BLP::Format::BC1 ? 8 : 16) : Packed16(texture->m_format) ? 2 : 4;
-    const uint32_t sourceBytes = Packed16(texture->m_dataFormat) ? 2 : texture->m_dataFormat == GxTex_Argb8888 ? 4 : bytes;
+    const uint32_t bytes = block == 4 ? (format == BLP::Format::BC1 ? 8 : 16) : (Packed16(texture->m_format) || texture->m_format == GxTex_Uv88) ? 2 : 4;
+    const uint32_t sourceBytes = (Packed16(texture->m_dataFormat) || texture->m_dataFormat == GxTex_Uv88) ? 2 : texture->m_dataFormat == GxTex_Argb8888 ? 4 : bytes;
     const bool convert = texture->m_format != texture->m_dataFormat;
     uint32_t stride = 0; const void* pixels = nullptr;
     texture->m_userFunc(GxTex_Lock, texture->m_width, texture->m_height, 0, 0, texture->m_userArg, stride, pixels);

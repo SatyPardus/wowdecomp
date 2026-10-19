@@ -109,6 +109,7 @@ void CheckGxDevice(const char* focus) {
     // Exercise the formerly overflowing signed difference in IRsSync.
     device.IRsSync(1);
     if (focus && !std::strcmp(focus, "render-target")) {
+        CheckPackedTextureFormats(device);
         CheckGxRenderTargets(device);
         device.ShaderDestroy(vertex[0]); device.ShaderDestroy(vertex[1]); device.ShaderDestroy(pixel);
         device.DeviceDestroy(); return;
