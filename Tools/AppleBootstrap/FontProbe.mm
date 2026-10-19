@@ -160,6 +160,20 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
                 throw std::runtime_error("Gxu glyph textures changed after base-mip recreation");
             }
         }
+        // The quest log uses a zero-length gradient during resize. Its empty
+        // fade interval must preserve the existing opaque glyphs exactly.
+        for (int start : {0, 3}) {
+            GxuFontStringSetGradient(sample.string, start, 0);
+            device.BeginFrame(pass); GxuFontRenderBatch(sample.batch);
+            TSGrowableArray<CImVector> restored;
+            GxReadPixels(rect, restored); GxScenePresent();
+            if (restored.Count() != pixels.Count() || std::memcmp(restored.Ptr(), pixels.Ptr(), pixels.Count() * sizeof(CImVector)))
+                throw std::runtime_error("Zero-length font gradient changed the existing glyph output");
+        }
+        // Zero alpha is the other undefined division (0/0); it must also be
+        // accepted without changing the original gradient traversal.
+        GxuFontSetStringColor(sample.string, CImVector(255, 255, 255, 0));
+        GxuFontStringSetGradient(sample.string, 0, 0);
     }
     return hash;
 }

@@ -74,7 +74,7 @@ The client is written to `bin/Win/`:
 `WowClient_crash.log` when the client crashes. `Wow` is the same client without it. You can also turn the
 logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 
-### Apple foundation and Metal Gx builds
+### Apple native client and Metal Gx builds
 
 Apple configuration downloads the pinned Xvid 1.3.7 source release from Xvid's
 official server and verifies its SHA-256. It builds the portable codec for the
@@ -94,16 +94,20 @@ callbacks using the original font renderer; full Glue movie sequencing and
 subtitle fades remain part of the pending complete Glue integration. Escape or
 Space stops the Mac viewer's movie. iOS touch controls remain deferred.
 
-The native port currently builds **foundation, graphics and audio probes**, not a playable client. They
-link the existing Tempest mathematics, CDataStore, modified Lua 5.1 (including its
+The native port builds macOS and iOS **clients plus focused development probes**.
+The original login, existing-character world entry, native Mac controls, game UI,
+basic spell/melee combat, travel and audio/video playback have run locally.
+It is not yet a complete gameplay or visual restoration: sustained combat,
+loot/quests, all regions/effects, native executable verification and signed iOS
+device deployment remain unfinished. The clients and probes link the existing
+Tempest mathematics, CDataStore, modified Lua 5.1 (including its
 pool allocator and profiler), MPQ cryptography, and IOUnit chains to native Apple
 memory, synchronization, pthread threads/TLS, timing and the original Blizzard file
 API backed by native positional file IO. No Windows emulation is
 used. Original SFile archive/resource IO, decompression and the game's SFile2
 open/read/seek/preload layer are linked. The native
 loader shares the client's archive definitions and applies patch priorities,
-locale fallback and regional alternate views. Signature policy, game startup, the full Gx/Metal backend, audio and
-login/session integration remain to be connected. Apple currently selects a full local
+locale fallback and regional alternate views. Apple currently selects a full local
 filesystem (`WOW_LOCAL_FILES_ONLY`); the remote streaming filesystem is not enabled.
 
 Use CMake 3.21+ and Xcode. The presets target arm64, macOS 11+ and iOS 15+; the
@@ -430,6 +434,16 @@ a Deer at 2.57 units; the server reported 27 melee damage, health 2 to 0 and no
 mana use. The 3,000-frame melee/normal Hearthstone return to the Stormwind inn,
 15 synchronous loading frames and normal shutdown passed Mac ASan/UBSan and
 Metal validation. Neither check changes original gameplay or character bindings.
+
+`--check-world-panels` opens, draws and closes Character, Spellbook, Quest Log,
+Talents and World Map through the existing C/P/L/N/M bindings. It requires closed
+panels and leaves character progression untouched. A 2,400-frame Feral run in the
+Stormwind inn passed Mac ASan/UBSan and Metal validation after fixing two actual
+quest UI arithmetic faults: an unused zero-length font-gradient division and a
+negative objective-mask shift. The latter now explicitly preserves the original
+Wow.exe `SHL r32, CL` count mask at 0x005E301D. Zero-length gradients preserve
+opaque glyph pixels exactly; zero alpha and the original UI/console regression
+also pass on Mac and iOS simulator. Both iOS clients compile with the fixes.
 
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.

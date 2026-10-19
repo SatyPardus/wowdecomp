@@ -18,6 +18,8 @@ bool CheckNativeWorldHearthstone(WowNativeView* view);
 // Original game-menu logout and character-selection reentry, using native UI
 // events and the same character. No forced logout or object-manager reset.
 bool CheckNativeWorldReentry(WowNativeView* view);
+// Native character, spellbook, quest, talent and map toggles with live drawing.
+bool CheckNativeWorldPanels(WowNativeView* view);
 
 // Native picking/action-bar Moonfire, or the existing T attack binding, against
 // a nearby non-player critter. Approach uses original movement and collision.

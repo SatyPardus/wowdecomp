@@ -2285,7 +2285,12 @@ void CGQuestLog::UpdatePOIIcons() {
             QuestPOIBlob* blob = &poi->m_blobs.m_data[j];
             int32_t floor = blob->m_objectiveIndex;
 
-            if (!((floor == -1 && poi->m_objectiveMask == 0xFFFFFFFF) || (poi->m_objectiveMask != 0xFFFFFFFF && ((1 << floor) & poi->m_objectiveMask)))) {
+            // Original 0x005E301D uses x86 SHL r32, CL, including the valid
+            // -1 completion sentinel. Preserve its masked count explicitly
+            // instead of invoking C++ undefined behavior on that path.
+            const uint32_t objectiveBit = uint32_t(1) << (uint32_t(floor) & 31u);
+            if (!((floor == -1 && poi->m_objectiveMask == 0xFFFFFFFF) ||
+                  (poi->m_objectiveMask != 0xFFFFFFFF && (objectiveBit & poi->m_objectiveMask)))) {
                 continue;
             }
 

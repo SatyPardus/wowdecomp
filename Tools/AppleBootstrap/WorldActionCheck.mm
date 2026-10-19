@@ -40,6 +40,63 @@
 namespace {
 void Require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
 }
+bool CheckNativeWorldPanels(WowNativeView* view) {
+    struct Panel { unsigned short code; const char* key; const char* action; const char* frame; };
+    static constexpr Panel panels[] = {
+        {kVK_ANSI_C, "C", "TOGGLECHARACTER0", "CharacterFrame"},
+        {kVK_ANSI_P, "P", "TOGGLESPELLBOOK", "SpellBookFrame"},
+        {kVK_ANSI_L, "L", "TOGGLEQUESTLOG", "QuestLogFrame"},
+        {kVK_ANSI_N, "N", "TOGGLETALENTS", "PlayerTalentFrame"},
+        {kVK_ANSI_M, "M", "TOGGLEWORLDMAP", "WorldMapFrame"}
+    };
+    static unsigned panel, phase, readyFrames;
+    static std::chrono::steady_clock::time_point started;
+    if (panel == sizeof(panels) / sizeof(panels[0])) return true;
+    if (!CGGameUI::s_inWorld || !ClntObjMgrGetActivePlayerObj()) {
+        Require(!panel && !phase, "World left during native UI panel check"); return false;
+    }
+    if (!phase && ++readyFrames < 120) return false;
+    const auto& current = panels[panel];
+    auto* frame = static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(current.frame, CSimpleFrame::GetObjectType()));
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now - started).count();
+    auto key = [&](bool down) {
+        NSString* text = [[NSString stringWithUTF8String:current.key] lowercaseString];
+        NSEvent* event = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp
+            location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:current.code];
+        if (down) [view keyDown:event]; else [view keyUp:event];
+    };
+    auto next = [&] { ++phase; started = now; };
+    if (!phase) {
+        Require(CGUIBindings::s_bindings, "Native UI panel check requires character bindings");
+        const char* action = CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE, current.key, 1);
+        Require(action && !std::strcmp(action, current.action), "Native UI panel key differs from the existing binding");
+        Require(!frame || !frame->m_isVisible, "Native UI panel check requires initially closed panels");
+        key(true); next();
+    } else if (phase == 1 && elapsed >= .05) { key(false); next(); }
+    else if (phase == 2) {
+        if (frame && frame->m_isVisible) {
+            std::fprintf(stderr, "Native world panels: %s opened through %s\n", current.frame, current.key);
+            next();
+        } else Require(elapsed < 5, "Native binding did not open its original UI panel");
+    } else if (phase == 3 && elapsed >= 2) {
+        Require(frame && frame->m_isVisible, "Original UI panel disappeared before live drawing completed");
+        key(true); next();
+    } else if (phase == 4 && elapsed >= .05) { key(false); next(); }
+    else if (phase == 5) {
+        if (frame && !frame->m_isVisible) {
+            std::fprintf(stderr, "Native world panels: %s rendered and closed through its original binding\n", current.frame);
+            ++panel; phase = readyFrames = 0;
+            if (panel == sizeof(panels) / sizeof(panels[0])) {
+                std::fputs("Native world panels: character, spellbook, quest log, talents and world map passed\n", stderr);
+                return true;
+            }
+        } else Require(elapsed < 5, "Native binding did not close its original UI panel");
+    }
+    return false;
+}
+
 bool CheckNativeWorldActions(WowNativeView* view) {
     static unsigned readyFrames, phase, button;
     static int32_t spell;
