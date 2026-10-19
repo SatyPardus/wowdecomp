@@ -245,6 +245,11 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
                     report = "Original model shader variants/materials and reflection-only coordinates passed (focused run).\n";
                     return true;
                 }
+                if (!std::strcmp(selection, "model-projected-shadows")) {
+                    CheckGxDevice(selection);
+                    report = "Original projected model materials and R32F shadow receivers passed (focused run).\n";
+                    return true;
+                }
                 if (!std::strcmp(selection, "wmo-shaders")) {
                     CheckGxDevice(selection);
                     report = "Original WMO materials/dynamic-banded shadows and shared M2 receiver regression passed (focused run).\n";

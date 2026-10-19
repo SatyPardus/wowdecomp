@@ -697,8 +697,8 @@ and unchanged alpha coverage; the checks retain its authored blending and layers
 Numeric and scene checks pass with Metal validation (Mac also under
 ASan/UBSan); the Mac application and both iOS client targets build. These checks
 use explicit shadow/light inputs; they do not establish full world shadow behavior
-or Windows visual equivalence. Projected/colored shadow vertex families and
-hardware PCF remain unsupported.
+or Windows visual equivalence. Colored shadow vertex families and hardware PCF
+remain unsupported; projected diffuse receivers are described below.
 
 M2 user clip planes now use native vertex `clip_distance` outputs. The original
 scene transforms liquid planes into homogeneous clip space and selects opposite
@@ -762,6 +762,15 @@ projection, lighting, sampling, fog and alpha boundaries. Original acid, blizzar
 and consecration models also pass through `CM2SceneRender::DrawBatchProj`, using
 the original procedural depth-fade textures. Those checks use an explicit planar
 receiver; complete world receiver queries and occlusion remain unintegrated.
+`Diffuse_Proj_Proj` also supports its 60 R32F shadow vertex variants. Both UV
+projections still use the transformed camera-space position; unlit shadow
+receivers read their actual normal for the original normal fade. The existing
+native shadow operator retains the dynamic/distant maps and their composition.
+`WOW_METAL_CHECK=model-projected-shadows` checks 7,884 independent outputs using
+PN vertices without authored UVs and the original packed one/four-weight layout,
+nonzero local lights, separate texture projections, band/depth/fade boundaries,
+ModMod/ModAdd alpha rejection, output saturation and fog. This validates the
+new shader path with explicit inputs, not a complete projected-spell encounter.
 
 The macOS preview and iOS Metal view run that original M2 scene beside the texture
 and font preview. Model/skin/texture loading is asynchronous; the game Event update

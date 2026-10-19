@@ -19,7 +19,7 @@ const char* GxMetal::ModelVertexFamily(ModelVertexEffect effect) {
 }
 bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation, ModelVertexEffect vertexEffect, FragmentEffect effect) {
     if (target == GxSh_Vertex)
-        return permutation < (vertexEffect == ModelVertexEffect::Diffuse || vertexEffect == ModelVertexEffect::DiffuseEnvironment || vertexEffect == ModelVertexEffect::DiffuseDualUV || vertexEffect == ModelVertexEffect::DiffuseReflection ? 90u : UsesModelMaterial(vertexEffect) ? 30u : 10u);
+        return permutation < (UsesModelMaterial(vertexEffect) ? 90u : 10u);
     return permutation < 16 && ((permutation & 3) == 0 ||
         (ModelShadowMaterial(effect) && (permutation & 4) == 0));
 }
@@ -65,6 +65,68 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         "a9cdf18c596b82020244d9998167e233",
         "f26d86f644719381bd72b518e89383ba",
         "c2a55400df8ce24151c9cf907024204e",
+    };
+    static const char* projectedShadowVertex[] = {
+        "372061c060323c57881812f2b0261abc",
+        "de09e7c467534b8bcd49fe5b1e2ad1ae",
+        "372061c060323c57881812f2b0261abc",
+        "184c96729c032fcc0dda66a492c26f90",
+        "372061c060323c57881812f2b0261abc",
+        "d25bcceefee3e93e1174d740fb343ba4",
+        "372061c060323c57881812f2b0261abc",
+        "f751e8654306f05e0e3bae720ed91565",
+        "372061c060323c57881812f2b0261abc",
+        "e6d94ddc468e7dbaedeb200e2d08e8ac",
+        "ef4482ad1506f7682dd61294c40e9476",
+        "4051763647f05cbe37fbcd66dccd47b2",
+        "ef4482ad1506f7682dd61294c40e9476",
+        "c59a0f7c416046b9679f83e36f5d6e36",
+        "ef4482ad1506f7682dd61294c40e9476",
+        "fb78b83c8ff84aaf38cfb7b125f6b45b",
+        "ef4482ad1506f7682dd61294c40e9476",
+        "254079a738d393dfc15c089b8afafd82",
+        "ef4482ad1506f7682dd61294c40e9476",
+        "56c057bea041597b589e16fedac33e06",
+        "4825d106c358fd082a5f412467fea82f",
+        "02e3572992a8b92899ac0e282dae7e0d",
+        "4825d106c358fd082a5f412467fea82f",
+        "fcfda7910c3f96a994b7a91e027fa372",
+        "4825d106c358fd082a5f412467fea82f",
+        "c89420d85a8b893922489f947d5e08c0",
+        "4825d106c358fd082a5f412467fea82f",
+        "fb483bb74a9a02b5243df6456e481c8c",
+        "4825d106c358fd082a5f412467fea82f",
+        "5050eebc2e3de5fe9dd0d92cc2d342b7",
+        "0d468691f3cfbbd0c09070f96211a4be",
+        "4101bf43dc57623657c7f4954496eca1",
+        "0d468691f3cfbbd0c09070f96211a4be",
+        "ff556992c03917dfbc984782fa747e25",
+        "0d468691f3cfbbd0c09070f96211a4be",
+        "7c0da76efd80c039174ddcc0dace139d",
+        "0d468691f3cfbbd0c09070f96211a4be",
+        "948186e2b154c8f122cae2ca08853f29",
+        "0d468691f3cfbbd0c09070f96211a4be",
+        "2351d6ab8e2992ef4356f05334e0e548",
+        "847ba95b5cc1c592338f781ca26449cb",
+        "fb411fb27f3868e1b1b9cb5a2c905ad1",
+        "847ba95b5cc1c592338f781ca26449cb",
+        "973f326387d1a640bb0cb265cbc931d4",
+        "847ba95b5cc1c592338f781ca26449cb",
+        "871980cbc7756dbc0ecfd10dc59b9a1b",
+        "847ba95b5cc1c592338f781ca26449cb",
+        "774f7ee7191461b389f7cb8cdf48c453",
+        "847ba95b5cc1c592338f781ca26449cb",
+        "cc21756479e29138dfff3f57d44bd03e",
+        "61792055576771d2e5f1f97a02af709e",
+        "980b2e681781b7123af03767c21e0e04",
+        "61792055576771d2e5f1f97a02af709e",
+        "28da9f8f43544fffcb64de47420eb508",
+        "61792055576771d2e5f1f97a02af709e",
+        "3c1ff653fd7a5b5839b4c3a2415ad5a8",
+        "61792055576771d2e5f1f97a02af709e",
+        "3f749dc53e097d286fc0a6bc9e86e4e9",
+        "61792055576771d2e5f1f97a02af709e",
+        "3143a990d2eb049f417385c13548edb1",
     };
     static const char* dynamicShadowPixel[2][2] = {
         {"705a7856449d672da7d8ed3bb011fa84", "c9b9c2d74181fc60bafba4d6ef2321a5"},
@@ -584,6 +646,7 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
                     case ModelVertexEffect::DiffuseEnvironment: expected = environmentShadowVertex[i-30]; break;
                     case ModelVertexEffect::DiffuseDualUV: expected = dualUVShadowVertex[i-30]; break;
                     case ModelVertexEffect::DiffuseReflection: expected = reflectionShadowVertex[i-30]; break;
+                    case ModelVertexEffect::DiffuseProjected: expected = projectedShadowVertex[i-30]; break;
                     case ModelVertexEffect::Diffuse: expected = i >= 60 ? bandedShadowVertex[i-60] : dynamicShadowVertex[i-30]; break;
                     default: break;
                 }

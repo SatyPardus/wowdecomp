@@ -2,6 +2,7 @@
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Model2/M2Data.h"
 #include "Engine/Source/ShaderEffect/ShaderEffectParser.h"
+#include "WoW/Common/TerrainGeometry.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -63,20 +64,30 @@ void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,voi
 }
 void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opaque,CGxShader** mod,CGxShader** environmentVertex,CGxShader** environmentPixel,
     CGxShader** dualUVVertex,CGxShader** reflectionVertex,CGxShader* (*layerPixel)[16],
-    MTLRenderPassDescriptor* pass,CGxTex* material,CGxTex* environment,CGxTex* const* shadows) {
+    MTLRenderPassDescriptor* pass,CGxTex* material,CGxTex* environment,CGxTex* const* shadows,bool projectedOnly=false) {
     GxRsSet(GxRs_Texture0,material); GxRsSet(GxRs_Texture1,environment); GxRsSet(GxRs_AlphaRef,0);
     for(unsigned i=0;i<4;++i) GxRsSet(EGxRenderState(GxRs_Texture4+i),shadows[i]);
     std::array<Vec,256> c{}; std::array<Vec,13> p{};
     c[2]={1,0,0,0}; c[3]={0,1,0,0}; c[4]={0,0,0,.5}; c[5]={0,0,0,1};
     c[6]={1,0,0,0}; c[7]={0,1,0,0}; c[10]={.4,.5,.6,0}; c[11]={.1,.1,.1,0}; c[12]={0,0,-1,0};
     c[8]={.5,.25,.9,.125}; c[9]={.25,.5,.7,.1875};
+    if(projectedOnly) { c[6]={4,0,.02f,.2f}; c[7]={0,4,-.01f,.3f}; }
     c[25]={1,1,1,1}; c[28]={.6,.7,.8,.5}; c[29]={.05,.1,.15,0}; c[30]={0,.6,1,0};
     for(unsigned i=0;i<4;++i) c[21+i]={-2,-1,-3,0};
+    if(projectedOnly) {
+        c[25]={.7,.9,1.1,1.3}; c[26]={.1,.2,.3,.4}; c[27]={.03,.05,.07,.09};
+        for(unsigned i=0;i<4;++i) {
+            c[17+i]={.03f*(i+1),.02f*(4-i),.015f*(i+1),0};
+            c[21+i]={-.6f+.3f*i,.7f-.2f*i,1.2f+.1f*i,0};
+        }
+    }
     p[2]={.12,.23,.34,0};
     const Vec offsets[]={{-.2,0,0,0},{-.2,-.2,0,0},{0,-.2,0,0},{.2,-.2,0,0},
         {.2,0,0,0},{.2,.2,0,0},{0,.2,0,0},{-.2,.2,0,0}};
     std::copy_n(offsets,8,p.begin()+5);
     M2Vertex source{}; source.m_position={.03125f,.03125f,0}; source.m_normal={0,0,1}; source.m_texcoord[0]={.5,.5}; source.m_texcoord[1]={.25,.5};
+    if(projectedOnly) source.m_normal={.3f,.4f,.5f};
+    const float normalZ=projectedOnly ? .5f/std::sqrt(.5f):1;
     const uint8_t weights[]={32,64,96,63}, indices[]={4,2,1,3};
     std::memcpy(&source.m_weights,weights,4); std::memcpy(&source.m_indices,indices,4);
     auto* vertices=GxBufStream(GxPoolTarget_Vertex,sizeof(source),1);
@@ -103,6 +114,16 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
     for(unsigned mode=1;mode<=3;++mode) for(unsigned permutation=0;permutation<30;++permutation)
         for(size_t caseIndex=0;caseIndex<(mode==1 ? dynamicCases:cases.size());++caseIndex) {
         const auto& test=cases[caseIndex];
+        if(projectedOnly && !caseIndex) {
+            if(permutation<10) {
+                const CGxVertexPN value{source.m_position,source.m_normal};
+                auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(value),1);
+                std::memcpy(device.BufLock(buffer),&value,sizeof(value)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PN);
+            } else {
+                auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(source),1);
+                std::memcpy(device.BufLock(buffer),&source,sizeof(source)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PBNT2);
+            }
+        }
         for(unsigned i=0;i<5;++i) {
             c[31+i*3]={1,0,0,.02f*i}; c[32+i*3]={0,1,0,-.03f*i}; c[33+i*3]={0,0,1,test.z};
         }
@@ -145,9 +166,10 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
                 visibility=std::min(visibility,bandValue); break;
             }
         }
-        const float normalFade=Sat(std::pow(1.2f-std::abs(test.normal),4)); visibility+=normalFade*(1-visibility);
+        const float normalFade=Sat(std::pow(1.2f-std::abs(test.normal*normalZ),4)); visibility+=normalFade*(1-visibility);
         const float brightness=.7f+.3f*visibility;
         for(unsigned materialIndex=0;materialIndex<15;++materialIndex) for(unsigned alphaCase=0;alphaCase<3;++alphaCase) {
+            if(projectedOnly && materialIndex!=3 && materialIndex!=9) continue;
             // Remaining fragment operators share the already exercised receiver
             // and UV transforms; cover lit/unlit rigid, one and four weights.
             if(materialIndex>=7 && materialIndex<=12 && permutation%10>1) continue;
@@ -155,8 +177,14 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
             const bool reflectedLayer=materialIndex==2 || ((materialIndex==7 || materialIndex==8) && alphaCase==0);
             const Vec secondUV{source.m_texcoord[1].x,source.m_texcoord[1].y,0,1};
             const auto reflection=EnvironmentReference(view,{0,0,1,0});
-            const auto layer=reflectedLayer ? reflection : LayerReference(Dot(c[8],secondUV),Dot(c[9],secondUV));
-            const Vec baseTexel=reflectionOnly && !alphaCase ? reflection : Vec{64.0f/255,128.0f/255,192.0f/255,128.0f/255};
+            const auto layer=projectedOnly ? LayerReference(Dot(c[8],view),Dot(c[9],view)) :
+                reflectedLayer ? reflection : LayerReference(Dot(c[8],secondUV),Dot(c[9],secondUV));
+            Vec baseTexel=reflectionOnly && !alphaCase ? reflection : Vec{64.0f/255,128.0f/255,192.0f/255,128.0f/255};
+            if(projectedOnly) {
+                const Vec texels[]={{16,68,136,255},{96,160,224,128},{192,128,64,64},{255,255,255,0}};
+                baseTexel=texels[unsigned(Dot(c[6],view)>=.5f)+2*unsigned(Dot(c[7],view)>=.5f)];
+                for(auto& value:baseTexel) value/=255;
+            }
             const bool textureAlpha=materialIndex==1 || materialIndex==3 || materialIndex==6 || materialIndex==8 || materialIndex==9 || materialIndex==14;
             // Binary-exact UV/matrix values give layer alpha 1/4. Equality
             // cases therefore isolate the shader's MUL/MAD/DP2ADD ordering.
@@ -165,12 +193,15 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
             if(materialIndex==4 || materialIndex==6) alpha*=2*layer[3];
             if(materialIndex==9 || materialIndex==10) alpha+=layer[3];
             p[2][3]=alphaCase==2 ? std::nextafter(alpha,1.0f) : alpha;
+            // Projected UVs move across a filtered texture. Keep this test
+            // away from rounding ties; exact alpha equality is covered above.
+            if(projectedOnly) p[2][3]=alpha+(alphaCase==2 ? .01f : -.01f);
             const bool visible=alphaCase!=2;
             device.BeginFrame(pass); GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),256); GxShaderConstantsSet(GxSh_Pixel,0,p[0].data(),13);
             GxRsSet(GxRs_Texture0,reflectionOnly && !alphaCase ? environment:material);
             CGxShader** pixelFamilies[]={opaque,mod,environmentPixel,layerPixel[2],layerPixel[4],layerPixel[3],layerPixel[6],
                 layerPixel[0],layerPixel[1],layerPixel[5],layerPixel[7],layerPixel[9],layerPixel[10],opaque,mod};
-            CGxShader** vertexFamily=reflectionOnly ? reflectionVertex:reflectedLayer ? environmentVertex:materialIndex>=3 ? dualUVVertex:vertex;
+            CGxShader** vertexFamily=projectedOnly ? vertex:reflectionOnly ? reflectionVertex:reflectedLayer ? environmentVertex:materialIndex>=3 ? dualUVVertex:vertex;
             GxRsSet(GxRs_VertexShader,vertexFamily[30*std::min(mode,2u)+permutation]);
             GxRsSet(GxRs_PixelShader,pixelFamilies[materialIndex][mode+(alphaCase ? 8:0)]);
             GxDraw(&batch,0); CiRect rect(0,0,32,32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels);
@@ -179,7 +210,14 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
             for(unsigned channel=0;channel<4;++channel) {
                 float expected=alpha;
                 if(channel<3) {
-                    const float lit=Sat(c[28][channel]*((permutation&1) ? c[10][channel]+c[11][channel]:1)+c[29][channel]);
+                    float lighting=c[10][channel]*normalZ+c[11][channel];
+                    if(projectedOnly) for(unsigned light=0;light<(permutation/2)%5;++light) {
+                        const Vec ray{c[21+light][0]-view[0],c[21+light][1]-view[1],c[21+light][2]-view[2],0};
+                        const float squared=Dot(ray,ray,3),distance=std::sqrt(squared);
+                        const float diffuse=std::max((ray[0]*.3f+ray[1]*.4f+ray[2]*.5f)/(distance*std::sqrt(.5f)),0.0f);
+                        lighting+=c[17+light][channel]*diffuse/(c[25][light]+distance*c[26][light]+squared*c[27][light]);
+                    }
+                    const float lit=Sat(c[28][channel]*((permutation&1) ? Sat(lighting):1)+c[29][channel]);
                     const float texel=baseTexel[channel];
                     float base=texel;
                     if(materialIndex==3) base*=layer[channel];
@@ -190,17 +228,22 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
                     expected=.6f*(base*lit*brightness+added-p[2][channel])+p[2][channel];
                 }
                 if(!visible) expected=0;
+                expected=Sat(expected); // BGRA8 attachment conversion, after shader alpha rejection.
                 if(std::abs(int(channels[channel])-int(std::lround(expected*255)))>2)
                     throw std::runtime_error("Model shadow mismatch: mode "+std::to_string(mode)+" material "+std::to_string(materialIndex)+" VS "+std::to_string(30*std::min(mode,2u)+permutation)+" case "+std::to_string(checks)+" channel "+std::to_string(channel)+" got "+std::to_string(channels[channel])+" expected "+std::to_string(expected*255));
             }
             device.ScenePresent(); ++checks;
         }
     }
+    if(projectedOnly) {
+        std::fprintf(stderr,"Projected model shadows: %u independent outputs, 60 rigid/skinned/light variants, two camera-space texture projections, R32F dynamic/banded shadows, RGB/alpha and fog passed\n",checks);
+        return;
+    }
     std::fprintf(stderr,"Model shadows: %u independent outputs, 240 diffuse/environment/dual-UV/reflection rigid/skinned/light variants, independent reflection and layered RGB/alpha, all R32F shadow modes, five/nine taps, band selection, depth equality, border/distance/normal fades and shader alpha boundaries passed\n",checks);
 }
 }
 
-void CheckModelShaders(CGxDeviceMetal& device) {
+void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly) {
     // Truncated scopes/arguments and over-capacity pass lists used to read or
     // write beyond the parser's stack records before any shader was created.
     for (std::string malformed : {std::string("Effect(Broken"), std::string("Effect(Test){Shader(){Pass(){VertexShader(" + std::string(80, 'x') + ");}}}"),
@@ -262,6 +305,10 @@ void CheckModelShaders(CGxDeviceMetal& device) {
     pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
+    if(projectedShadowsOnly) {
+        CheckModelShadows(device,vertex[5],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[1],cleanup.texture[2],cleanup.texture+4,true);
+        return;
+    }
     std::array<Vec, 256> c{};
     c[2] = {0.8f, 0, 0.2f, 0}; c[3] = {0.1f, 0.9f, 0, 0}; c[4] = {0, 0, 1, 0}; c[5] = {0, 0, 0.25f, 1};
     c[6] = {1.3f, 0.2f, 0.2f, 0.05f}; c[7] = {-0.3f, 0.6f, -0.1f, 0.11f};
@@ -412,6 +459,7 @@ void CheckModelShaders(CGxDeviceMetal& device) {
     Require(rejected, "Unimplemented model shadow permutation was silently replaced");
     device.ScenePresent();
     CheckModelShadows(device,vertex[0],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[3],cleanup.texture[2],cleanup.texture+4);
+    CheckModelShadows(device,vertex[5],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[1],cleanup.texture[2],cleanup.texture+4,true);
 }
 
 // Independent homogeneous-plane references: no shader equations are reused.
