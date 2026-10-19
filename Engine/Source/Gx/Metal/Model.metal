@@ -7,7 +7,7 @@ constant uint modelColorMode [[function_constant(8)]];
 constant bool modelEnvironment [[function_constant(9)]];
 constant uint modelLayerOperation [[function_constant(10)]];
 constant uint modelBaseOperation [[function_constant(43)]];
-enum ModelBaseOperation { BaseMultiply, BaseDecal, BaseFade };
+enum ModelBaseOperation { BaseMultiply, BaseDecal, BaseFade, BaseAdd, BaseDoubleMultiply };
 constant bool modelDualUV [[function_constant(11)]];
 constant bool modelProjected [[function_constant(20)]];
 constant bool modelReflectionOnly [[function_constant(33)]];
@@ -15,7 +15,7 @@ constant uint modelShadowMode [[function_constant(35)]];
 constant bool modelClipping [[function_constant(38)]];
 constant bool modelDepthOffset [[function_constant(39)]];
 struct ModelClipParameters { float4 planes[6]; uint mask; uint padding[3]; };
-enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB, LayerMultiplyRGB };
+enum ModelLayerOperation { LayerNone, LayerAdd, LayerMultiply, LayerBlendDoubleModulate, LayerDoubleModulate, LayerAddAlpha, LayerAlphaWeightedAdd, LayerBlendAlphaWeightedAdd, LayerDoubleModulateRGB, LayerMultiplyRGB, LayerQuadrupleModulate };
 struct ModelVertexParameters {
     float4x4 projection;
     float4 uv[4];
@@ -208,19 +208,37 @@ fragment ModelFragmentOutput modelDiffuseFragment(ModelVaryings v [[stage_in]], 
     if (modelLayerOperation != LayerNone)
         layer = decoded(layerTexture.sample(layerFiltering, v.secondaryUV), p.decodeScale[1]);
     // Preserve the original MUL then MAD alpha-test order for Mod_Mod.
-    const float baseAlpha = modelTextureAlpha ? texel.a * v.color.a : v.color.a;
+    const float baseAlpha = modelBaseOperation == BaseAdd ? texel.a + v.color.a :
+        modelBaseOperation == BaseDoubleMultiply ? dot(float2(texel.a), float2(v.color.a)) :
+        modelTextureAlpha ? texel.a * v.color.a : v.color.a;
     // Original DP2ADD sums two alpha products before the scalar threshold.
     const float doubledAlpha = dot(float2(baseAlpha), float2(layer.a));
     // Opaque_Add ignores texture 0 alpha; Mod_Add uses the original MAD.
     const float additiveAlpha = modelTextureAlpha ? fma(v.color.a, texel.a, layer.a) : layer.a + v.color.a;
-    const float alpha = modelLayerOperation == LayerAddAlpha ? additiveAlpha : modelLayerOperation == LayerDoubleModulate ? doubledAlpha : modelLayerOperation == LayerMultiply ? baseAlpha * layer.a : baseAlpha;
-    const float shaderAlpha = modelLayerOperation == LayerAddAlpha ? additiveAlpha - p.fogColorAlphaRef.a : modelLayerOperation == LayerDoubleModulate ? doubledAlpha - p.fogColorAlphaRef.a :
+    const float alpha = modelLayerOperation == LayerQuadrupleModulate ? (baseAlpha * layer.a) * 4 :
+        modelLayerOperation == LayerAddAlpha ? additiveAlpha : modelLayerOperation == LayerDoubleModulate ? doubledAlpha : modelLayerOperation == LayerMultiply ? baseAlpha * layer.a : baseAlpha;
+    const float shaderAlpha = modelLayerOperation == LayerQuadrupleModulate ? fma(baseAlpha * layer.a, 4.0f, -p.fogColorAlphaRef.a) :
+        modelLayerOperation == LayerAddAlpha ? additiveAlpha - p.fogColorAlphaRef.a : modelLayerOperation == LayerDoubleModulate ? doubledAlpha - p.fogColorAlphaRef.a :
         modelLayerOperation == LayerMultiply ? fma(baseAlpha, layer.a, -p.fogColorAlphaRef.a) :
+        (modelBaseOperation == BaseAdd || modelBaseOperation == BaseDoubleMultiply) ? baseAlpha - p.fogColorAlphaRef.a :
         modelTextureAlpha ? fma(texel.a, v.color.a, -p.fogColorAlphaRef.a) : v.color.a - p.fogColorAlphaRef.a;
     if (modelShaderAlphaTest && shaderAlpha < 0) discard_fragment();
     if (alphaTest && alpha < p.stateAlphaRef) discard_fragment();
     float3 shaded;
-    if (modelBaseOperation == BaseDecal) {
+    if (modelBaseOperation == BaseAdd) {
+        // Add_Mod preserves MUL(texture0, texture1), then MAD(vertex, texture1).
+        const float3 combined = modelLayerOperation == LayerMultiply ?
+            fma(layer.rgb, v.color.rgb, texel.rgb * layer.rgb) : texel.rgb + v.color.rgb;
+        shaded = combined - p.fogColorAlphaRef.rgb;
+    } else if (modelBaseOperation == BaseDoubleMultiply) {
+        shaded = fma(texel.rgb + texel.rgb, v.color.rgb, -p.fogColorAlphaRef.rgb);
+    } else if (modelLayerOperation == LayerQuadrupleModulate) {
+        const float3 product = texel.rgb * layer.rgb;
+        // Original shadowed variants scale the texture product before lighting;
+        // unshadowed variants multiply lighting first, then MAD by four.
+        shaded = modelShadowMode ? fma(product * 4, v.color.rgb, -p.fogColorAlphaRef.rgb) :
+            fma(product * v.color.rgb, float3(4), -p.fogColorAlphaRef.rgb);
+    } else if (modelBaseOperation == BaseDecal) {
         // Original LRP alpha, vertex RGB, texture RGB. Only vertex RGB receives
         // the shadow modulation above; texture alpha does not enter the result.
         shaded = fma(float3(v.color.a), v.color.rgb - texel.rgb, texel.rgb) - p.fogColorAlphaRef.rgb;

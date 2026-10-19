@@ -15,20 +15,23 @@ constexpr bool UsesModelProjection(ModelVertexEffect effect) {
 constexpr unsigned ModelColorMode(ModelVertexEffect effect) {
     return UsesModelMaterial(effect) ? 0 : effect == ModelVertexEffect::ColorDiffuse ? 2 : 1;
 }
-enum class ModelBaseOperation : uint32_t { Multiply, Decal, Fade };
+enum class ModelBaseOperation : uint32_t { Multiply, Decal, Fade, Add, DoubleMultiply };
 constexpr ModelBaseOperation ModelBase(FragmentEffect effect) {
-    return effect == FragmentEffect::ModelDecal ? ModelBaseOperation::Decal :
+    return (effect == FragmentEffect::ModelAdd || effect == FragmentEffect::ModelAddMod) ? ModelBaseOperation::Add :
+        effect == FragmentEffect::ModelMod2x ? ModelBaseOperation::DoubleMultiply :
+        effect == FragmentEffect::ModelDecal ? ModelBaseOperation::Decal :
         effect == FragmentEffect::ModelFade ? ModelBaseOperation::Fade : ModelBaseOperation::Multiply;
 }
-enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate, AddAlpha, AlphaWeightedAdd, BlendAlphaWeightedAdd, DoubleModulateRGB, MultiplyRGB };
+enum class ModelLayerOperation : uint32_t { None, Add, Multiply, BlendDoubleModulate, DoubleModulate, AddAlpha, AlphaWeightedAdd, BlendAlphaWeightedAdd, DoubleModulateRGB, MultiplyRGB, QuadrupleModulate };
 constexpr ModelLayerOperation ModelLayer(FragmentEffect effect) {
-    return (effect == FragmentEffect::ModelModOpaque || effect == FragmentEffect::ModelOpaqueOpaque) ? ModelLayerOperation::MultiplyRGB :
+    return effect == FragmentEffect::ModelMod2xMod2x ? ModelLayerOperation::QuadrupleModulate :
+        (effect == FragmentEffect::ModelModOpaque || effect == FragmentEffect::ModelOpaqueOpaque) ? ModelLayerOperation::MultiplyRGB :
         (effect == FragmentEffect::ModelOpaqueMod2xNA || effect == FragmentEffect::ModelModMod2xNA) ? ModelLayerOperation::DoubleModulateRGB :
         effect == FragmentEffect::ModelOpaqueAddAlpha ? ModelLayerOperation::AlphaWeightedAdd :
         effect == FragmentEffect::ModelOpaqueAddAlphaAlpha ? ModelLayerOperation::BlendAlphaWeightedAdd :
         (effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelOpaqueAdd) ? ModelLayerOperation::AddAlpha :
         (effect == FragmentEffect::ModelOpaqueMod2x || effect == FragmentEffect::ModelModMod2x) ? ModelLayerOperation::DoubleModulate :
-        (effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod) ? ModelLayerOperation::Multiply :
+        (effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelOpaqueMod || effect == FragmentEffect::ModelAddMod) ? ModelLayerOperation::Multiply :
         effect == FragmentEffect::ModelOpaqueMod2xNAAlpha ? ModelLayerOperation::BlendDoubleModulate :
         ModelTextureCount(effect) == 2 ? ModelLayerOperation::Add : ModelLayerOperation::None;
 }

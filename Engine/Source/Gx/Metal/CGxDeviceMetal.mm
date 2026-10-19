@@ -137,6 +137,10 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::ModelModMod2xNA: return "Combiners_Mod_Mod2xNA";
         case GxMetal::FragmentEffect::ModelDecal: return "Combiners_Decal";
         case GxMetal::FragmentEffect::ModelFade: return "Combiners_Fade";
+        case GxMetal::FragmentEffect::ModelAdd: return "Combiners_Add";
+        case GxMetal::FragmentEffect::ModelMod2x: return "Combiners_Mod2x";
+        case GxMetal::FragmentEffect::ModelAddMod: return "Combiners_Add_Mod";
+        case GxMetal::FragmentEffect::ModelMod2xMod2x: return "Combiners_Mod2x_Mod2x";
         case GxMetal::FragmentEffect::ModelMod: return target == GxSh_Vertex ? GxMetal::ModelVertexFamily(vertexEffect) : "Combiners_Mod";
         case GxMetal::FragmentEffect::ModelOpaqueAddNA: return "Combiners_Opaque_AddNA";
         case GxMetal::FragmentEffect::ModelModAddNA: return "Combiners_Mod_AddNA";
@@ -1184,7 +1188,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     } else {
         for (auto candidate : {Effect::Box4, Effect::Gauss4, Effect::Glow, Effect::GlowWave, Effect::Death, Effect::NetherCombine, Effect::PropagateFog, Effect::FogCombine,
             Effect::ModelOpaque, Effect::ModelMod, Effect::ModelOpaqueAddNA, Effect::ModelModAddNA,
-            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x, Effect::ModelOpaqueAdd, Effect::ModelOpaqueAddAlpha, Effect::ModelOpaqueAddAlphaAlpha, Effect::ModelOpaqueMod2xNA, Effect::ModelModOpaque, Effect::ModelOpaqueOpaque, Effect::ModelOpaqueMod, Effect::ModelModMod2xNA, Effect::ModelDecal, Effect::ModelFade}) {
+            Effect::ModelModMod, Effect::ModelOpaqueMod2xNAAlpha, Effect::ModelOpaqueMod2x, Effect::ModelModAdd, Effect::ModelModMod2x, Effect::ModelOpaqueAdd, Effect::ModelOpaqueAddAlpha, Effect::ModelOpaqueAddAlphaAlpha, Effect::ModelOpaqueMod2xNA, Effect::ModelModOpaque, Effect::ModelOpaqueOpaque, Effect::ModelOpaqueMod, Effect::ModelModMod2xNA, Effect::ModelDecal, Effect::ModelFade, Effect::ModelAdd, Effect::ModelMod2x, Effect::ModelAddMod, Effect::ModelMod2xMod2x}) {
             if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) { effect = candidate; break; }
         }
     }

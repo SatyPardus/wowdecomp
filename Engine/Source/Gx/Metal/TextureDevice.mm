@@ -398,7 +398,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             "Unsupported native model vertex layout or permutation");
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation][modelClipping];
         const unsigned baseOperation = unsigned(ModelBase(effect));
-        const bool textureAlpha = effect == FragmentEffect::ModelModMod2xNA || effect == FragmentEffect::ModelModOpaque || effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA || effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x;
+        const bool textureAlpha = effect == FragmentEffect::ModelMod2xMod2x || effect == FragmentEffect::ModelModMod2xNA || effect == FragmentEffect::ModelModOpaque || effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA || effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x;
         auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][modelShadowMode][depthMode];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
