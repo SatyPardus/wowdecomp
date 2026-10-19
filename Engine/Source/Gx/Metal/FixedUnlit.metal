@@ -7,15 +7,25 @@ constant bool fixedFog [[function_constant(29)]];
 constant bool fixedHasColor [[function_constant(30)]];
 constant bool fixedHasUV0 [[function_constant(31)]];
 constant bool fixedHasUV1 [[function_constant(32)]];
-constant uint fixedPositionCoords [[function_constant(34)]];
+constant uint fixedCoordinateSources [[function_constant(34)]];
 constant bool fixedLighting [[function_constant(45)]];
 constant bool fixedNormalizeNormals [[function_constant(46)]];
 constant bool fixedSpecular [[function_constant(47)]];
 constant uint fixedLightMask [[function_constant(48)]];
+constant uint fixedCubeMask [[function_constant(49)]];
+constant bool fixedNormals = fixedLighting || (fixedCoordinateSources & 0xAA) != 0;
 constant bool fixedTexture0 = fixedStages > 0;
+constant bool fixedCube0 = fixedTexture0 && (fixedCubeMask & 1) != 0;
+constant bool fixedImage0 = fixedTexture0 && !fixedCube0;
 constant bool fixedTexture1 = fixedStages > 1;
+constant bool fixedCube1 = fixedTexture1 && (fixedCubeMask & 2) != 0;
+constant bool fixedImage1 = fixedTexture1 && !fixedCube1;
 constant bool fixedTexture2 = fixedStages > 2;
+constant bool fixedCube2 = fixedTexture2 && (fixedCubeMask & 4) != 0;
+constant bool fixedImage2 = fixedTexture2 && !fixedCube2;
 constant bool fixedTexture3 = fixedStages > 3;
+constant bool fixedCube3 = fixedTexture3 && (fixedCubeMask & 8) != 0;
+constant bool fixedImage3 = fixedTexture3 && !fixedCube3;
 struct FixedUnlitVertexParameters {
     float4x4 clipFromModel, viewFromModel;
     float4 viewDepth, materialColor, fog;
@@ -30,8 +40,8 @@ struct FixedUnlitFragmentParameters {
 struct FixedLight {
     float4 positionOrDirection, ambient, diffuse, specular, attenuation;
 };
+struct FixedNormalParameters { float3x3 normalFromModel; };
 struct FixedLightingParameters {
-    float3x3 normalFromModel;
     float4 emissive, specularPower;
     uint4 materialSource;
     FixedLight lights[4];
@@ -41,7 +51,7 @@ struct FixedUnlitVertex {
     float4 color [[attribute(1), function_constant(fixedHasColor)]];
     float2 uv0 [[attribute(2), function_constant(fixedHasUV0)]];
     float2 uv1 [[attribute(3), function_constant(fixedHasUV1)]];
-    float3 normal [[attribute(4), function_constant(fixedLighting)]];
+    float3 normal [[attribute(4), function_constant(fixedNormals)]];
 };
 struct FixedUnlitRaster {
     float4 position [[position]];
@@ -56,7 +66,8 @@ inline float3 fixedUnit(float3 value) {
     return magnitude > 0 ? value / magnitude : float3(0);
 }
 vertex FixedUnlitRaster fixedUnlitVertex(FixedUnlitVertex v [[stage_in]], constant FixedUnlitVertexParameters& p [[buffer(0)]],
-    constant FixedLightingParameters& lighting [[buffer(2), function_constant(fixedLighting)]]) {
+    constant FixedLightingParameters& lighting [[buffer(2), function_constant(fixedLighting)]],
+    constant FixedNormalParameters& normals [[buffer(3), function_constant(fixedNormals)]]) {
     FixedUnlitRaster out;
     float4 position = float4(v.position, 1);
     out.position = p.clipFromModel * position;
@@ -64,10 +75,13 @@ vertex FixedUnlitRaster fixedUnlitVertex(FixedUnlitVertex v [[stage_in]], consta
     out.specular = 0;
     out.fog = fixedFog ? saturate((p.fog.y - abs(dot(p.viewDepth, position))) * p.fog.z) : 1;
     out.pointSize = 1;
-    float4 viewPosition = fixedPositionCoords || fixedLighting ? p.viewFromModel * position : float4(0);
-    if (fixedLighting) {
-        float3 normal = lighting.normalFromModel * v.normal;
+    float4 viewPosition = fixedCoordinateSources || fixedLighting ? p.viewFromModel * position : float4(0);
+    float3 normal = 0;
+    if (fixedNormals) {
+        normal = normals.normalFromModel * v.normal;
         if (fixedNormalizeNormals) normal = fixedUnit(normal);
+    }
+    if (fixedLighting) {
         float4 material = fixedHasColor && lighting.materialSource.x == 0 ? v.color : p.materialColor;
         float3 diffuse = fixedHasColor && lighting.materialSource.x == 2 ? v.color.rgb : lighting.emissive.rgb;
         float3 specular = 0;
@@ -102,9 +116,16 @@ vertex FixedUnlitRaster fixedUnlitVertex(FixedUnlitVertex v [[stage_in]], consta
         float2 uv = float2(0);
         if (p.uvSet[stage] == 0 && fixedHasUV0) uv = v.uv0;
         if (p.uvSet[stage] == 1 && fixedHasUV1) uv = v.uv1;
-        float4 input = (fixedPositionCoords & (1u << stage)) ? viewPosition : float4(uv, 1, 0);
+        const uint source = (fixedCoordinateSources >> (2 * stage)) & 3;
+        float4 input = source == 1 ? viewPosition : float4(uv, 1, 0);
+        if (source == 2) input = float4(normal, 1);
+        if (source == 3) {
+            // Gx fixes D3DRS_LOCALVIEWER=true: R = 2 dot(E,N) N - E.
+            const float3 eye = fixedUnit(-viewPosition.xyz);
+            input = float4(2 * dot(eye, normal) * normal - eye, 1);
+        }
         coords[stage] = float3(dot(input, p.textureRows[stage][0]), dot(input, p.textureRows[stage][1]),
-                              p.projected[stage] ? dot(input, p.textureRows[stage][2]) : 1);
+                              (p.projected[stage] || (fixedCubeMask & (1u << stage))) ? dot(input, p.textureRows[stage][2]) : 1);
     }
     out.uv0 = coords[0]; out.uv1 = coords[1]; out.uv2 = coords[2]; out.uv3 = coords[3];
     return out;
@@ -129,12 +150,41 @@ inline float4 fixedUnlitColor(FixedUnlitRaster v, constant FixedUnlitFragmentPar
     texture2d<float> image0, sampler sampling0,
     texture2d<float> image1, sampler sampling1,
     texture2d<float> image2, sampler sampling2,
-    texture2d<float> image3, sampler sampling3) {
+    texture2d<float> image3, sampler sampling3,
+    texture2d_array<float> cube0, texture2d_array<float> cube1, texture2d_array<float> cube2, texture2d_array<float> cube3) {
     float4 color = v.color;
-    if (fixedTexture0) color = fixedStage(0, decoded(image0.sample(sampling0, v.uv0.xy / v.uv0.z), p.decodeScale[0]), color, v.color.a);
-    if (fixedTexture1) color = fixedStage(1, decoded(image1.sample(sampling1, v.uv1.xy / v.uv1.z), p.decodeScale[1]), color, v.color.a);
-    if (fixedTexture2) color = fixedStage(2, decoded(image2.sample(sampling2, v.uv2.xy / v.uv2.z), p.decodeScale[2]), color, v.color.a);
-    if (fixedTexture3) color = fixedStage(3, decoded(image3.sample(sampling3, v.uv3.xy / v.uv3.z), p.decodeScale[3]), color, v.color.a);
+    if (fixedTexture0) {
+        float4 texel;
+        if (fixedCube0) {
+            const auto coordinate = cubeFaceCoordinate(v.uv0);
+            texel = cube0.sample(sampling0, coordinate.uv, coordinate.face, gradient2d(coordinate.dx, coordinate.dy));
+        } else texel = image0.sample(sampling0, v.uv0.xy / v.uv0.z);
+        color = fixedStage(0, decoded(texel, p.decodeScale[0]), color, v.color.a);
+    }
+    if (fixedTexture1) {
+        float4 texel;
+        if (fixedCube1) {
+            const auto coordinate = cubeFaceCoordinate(v.uv1);
+            texel = cube1.sample(sampling1, coordinate.uv, coordinate.face, gradient2d(coordinate.dx, coordinate.dy));
+        } else texel = image1.sample(sampling1, v.uv1.xy / v.uv1.z);
+        color = fixedStage(1, decoded(texel, p.decodeScale[1]), color, v.color.a);
+    }
+    if (fixedTexture2) {
+        float4 texel;
+        if (fixedCube2) {
+            const auto coordinate = cubeFaceCoordinate(v.uv2);
+            texel = cube2.sample(sampling2, coordinate.uv, coordinate.face, gradient2d(coordinate.dx, coordinate.dy));
+        } else texel = image2.sample(sampling2, v.uv2.xy / v.uv2.z);
+        color = fixedStage(2, decoded(texel, p.decodeScale[2]), color, v.color.a);
+    }
+    if (fixedTexture3) {
+        float4 texel;
+        if (fixedCube3) {
+            const auto coordinate = cubeFaceCoordinate(v.uv3);
+            texel = cube3.sample(sampling3, coordinate.uv, coordinate.face, gradient2d(coordinate.dx, coordinate.dy));
+        } else texel = image3.sample(sampling3, v.uv3.xy / v.uv3.z);
+        color = fixedStage(3, decoded(texel, p.decodeScale[3]), color, v.color.a);
+    }
     if (alphaTest && color.a < p.alphaRef) discard_fragment();
     if (fixedSpecular) color.rgb = saturate(color.rgb + v.specular);
     if (fixedFog) color.rgb = mix(p.fogColor.rgb, color.rgb, v.fog);
@@ -142,11 +192,15 @@ inline float4 fixedUnlitColor(FixedUnlitRaster v, constant FixedUnlitFragmentPar
 }
 
 fragment float4 fixedUnlitFragment(FixedUnlitRaster v [[stage_in]], constant FixedUnlitFragmentParameters& p [[buffer(0)]],
-    texture2d<float> image0 [[texture(0), function_constant(fixedTexture0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
-    texture2d<float> image1 [[texture(1), function_constant(fixedTexture1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
-    texture2d<float> image2 [[texture(2), function_constant(fixedTexture2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
-    texture2d<float> image3 [[texture(3), function_constant(fixedTexture3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]]) {
-    return fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3);
+    texture2d<float> image0 [[texture(0), function_constant(fixedImage0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
+    texture2d<float> image1 [[texture(1), function_constant(fixedImage1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
+    texture2d<float> image2 [[texture(2), function_constant(fixedImage2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
+    texture2d<float> image3 [[texture(3), function_constant(fixedImage3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]],
+    texture2d_array<float> cube0 [[texture(0), function_constant(fixedCube0)]],
+    texture2d_array<float> cube1 [[texture(1), function_constant(fixedCube1)]],
+    texture2d_array<float> cube2 [[texture(2), function_constant(fixedCube2)]],
+    texture2d_array<float> cube3 [[texture(3), function_constant(fixedCube3)]]) {
+    return fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3, cube0, cube1, cube2, cube3);
 }
 
 struct BiasedFixedUnlit {
@@ -155,12 +209,16 @@ struct BiasedFixedUnlit {
 };
 fragment BiasedFixedUnlit fixedUnlitBiasedFragment(FixedUnlitRaster v [[stage_in]], constant FixedUnlitFragmentParameters& p [[buffer(0)]],
     uint sample [[sample_id, function_constant(sampleDepthOffset)]],
-    texture2d<float> image0 [[texture(0), function_constant(fixedTexture0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
-    texture2d<float> image1 [[texture(1), function_constant(fixedTexture1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
-    texture2d<float> image2 [[texture(2), function_constant(fixedTexture2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
-    texture2d<float> image3 [[texture(3), function_constant(fixedTexture3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]]) {
+    texture2d<float> image0 [[texture(0), function_constant(fixedImage0)]], sampler sampling0 [[sampler(0), function_constant(fixedTexture0)]],
+    texture2d<float> image1 [[texture(1), function_constant(fixedImage1)]], sampler sampling1 [[sampler(1), function_constant(fixedTexture1)]],
+    texture2d<float> image2 [[texture(2), function_constant(fixedImage2)]], sampler sampling2 [[sampler(2), function_constant(fixedTexture2)]],
+    texture2d<float> image3 [[texture(3), function_constant(fixedImage3)]], sampler sampling3 [[sampler(3), function_constant(fixedTexture3)]],
+    texture2d_array<float> cube0 [[texture(0), function_constant(fixedCube0)]],
+    texture2d_array<float> cube1 [[texture(1), function_constant(fixedCube1)]],
+    texture2d_array<float> cube2 [[texture(2), function_constant(fixedCube2)]],
+    texture2d_array<float> cube3 [[texture(3), function_constant(fixedCube3)]]) {
     // Keep the D3D9 normalized offset after clipping and viewport mapping.
     // Metal's raster bias depends on the depth format and primitive exponent.
-    return {fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3),
+    return {fixedUnlitColor(v, p, image0, sampling0, image1, sampling1, image2, sampling2, image3, sampling3, cube0, cube1, cube2, cube3),
         biasedSampleDepth(v.position.z, p.depthOffset, sampleDepthOffset ? sample : 0)};
 }

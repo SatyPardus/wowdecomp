@@ -1527,8 +1527,6 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         Require(inputs <= 4, "Unlit fixed-function texture stage limit exceeded");
         auto& native = fixedParameters.emplace(); draw.fixed = &native;
         native.lighting = integer(GxRs_Lighting) && MasterEnable(GxMasterEnable_Lighting);
-        Require(!native.lighting || (!weather && GxVertexHasAttrib(draw.format, GxVA_Normal)),
-                "Fixed-function lighting requires authored normals");
         native.stages = inputs;
         const auto& world = m_xforms[GxXform_World]; const auto& view = m_xforms[GxXform_View];
         const C44Matrix worldView = world.m_mtx[world.m_level] * view.m_mtx[view.m_level];
@@ -1549,13 +1547,6 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             // Original IStateSyncLights/IStateSyncMaterial: four world-space
             // lights, no global ambient, diffuse == ambient material and a local viewer.
             auto& lighting = native.lightingParameters;
-            const auto inverseTranspose = simd_transpose(simd_inverse(native.vertex.viewFromModel));
-            for (unsigned i = 0; i < 3; ++i) {
-                lighting.normalFromModel.columns[i] = inverseTranspose.columns[i].xyz;
-                const auto column = lighting.normalFromModel.columns[i];
-                Require(std::isfinite(column.x) && std::isfinite(column.y) && std::isfinite(column.z), "Singular fixed-function normal transform");
-            }
-            native.normalizeNormals = integer(GxRs_NormalizeNormals) != 0;
             lighting.emissive = color(GxRs_MatEmissive);
             lighting.specularPower = color(GxRs_MatSpecular);
             lighting.specularPower.w = m_appRenderStates[GxRs_MatSpecularExp].m_value.m_data.f[0];
@@ -1596,17 +1587,29 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             Require(rgb < 6 && alpha < 6, "Invalid fixed-function texture operation");
             native.colorOps |= rgb << (3 * i); native.alphaOps |= alpha << (3 * i);
             const unsigned texGen = integer(EGxRenderState(GxRs_TexGen0 + i));
-            Require(texGen <= GxTexGen_Unk3, "Normal/reflection fixed-function coordinates are not implemented");
-            if (texGen) native.positionCoords |= 1u << i;
+            Require(texGen <= GxTexGen_SphereMap, "Invalid fixed-function coordinate generation");
+            const unsigned source = texGen == GxTexGen_Normal ? 2 :
+                (texGen == GxTexGen_ReflectionMap || texGen == GxTexGen_SphereMap) ? 3 : unsigned(texGen != 0);
+            native.coordinateSources |= source << (2 * i);
             native.vertex.uvSet[i] = integer(EGxRenderState(GxRs_TextureCoord0 + i));
             Require(native.vertex.uvSet[i] < 8, "Invalid fixed-function coordinate set");
+        }
+        if (native.lighting || (native.coordinateSources & 0xAA)) {
+            Require(!weather && GxVertexHasAttrib(draw.format, GxVA_Normal), "Fixed-function lighting/coordinates require authored normals");
+            const auto inverseTranspose = simd_transpose(simd_inverse(native.vertex.viewFromModel));
+            for (unsigned i = 0; i < 3; ++i) {
+                const auto column = inverseTranspose.columns[i].xyz;
+                Require(std::isfinite(column.x) && std::isfinite(column.y) && std::isfinite(column.z), "Singular fixed-function normal transform");
+                native.normals.normalFromModel.columns[i] = column;
+            }
+            native.normalizeNormals = integer(GxRs_NormalizeNormals) != 0;
         }
         if (weather) {
             const bool points = weatherKind == GxMetal::WeatherVertex::Snow || weatherKind == GxMetal::WeatherVertex::Sand;
             Require(batch->m_primType == (points ? GxPrim_Points : GxPrim_Triangles) &&
                 draw.format == (points ? GxVBF_PNT : weatherKind == GxMetal::WeatherVertex::Rain ? GxVBF_PNCT : GxVBF_PCT),
                 "Weather requires the original particle packet vertex layout");
-            Require(!native.positionCoords, "Weather vertices already produce their texture coordinates");
+            Require(!native.coordinateSources, "Weather vertices already produce their texture coordinates");
             for (unsigned i=0; i<inputs; ++i)
                 Require(!integer(EGxRenderState(GxRs_TextureShader0+i)) && !native.vertex.uvSet[i],
                     "Weather does not use fixed vertex texture transforms");
@@ -1830,7 +1833,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             if (mode) matrix = matrix * xform.m_mtx[xform.m_level];
             // A generated camera-space position uses all four components.
             // Authored UVs instead use D3D's (u, v, 1, 0) COUNT2 input.
-            if (mode == 1 && !(native.positionCoords & (1u << i))) { matrix.c0 = matrix.d0; matrix.c1 = matrix.d1; }
+            if (mode == 1 && !((native.coordinateSources >> (2 * i)) & 3)) { matrix.c0 = matrix.d0; matrix.c1 = matrix.d1; }
             native.vertex.textureRows[i][0] = {matrix.a0, matrix.b0, matrix.c0, matrix.d0};
             native.vertex.textureRows[i][1] = {matrix.a1, matrix.b1, matrix.c1, matrix.d1};
             native.vertex.textureRows[i][2] = {matrix.a2, matrix.b2, matrix.c2, matrix.d2};
@@ -1857,7 +1860,13 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             throw std::runtime_error(std::string(texture ? "Active target feedback" : "Missing texture") +
                 " in " + ShaderFamily(effect) + " slot " + std::to_string(i));
         }
-        const bool cube = terrain && i == 0 && (terrainParameters->pixelPermutation & 1);
+        const bool cube = fixed ? texture->m_target == GxTex_CubeMap : terrain && i == 0 && (terrainParameters->pixelPermutation & 1);
+        if (fixed && cube) {
+            auto& native = *fixedParameters;
+            Require(((native.coordinateSources >> (2 * i)) & 3) && !native.vertex.projected[i],
+                    "Fixed-function cube textures require unprojected generated coordinates");
+            native.cubeMask |= 1u << i;
+        }
         Require((texture->m_target == GxTex_CubeMap) == cube, "Shader and texture target mismatch");
         ITexMarkAsUpdated(texture);
         textures[i] = m->textures.at(texture).sampled ?: m->textures.at(texture).gpu;

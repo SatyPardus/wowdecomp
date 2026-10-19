@@ -35,13 +35,13 @@ struct FixedLight {
     simd_float4 positionOrDirection, ambient, diffuse, specular, attenuation;
 };
 // Kept separate so sky/weather/unlit draws do not upload lighting constants.
+struct FixedNormalParameters { simd_float3x3 normalFromModel; };
 struct FixedLightingParameters {
-    simd_float3x3 normalFromModel;
     simd_float4 emissive, specularPower;
     simd_uint4 materialSource{};
     FixedLight lights[4];
 };
-static_assert(sizeof(FixedLight) == 80 && sizeof(FixedLightingParameters) == 416,
+static_assert(sizeof(FixedLight) == 80 && sizeof(FixedLightingParameters) == 368 && sizeof(FixedNormalParameters) == 48,
               "Native fixed-function lighting layout");
 struct WeatherParameters {
     simd_float4x4 clipFromCamera;
@@ -54,10 +54,11 @@ static_assert(sizeof(WeatherParameters) == 400, "Native weather layout");
 struct FixedUnlitDrawParameters {
     FixedUnlitVertexParameters vertex{};
     FixedUnlitFragmentParameters fragment{};
-    uint32_t stages = 0, colorOps = 0, alphaOps = 0, positionCoords = 0;
+    uint32_t stages = 0, colorOps = 0, alphaOps = 0, coordinateSources = 0, cubeMask = 0;
     bool fog = false, pointSprite = false;
     bool lighting = false, normalizeNormals = false, specular = false;
     uint32_t lightMask = 0;
+    FixedNormalParameters normals{};
     FixedLightingParameters lightingParameters{};
     WeatherVertex weather = WeatherVertex::None;
     WeatherParameters weatherParameters{};

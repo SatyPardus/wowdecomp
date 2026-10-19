@@ -424,12 +424,13 @@ target_compile_options(AppleFoundation PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fob
 # Objective-C++ library. Its native build setting must also enable ownership.
 set_target_properties(AppleFoundation PROPERTIES XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES)
 target_link_libraries(AppleFoundation PUBLIC "-framework Foundation")
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS Engine/Source/Gx/Metal/TextureQuad.metal Engine/Source/Gx/Metal/Skinning.metal Engine/Source/Gx/Metal/ShadowMap.metal Engine/Source/Gx/Metal/ShadowReceiver.metal Engine/Source/Gx/Metal/Model.metal Engine/Source/Gx/Metal/Terrain.metal Engine/Source/Gx/Metal/Wmo.metal Engine/Source/Gx/Metal/Liquid.metal Engine/Source/Gx/Metal/DetailDoodad.metal Engine/Source/Gx/Metal/WaterRipple.metal Engine/Source/Gx/Metal/FixedUnlit.metal Engine/Source/Gx/Metal/Weather.metal)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS Engine/Source/Gx/Metal/TextureQuad.metal Engine/Source/Gx/Metal/Skinning.metal Engine/Source/Gx/Metal/ShadowMap.metal Engine/Source/Gx/Metal/ShadowReceiver.metal Engine/Source/Gx/Metal/Model.metal Engine/Source/Gx/Metal/CubeSampling.metal Engine/Source/Gx/Metal/Terrain.metal Engine/Source/Gx/Metal/Wmo.metal Engine/Source/Gx/Metal/Liquid.metal Engine/Source/Gx/Metal/DetailDoodad.metal Engine/Source/Gx/Metal/WaterRipple.metal Engine/Source/Gx/Metal/FixedUnlit.metal Engine/Source/Gx/Metal/Weather.metal)
 file(READ Engine/Source/Gx/Metal/TextureQuad.metal WOW_TEXTURE_QUAD_SOURCE)
 file(READ Engine/Source/Gx/Metal/Skinning.metal WOW_SKINNING_SOURCE)
 file(READ Engine/Source/Gx/Metal/ShadowMap.metal WOW_SHADOW_MAP_SOURCE)
 file(READ Engine/Source/Gx/Metal/ShadowReceiver.metal WOW_SHADOW_RECEIVER_SOURCE)
 file(READ Engine/Source/Gx/Metal/Model.metal WOW_MODEL_SOURCE)
+file(READ Engine/Source/Gx/Metal/CubeSampling.metal WOW_CUBE_SAMPLING_SOURCE)
 file(READ Engine/Source/Gx/Metal/Terrain.metal WOW_TERRAIN_SOURCE)
 file(READ Engine/Source/Gx/Metal/Wmo.metal WOW_WMO_SOURCE)
 file(READ Engine/Source/Gx/Metal/Liquid.metal WOW_LIQUID_SOURCE)
@@ -437,7 +438,7 @@ file(READ Engine/Source/Gx/Metal/DetailDoodad.metal WOW_DETAIL_DOODAD_SOURCE)
 file(READ Engine/Source/Gx/Metal/WaterRipple.metal WOW_WATER_RIPPLE_SOURCE)
 file(READ Engine/Source/Gx/Metal/FixedUnlit.metal WOW_FIXED_UNLIT_SOURCE)
 file(READ Engine/Source/Gx/Metal/Weather.metal WOW_WEATHER_SOURCE)
-string(APPEND WOW_TEXTURE_QUAD_SOURCE "\n${WOW_SKINNING_SOURCE}\n${WOW_SHADOW_MAP_SOURCE}\n${WOW_SHADOW_RECEIVER_SOURCE}\n${WOW_MODEL_SOURCE}\n${WOW_TERRAIN_SOURCE}\n${WOW_WMO_SOURCE}\n${WOW_LIQUID_SOURCE}\n${WOW_DETAIL_DOODAD_SOURCE}\n${WOW_WATER_RIPPLE_SOURCE}\n${WOW_FIXED_UNLIT_SOURCE}\n${WOW_WEATHER_SOURCE}")
+string(APPEND WOW_TEXTURE_QUAD_SOURCE "\n${WOW_SKINNING_SOURCE}\n${WOW_SHADOW_MAP_SOURCE}\n${WOW_SHADOW_RECEIVER_SOURCE}\n${WOW_MODEL_SOURCE}\n${WOW_CUBE_SAMPLING_SOURCE}\n${WOW_TERRAIN_SOURCE}\n${WOW_WMO_SOURCE}\n${WOW_LIQUID_SOURCE}\n${WOW_DETAIL_DOODAD_SOURCE}\n${WOW_WATER_RIPPLE_SOURCE}\n${WOW_FIXED_UNLIT_SOURCE}\n${WOW_WEATHER_SOURCE}")
 configure_file(Engine/Source/Gx/Metal/ShaderSource.h.in ${CMAKE_BINARY_DIR}/generated/MetalShaderSource.h @ONLY)
 add_library(AppleMetal STATIC Engine/Source/Gx/Metal/TextureDevice.mm Engine/Source/Gx/Metal/GeometryDraw.mm
     Engine/Source/Gx/Metal/CGxDeviceMetal.mm Engine/Source/Gx/Metal/ApplePlatform.mm

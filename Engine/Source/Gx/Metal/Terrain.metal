@@ -196,39 +196,6 @@ inline float4 terrainShade(TerrainRaster v, constant TerrainFragmentParameters& 
     return float4(fma(float3(v.fog), lit - p.fogColor.rgb, p.fogColor.rgb), alpha);
 }
 
-struct CubeFaceCoordinate {
-    float2 uv, dx, dy;
-    uint face;
-};
-inline CubeFaceCoordinate terrainCubeCoordinate(float3 direction) {
-    const float3 dx = dfdx(direction), dy = dfdy(direction), magnitude = abs(direction);
-    float3 projected, px, py;
-    uint face;
-    if (magnitude.x >= magnitude.y && magnitude.x >= magnitude.z) {
-        const float sign = direction.x >= 0 ? 1.0f : -1.0f;
-        face = direction.x >= 0 ? 0 : 1;
-        projected = float3(-sign * direction.z, -direction.y, sign * direction.x);
-        px = float3(-sign * dx.z, -dx.y, sign * dx.x);
-        py = float3(-sign * dy.z, -dy.y, sign * dy.x);
-    } else if (magnitude.y >= magnitude.z) {
-        const float sign = direction.y >= 0 ? 1.0f : -1.0f;
-        face = direction.y >= 0 ? 2 : 3;
-        projected = float3(direction.x, sign * direction.z, sign * direction.y);
-        px = float3(dx.x, sign * dx.z, sign * dx.y);
-        py = float3(dy.x, sign * dy.z, sign * dy.y);
-    } else {
-        const float sign = direction.z >= 0 ? 1.0f : -1.0f;
-        face = direction.z >= 0 ? 4 : 5;
-        projected = float3(sign * direction.x, -direction.y, sign * direction.z);
-        px = float3(sign * dx.x, -dx.y, sign * dx.z);
-        py = float3(sign * dy.x, -dy.y, sign * dy.z);
-    }
-    // Direction zero has no defined cube face. Keep coordinates finite without
-    // changing the projection of any nonzero direction.
-    const float inverseMajor = projected.z > 0 ? 1 / projected.z : 0;
-    const float2 ratio = projected.xy * inverseMajor;
-    return {ratio * 0.5f + 0.5f, (px.xy - ratio * px.z) * (0.5f * inverseMajor), (py.xy - ratio * py.z) * (0.5f * inverseMajor), face};
-}
 
 fragment float4 terrainFragment(TerrainRaster v [[stage_in]], constant TerrainFragmentParameters& p [[buffer(0)]],
                                 texture2d<float> image0 [[texture(0)]], sampler sampler0 [[sampler(0)]],
@@ -266,7 +233,7 @@ fragment float4 terrainEnvironmentFragment(TerrainRaster v [[stage_in]], constan
     depth2d<float> nearDepth [[texture(6), function_constant(shadowComparison)]],
     depth2d<float> middleDepth [[texture(7), function_constant(shadowComparison)]],
     depth2d<float> farDepth [[texture(8), function_constant(shadowComparison)]]) {
-    const auto coord = terrainCubeCoordinate(v.environmentDirection);
+    const auto coord = cubeFaceCoordinate(v.environmentDirection);
     // D3D9 applies the requested address/filter mode within the selected face;
     // Metal's seamless texturecube sampling would blend neighboring faces.
     const float4 base = image0.sample(sampler0, coord.uv, coord.face, gradient2d(coord.dx, coord.dy));

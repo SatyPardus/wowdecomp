@@ -1463,8 +1463,10 @@ checks pass through resource recreation, and the mixed tile presents 120 frames
 with original streamed audio. Both iOS targets build; the simulator passes the
 checks and runs the mixed tile/audio for 120 frames, repeating both after
 foreground resource/device recreation. These previews still do not perform full
-world loading. Non-base cube layers remain explicitly unsupported. Fixed-function terrain reflection and complete world effect/state coverage remain
-pending; the native world scene entry is described above.
+world loading. Non-base cube layers remain explicitly unsupported in the
+programmable terrain shader. The native world scene entry and fixed-function
+coordinate support are described separately; complete world effect/state
+coverage remains pending.
 
 The original FMOD software mixer, decoders, resamplers and DSP sources now build
 on Apple arm64, together with SoundEngine and SoundInterface. The new OS boundary
@@ -1580,9 +1582,29 @@ also continues for 120 frames. `WOW_WMO_FIXED=1` with the Metal preview's existi
 `WOW_WMO` selects the original WMO fixed-function material/light branch; the real
 AltarOfStorms group (9,657 vertices, 9,624 triangles, ten batches) runs 120 frames
 on Mac and iOS. This explicit diagnostic does not change the default client
-profile. Normal/reflection fixed-function coordinates and mixed programmable/fixed
-pairs still fail explicitly; full fixed-function world coverage and Windows
-lighting comparison remain outstanding.
+profile. Fixed-function camera normals and local-viewer reflection coordinates
+now preserve inverse-transpose transformation, optional normalization and the
+original sphere-map texture matrix. Cube samplers reuse the terrain path's
+six-face array sampling and derivatives, retaining D3D9 filtering within each
+face. All four texture slots can mix cube and 2D inputs; generated coordinates
+retain their texture transforms and projective 2D division. A further 1,512
+pixel references cover these operations, six face orientations and nearest/linear
+filtering on Mac ASan/UBSan/Metal and the iOS simulator. Existing terrain GPU
+references still pass after sharing the face selector. The reflection equation
+follows the original LOCALVIEWER state and Microsoft's
+[cubic environment mapping](https://learn.microsoft.com/en-us/windows/win32/direct3d9/cubic-environment-mapping).
+`WOW_WORLD_FIXED_TERRAIN=1` with `WOW_WORLD` selects the original fixed terrain
+fallback before vertex/alpha-map creation, including its local coordinates,
+unbatched chunks and per-layer blend maps. Mac runs both Elwynn's alpha layers
+and Crystalsong's additive layers for 120 frames; the latter at
+`Northrend:5450:-280:185` submits eight cube-reflection chunks. Other world shaders
+and the default client profile are unchanged. The iOS simulator also runs the
+same reflective terrain for 120 frames; both iOS targets and the Mac client build.
+Mixed programmable/fixed pairs, projected cube
+coordinates and full fixed-function world coverage remain outstanding; these
+checks do not establish Windows visual equivalence. Any additional mixed paths
+must follow the original profile selection:
+[D3D9 hardware SM3 cannot be paired with fixed-function stages](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/shader-model-3).
 
 The native unlit geometry primitive now links the shared Gx vertex-layout tables
 and consumes packed vertex buffers and 16-bit indexed/nonindexed batches directly.

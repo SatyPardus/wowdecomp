@@ -1,6 +1,7 @@
 #include "WorldPreview.h"
 #include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/WorldClient/Map.h"
+#include "WoW/Source/WorldClient/MapRenderChunk.h"
 #include "WoW/Source/WorldClient/WorldParam.h"
 #include "WoW/Source/WorldClient/shadow.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
@@ -22,6 +23,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 namespace {
 template <class T> void Load(T& table) {
@@ -30,6 +33,8 @@ template <class T> void Load(T& table) {
 }
 }
 WorldPreview::WorldPreview(const std::string& selection) {
+    const char* fixed = std::getenv("WOW_WORLD_FIXED_TERRAIN");
+    m_fixedTerrain = fixed && !std::strcmp(fixed, "1");
     if (!CVar::m_initialized || g_modelPool || World::s_m2Scene)
         throw std::logic_error("World view requires configuration and exclusive world/model ownership");
     const auto first = selection.find(':');
@@ -173,6 +178,7 @@ bool WorldPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
         if (World::QueryMapId() != m_mapId || DayNight::s_mapId != m_mapId)
             throw std::runtime_error("World preview did not load the selected map's lighting");
         std::fprintf(stderr,"World preview: directory %s, world/lighting map %d\n",m_map.c_str(),m_mapId);
+        if (m_fixedTerrain) std::fputs("World preview: original fixed-function terrain passes selected\n", stderr);
         m_loaded = true; EventResetElapsedTime();
     }
     m_elapsed += elapsedSeconds;
@@ -192,6 +198,22 @@ bool WorldPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     lighting.m_playerPos = lighting.m_lightRefPos = lighting.m_cameraPos = m_camera.m_position;
     lighting.m_cameraDir = m_camera.Forward();
     g_clientGameTime.SetHourAndMinutes(uint32_t(m_daySeconds / 60));
+    // Select the original fallback before Update creates chunk vertices and
+    // alpha maps: shader chunks use different coordinates and batching.
+    // Other world shaders and the normal client's profile stay unchanged.
+    struct RestoreTerrain {
+        bool vertex = CMap::enableTerrainShaderVertex, pixel = CMap::gTerrainPixelShadersValid;
+        bool specular = CMap::enableSpecularTerrain;
+        int32_t batching = CMap::enableChunkBatching;
+        ~RestoreTerrain() {
+            CMap::enableTerrainShaderVertex = vertex; CMap::gTerrainPixelShadersValid = pixel;
+            CMap::enableSpecularTerrain = specular; CMap::enableChunkBatching = batching;
+        }
+    } terrain;
+    if (m_fixedTerrain) {
+        CMap::enableTerrainShaderVertex = CMap::gTerrainPixelShadersValid = CMap::enableSpecularTerrain = false;
+        CMap::enableChunkBatching = 0;
+    }
     C3Vector target = m_camera.m_position + m_camera.Forward();
     CWorld::Update(&m_camera.m_position, &target, &m_camera.m_position, m_camera);
     // Match WorldFrame::OnWorldRender: main geometry ends before the separate
@@ -200,5 +222,14 @@ bool WorldPreview::Draw(float elapsedSeconds, uint32_t width, uint32_t height) {
     CWorldScene::Render(m_camera.m_position, elapsedSeconds, m_camera);
     CMap::RenderFootprints();
     CWorldScene::RenderScenePasses(elapsedSeconds);
+    if (m_fixedTerrain && ++m_fixedTerrainFrames == 120) {
+        uint32_t chunks = 0, reflected = 0;
+        auto& list = CMap::s_mapRenderChunkUpdateList;
+        for (auto* chunk = list.Head(); chunk; chunk = list.Next(chunk)) {
+            ++chunks;
+            reflected += (chunk->m_renderFlags & 4) != 0;
+        }
+        std::fprintf(stderr, "Fixed terrain after 120 frames: %u retained render chunks, %u with cube-reflection materials\n", chunks, reflected);
+    }
     return true;
 }

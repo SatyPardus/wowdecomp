@@ -121,7 +121,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ShadowReceiverTextureMask(geometry.model->shadowMode) : wmo ? ShadowReceiverTextureMask(geometry.wmo->shadowMode) : detail ? ShadowReceiverTextureMask(geometry.detail->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
-            const bool cube = terrain && i == 0 && (geometry.terrain->pixelPermutation & 1);
+            const bool cube = geometry.fixed ? (geometry.fixed->cubeMask & (1u << i)) != 0 : terrain && i == 0 && (geometry.terrain->pixelPermutation & 1);
             Require(textures[i] && textures[i].textureType == (cube ? MTLTextureType2DArray : MTLTextureType2D) &&
                         (!cube || textures[i].arrayLength == 6),
                     "Native shader texture type mismatch");
@@ -238,6 +238,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         if (geometry.fixed->weather != WeatherVertex::None)
             [encoder setVertexBytes:&geometry.fixed->weatherParameters length:sizeof(WeatherParameters) atIndex:0];
         else [encoder setVertexBytes:&geometry.fixed->vertex length:sizeof(FixedUnlitVertexParameters) atIndex:0];
+        if (geometry.fixed->lighting || (geometry.fixed->coordinateSources & 0xAA))
+            [encoder setVertexBytes:&geometry.fixed->normals length:sizeof(FixedNormalParameters) atIndex:3];
         if (geometry.fixed->lighting)
             [encoder setVertexBytes:&geometry.fixed->lightingParameters length:sizeof(FixedLightingParameters) atIndex:2];
     } else if (geometry.effect == FragmentEffect::WaterRipple) {
