@@ -131,7 +131,7 @@ void CheckLiquidShaders(CGxDeviceMetal &device) {
     }
     const V point{0.13f, -0.22f, 0.31f, 1}, fog{0.12f, 0.22f, 0.32f, 1}, color = Color(0xB0604050);
     const auto view = Transform(c, 5, point), clip = Transform(c, 0, view);
-    const unsigned x = unsigned((clip[0] / clip[3] + 1) * 16), y = unsigned((1 - clip[1] / clip[3]) * 16);
+    const unsigned x = unsigned(std::ceil((clip[0] / clip[3] + 1) * 16 + .5f)-1), y = unsigned(std::ceil((1 - clip[1] / clip[3]) * 16 + .5f)-1);
     const float visibility = std::min(std::pow(std::max(view[2] * c[4][0] + c[4][1], 0.0f), c[4][2]), 1.0f);
     const float uv[2] = {0.7f, 0.2f}, uv2[2] = {0.2f, 0.7f};
     auto sample = [&](unsigned stage, unsigned matrix, const float *t) {

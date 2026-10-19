@@ -146,7 +146,7 @@ void CheckFixedUnlit(CGxDeviceMetal& device) {
     for (auto& position : positions) position.z = 0.1f;
     draw(diffuse);
     positions[1].z = positions[3].z = 0.9f;
-    const float factor = 1 - 8.5f / 16;
+    const float factor = 1 - 8.0f / 16;
     expected = diffuse;
     for (unsigned c = 0; c < 3; ++c) expected[c] = factor * diffuse[c] + (1 - factor) * fog[c];
     draw(expected); // Clamp at vertices before interpolation, not at the pixel.
@@ -179,7 +179,7 @@ void CheckFixedUnlit(CGxDeviceMetal& device) {
     GxRsSet(GxRs_AlphaRef, 0); GxRsSet(GxRs_DepthTest, 0); pass.depthAttachment.clearDepth = 1;
     // A slope must not scale a constant offset, unlike slope-scaled bias.
     positions[0].z = positions[2].z = 0.1f; positions[1].z = positions[3].z = 0.9f;
-    draw(diffuse, true, 0.1f + (8.5f / 16) * 0.8f - 0.05f);
+    draw(diffuse, true, 0.1f + (8.0f / 16) * 0.8f - 0.05f);
     for (auto& position : positions) position.z = 0.5f;
     device.BeginFrame(pass);
     for (float offset : {0.0f, 0.25f, 0.0f}) {
@@ -229,7 +229,7 @@ void CheckFixedUnlit(CGxDeviceMetal& device) {
             device.Draw(&batch, 0);
             TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels); device.ScenePresent(); ++draws;
             for (unsigned y : {4u,8u,12u}) for (unsigned x : {4u,8u,12u}) {
-                std::array<double,4> coord{(x+0.5)/8-1, 1-(y+0.5)/8, 0.5, 1};
+                std::array<double,4> coord{x/8.0-1, 1-y/8.0, 0.5, 1};
                 if (gen>=2) coord=transform(coord,world);
                 if (gen==3) coord=transform(coord,view);
                 if (mode) coord=transform(coord,textureMatrix);
@@ -352,7 +352,7 @@ void CheckFixedUnlit(CGxDeviceMetal& device) {
             device.Draw(&batch,0);
             TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels); device.ScenePresent(); ++draws;
             for(unsigned y : {3u,8u,12u}) for(unsigned x : {3u,8u,12u}) {
-                const double u=(x+.5)/16,v=(y+.5)/16;
+                const double u=x/16.0,v=y/16.0;
                 const std::array<double,4> weights=u+v<=1 ? std::array<double,4>{1-u-v,u,v,0} : std::array<double,4>{0,1-v,1-u,u+v-1};
                 Color d{},s{}; double fog=0;
                 for(unsigned vertex=0;vertex<4;++vertex) {
@@ -415,7 +415,7 @@ void CheckFixedUnlit(CGxDeviceMetal& device) {
         device.Draw(&batch,0);
         TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels); device.ScenePresent(); ++draws;
         for(unsigned y : {2u,7u,11u}) for(unsigned x : {2u,7u,11u}) {
-            const double u=(x+.5)/16,v=(y+.5)/16;
+            const double u=x/16.0,v=y/16.0;
             const std::array<double,4> weights=u+v<=1 ? std::array<double,4>{1-u-v,u,v,0} : std::array<double,4>{0,1-v,1-u,u+v-1};
             std::array<double,4> coordinate{};
             for(unsigned vertex=0;vertex<4;++vertex) for(unsigned c=0;c<3;++c) coordinate[c]+=weights[vertex]*reference[vertex][c];

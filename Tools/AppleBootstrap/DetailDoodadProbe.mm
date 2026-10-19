@@ -264,7 +264,7 @@ void CheckDetailDoodadShaders(CGxDeviceMetal& device) {
                     CiRect rect(0, 0, 32, 32);
                     TSGrowableArray<CImVector> image;
                     device.DeviceReadPixels(rect, image);
-                    const unsigned x = std::floor((clip[0] / clip[3] + 1) * 16), y = std::floor((1 - clip[1] / clip[3]) * 16);
+                    const unsigned x = std::ceil((clip[0] / clip[3] + 1) * 16 + .5f)-1, y = std::ceil((1 - clip[1] / clip[3]) * 16 + .5f)-1;
                     const auto& sample = image[y * 32 + x];
                     const unsigned channels[] = {sample.r, sample.g, sample.b, sample.a};
                     for (unsigned j = 0; j < 4; ++j)

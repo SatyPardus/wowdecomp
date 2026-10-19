@@ -189,16 +189,6 @@ void FFX::SetupGeo_Quad(const C2iVector& dstSize, const C2iVector& srcSize, cons
     float minU = invWidth * 0.5f;
     float minV = 0.5f * invHeight;
 
-    if (g_theGxDevicePtr->DeviceApi() == GxApi_Metal) {
-        // D3D9 samples at integer screen positions; Metal samples half a pixel
-        // inside these quad edges. Preserve the original interpolated UVs,
-        // including the source/destination ratio for downsampled passes.
-        const float deltaU = 0.5f * srcSize.x * invWidth / width;
-        const float deltaV = 0.5f * srcSize.y * invHeight / height;
-        minU -= deltaU; maxU -= deltaU;
-        minV -= deltaV; maxV -= deltaV;
-    }
-
     tex[0].x = minU;
     tex[0].y = maxV;
     tex[1].x = minU;

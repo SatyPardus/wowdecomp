@@ -321,7 +321,7 @@ void CheckWaterRippleShaders(CGxDeviceMetal& device) {
         device.Draw(&batch, 0);
         const float w = 1 + vertex.p.z * 0.3f;
         const float x = 0.7f * vertex.p.x - 0.1f * vertex.p.y + 0.17f, y = 0.2f * vertex.p.x + 0.9f * vertex.p.y - 0.11f;
-        const unsigned index = unsigned(std::floor((1 - y / w) * 16)) * 32 + unsigned(std::floor((x / w + 1) * 16));
+        const unsigned index = unsigned(std::ceil((1 - y / w) * 16 + .5f)-1) * 32 + unsigned(std::ceil((x / w + 1) * 16 + .5f)-1);
         CiRect rect(0, 0, 32, 32);
         TSGrowableArray<CImVector> pixels;
         device.DeviceReadPixels(rect, pixels);

@@ -622,7 +622,10 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_caps.m_pointScaleMax = 64;
     m_caps.m_streamOffset = 1;
     m_caps.m_colorFormat = GxCF_argb;
-    m_caps.m_pixelCenterOnEdge = 1;
+    // Gx geometry uses the original D3D9 grid. Draw submission converts its
+    // integer centers to Metal's half-integer centers; shared UI keeps its
+    // original font and screen-projection adjustments.
+    m_caps.m_pixelCenterOnEdge = 0;
     m_caps.m_texelCenterOnEdge = 1;
     m_caps.m_maxIndex = 65535;
     m_caps.m_maxTexAnisotropy = 16;
@@ -1503,6 +1506,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         batch->m_count <= m_primIndexBuf->m_itemCount - batch->m_start && batch->m_maxIndex < vertices->m_itemCount :
         batch->m_count <= vertices->m_itemCount, "Gx draw exceeds its logical buffer range");
     GxMetal::GeometryDraw draw;
+    draw.integerPixelCenters = true;
     std::optional<GxMetal::FixedUnlitDrawParameters> fixedParameters;
     std::optional<GxMetal::ModelDrawParameters> modelParameters;
     std::optional<GxMetal::ShadowMapDrawParameters> shadowParameters;

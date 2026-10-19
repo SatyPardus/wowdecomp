@@ -1661,6 +1661,20 @@ diagnostic rendering, restoring solid UI afterward. Real Elwynn runs complete
 120 frames on both platforms, and both iOS clients build. This does not establish
 pixel-exact D3D9 line rasterization or change the normal client's rendering mode.
 
+Gx draws now use the original D3D9 integer pixel centers. Metal submission
+translates the viewport by half a pixel, preserving perspective interpolation
+and shader constants; raw Metal primitives, clears and copies keep their native
+coordinates. The original font/screen-projection and software-cursor offsets
+remain active, and FFX no longer applies a separate Metal-only UV adjustment.
+`WOW_METAL_CHECK=raster` checks 2,812 independent affine/perspective color/depth
+samples in full and offset viewports, point half-center ties and font recreation.
+`WOW_METAL_CHECK=raster-shaders` also runs the existing shadow-map, detail,
+ripple, terrain, WMO and liquid numerical references on this grid.
+The conventions follow [D3D9 rasterization rules](https://learn.microsoft.com/en-us/windows/win32/direct3d9/rasterization-rules)
+and [Metal viewport coordinates](https://developer.apple.com/library/archive/documentation/Miscellaneous/Conceptual/MetalProgrammingGuide/Render-Ctx/Render-Ctx.html).
+This corrects the sampling grid; it does not establish complete Windows GPU
+rasterization or depth-precision equivalence.
+
 The default framebuffer supports hardware MSAA counts advertised by Metal and
 the original video-options Lua/CVars (2x/4x on the tested M2 Pro). Gx owns private
 multisample color/depth attachments and preserves their samples across pass
@@ -1673,8 +1687,10 @@ per-sample depth while material interpolation remains at pixel centers; diagnost
 depth reads select sample zero. No alpha-to-coverage is substituted for alpha test.
 `WOW_METAL_CHECK=msaa` checks analytic coverage and sloped depth, disabled-AA,
 query counts where available, regional clears, frame preservation, 230 model
-depth-offset draws and the original copy/target/FFX paths. Fog-grid edge references
-include their partial MSAA coverage. Native sample patterns do not establish
+depth-offset draws and the original copy/target/FFX paths. Postprocess edge references
+include partial MSAA coverage and preserved background samples. Explicit depth
+fixtures use matching single-sample color/depth attachments and restore the
+multisampled default mode afterward. Native sample patterns do not establish
 equivalence to every Windows D3D9 GPU, and sustained MSAA bandwidth/memory cost
 and physical iOS performance still need measurement.
 The tested iOS Simulator does not expose programmable sample positions, so its
@@ -1753,9 +1769,9 @@ four independent coordinates, textures and samplers. Box4 averages RGB with
 vertex alpha; Gauss4 filters RGBA using the original tap weights. GPU checks cover
 both effects and two-pass intermediate sampling. The original `PassBox4` and
 `PassGauss4` now execute through Services textures and the Gx shader factory,
-using their custom PCT4 stream and fixed vertex matrices. Metal quad coordinates
-preserve D3D9 sampling at integer screen centers, including fractional downsample
-ratios. The pass checks cover padded targets, intermediate pixels, shader caching
+using their custom PCT4 stream and fixed vertex matrices. The shared Metal Gx
+viewport conversion preserves D3D9 sampling at integer screen centers, including
+fractional downsample ratios. The pass checks cover padded targets, intermediate pixels, shader caching
 and restoration of caller matrices/state. Original `PassGlow` now combines scene
 and blur textures through the game PCT2 layout, retaining its blue-channel mix,
 squared blur weighted by vertex alpha, and opaque output alpha. The probe executes

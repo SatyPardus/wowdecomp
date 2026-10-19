@@ -124,7 +124,7 @@ Image WaveReference(const Image& scene, const Image& blur, const Image& wave, co
         C2Vector uv[3];
         for (unsigned i = 0; i < 3; ++i) {
             const auto& topLeft = vertices[1].tc[i]; const auto& topRight = vertices[2].tc[i]; const auto& bottomLeft = vertices[0].tc[i];
-            const float fx = (x + 0.5f) / scene.width, fy = (y + 0.5f) / scene.height;
+            const float fx = float(x) / scene.width, fy = float(y) / scene.height;
             uv[i].x = topLeft.x + (topRight.x - topLeft.x) * fx + (bottomLeft.x - topLeft.x) * fy;
             uv[i].y = topLeft.y + (topRight.y - topLeft.y) * fx + (bottomLeft.y - topLeft.y) * fy;
         }
@@ -153,6 +153,23 @@ Image Read(CGxDeviceMetal& device, FFX::Tex& texture) {
     std::memcpy(image.pixels.data(), pixels.Ptr(), image.pixels.size() * 4);
     GxRenderTargetSet(GxBuffers_Color, nullptr, 0);
     return image;
+}
+Image ScreenCoverage(CGxDeviceMetal& device, Image shaded, const Image* background=nullptr) {
+    // Original postprocess quads begin at integer pixel centers. In MSAA,
+    // samples to the left/above the first center retain the previous contents.
+    const unsigned count=device.m_format.m_multisampleCount;
+    if(count<=1 || !device.m_appRenderStates[GxRs_Multisample].m_value.m_data.i[0]) return shaded;
+    std::vector<MTLSamplePosition> positions(count);
+    [device.GPU().device getDefaultSamplePositions:positions.data() count:count];
+    for(unsigned y=0;y<shaded.height;++y) for(unsigned x=0;x<shaded.width;++x) {
+        unsigned covered=0;
+        for(auto p:positions) covered+=(x || p.x>=.5f) && (y || p.y>=.5f);
+        const unsigned index=y*shaded.width+x;
+        const Pixel base=background ? background->pixels[index] : Pixel{0,0,0,255};
+        for(unsigned c=0;c<4;++c)
+            shaded.pixels[index][c]=std::lround((double(shaded.pixels[index][c])*covered+double(base[c])*(count-covered))/count);
+    }
+    return shaded;
 }
 void Compare(const Image& actual, const Image& expected, unsigned tolerance) {
     static unsigned comparison = 0; ++comparison;
@@ -266,7 +283,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
         device.BeginFrame(frame);
         if (first) { box.Execute(); gauss.Execute(); }
         glow.m_color = color; GxRsSet(GxRs_AlphaRef, 255); glow.Execute(); checkRestore();
-        Compare(Read(device, screen), GlowReference(source, expected, color), first ? 3 : 1);
+        Compare(Read(device, screen), ScreenCoverage(device,GlowReference(source, expected, color)), first ? 3 : 1);
         if (first) {
             auto actual = Read(device, output); Compare(actual, expected, 2);
             expected = std::move(actual); first = false;
@@ -280,7 +297,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
     for (uint8_t glowAmount : {0, 173, 255}) {
         DayNight::GetInfo()->m_bands.m_glow = glowAmount / 255.0f;
         device.BeginFrame(frame); death.Execute(); checkRestore();
-        Compare(Read(device, screen), DeathReference(source, expected, glowAmount), 1);
+        Compare(Read(device, screen), ScreenCoverage(device,DeathReference(source, expected, glowAmount)), 1);
         GxScenePresent();
     }
     FFX::Tex* waveInputs[] = {&PassGlowWave::s_waveTex, &input, &output};
@@ -298,7 +315,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
         const float* constants = device.ShaderConstantsLock(GxSh_Pixel);
         Require(constants[0] == 3.0f / 32 && constants[3] == 3.0f / 32 && constants[4] == 0.75f / 8 && constants[7] == 0.75f / 8,
             "Original FFX wave pixel constants changed");
-        Compare(Read(device, screen), WaveReference(source, expected, waveData, vertices, color, wave.m_shaderIndex < 2), 2);
+        Compare(Read(device, screen), ScreenCoverage(device,WaveReference(source, expected, waveData, vertices, color, wave.m_shaderIndex < 2)), 2);
         GxScenePresent();
     }
     GxRsSet(GxRs_AlphaRef, 0);
@@ -382,7 +399,7 @@ void CheckGxFFXPasses(CGxDeviceMetal& device) {
                     (mixed[c] * 0.5 + gray) * tint[c] * combine.m_fade), 0l, 255l);
             reference.pixels[y * 32 + x][3] = 255;
         }
-        Compare(actual, reference, 1); GxScenePresent();
+        Compare(actual, ScreenCoverage(device,reference), 1); GxScenePresent();
     }
 }
 
@@ -449,7 +466,9 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
         GxRsSet(GxRs_Texture0, TextureGetGxTex(scope.source, 1, nullptr));
         GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_Culling, 0);
         GxRsSet(GxRs_BlendingMode, int32_t(GxBlend_Opaque)); GxRsSet(GxRs_AlphaRef, 0); GxRsSet(GxRs_ColorWrite, 15);
-        C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex, 0, &identity.a0, 4);
+        // Prepare an exact scene image with the D3D9 texel/pixel alignment.
+        C44Matrix identity(1); identity.a3=-1.0f/test.size; identity.b3=1.0f/height;
+        GxShaderConstantsSet(GxSh_Vertex, 0, &identity.a0, 4);
         device.BeginFrame(frame); FFX::Start();
         const C3Vector positions[] = {{-1, 1, 0}, {-1, -1, 0}, {1, 1, 0}, {1, -1, 0}};
         const C2Vector coordinates[] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}}; const CImVector white(255, 255, 255, 255);
@@ -475,13 +494,13 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
                 {{{0,-2.5f},{0,-0.5f},{0,0.5f},{0,2.5f}}}, false);
             Compare(filtered, reference, 2);
             const CImVector color(85, 85, 85, 173);
-            if (test.death) { Compare(actual, DeathReference(source, filtered, test.glowAmount), 1); }
-            else if (!test.mode) { Compare(actual, GlowReference(source, filtered, color), 1); }
+            if (test.death) { Compare(actual, ScreenCoverage(device,DeathReference(source, filtered, test.glowAmount),&source), 1); }
+            else if (!test.mode) { Compare(actual, ScreenCoverage(device,GlowReference(source, filtered, color),&source), 1); }
             else {
                 const auto* buffer = device.m_primVertexFormatBuf[GxVA_Position];
                 FFX::VertexPCT3 vertices[4];
                 std::memcpy(vertices, static_cast<const uint8_t*>(buffer->m_pool->m_mem) + buffer->m_index, sizeof(vertices));
-                Compare(actual, WaveReference(source, filtered, wave, vertices, color, device.Caps().m_texFmt[GxTex_Uv88] != 0), 2);
+                Compare(actual, ScreenCoverage(device,WaveReference(source, filtered, wave, vertices, color, device.Caps().m_texFmt[GxTex_Uv88] != 0),&source), 2);
             }
         }
         GxScenePresent();

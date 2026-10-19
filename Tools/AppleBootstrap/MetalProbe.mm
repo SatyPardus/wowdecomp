@@ -198,6 +198,8 @@ bool AppleBootstrap::CheckMetal(const BLP::Image& image, const GxMetal::UIShader
             GxMetal::TextureDevice gpu(MTLCreateSystemDefaultDevice());
             out << "Metal device: " << gpu.device.name.UTF8String << "; BC support: " << gpu.SupportsBC() << '\n';
             if (const char* selection = std::getenv("WOW_METAL_CHECK")) {
+                if (!std::strcmp(selection, "raster")) { CheckGxDevice(selection); report = "Original D3D9 pixel-center sampling checks passed.\n"; return true; }
+                if (!std::strcmp(selection, "raster-shaders")) { CheckGxDevice(selection); report = "Original D3D9 pixel centers and world shader references passed (focused run).\n"; return true; }
                 if (!std::strcmp(selection, "wireframe")) { CheckGxDevice(selection); report = "Native triangle fill and wireframe state checks passed.\n"; return true; }
                 if (!std::strcmp(selection, "gamma")) { CheckGxDevice(selection); report = "Original presentation gamma checks passed.\n"; return true; }
                 if (!std::strcmp(selection, "cursor")) { CheckGxDevice(selection); report = "Original software cursor rendering checks passed.\n"; return true; }

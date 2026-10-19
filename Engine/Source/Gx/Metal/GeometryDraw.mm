@@ -202,9 +202,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         depth = m_depthStates.emplace(depthKey, created).first;
     }
     GeometryParameters constants{geometry.clipFromModel, parameters};
-    if (geometry.effect == FragmentEffect::FogCombine) {
-        // The original persistent polar grid bypasses SetupGeo_Quad's Metal
-        // coordinate conversion. Preserve its D3D9 integer pixel centers.
+    if (geometry.effect == FragmentEffect::FogCombine && !geometry.integerPixelCenters) {
+        // Raw Metal callers need the original polar grid's D3D9 correction.
+        // Gx draws receive the same correction through the viewport below.
         const auto viewport = geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1};
         Require(viewport.width > 0 && viewport.height > 0, "Empty fog composition viewport");
         float* matrix = &constants.clipFromModel.a0;
@@ -226,7 +226,15 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     // Native weather points expand to triangle instances, but the original
     // point primitive is unaffected by D3DRS_FILLMODE. Keep those quads filled.
     [encoder setTriangleFillMode:geometry.wireframe && batch.m_primType >= GxPrim_Triangles ? MTLTriangleFillModeLines : MTLTriangleFillModeFill];
-    [encoder setViewport:geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1}];
+    auto rasterViewport = geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1};
+    if (geometry.integerPixelCenters) {
+        // D3D9 (x,y) and Metal (x+.5,y+.5) must sample the same projected
+        // point. A fractional viewport preserves perspective interpolation,
+        // clipping and shader constants without adding per-vertex work.
+        rasterViewport.originX += .5;
+        rasterViewport.originY += .5;
+    }
+    [encoder setViewport:rasterViewport];
     [encoder setCullMode:weatherPoints || geometry.culling == 0 ? MTLCullModeNone : geometry.culling == 1 ? MTLCullModeFront : MTLCullModeBack];
     [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
@@ -235,7 +243,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         auto native = geometry.netherBlur;
         const auto viewport = geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1};
         Require(viewport.width > 0 && viewport.height > 0, "Empty nether blur viewport");
-        native.pixelCenterOffset = {float(1 / viewport.width), float(-1 / viewport.height)};
+        native.pixelCenterOffset = geometry.integerPixelCenters ? simd_make_float2(0) : simd_make_float2(float(1 / viewport.width), float(-1 / viewport.height));
         [encoder setVertexBytes:&native length:sizeof(native) atIndex:0];
     } else if (geometry.fixed) {
         if (geometry.fixed->weather != WeatherVertex::None)

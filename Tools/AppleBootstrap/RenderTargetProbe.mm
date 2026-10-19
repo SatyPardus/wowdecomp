@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-void Require(bool ok, const char* message) { if (!ok) { throw std::runtime_error(message); } }
+void Require(bool ok, const char* message) { if (!ok) { std::fprintf(stderr, "Render target check failed: %s\n", message); throw std::runtime_error(message); } }
 void White(EGxTexCommand command, uint32_t, uint32_t, uint32_t, uint32_t, void*, uint32_t& stride, const void*& data) {
     static const uint32_t pixel = 0xFFFFFFFF;
     if (command == GxTex_Latch) { stride = 4; data = &pixel; }
@@ -56,9 +56,15 @@ void Solid(const std::vector<uint32_t>& pixels, uint32_t color, const char* mess
     for (auto pixel : pixels) { Require(pixel == color, message); }
 }
 void Draw(CGxDeviceMetal& device, CGxTex* texture, uint32_t color, float z) {
+    // These copy/format fixtures need a pixel-aligned image, including full
+    // MSAA coverage at the edges, just like a D3D9 screen quad at (-.5,-.5).
+    const auto& v=device.m_viewport; const auto& window=device.m_curWindowRect;
+    const float width=std::round(v.m_x.m_h*window.maxX)-std::round(v.m_x.m_l*window.maxX);
+    const float height=std::round((1-v.m_y.m_l)*window.maxY)-std::round((1-v.m_y.m_h)*window.maxY);
+    const float left=-1-1/width,right=1-1/width,top=1+1/height,bottom=-1+1/height;
     struct Vertex { float x, y, z; uint32_t color; float u, v; };
-    const Vertex data[] = {{-1, 1, z, color, 0, 0}, {-1, -1, z, color, 0, 1},
-        {1, 1, z, color, 1, 0}, {1, -1, z, color, 1, 1}};
+    const Vertex data[] = {{left, top, z, color, 0, 0}, {left, bottom, z, color, 0, 1},
+        {right, top, z, color, 1, 0}, {right, bottom, z, color, 1, 1}};
     auto* buffer = GxBufStream(GxPoolTarget_Vertex, sizeof(Vertex), 4);
     std::memcpy(device.BufLock(buffer), data, sizeof(data)); device.BufUnlock(buffer, 0);
     GxPrimVertexPtr(buffer, GxVBF_PCT); GxRsSet(GxRs_Texture0, texture);
@@ -132,14 +138,22 @@ void CheckTargetProducer(CGxDeviceMetal& device, CGxTex* white) {
 void CheckDepthTargets(CGxDeviceMetal& device, CGxTex* white) {
     device.RsPush();
     struct Cleanup {
-        CGxDeviceMetal& device; CGxTex* target[4]{};
+        CGxDeviceMetal& device; CGxFormat format; CGxTex* target[4]{};
         ~Cleanup() {
             GxRenderTargetSet(GxBuffers_Depth,nullptr,0); GxRenderTargetSet(GxBuffers_Color,nullptr,0);
             if(device.FrameCommand()) device.ScenePresent();
             for(auto* texture:target) if(texture) device.TexDestroy(texture);
             device.RsPop();
+            if(device.m_format.m_multisampleCount!=format.m_multisampleCount) device.DeviceSetFormat(format);
         }
-    } cleanup{device};
+    } cleanup{device,device.m_format};
+    if(device.m_format.m_multisampleCount>1) {
+        // The original depth textures are single-sample. They cannot be paired
+        // with a multisampled default color target on either D3D9 or Metal.
+        auto format=device.m_format; format.m_multisampleCount=1;
+        Require(device.DeviceSetFormat(format),"Cannot select matching explicit-depth sample count");
+        std::fputs("Explicit depth fixtures: single-sample default color/depth pairing; multisampled default mode restored afterward\n",stderr);
+    }
     CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget=1;
     for(unsigned i=0;i<4;++i) {
         const auto format=i==0 ? GxTex_Argb8888:GxTex_D24X8;

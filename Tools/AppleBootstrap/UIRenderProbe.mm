@@ -265,6 +265,10 @@ void CheckOriginalUI(CGxDeviceMetal& device) {
             "Original cooldown Lua did not create its authored resources");
         Require(TextureGetGxTex(cooldown->m_starTexture, 1, nullptr) && TextureGetGxTex(cooldown->m_edgeTexture, 1, nullptr),
             "Original cooldown MPQ textures failed to load");
+        // Console input/resize can restore the edit box's focus. Its blinking
+        // caret is unrelated to cooldown completion and must stay hidden while
+        // comparing the entire frame before and after the sweep.
+        if (CSimpleEditBox::s_currentFocus) CSimpleEditBox::ClearKeyboardFocus(CSimpleEditBox::s_currentFocus,true);
         cooldown->Hide(); step(); const auto bareIcon = read();
         size_t darkCounts[2][8]{};
         for (unsigned reverse = 0; reverse < 2; ++reverse) {

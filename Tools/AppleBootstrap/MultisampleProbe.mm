@@ -77,7 +77,7 @@ void CheckMultisample(CGxDeviceMetal& device) {
             uint32_t total = 0;
             for (unsigned y=0;y<16;++y) for (unsigned x=0;x<16;++x) {
                 unsigned covered = 0;
-                for (auto p:positions) covered += x+y+(enabled?p.x+p.y:1) < 16.125f;
+                for (auto p:positions) covered += x+y+(enabled?p.x+p.y-1:0) < 16.125f;
                 total += covered;
                 const auto pixel = first[y*16+x];
                 const int expected = int(std::lround(255.0*covered/samples));
@@ -86,7 +86,7 @@ void CheckMultisample(CGxDeviceMetal& device) {
                 Require(std::abs(int(pixel.r)-expected)<=1 && pixel.r==pixel.g && pixel.r==pixel.b && pixel.r==pixel.a,
                     "MSAA coverage resolve differs from native sample positions");
                 const auto p = enabled ? positions[0] : MTLSamplePositionMake(.5f,.5f);
-                const float depth = x+y+p.x+p.y < 16.125f ? .2f+.01f*(x+p.x)+.02f*(y+p.y)-bias : 1;
+                const float depth = x+y+p.x+p.y-1 < 16.125f ? .2f+.01f*(x+p.x-.5f)+.02f*(y+p.y-.5f)-bias : 1;
                 Require(std::abs(depths[y*16+x]-depth)<.000002f,"MSAA sample-zero depth resolve mismatch");
             }
             if (cleanup.query) {

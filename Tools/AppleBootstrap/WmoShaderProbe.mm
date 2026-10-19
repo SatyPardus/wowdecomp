@@ -142,7 +142,7 @@ void CheckWmoShaders(CGxDeviceMetal &device) {
     V clip{};
     for (unsigned j = 0; j < 4; ++j)
         clip[j] = Dot(c[2 + j], view) + c[2 + j][3];
-    unsigned x = unsigned((clip[0] / clip[3] + 1) * 16), y = unsigned((1 - clip[1] / clip[3]) * 16);
+    unsigned x = unsigned(std::ceil((clip[0] / clip[3] + 1) * 16 + .5f)-1), y = unsigned(std::ceil((1 - clip[1] / clip[3]) * 16 + .5f)-1);
     const V fog{0.12f, 0.22f, 0.32f, 0};
     const float visibility = std::min(std::pow(std::max(view[2] * c[30][0] + c[30][1], 0.0f), c[30][2]), 1.0f);
     unsigned draws = 0;

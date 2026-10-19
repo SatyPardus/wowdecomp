@@ -295,7 +295,7 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
             GxRsSet(GxRs_VertexShader,vertexFamily[30*std::min(mode,2u)+permutation]);
             GxRsSet(GxRs_PixelShader,pixelFamilies[materialIndex][mode+(comparison ? 4:0)+(alphaCase ? 8:0)]);
             GxDraw(&batch,0); CiRect rect(0,0,32,32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels);
-            const unsigned x=unsigned(std::floor((view[0]+1)*16)),y=unsigned(std::floor((1-view[1])*16));
+            const unsigned x=unsigned(std::ceil((view[0]+1)*16+.5f)-1),y=unsigned(std::ceil((1-view[1])*16+.5f)-1);
             const auto& pixel=pixels[y*32+x]; const unsigned channels[]={pixel.r,pixel.g,pixel.b,pixel.a};
             for(unsigned channel=0;channel<4;++channel) {
                 float expected=alpha;
@@ -517,7 +517,7 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
         Vec texel = baseTexels[texelIndex]; for (auto& channel : texel) channel /= 255;
         const Vec environment = projected ? LayerReference(Dot(c[8],view), Dot(c[9],view)) : family == 10 ? LayerReference(Dot(c[6],firstUV),Dot(c[7],firstUV)) : family == 4 ? LayerReference(Dot(c[8], secondUV), Dot(c[9], secondUV)) : EnvironmentReference(view, transformedNormal);
         const float w = Dot(c[5], view);
-        const unsigned x = std::floor((Dot(c[2], view) / w + 1) * 16), y = std::floor((1 - Dot(c[3], view) / w) * 16);
+        const unsigned x = std::ceil((Dot(c[2], view) / w + 1) * 16 + .5f)-1, y = std::ceil((1 - Dot(c[3], view) / w) * 16 + .5f)-1;
         for (unsigned slot = 0; slot < ((projected || reflectionOnly || family == 8) ? 2u : family >= 3 ? 22u : 2u); ++slot) for (unsigned pixelPermutation : {0u, 4u, 8u, 12u}) {
             const unsigned material = projected ? (slot ? 7 : 4) : slot >= 7 ? slot + 1 : slot;
             const bool mod = material == 1 || material == 3 || material == 4 || material == 7 || material == 8 || material == 13 || material == 16, layered = material >= 2;
@@ -678,7 +678,7 @@ void CheckModelClipPlanes(CGxDeviceMetal& device) {
     std::memcpy(device.BufLock(buffer),quad.data(),sizeof(quad)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PBNT2);
     for(unsigned i=0;i<5;++i) { c[31+3*i][3]=0; c[32+3*i][3]=0; }
     c[5][3]=1; GxShaderConstantsSet(GxSh_Vertex,0,c[0].data(),256);
-    const Vec planes[]={{1,0,0,.25},{0,-1,0,.5},{1,1,0,.03125},{-1,0,0,.75},{0,1,0,.75},{0,0,-1,.75}};
+    const Vec planes[]={{1,0,0,.28125},{0,-1,0,.53125},{1,1,0,.03125},{-1,0,0,.78125},{0,1,0,.78125},{0,0,-1,.75}};
     CGxBatch triangles{GxPrim_TriangleStrip,0,4,0,0};
     for(unsigned i=0;i<6;++i) setPlane(i,planes[i]);
     std::vector<CImVector> reference;
@@ -686,7 +686,7 @@ void CheckModelClipPlanes(CGxDeviceMetal& device) {
         GxRsSet(GxRs_VertexShader,vertices[family][permutation]); GxRsSet(GxRs_ClipPlaneMask,int32_t(mask));
         device.BeginFrame(pass); GxDraw(&triangles,0); CiRect rect(0,0,32,32); TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect,image);
         for(unsigned y=0;y<32;++y) for(unsigned x=0;x<32;++x) {
-            const Vec position{(x+.5f)/16-1,1-(y+.5f)/16,.5,1}; bool visible=true;
+            const Vec position{x/16.0f-1,1-y/16.0f,.5,1}; bool visible=true;
             for(unsigned i=0;i<6;++i) if(mask&(1u<<i)) visible&=Dot(planes[i],position)>=0;
             Require(bool(image[y*32+x].a)==visible,"Model multiple-plane triangle coverage mismatch");
             if(mask && visible) {
@@ -742,8 +742,8 @@ void CheckModelDepthOffset(CGxDeviceMetal& device) {
         }
         // Center one-pixel primitives on a pixel so the material/depth check
         // observes full coverage in both single-sample and MSAA attachments.
-        if(primitive==GxPrim_Points) source[0].m_position={1.0f/16,-1.0f/16,z};
-        if(primitive==GxPrim_Lines) { source[0].m_position={-.5f,-1.0f/16,z}; source[1].m_position={.5f,-1.0f/16,z}; }
+        if(primitive==GxPrim_Points) source[0].m_position={0,0,z};
+        if(primitive==GxPrim_Lines) { source[0].m_position={-.5f,0,z}; source[1].m_position={.5f,0,z}; }
         auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(M2Vertex),4);
         std::memcpy(device.BufLock(buffer),source.data(),sizeof(source)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PBNT2);
         GxRsSet(GxRs_PolygonOffset,offset); CGxBatch batch{primitive,0,primitive==GxPrim_Points ? 1u:primitive==GxPrim_Lines ? 2u:4u,0,0};
@@ -752,7 +752,7 @@ void CheckModelDepthOffset(CGxDeviceMetal& device) {
     auto check=[&](float expectedDepth,bool visible,EGxPrim primitive=GxPrim_TriangleStrip) {
         CiRect rect(0,0,16,16); TSGrowableArray<CImVector> color; TSGrowableArray<float> depth;
         device.DeviceReadPixels(rect,color); device.DeviceReadDepths(rect,depth); unsigned sample=8*16+8;
-        if(primitive<GxPrim_Triangles) for(unsigned i=0;i<color.Count();++i) if(color[i].a) { sample=i; break; }
+        if(primitive<GxPrim_Triangles) for(unsigned i=0;i<color.Count();++i) if(color[i].a==(layered ? 64:128)) { sample=i; break; }
         Require(bool(color[sample].a)==visible,"Model depth offset changed expected depth/alpha rejection");
         if (std::abs(depth[sample]-expectedDepth)>=1e-6f)
             std::fprintf(stderr,"Model depth draw %u primitive %u pixel %u: %.9f expected %.9f\n",draws,unsigned(primitive),sample,depth[sample],expectedDepth);
@@ -781,7 +781,7 @@ void CheckModelDepthOffset(CGxDeviceMetal& device) {
         std::vector<MTLSamplePosition> positions(device.m_format.m_multisampleCount);
         [device.GPU().device getDefaultSamplePositions:positions.data() count:positions.size()]; firstSample=positions[0];
     }
-    draw(.5f,.05f,.475f+(firstSample.x-.5f)*.8f/16,true,GxPrim_TriangleStrip,true);
+    draw(.5f,.05f,.45f+(firstSample.x-.5f)*.8f/16,true,GxPrim_TriangleStrip,true);
     for(auto primitive:{GxPrim_Points,GxPrim_Lines}) draw(.5f,.25f,.5f,true,primitive);
     device.BeginFrame(pass); for(float offset:{0.0f,.25f,0.0f}) encode(.5f,offset); check(.5f,true); device.ScenePresent();
     std::fprintf(stderr,"Model depth offset: %u draws, four rigid/skinned vertex families, normalized sign/saturation, viewport, clip rejection, alpha/depth states, slopes, points/lines and same-frame restoration passed\n",draws);

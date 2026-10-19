@@ -265,6 +265,7 @@ struct GeometryDraw {
     uint32_t depthFunction = 0; // Gx: <=, ==, >=, <
     uint32_t culling = 0; // Gx: none, clockwise, counterclockwise
     bool wireframe = false;
+    bool integerPixelCenters = false; // Gx/D3D9 screen grid; raw Metal draws keep half-integer centers
     bool scissorEnabled = false;
     MTLScissorRect scissor{};
     bool viewportEnabled = false;

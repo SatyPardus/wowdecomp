@@ -66,6 +66,82 @@ void Vertices(Vertex* output, uint32_t color, float z) {
         {1, 1, z, color, 1, 0}, {1, -1, z, color, 1, 1}};
     std::memcpy(output, vertices, sizeof(vertices));
 }
+void CheckRasterPixelCenters(CGxDeviceMetal& device) {
+    device.RsPush();
+    const auto projection=device.m_projNative;
+    const auto viewport=device.m_viewport;
+    for (auto transform : {GxXform_View,GxXform_World}) device.XformPushAndSet(transform,C44Matrix(1));
+    struct Restore {
+        CGxDeviceMetal& device; C44Matrix projection; decltype(device.m_viewport) viewport;
+        ~Restore() {
+            if (device.FrameCommand()) device.ScenePresent();
+            device.RsPop(); GxXformPop(GxXform_World); GxXformPop(GxXform_View); device.m_projNative=projection;
+            device.XformSetViewport(viewport.m_x.m_l,viewport.m_x.m_h,viewport.m_y.m_l,viewport.m_y.m_h,viewport.m_z.m_l,viewport.m_z.m_h);
+        }
+    } restore{device,projection,viewport};
+    device.RsSet(GxRs_VertexShader,static_cast<CGxShader*>(nullptr));
+    device.RsSet(GxRs_PixelShader,static_cast<CGxShader*>(nullptr));
+    for (unsigned i=0;i<4;++i) device.RsSet(EGxRenderState(GxRs_Texture0+i),static_cast<CGxTex*>(nullptr));
+    for (auto state : {GxRs_Lighting,GxRs_Fog,GxRs_Culling,GxRs_ScissorTest,GxRs_ClipPlaneMask,
+                       GxRs_PolygonOffset,GxRs_PointSprite,GxRs_AlphaRef}) GxRsSet(state,0);
+    GxRsSet(GxRs_DepthTest,1); GxRsSet(GxRs_DepthWrite,1); GxRsSet(GxRs_DepthFunc,0);
+    GxRsSet(GxRs_ColorWrite,15); GxRsSet(GxRs_BlendingMode,GxBlend_Opaque);
+    GxRsSet(GxRs_MatDiffuse,-1); GxRsSet(GxRs_MatEmissive,0);
+    auto descriptor=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:64 height:64 mipmapped:NO];
+    descriptor.storageMode=MTLStorageModePrivate; descriptor.usage=MTLTextureUsageRenderTarget;
+    auto pass=[MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture=[device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction=MTLLoadActionClear;
+    descriptor.pixelFormat=MTLPixelFormatDepth32Float;
+    pass.depthAttachment.texture=[device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.depthAttachment.loadAction=MTLLoadActionClear; pass.depthAttachment.clearDepth=1;
+    unsigned checked=0;
+    for (bool subview : {false,true}) for (bool perspective : {false,true}) {
+        const float ox=subview?9:0, oy=subview?13:0, width=subview?43:64, height=subview?37:64;
+        GxXformSetViewport(ox/64,(ox+width)/64,1-(oy+height)/64,1-oy/64,0,1);
+        const float sx[]{ox+.1f*width,ox+.9f*width,ox+.2f*width};
+        const float sy[]{oy+.1f*height,oy+.2f*height,oy+.9f*height};
+        const float w[]{1,perspective?.7f:1,perspective?2.1f:1};
+        C3Vector positions[3];
+        for (unsigned i=0;i<3;++i) positions[i]={(2*(sx[i]-ox)/width-1)*w[i],(1-2*(sy[i]-oy)/height)*w[i],w[i]};
+        const CImVector colors[]{CImVector(0,0,0,255),CImVector(0,0,255,255),CImVector(0,255,0,255)};
+        device.m_projNative=C44Matrix(1); device.m_projNative.c2=.5f; device.m_projNative.c3=1; device.m_projNative.d3=0;
+        device.BeginFrame(pass);
+        GxPrimVertexPtr(3,positions,sizeof(C3Vector),nullptr,0,colors,sizeof(CImVector),nullptr,0,nullptr,0);
+        CGxBatch batch{GxPrim_Triangles,0,3,0,2}; device.Draw(&batch,0);
+        TSGrowableArray<CImVector> pixels; TSGrowableArray<float> depths; CiRect rect(0,0,64,64);
+        device.DeviceReadPixels(rect,pixels); device.DeviceReadDepths(rect,depths); device.ScenePresent();
+        // Independent D3D9 reference: raster samples are at integer screen
+        // coordinates, then colors use perspective-correct barycentrics.
+        const double area=(sy[1]-sy[2])*(sx[0]-sx[2])+(sx[2]-sx[1])*(sy[0]-sy[2]);
+        for (unsigned y=0;y<64;++y) for (unsigned x=0;x<64;++x) {
+            const double a=((sy[1]-sy[2])*(x-sx[2])+(sx[2]-sx[1])*(y-sy[2]))/area;
+            const double b=((sy[2]-sy[0])*(x-sx[2])+(sx[0]-sx[2])*(y-sy[2]))/area, c=1-a-b;
+            if (std::min({a,b,c})<.04) continue;
+            const double divisor=a/w[0]+b/w[1]+c/w[2];
+            const int r=std::lround(255*b/w[1]/divisor),g=std::lround(255*c/w[2]/divisor);
+            const auto actual=pixels[y*64+x];
+            if (std::abs(int(actual.r)-r)>1 || std::abs(int(actual.g)-g)>1 || actual.b || actual.a!=255 || std::abs(depths[y*64+x]-.5f)>1e-6f)
+                throw std::runtime_error("D3D9 raster center mismatch at "+std::to_string(x)+","+std::to_string(y)+
+                    " viewport "+std::to_string(subview)+" perspective "+std::to_string(perspective)+
+                    " expected "+std::to_string(r)+","+std::to_string(g)+" actual "+std::to_string(actual.r)+","+std::to_string(actual.g));
+            ++checked;
+        }
+    }
+    // A size-one D3D9 point follows the top/left quad fill rule, including
+    // exact half-integer centers where floor(center+.5) selects the wrong pixel.
+    GxXformSetViewport(0,1,0,1,0,1); device.m_projNative=C44Matrix(1);
+    for(float center : {10.0f,10.25f,10.5f,10.75f}) {
+        C3Vector position{center/32-1,1-center/32,.5f}; const CImVector red(0,0,255,255);
+        device.BeginFrame(pass); GxPrimVertexPtr(1,&position,sizeof(position),nullptr,0,&red,0,nullptr,0,nullptr,0);
+        CGxBatch batch{GxPrim_Points,0,1,0,0}; device.Draw(&batch,0);
+        TSGrowableArray<CImVector> pixels; CiRect rect(0,0,64,64); device.DeviceReadPixels(rect,pixels); device.ScenePresent();
+        const unsigned coordinate=unsigned(std::ceil(center+.5f)-1), expected=coordinate*64+coordinate;
+        for(unsigned i=0;i<pixels.Count();++i) Require((pixels[i].r!=0)==(i==expected),"D3D9 one-pixel point half-center coverage mismatch");
+    }
+    Require(checked>2000,"Raster reference covered too few interior pixels");
+    std::fprintf(stderr,"Original raster centers: %u independent affine/perspective color and depth samples across full/offset viewports passed\n",checked);
+}
 void CheckWireframe(CGxDeviceMetal& device) {
     device.RsPush();
     const auto projection = device.m_projNative;
@@ -122,7 +198,7 @@ void CheckWireframe(CGxDeviceMetal& device) {
                 if (!pixels[i].r) { Require(depths[i]==1,"Wireframe wrote depth without an edge"); continue; }
                 ++counts[cull]; Require(pixels[i]==red && std::abs(depths[i]-.25f)<1e-6f,"Wireframe edge color/depth mismatch");
                 if (wire) {
-                    const float px=x+.5f, py=y+.5f;
+                    const float px=x, py=y;
                     Require(px>=6.5f && px<=57.5f && py>=6.5f && py<=57.5f &&
                         std::min({std::abs(px-8),std::abs(py-56),std::abs(py-px)/std::sqrt(2.0f)})<=1.25f,
                         "Wireframe filled triangle interior or drew outside its edges");
@@ -139,7 +215,7 @@ void CheckWireframe(CGxDeviceMetal& device) {
         TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels); device.ScenePresent();
         unsigned coverage=0;
         for (unsigned y=0;y<64;++y) for (unsigned x=0;x<64;++x) if (pixels[y*64+x].r) {
-            ++coverage; const float px=x+.5f,py=y+.5f;
+            ++coverage; const float px=x,py=y;
             Require(std::min({std::abs(px-8),std::abs(px-56),std::abs(py-8),std::abs(py-56),std::abs(px+py-64)/std::sqrt(2.0f)})<=1.25f,
                 "Wireframe strip filled away from its edges");
         }
@@ -299,6 +375,13 @@ void CheckGxDevice(const char* focus) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (focus && !std::strcmp(focus, "raster")) { CheckRasterPixelCenters(device); CheckGxFont(device); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "raster-shaders")) {
+        CheckRasterPixelCenters(device); CheckGxFont(device); CheckShadowMapShaders(device);
+        CheckDetailDoodadShaders(device); CheckWaterRippleShaders(device);
+        CheckTerrainShaders(device); CheckTerrainShadowGenerator(device);
+        CheckWmoShaders(device); CheckLiquidShaders(device); device.DeviceDestroy(); return;
+    }
     if (focus && !std::strcmp(focus, "wireframe")) { CheckWireframe(device); CheckWeatherShaders(device,true); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "gamma")) { CheckPresentationGamma(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "cursor")) { CheckSoftwareCursor(device); device.DeviceDestroy(); return; }
@@ -614,6 +697,7 @@ void CheckGxDevice(const char* focus) {
     CheckGxFFXEffect(device);
     CheckFixedUnlit(device);
     CheckWireframe(device);
+    CheckRasterPixelCenters(device);
     CheckModelShaders(device);
     CheckModelClipPlanes(device);
     CheckModelDepthOffset(device);

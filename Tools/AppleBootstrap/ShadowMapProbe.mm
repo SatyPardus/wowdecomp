@@ -117,7 +117,7 @@ void CheckShadowMapShaders(CGxDeviceMetal& device) {
         if (skinning)
             light = {Dot(c[14], light), Dot(c[15], light), Dot(c[16], light), 1};
         const float w = Dot(c[5], light);
-        const unsigned x = std::floor((Dot(c[2], light) / w + 1) * 16), y = std::floor((1 - Dot(c[3], light) / w) * 16);
+        const unsigned x = std::ceil((Dot(c[2], light) / w + 1) * 16 + .5f)-1, y = std::ceil((1 - Dot(c[3], light) / w) * 16 + .5f)-1;
         for (unsigned cutout = 0; cutout < 2; ++cutout)
             for (unsigned boundary = 0; boundary < 2; ++boundary) {
                 const auto format = skinning ? GxVBF_PBNT2 : cutout ? GxVBF_PT : GxVBF_P;

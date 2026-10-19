@@ -92,7 +92,7 @@ void CheckWeatherShaders(CGxDeviceMetal& device, bool wireframePointsOnly) {
         float alpha=kind ? Clamp(5*t)*Clamp((2-t)/(2-(2-0.2f)))*0.625f : age>3 ? Clamp(1-4*(age-3)) : Clamp(t);
         unsigned covered=0;
         for (unsigned py=0;py<64;++py) for (unsigned px=0;px<64;++px) {
-            const float dx=px+0.5f-x,dy=py+0.5f-y;
+            const float dx=px-x,dy=py-y;
             if (std::abs(std::abs(dx)-size/2)<0.01f || std::abs(std::abs(dy)-size/2)<0.01f) continue;
             const bool inside=std::abs(dx)<size/2 && std::abs(dy)<size/2;
             simd_float4 expected={0,0,0,0};

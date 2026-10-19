@@ -326,7 +326,7 @@ void CheckTerrainShaders(CGxDeviceMetal& device) {
     for (unsigned j = 0; j < 4; ++j)
         for (unsigned i = 0; i < 4; ++i)
             clip[j] += view[i] * c[4 + i][j];
-    const unsigned x = unsigned((clip[0] / clip[3] + 1) * 16), y = unsigned((1 - clip[1] / clip[3]) * 16);
+    const unsigned x = unsigned(std::ceil((clip[0] / clip[3] + 1) * 16 + .5f)-1), y = unsigned(std::ceil((1 - clip[1] / clip[3]) * 16 + .5f)-1);
     CGxBatch batch{GxPrim_Points, 0, 1, 0, 0};
     unsigned draws = 0;
     for (bool comparison : {false, true}) {
@@ -638,7 +638,7 @@ void CheckTerrainShadowGenerator(CGxDeviceMetal& device) {
     for (unsigned row = 0; row < 3; ++row)
         for (unsigned j = 0; j < 4; ++j)
             projected[row] += c[40 + row][j] * view[j];
-    const unsigned x = unsigned((view[0] + 1) * 8), y = unsigned((1 - view[1]) * 8);
+    const unsigned x = unsigned(std::ceil((view[0] + 1) * 8 + .5f)-1), y = unsigned(std::ceil((1 - view[1]) * 8 + .5f)-1);
     unsigned draws = 0;
     for (unsigned vp = 1; vp < 128; vp += 2) {
         const auto format = (vp & 4) ? GxVBF_PNC : GxVBF_PN;
@@ -708,7 +708,7 @@ void CheckTerrainShadowGenerator(CGxDeviceMetal& device) {
     device.ReadFloatColor(rect, pixels);
     for (unsigned y = 0; y < 16; ++y)
         for (unsigned x = 0; x < 16; ++x) {
-            const float px = (x + .5f) / 8 - 1, py = 1 - (y + .5f) / 8;
+            const float px = x / 8.0f - 1, py = 1 - y / 8.0f;
             if (std::abs(pixels[y * 16 + x] - .5f * std::sqrt(px * px + py * py + .25f)) > 2e-6f)
                 throw std::runtime_error("TerrainSM fragment interpolation mismatch");
         }
