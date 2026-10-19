@@ -29,13 +29,23 @@ struct NativeDisplayProbe::Impl {
     NSRect windowedFrame;
     NSWindowStyleMask windowedStyle;
     NSApplicationPresentationOptions windowedPresentation;
+    unsigned fullscreenPhase = 0;
+    CFAbsoluteTime fullscreenDeadline = 0;
+    CGxGammaRamp originalGamma;
+    bool FullScreenStep();
 #endif
     Impl(CGxDeviceMetal& d, MTKView* v) : device(d), view(v), original(d.m_format), automatic(v.autoResizeDrawable), viewport(d.m_viewport) {
         original.m_size = {int32_t(view.drawableSize.width), int32_t(view.drawableSize.height)};
         sizes[0] = {320, 180}; sizes[1] = {641, 359}; sizes[2] = original.m_size;
+#if TARGET_OS_OSX
+        originalGamma = d.m_gammaRamp;
+#endif
     }
     ~Impl() {
         if (device.FrameCommand()) device.ScenePresent();
+#if TARGET_OS_OSX
+        device.DeviceSetGamma(originalGamma);
+#endif
         id<MTKViewDelegate> delegate = view.delegate; view.delegate = nil;
         device.DeviceSetFormat(original); view.autoResizeDrawable = automatic;
         view.delegate = delegate;
@@ -76,6 +86,9 @@ NativeDisplayProbe::~NativeDisplayProbe() = default;
 bool NativeDisplayProbe::Step() { return m->Step(); }
 bool NativeDisplayProbe::Impl::Step() {
     Require(!device.FrameCommand(), "Native format check requires an idle host");
+#if TARGET_OS_OSX
+    if (phase >= 7) return FullScreenStep();
+#endif
     if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return false;
     device.XformSetViewport(0, 1, 0, 1, 0, 1);
     if (!phase) {
@@ -128,6 +141,8 @@ bool NativeDisplayProbe::Impl::Step() {
                 view.drawableSize.width == size.x && view.drawableSize.height == size.y, "Rejected native format changed drawable or active size");
         };
         CGxFormat invalid = accepted; invalid.m_size.x = 16385; reject(invalid);
+        invalid = accepted; invalid.m_window = false; invalid.m_size = {16384,16384}; reject(invalid);
+        invalid = accepted; invalid.m_size.x = 16385;
         Require(!device.DeviceCreate((__bridge void*)view, invalid) && device.DeviceWindow() == (__bridge void*)view &&
             OsGuiGetWindow(0) == (__bridge void*)view && view.drawableSize.width == size.x,
             "Failed host creation lost the existing native binding");
@@ -141,7 +156,13 @@ bool NativeDisplayProbe::Impl::Step() {
         invalid.m_maximize = 1;
 #endif
         reject(invalid);
-        invalid = accepted; invalid.m_window = false; reject(invalid);
+        invalid = accepted;
+#if TARGET_OS_OSX
+        invalid.m_window = 2;
+#else
+        invalid.m_window = false;
+#endif
+        reject(invalid);
         invalid = accepted; invalid.m_refreshRate = 777; reject(invalid);
         invalid = accepted; invalid.m_depthFormat = CGxFormat::Fmt_Ds24X; reject(invalid);
 #if !TARGET_OS_OSX
@@ -218,7 +239,90 @@ bool NativeDisplayProbe::Impl::Step() {
         ++phase; return false;
     }
     std::fputs("Native display: borderless screen coverage, full GPU readback, focus/presentation restoration and original window-size restoration passed\n", stderr);
+    phase = 7; return false;
 #endif
     std::fprintf(stderr, "Native display: real drawable/depth resize, odd pixel dimensions, full-surface GPU readback, input bounds, presentation rejection and active-frame/thread safety passed; original ConsoleDevice restart %s\n", ConsoleDeviceExists() ? "passed (deferred latest request and last-good rollback)" : "not active");
     return true;
 }
+
+#if TARGET_OS_OSX
+bool NativeDisplayProbe::Impl::FullScreenStep() {
+    auto* window = (GxMetalWindow*)view.window;
+    Require([window isKindOfClass:GxMetalWindow.class], "Fullscreen check needs the native game window");
+    auto request = [&](bool full, C2iVector size) {
+        auto format = device.m_format; format.m_window = !full; format.m_maximize = 0; format.m_size = size;
+        if (ConsoleDeviceExists()) { SetGxCVars(format); Require(CCGxRestart(nullptr,nullptr), "Fullscreen gxRestart failed"); }
+        else Require(device.DeviceSetFormat(format), "Native fullscreen request failed");
+        Require(bool(device.m_format.m_window) == !full, "Fullscreen request did not reach the device");
+        if (ConsoleDeviceExists()) Require(bool(CVar::Lookup("gxWindow")->m_intValue) == !full &&
+            bool(s_lastGoodFormat.m_window) == !full, "Original video state lost the fullscreen request");
+        fullscreenDeadline = CFAbsoluteTimeGetCurrent()+15;
+    };
+    if (!fullscreenPhase) {
+        windowedFrame = window.frame; windowedStyle = window.styleMask; windowedPresentation = NSApp.presentationOptions;
+        OsInputSetWindowResizeLock(1);
+        device.DeviceSetGamma(.5f); request(true,{641,359});
+        ++fullscreenPhase; return false;
+    }
+    Require(CFAbsoluteTimeGetCurrent() < fullscreenDeadline, "Native fullscreen transition did not complete");
+    if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return false;
+    const bool full = (window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+    if (window.gameFullScreenTransition || (fullscreenPhase <= 2 && !full) || (fullscreenPhase >= 3 && full)) return false;
+    auto checkImage = [&] {
+        const auto size = device.m_format.m_size;
+        Require(view.drawableSize.width == size.x && view.drawableSize.height == size.y, "Fullscreen render resolution drifted to native backing size");
+        tagRECT bounds{}; OsGetDefaultWindowRect(&bounds);
+        Require(bounds.right == size.x && bounds.bottom == size.y, "Fullscreen input pixel dimensions changed");
+        auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
+        Require(pass && drawable, "Fullscreen has no drawable");
+        device.BeginFrame(pass,drawable); device.XformSetViewport(0,1,0,1,0,1);
+        device.SceneClear(3,CImVector(31,73,149,255));
+        CiRect edge(size.y-1,size.x-1,size.y,size.x); TSGrowableArray<CImVector> pixels;
+        device.DeviceReadPixels(edge,pixels);
+        Require(pixels.Count()==1 && pixels[0] == CImVector(31,73,149,255), "Fullscreen game backbuffer changed before gamma");
+        const auto before = device.EncodingStats().gammaPresentations;
+        device.ScenePresent(); device.Drain();
+        Require(device.EncodingStats().gammaPresentations == before + (fullscreenPhase == 1), "Fullscreen gamma did not follow video mode");
+        auto buffer = [device.GPU().device newBufferWithLength:256 options:MTLResourceStorageModeShared];
+        auto command = [device.GPU().queue commandBuffer]; auto blit = [command blitCommandEncoder];
+        [blit copyFromTexture:drawable.texture sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(size.x-1,size.y-1,0)
+            sourceSize:MTLSizeMake(1,1,1) toBuffer:buffer destinationOffset:0 destinationBytesPerRow:256 destinationBytesPerImage:256];
+        [blit endEncoding]; [command commit]; [command waitUntilCompleted];
+        Require(!command.error, "Fullscreen presentation readback failed");
+        const auto pixel = *static_cast<const CImVector*>(buffer.contents);
+        auto channel = [&](uint8_t code) { return fullscreenPhase == 1 ? uint8_t(std::lround(double(device.m_gammaRamp.m_red[code])*255/65535)) : code; };
+        Require(pixel.r == channel(149) && pixel.g == channel(73) && pixel.b == channel(31), "Native fullscreen presentation has incorrect gamma or coverage");
+        [view releaseDrawables];
+    };
+    checkImage();
+    if (fullscreenPhase == 1) {
+        Require(device.m_format.m_size.x == 641 && device.m_format.m_size.y == 359 && window.isKeyWindow,
+            "Fullscreen lost the selected odd resolution or keyboard focus");
+        auto* cursor = GxMetal::CursorForHostView((__bridge void*)view);
+        Require(std::abs(cursor.image.size.width*641/view.bounds.size.width-32) < .001 &&
+            std::abs(cursor.image.size.height*359/view.bounds.size.height-32) < .001, "Fullscreen hardware cursor did not follow game pixel size");
+        device.DeviceSetGamma(1); request(true,{1279,719});
+        ++fullscreenPhase; return false;
+    }
+    if (fullscreenPhase == 2) {
+        Require(device.m_format.m_size.x==1279 && device.m_format.m_size.y==719, "Fullscreen resolution update was lost");
+        [window toggleFullScreen:nil]; // Native action must use the original restart/CVars.
+        Require(device.m_format.m_window, "Native fullscreen action bypassed original video settings");
+        fullscreenDeadline = CFAbsoluteTimeGetCurrent()+15;
+        ++fullscreenPhase; return false;
+    }
+    Require(NSEqualRects(window.frame,windowedFrame), "Fullscreen exit did not restore the window frame");
+    if (fullscreenPhase == 3) {
+        request(true,{641,359}); GxMetal::PrepareHostDrawable((__bridge void*)view);
+        Require(window.gameFullScreenTransition, "Fullscreen reversal check did not start a transition");
+        request(false,device.m_format.m_size); // Reverse while AppKit is animating.
+        ++fullscreenPhase; return false;
+    }
+    OsInputSetWindowResizeLock(0);
+    Require(window.styleMask==windowedStyle && NSApp.presentationOptions==windowedPresentation,
+        "Native fullscreen did not restore resize style or system presentation");
+    device.DeviceSetGamma(originalGamma);
+    std::fputs("Native fullscreen: real AppKit enter/exit and reversed transition, original CVars/native action, fixed odd render resolutions, input/cursor scaling, gamma/readback, frame/style restoration passed\n",stderr);
+    return true;
+}
+#endif

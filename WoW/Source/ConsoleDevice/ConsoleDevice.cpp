@@ -198,6 +198,9 @@ DefaultSettings* ConsoleDeviceGetDefaultSettings() {
 // VERIFY: d88758a1 auto
 // OFFSET: 0x00769D40
 void ConsoleDeviceDestroy() {
+#if defined(__APPLE__)
+    GxMetal::SetHostFullScreenRequest(nullptr);
+#endif
     g_theGxDevicePtr->RemoveStereoChangedCallback(StereoChangedCallback);
     s_cvVideoOptionsVersion->Update();
     GxDevDestroy(s_device);
@@ -506,6 +509,12 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
     s_requestedFormat = format;
     s_lastGoodFormat = format;
     SetGxCVars(s_requestedFormat);
+#if defined(__APPLE__)
+    GxMetal::SetHostFullScreenRequest([](const CGxFormat& requested) {
+        SetGxCVars(requested);
+        CCGxRestart(nullptr, nullptr);
+    });
+#endif
 
     if (g_theGxDevicePtr->Caps().m_numTmus < 2) {
         GxDevDestroy(s_device);

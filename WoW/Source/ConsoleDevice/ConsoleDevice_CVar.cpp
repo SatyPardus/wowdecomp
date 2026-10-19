@@ -425,6 +425,13 @@ static bool CVGxResolutionCallback(CVar* var, const char* oldValue, const char* 
     if (x.ec != std::errc() || x.ptr == end || (*x.ptr != 'x' && *x.ptr != 'X')) return false;
     const auto y = std::from_chars(x.ptr + 1, end, height);
     if (y.ec != std::errc() || y.ptr != end || width <= 0 || height <= 0) return false;
+    // AppKit fullscreen preserves the selected Metal render resolution inside
+    // its native Space. It does not switch physical display modes, so the
+    // Windows exclusive-mode list must not reject valid render dimensions.
+    // DeviceSetFormat still enforces texture, MSAA and allocation limits.
+    s_requestedFormat.m_size = {width, height};
+    ConsoleWrite("set pending gxRestart", DEFAULT_COLOR);
+    return true;
 #else
     char separator;
     sscanf(value, "%d%c%d", &width, &separator, &height);

@@ -1610,8 +1610,7 @@ and Metal validation passed 9,216 pixels including 1x/4x MSAA; iOS simulator
 passed 4,608 pixels at its supported 1x mode. Both iOS clients compile. The final
 image uses BGRA8 output quantization; Windows display calibration, higher-bit
 DAC output and hardware cursor gamma behavior still need comparison. Native
-fullscreen window activation is the next host integration step; this GPU check
-does not claim it is already connected. Additional render-target formats and
+fullscreen activation is connected as described below. Additional render-target formats and
 stereo remain explicit unsupported operations. Single-mip D24X8 requests use native
 Depth32Float targets with independent binding/lifetimes, regional clears, exact
 depth blits and comparison sampling; their precision is not quantized to D24. Geometry draws
@@ -1689,8 +1688,18 @@ unless a different resolution was explicitly requested. Keyboard focus remains
 available without a title bar. Dock/menu auto-hide belongs only to the key game
 window and is restored on focus loss, mode exit and close. The original resize
 lock updates the saved window style while borderless, without adding a frame.
-Exclusive fullscreen/physical display mode changes and disabling iOS presentation
-synchronization remain unsupported.
+macOS `gxWindow=0` now selects an AppKit fullscreen Space using `toggleFullScreen`,
+following [Apple's Metal window guidance](https://developer.apple.com/documentation/metal/managing-your-game-window-for-metal-in-macos).
+The original render resolution remains fixed through the native animation and
+can change while fullscreen; native input and cursor coordinates follow that
+render size. Returning to a window restores its frame and resize policy unless
+the requested window resolution explicitly changes. Reversed requests wait for
+the current AppKit transition, then apply the latest target. Failure callbacks
+restore the actual native mode; a guarded timeout covers hosts without those
+callbacks. Green-button/menu actions use original CVars and `gxRestart`, with
+the application menu also offering Control-Command-F. Physical monitor mode/
+refresh switching and disabling iOS presentation synchronization remain
+unsupported; fullscreen render dimensions are independent of those modes.
 Native hosts now bind their view before the shared Gx factory runs, and the first
 format request updates the real window/drawable. Failed host creation preserves
 the previous binding and active format; a callback-based startup without a host
@@ -1701,7 +1710,19 @@ native pixel/input sizes, unsupported requests and continued rendering across
 successive view callbacks in either native preview. On macOS it also checks
 borderless full-surface color/depth readback, transfer of focus to another real
 window and back, resize-lock changes and restoration of desktop presentation,
-window frame and video CVars.
+window frame and video CVars. Native fullscreen checks also exercise actual
+entry/exit, reversal during animation, fixed 641x359/1279x719 render targets,
+cursor/input scaling, gamma/presentation readback and restored window state.
+`WOW_CLIENT_FULLSCREEN_CHECK=1` runs a fullscreen/windowed round trip after
+entering the world, waits for 120 stable frames in each changed mode and restores
+the original format through `gxRestart`, without player actions. Feral completed
+this check at 1024x768 windowed (zero gamma presentations) and 1280x720 fullscreen
+(127 gamma presentations during the stable interval and transition), then
+finished 1,000 frames and normal shutdown under Mac ASan/UBSan/Metal validation.
+An independent fullscreen startup also completed 1,000 frames. These runs used
+separate settings; the normal runtime and authorized application bundle stayed
+unchanged. The first round-trip check was attached to the hidden-frame callback
+and did not execute; only the corrected visible-frame run counts as evidence.
 It also exercises the original restart path, including last-good rollback and
 two requests in one active frame. The complete restart (world fade/portrait
 invalidation, format application, CVars and atlas notification) is deferred until

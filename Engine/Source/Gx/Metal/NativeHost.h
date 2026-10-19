@@ -6,6 +6,8 @@
 // Borderless game windows must retain keyboard focus. The window also scopes
 // Dock/menu presentation to its own key-window lifetime.
 @interface GxMetalWindow : NSWindow
+@property(nonatomic, readonly) BOOL gameFullScreenTransition;
+- (void)gameFullScreenTransitionFailed;
 @end
 @protocol GxMetalCursorHost
 - (void)updateGameCursor;
@@ -26,6 +28,8 @@ bool GetHostFormat(CGxFormat& format);
 // backing size; UIKit retains its explicitly selected rendering resolution.
 // False means a stale activation/resize drawable was discarded; retry next frame.
 bool PrepareHostDrawable(void* nativeView);
+// Native green-button/menu requests return through original video CVars.
+void SetHostFullScreenRequest(void (*request)(const CGxFormat&));
 // Coalesce display restarts requested during input/update/paint. The complete
 // restart runs after submission, before the next drawable is acquired.
 bool DeferDisplayRestart(void (*restart)());

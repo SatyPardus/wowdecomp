@@ -173,6 +173,8 @@ public:
 - (BOOL)windowShouldClose:(NSWindow*)sender { [self stop:nil]; return NO; }
 - (void)windowDidResignKey:(NSNotification*)n { [self suspend]; }
 - (void)windowDidBecomeKey:(NSNotification*)n { [self resume]; }
+- (void)windowDidFailToEnterFullScreen:(NSWindow*)window { [(GxMetalWindow*)window gameFullScreenTransitionFailed]; }
+- (void)windowDidFailToExitFullScreen:(NSWindow*)window { [(GxMetalWindow*)window gameFullScreenTransitionFailed]; }
 - (void)applicationDidResignActive:(NSNotification*)n { [self suspend]; }
 - (void)applicationDidBecomeActive:(NSNotification*)n { if (self.view.window.isKeyWindow) [self resume]; }
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {

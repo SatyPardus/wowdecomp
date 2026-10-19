@@ -9,6 +9,7 @@
 #include <TargetConditionals.h>
 #include <stdexcept>
 #include <atomic>
+#include <cmath>
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 #else
@@ -21,9 +22,89 @@
 @property(nonatomic) NSRect restoredFrame;
 @property(nonatomic) NSWindowStyleMask restoredStyle;
 @property(nonatomic) NSApplicationPresentationOptions restoredPresentation, appliedPresentation;
+@property(nonatomic) BOOL fullScreenRequested, gameFullScreenTransition, fullScreenStyleSaved, closingGame;
+@property(nonatomic) BOOL windowedUpdatePending, targetMaximized, restoreWindowAfterFullScreen;
+@property(nonatomic) NSWindowStyleMask fullScreenRestoredStyle;
+@property(nonatomic) NSRect fullScreenRestoredFrame;
+@property(nonatomic) NSSize renderSize, fullScreenRenderSize, lastCursorBounds;
+@property(nonatomic) NSUInteger transitionGeneration;
+@property(nonatomic, copy) void (^gameFullScreenRequest)(const CGxFormat&);
 - (void)setBorderlessGamePresentation:(BOOL)enabled;
+- (void)driveGameFullScreen;
 @end
 @implementation GxMetalWindow
+- (instancetype)initWithContentRect:(NSRect)rect styleMask:(NSWindowStyleMask)style backing:(NSBackingStoreType)backing defer:(BOOL)defer {
+    if ((self = [super initWithContentRect:rect styleMask:style backing:backing defer:defer])) {
+        self.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(gameFullScreenFinished:)
+            name:NSWindowDidEnterFullScreenNotification object:self];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(gameFullScreenFinished:)
+            name:NSWindowDidExitFullScreenNotification object:self];
+    }
+    return self;
+}
+- (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; }
+- (void)toggleFullScreen:(id)sender {
+    [self requestGameFullScreen:!self.fullScreenRequested restoring:NO];
+}
+- (void)requestGameFullScreen:(BOOL)enabled restoring:(BOOL)restoring {
+    if (!g_theGxDevicePtr || g_theGxDevicePtr->DeviceWindow() != (__bridge void*)self.contentView) return;
+    auto format = g_theGxDevicePtr->m_format; format.m_window = !enabled;
+    if (enabled && restoring) format.m_size = {int32_t(self.fullScreenRenderSize.width),int32_t(self.fullScreenRenderSize.height)};
+    if (self.gameFullScreenRequest) self.gameFullScreenRequest(format);
+    else g_theGxDevicePtr->DeviceSetFormat(format);
+}
+- (void)gameFullScreenFinished:(NSNotification*)notification {
+    self.gameFullScreenTransition = NO; ++self.transitionGeneration;
+    CGxDevice::Log("Native fullscreen %s: render %.0fx%.0f, view %.0fx%.0f points",
+        (self.styleMask & NSWindowStyleMaskFullScreen) ? "entered" : "exited",
+        self.renderSize.width,self.renderSize.height,self.contentView.bounds.size.width,self.contentView.bounds.size.height);
+    // Reconcile on the next host frame, after AppKit has completed all of its
+    // resize/focus notifications. Reversed requests retain their latest target.
+}
+- (void)gameFullScreenTransitionFailed {
+    if (!self.gameFullScreenTransition) return;
+    self.gameFullScreenTransition = NO; ++self.transitionGeneration;
+    self.fullScreenRequested = (self.styleMask & NSWindowStyleMaskFullScreen) != 0;
+    CGxDevice::Log("AppKit fullscreen transition failed; restoring the actual native presentation");
+    [self requestGameFullScreen:self.fullScreenRequested restoring:YES];
+}
+- (void)driveGameFullScreen {
+    if (self.closingGame || self.gameFullScreenTransition) return;
+    const BOOL actual = (self.styleMask & NSWindowStyleMaskFullScreen) != 0;
+    if (actual != self.fullScreenRequested) {
+        if (!self.visible) return; // Startup requests wait until activation.
+        if (self.fullScreenRequested && !self.fullScreenStyleSaved) {
+            [self setBorderlessGamePresentation:NO];
+            self.fullScreenRestoredFrame = self.frame; self.fullScreenRestoredStyle = self.styleMask;
+            self.fullScreenStyleSaved = YES;
+            // Native fullscreen is allowed even when the game locks manual
+            // window resizing; retain the locked style for the eventual exit.
+            self.styleMask |= NSWindowStyleMaskResizable;
+        }
+        self.gameFullScreenTransition = YES;
+        const NSUInteger generation = ++self.transitionGeneration;
+        [super toggleFullScreen:nil];
+        __weak GxMetalWindow* weak = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10*NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            GxMetalWindow* window = weak;
+            if (window && window.transitionGeneration == generation && window.gameFullScreenTransition)
+                [window gameFullScreenTransitionFailed];
+        });
+        return;
+    }
+    if (!actual && self.fullScreenStyleSaved) {
+        self.styleMask = self.fullScreenRestoredStyle;
+        self.fullScreenStyleSaved = NO;
+    }
+    if (!actual && self.windowedUpdatePending) {
+        self.windowedUpdatePending = NO;
+        [self setBorderlessGamePresentation:self.targetMaximized];
+        if (self.targetMaximized) [self setFrame:self.screen.frame display:NO];
+        else if (self.restoreWindowAfterFullScreen) [self setFrame:self.fullScreenRestoredFrame display:NO];
+        else [self setContentSize:NSMakeSize(self.renderSize.width/self.backingScaleFactor, self.renderSize.height/self.backingScaleFactor)];
+    }
+}
 - (BOOL)canBecomeKeyWindow { return YES; }
 - (BOOL)canBecomeMainWindow { return YES; }
 - (void)restoreGamePresentation {
@@ -42,7 +123,10 @@
 }
 - (void)becomeKeyWindow { [super becomeKeyWindow]; [self updateGamePresentation]; }
 - (void)resignKeyWindow { [self restoreGamePresentation]; [super resignKeyWindow]; }
-- (void)close { [self restoreGamePresentation]; [super close]; }
+- (void)close {
+    self.closingGame = YES; ++self.transitionGeneration; self.gameFullScreenRequest = nil;
+    [self restoreGamePresentation]; [super close];
+}
 - (void)setBorderlessGamePresentation:(BOOL)enabled {
     if (enabled == self.borderlessGame) return;
     if (enabled) {
@@ -77,6 +161,9 @@ NSCursor* GxMetal::CursorForHostView(void* nativeView) {
         return NSCursor.arrowCursor;
     const CGFloat scale = view.window.backingScaleFactor;
     if (!(scale > 0)) return NSCursor.arrowCursor;
+    const auto* metalView = [view isKindOfClass:MTKView.class] ? (MTKView*)view : nil;
+    const CGFloat pixelsX = metalView.drawableSize.width > 0 && view.bounds.size.width > 0 ? metalView.drawableSize.width/view.bounds.size.width : scale;
+    const CGFloat pixelsY = metalView.drawableSize.height > 0 && view.bounds.size.height > 0 ? metalView.drawableSize.height/view.bounds.size.height : scale;
     // Original cursor pixels are straight-alpha BGRA, 32 physical pixels.
     // Giving NSImage its backing-scaled point size preserves that footprint.
     NSBitmapImageRep* bitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nullptr pixelsWide:32 pixelsHigh:32
@@ -88,9 +175,9 @@ NSCursor* GxMetal::CursorForHostView(void* nativeView) {
         auto* rgba = bitmap.bitmapData + i * 4;
         rgba[0] = (pixel >> 16) & 255; rgba[1] = (pixel >> 8) & 255; rgba[2] = pixel & 255; rgba[3] = pixel >> 24;
     }
-    NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize(32 / scale, 32 / scale)];
+    NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize(32 / pixelsX, 32 / pixelsY)];
     [image addRepresentation:bitmap];
-    return [[NSCursor alloc] initWithImage:image hotSpot:NSMakePoint(device->m_cursorHotspotX / scale, device->m_cursorHotspotY / scale)];
+    return [[NSCursor alloc] initWithImage:image hotSpot:NSMakePoint(device->m_cursorHotspotX / pixelsX, device->m_cursorHotspotY / pixelsY)];
 }
 #endif
 
@@ -108,7 +195,10 @@ bool GxMetal::GetHostFormat(CGxFormat& format) {
     format = CGxFormat(true, {int32_t(view.drawableSize.width), int32_t(view.drawableSize.height)},
         CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, refresh, 1, true, false, false, true, 0);
 #if TARGET_OS_OSX
-    if ([view.window isKindOfClass:GxMetalWindow.class]) format.m_maximize = ((GxMetalWindow*)view.window).borderlessGame;
+    if ([view.window isKindOfClass:GxMetalWindow.class]) {
+        auto* window = (GxMetalWindow*)view.window;
+        format.m_maximize = window.targetMaximized; format.m_window = !window.fullScreenRequested;
+    }
 #endif
     return true;
 }
@@ -118,6 +208,8 @@ bool GxMetal::PrepareHostDrawable(void* nativeView) {
     if (!NSThread.isMainThread) throw std::runtime_error("Native drawable sizing requires the host thread");
     MTKView* view = (__bridge MTKView*)nativeView;
     if (![view isKindOfClass:MTKView.class] || !view.window) return false;
+    GxMetalWindow* window = [view.window isKindOfClass:GxMetalWindow.class] ? (GxMetalWindow*)view.window : nil;
+    [window driveGameFullScreen];
     const NSRect backing = [view convertRectToBacking:view.bounds];
     if (backing.size.width <= 0 || backing.size.height <= 0) return false;
     // MTKView automatic resizing can replace a Retina drawable with the point
@@ -125,10 +217,15 @@ bool GxMetal::PrepareHostDrawable(void* nativeView) {
     // the layer's contentsScale report native pixels. Own this conversion at
     // the frame boundary, before either color or depth attachments are acquired.
     view.autoResizeDrawable = NO;
-    if (backing.size.width > 0 && backing.size.height > 0 &&
-        !CGSizeEqualToSize(view.drawableSize, backing.size)) {
+    const bool fixed = window && (window.fullScreenRequested || window.gameFullScreenTransition ||
+        (window.styleMask & NSWindowStyleMaskFullScreen));
+    const NSSize size = fixed ? window.renderSize : backing.size;
+    if (size.width > 0 && size.height > 0 && !CGSizeEqualToSize(view.drawableSize, size)) {
         [view releaseDrawables];
-        view.drawableSize = backing.size;
+        view.drawableSize = size;
+    }
+    if (window && !NSEqualSizes(window.lastCursorBounds, view.bounds.size)) {
+        window.lastCursorBounds = view.bounds.size; RefreshHostCursor(nativeView);
     }
     // MTKView may already have cached a drawable during window activation.
     // Setting the size does not invalidate that one on every macOS version.
@@ -143,21 +240,36 @@ bool GxMetal::PrepareHostDrawable(void* nativeView) {
     return true;
 }
 
+void GxMetal::SetHostFullScreenRequest(void (*request)(const CGxFormat&)) {
+#if TARGET_OS_OSX
+    if (!NSThread.isMainThread) throw std::runtime_error("Fullscreen handler requires the host thread");
+    NSView* view = (__bridge NSView*)OsGuiGetWindow(0);
+    if (![view.window isKindOfClass:GxMetalWindow.class]) return;
+    GxMetalWindow* window = (GxMetalWindow*)view.window;
+    if (request) window.gameFullScreenRequest = ^(const CGxFormat& format) { request(format); };
+    else window.gameFullScreenRequest = nil;
+#else
+    (void)request;
+#endif
+}
+
 bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     // AppKit/UIKit mutations and drawable acquisition share the host thread.
     if (!NSThread.isMainThread) return false;
     MTKView* view = (__bridge MTKView*)DeviceWindow();
-    if (![view isKindOfClass:MTKView.class] || !format.m_window || format.m_vsync > 1) return false;
+    if (![view isKindOfClass:MTKView.class] || format.m_window < 0 || format.m_window > 1 || format.m_vsync > 1) return false;
 #if TARGET_OS_OSX
     // This path changes windowed rendering, not the physical display mode.
-    if (format.m_refreshRate || !view.window || view.window.contentView != view || view.inFullScreenMode ||
-        (view.window.styleMask & NSWindowStyleMaskFullScreen)) return false;
+    if (format.m_refreshRate || !view.window || view.window.contentView != view || view.inFullScreenMode) return false;
     if (format.m_maximize < 0 || format.m_maximize > 1 || (format.m_maximize && ![view.window isKindOfClass:GxMetalWindow.class])) return false;
     GxMetalWindow* gameWindow = [view.window isKindOfClass:GxMetalWindow.class] ? (GxMetalWindow*)view.window : nil;
+    if (!format.m_window && !gameWindow) return false;
+    const bool nativeFullscreen = gameWindow && (gameWindow.fullScreenRequested || gameWindow.gameFullScreenTransition || gameWindow.fullScreenStyleSaved ||
+        (gameWindow.styleMask & NSWindowStyleMaskFullScreen));
     NSScreen* screen = view.window.screen;
     const CGFloat scale = view.window.backingScaleFactor;
     if (!(scale > 0)) return false;
-    if (format.m_maximize) {
+    if (format.m_window && format.m_maximize) {
         if (!screen) return false;
         const NSSize size = [screen convertRectToBacking:screen.frame].size;
         // Validate the effective screen size before changing either window or
@@ -171,7 +283,7 @@ bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
 #else
     // UIKit owns scene size and presentation synchronization. A fixed render
     // resolution may scale into that scene, but cannot disable its vsync.
-    if (format.m_maximize || !format.m_vsync || (format.m_refreshRate && format.m_refreshRate != view.window.screen.maximumFramesPerSecond)) return false;
+    if (!format.m_window || format.m_maximize || !format.m_vsync || (format.m_refreshRate && format.m_refreshRate != view.window.screen.maximumFramesPerSecond)) return false;
 #endif
     Drain();
     // Changing drawableSize can synchronously call the host's size delegate.
@@ -181,16 +293,38 @@ bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     [view releaseDrawables];
     view.autoResizeDrawable = NO;
 #if TARGET_OS_OSX
-    [gameWindow setBorderlessGamePresentation:format.m_maximize != 0];
-    if (format.m_maximize) [view.window setFrame:screen.frame display:NO];
-    else if (!restoreWindowSize) [view.window setContentSize:NSMakeSize(format.m_size.x / scale, format.m_size.y / scale)];
+    gameWindow.fullScreenRequested = !format.m_window;
+    gameWindow.targetMaximized = format.m_maximize;
+    if (format.m_window && nativeFullscreen) {
+        gameWindow.windowedUpdatePending = YES;
+        gameWindow.restoreWindowAfterFullScreen = !format.m_maximize && gameWindow.fullScreenStyleSaved &&
+            format.m_size.x == m_format.m_size.x && format.m_size.y == m_format.m_size.y;
+        if (format.m_maximize) {
+            const NSSize size = [screen convertRectToBacking:screen.frame].size;
+            format.m_size = {int32_t(size.width),int32_t(size.height)};
+        } else if (gameWindow.restoreWindowAfterFullScreen) {
+            const auto content = [NSWindow contentRectForFrameRect:gameWindow.fullScreenRestoredFrame styleMask:gameWindow.fullScreenRestoredStyle];
+            format.m_size = {int32_t(content.size.width*scale),int32_t(content.size.height*scale)};
+        } else {
+            format.m_size = {int32_t(std::round(format.m_size.x/scale)*scale),int32_t(std::round(format.m_size.y/scale)*scale)};
+        }
+    } else if (format.m_window) {
+        [gameWindow setBorderlessGamePresentation:format.m_maximize != 0];
+        if (format.m_maximize) [view.window setFrame:screen.frame display:NO];
+        else if (!restoreWindowSize) [view.window setContentSize:NSMakeSize(format.m_size.x / scale, format.m_size.y / scale)];
+    }
     if (wasKey) [view.window makeKeyWindow];
     // AppKit rounds window points (e.g. 641 pixels at 2x becomes 642).
     // Publish the actual native size, as D3D's adjusted window creation does;
     // do not scale an odd-sized drawable into a differently sized window.
-    const NSRect backing = [view convertRectToBacking:view.bounds];
-    format.m_size = {int32_t(backing.size.width), int32_t(backing.size.height)};
+    if (format.m_window && !nativeFullscreen) {
+        const NSRect backing = [view convertRectToBacking:view.bounds];
+        format.m_size = {int32_t(backing.size.width), int32_t(backing.size.height)};
+    }
+    gameWindow.renderSize = NSMakeSize(format.m_size.x,format.m_size.y);
+    if (!format.m_window) gameWindow.fullScreenRenderSize = gameWindow.renderSize;
     ((CAMetalLayer*)view.layer).displaySyncEnabled = format.m_vsync != 0;
+    ((CAMetalLayer*)view.layer).opaque = YES;
 #endif
     view.drawableSize = CGSizeMake(format.m_size.x, format.m_size.y);
     // macOS hosts apply interactive resizing at the next frame boundary.
@@ -335,12 +469,16 @@ std::atomic<bool> resizeLocked{false};
 __weak NSWindow* lockedWindow;
 bool restoreResizable, applyingResizeLock;
 NSWindowStyleMask WindowedStyle(NSWindow* window) {
+    if ([window isKindOfClass:GxMetalWindow.class] && ((GxMetalWindow*)window).fullScreenStyleSaved)
+        return ((GxMetalWindow*)window).fullScreenRestoredStyle;
     if ([window isKindOfClass:GxMetalWindow.class] && ((GxMetalWindow*)window).borderlessGame)
         return ((GxMetalWindow*)window).restoredStyle;
     return window.styleMask;
 }
 void SetWindowedStyle(NSWindow* window, NSWindowStyleMask style) {
-    if ([window isKindOfClass:GxMetalWindow.class] && ((GxMetalWindow*)window).borderlessGame)
+    if ([window isKindOfClass:GxMetalWindow.class] && ((GxMetalWindow*)window).fullScreenStyleSaved)
+        ((GxMetalWindow*)window).fullScreenRestoredStyle = style;
+    else if ([window isKindOfClass:GxMetalWindow.class] && ((GxMetalWindow*)window).borderlessGame)
         ((GxMetalWindow*)window).restoredStyle = style;
     else window.styleMask = style;
 }

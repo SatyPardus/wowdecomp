@@ -312,8 +312,46 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 @property(nonatomic, strong) NSTimer* visibilityCheckTimer;
 @property(nonatomic, strong) NSWindow* visibilityCheckCover;
 @property(nonatomic) BOOL visibilityCheckDone;
+@property(nonatomic) BOOL fullScreenCheckEnabled, fullScreenCheckDone;
 @end
-@implementation OriginalClientHost
+@implementation OriginalClientHost {
+    unsigned _fullScreenPhase, _fullScreenStableFrames;
+    CGxFormat _fullScreenOriginal;
+    uint64_t _fullScreenGammaStart;
+}
+- (void)checkWorldFullScreen {
+    if (!self.fullScreenCheckEnabled || self.fullScreenCheckDone || !self.active || !CGGameUI::s_inWorld) return;
+    auto* window = (GxMetalWindow*)self.view.window;
+    if (window.gameFullScreenTransition || ++_fullScreenStableFrames < 120) return;
+    const bool nativeFull = (window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+    Require(nativeFull == !device->m_format.m_window && window.isKeyWindow && self.view.gameInputActive,
+        "World fullscreen mode or input focus disagrees with the native window");
+    if (_fullScreenPhase) {
+        const bool expectedWindow = _fullScreenPhase == 1 ? !_fullScreenOriginal.m_window : bool(_fullScreenOriginal.m_window);
+        Require(bool(device->m_format.m_window) == expectedWindow && bool(s_lastGoodFormat.m_window) == expectedWindow,
+            "World display restart lost the requested presentation mode");
+        const auto gammaFrames = device->EncodingStats().gammaPresentations - _fullScreenGammaStart;
+        CGxGammaRamp identity; identity.Set(1);
+        const bool gamma = !expectedWindow && std::memcmp(&identity,&device->m_gammaRamp,sizeof(identity));
+        Require(gamma ? gammaFrames >= 120 : gammaFrames == 0, "World gamma did not follow fullscreen/windowed transitions");
+        std::fprintf(stderr,"World fullscreen: 120 stable %s frames, %dx%d, %llu gamma presentations, original input active\n",
+            expectedWindow ? "windowed" : "fullscreen",device->m_format.m_size.x,device->m_format.m_size.y,
+            static_cast<unsigned long long>(gammaFrames));
+    }
+    if (!_fullScreenPhase) {
+        _fullScreenOriginal = device->m_format;
+        [window toggleFullScreen:nil];
+    } else if (_fullScreenPhase == 1) {
+        SetGxCVars(_fullScreenOriginal); CCGxRestart(nullptr,nullptr);
+    } else {
+        Require(device->m_format.m_size.x == _fullScreenOriginal.m_size.x && device->m_format.m_size.y == _fullScreenOriginal.m_size.y,
+            "World fullscreen check did not restore the original render resolution");
+        self.fullScreenCheckDone = YES;
+        std::fputs("World fullscreen: native action and original gxRestart restored the starting presentation without player actions\n",stderr);
+    }
+    _fullScreenStableFrames = 0; ++_fullScreenPhase;
+    _fullScreenGammaStart = device->EncodingStats().gammaPresentations;
+}
 - (BOOL)canPresent {
     NSWindow* window = self.view.window;
     return !self.stopping && !self.sleeping && !NSApp.hidden && window.visible && !window.miniaturized &&
@@ -494,6 +532,8 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 - (BOOL)windowShouldClose:(NSWindow*)sender { [self stop:nil]; return NO; }
 - (void)windowDidResignKey:(NSNotification*)n { [self loseInputFocus]; }
 - (void)windowDidBecomeKey:(NSNotification*)n { [self gainInputFocus]; }
+- (void)windowDidFailToEnterFullScreen:(NSWindow*)window { [(GxMetalWindow*)window gameFullScreenTransitionFailed]; }
+- (void)windowDidFailToExitFullScreen:(NSWindow*)window { [(GxMetalWindow*)window gameFullScreenTransitionFailed]; }
 - (void)applicationDidResignActive:(NSNotification*)n { [self loseInputFocus]; }
 - (void)applicationDidBecomeActive:(NSNotification*)n { if (self.view.window.isKeyWindow) [self gainInputFocus]; }
 - (void)windowDidChangeOcclusionState:(NSNotification*)n { [self requestPresentationUpdate]; }
@@ -593,6 +633,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         }
         if (device->FrameCommand()) device->ScenePresent();
         if (initialized) memoryPressure.Frame(*device, CGGameUI::s_inWorld);
+        [self checkWorldFullScreen];
         if (!self.active && ++self.backgroundFrames == 120)
             std::fprintf(stderr,"Native client: 120 background scheduler/render frames, in world %u, input %d, requested FPS %ld\n",
                 CGGameUI::s_inWorld,self.view.gameInputActive,long(preferred));
@@ -616,6 +657,8 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         if (checkWorldVisibility && self.frames >= 240 && CGGameUI::s_inWorld && !self.visibilityCheckTimer && !self.visibilityCheckDone && !self.checkFailed)
             [self startVisibilityCheck];
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
+            if (self.frameLimit && !self.checkFailed) Require(!self.fullScreenCheckEnabled || self.fullScreenCheckDone,
+                "Frame limit reached before world fullscreen transitions completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldVisibility || self.visibilityCheckDone, "Frame limit reached before native window visibility checks completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldShapeshift || worldShapeshiftDone, "Frame limit reached before native form switching completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldInput || worldInputDone,"Frame limit reached before native world input check completed");
@@ -738,7 +781,12 @@ int main(int argc, char** argv) {
                 [editMenu addItemWithTitle:@"复制" action:@selector(copy:) keyEquivalent:@"c"];
                 [editMenu addItemWithTitle:@"粘贴" action:@selector(paste:) keyEquivalent:@"v"];
                 [editMenu addItemWithTitle:@"全选" action:@selector(selectAll:) keyEquivalent:@"a"];
-                editItem.submenu=editMenu; NSApp.mainMenu=menu;
+                editItem.submenu=editMenu;
+                NSMenuItem* displayItem=[NSMenuItem new]; [menu addItem:displayItem];
+                NSMenu* displayMenu=[[NSMenu alloc] initWithTitle:@"显示"];
+                NSMenuItem* fullscreen=[displayMenu addItemWithTitle:@"切换全屏" action:@selector(toggleFullScreen:) keyEquivalent:@"f"];
+                fullscreen.keyEquivalentModifierMask=NSEventModifierFlagControl|NSEventModifierFlagCommand;
+                displayItem.submenu=displayMenu; NSApp.mainMenu=menu;
             }
             ConsoleInitializeClientCommand();
             std::string settings;
@@ -778,6 +826,7 @@ int main(int argc, char** argv) {
             g_clientEventContext = EventCreateContextEx(1, Initialize, Destroy, 1, 0);
             Require(g_clientEventContext != nullptr, "Cannot create the original client context");
             OriginalClientHost* host = [OriginalClientHost new]; host.view = view;
+            host.fullScreenCheckEnabled = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_FULLSCREEN_CHECK"] != nil;
             host.memoryPressureSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_MEMORYPRESSURE, 0,
                 DISPATCH_MEMORYPRESSURE_WARN | DISPATCH_MEMORYPRESSURE_CRITICAL, dispatch_get_main_queue());
             Require(host.memoryPressureSource != nil, "Cannot observe native memory pressure");

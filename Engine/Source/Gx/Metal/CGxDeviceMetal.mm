@@ -728,6 +728,7 @@ int32_t CGxDeviceMetal::DeviceSetFormat(const CGxFormat& format) {
     if (m->window && !NSThread.isMainThread) return 0;
     if (m->command || format.m_size.x <= 0 || format.m_size.y <= 0 ||
         uint32_t(format.m_size.x) > m_caps.m_texMaxSize[GxTex_2d] || uint32_t(format.m_size.y) > m_caps.m_texMaxSize[GxTex_2d] ||
+        (!format.m_window && uint64_t(format.m_size.x) * format.m_size.y > ResourceBudget / 4) ||
         !format.m_multisampleCount || format.m_multisampleCount > 16 || ![m->gpu.device supportsTextureSampleCount:format.m_multisampleCount] ||
         (format.m_multisampleCount > 1 && (!m->gpu.device.areProgrammableSamplePositionsSupported ||
             uint64_t(format.m_size.x) * format.m_size.y > ResourceBudget / 8 / format.m_multisampleCount)) ||
