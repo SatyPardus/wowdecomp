@@ -19,5 +19,6 @@ bool CheckNativeWorldHearthstone(WowNativeView* view);
 // events and the same character. No forced logout or object-manager reset.
 bool CheckNativeWorldReentry(WowNativeView* view);
 
-// Native picking/action-bar Moonfire against a nearby existing non-player critter.
-bool CheckNativeWorldCombat(WowNativeView* view);
+// Native picking/action-bar Moonfire, or the existing T attack binding, against
+// a nearby non-player critter. Approach uses original movement and collision.
+bool CheckNativeWorldCombat(WowNativeView* view, bool melee = false);

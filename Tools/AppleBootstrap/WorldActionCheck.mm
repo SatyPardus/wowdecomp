@@ -18,6 +18,8 @@
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "WoW/Source/WorldClient/FrameTime.h"
+#include "WoW/Source/Object/ObjectClient/UnitCombatLog_C.h"
 #include "WoW/Source/Object/Unit.h"
 #include "WoW/Source/Object/Object.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
@@ -465,10 +467,11 @@ bool CheckNativeWorldHearthstone(WowNativeView* view) {
 }
 
 
-bool CheckNativeWorldCombat(WowNativeView* view) {
+bool CheckNativeWorldCombat(WowNativeView* view, bool melee) {
     static unsigned phase, readyFrames, button;
     static int32_t spell, health;
     static uint32_t mana;
+    static uint32_t meleeDamage, attackStarted;
     static WOWGUID target;
     static std::chrono::steady_clock::time_point started;
     static std::chrono::steady_clock::time_point progressed;
@@ -480,6 +483,14 @@ bool CheckNativeWorldCombat(WowNativeView* view) {
     }
     if (!phase && ++readyFrames < 120) return false;
     auto* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__));
+    if (melee && phase >= 4 && phase < 6) {
+        // Confirm damage from retained server SWING_DAMAGE events rather than
+        // transient animation state, without changing combat-log filters/UI.
+        for(auto* entry=s_entries.Head();entry;entry=s_entries.Next(entry))
+            if(entry->m_event==1 && entry->m_sourceGuid==player->m_obj->m_guid && entry->m_destGuid==target &&
+                int32_t(entry->m_timestamp-attackStarted)>=0 && entry->m_info.m_values[1]>0)
+                meleeDamage=entry->m_info.m_values[1];
+    }
     const auto now = std::chrono::steady_clock::now();
     const double elapsed = std::chrono::duration<double>(now - started).count();
     auto next = [&] { ++phase; started = now; };
@@ -492,7 +503,7 @@ bool CheckNativeWorldCombat(WowNativeView* view) {
             windowNumber:view.window.windowNumber context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:code];
         if (down) [view keyDown:event]; else [view keyUp:event];
     };
-    auto key = [&](bool down) { nativeKey(codes[button],texts[button],down); };
+    auto key = [&](bool down) { nativeKey(melee ? kVK_ANSI_T:codes[button],melee ? @"t":texts[button],down); };
     auto point = [&](CGUnit_C* candidate, float& x, float& y) {
         const auto feet = candidate->GetPosition(); const auto head = candidate->GetNamePosition();
         C3Vector body(feet.x, feet.y, feet.z + (head.z - feet.z) * .4f), projected;
@@ -537,24 +548,33 @@ bool CheckNativeWorldCombat(WowNativeView* view) {
         return false;
     }
     if (!phase) {
-        Require(!CGActionBar::m_bonusBarOffset && !CGActionBar::m_tempPageActiveFlags && CGActionBar::m_currentPage < 6,
-            "Native combat check requires a regular action bar");
-        SpellRec base; Require(g_spellDB.GetRecord(8921, &base), "Original Moonfire record is missing");
-        const unsigned first = CGActionBar::m_currentPage * 12;
-        for (unsigned i = 0; i < 12; ++i) {
-            if (!CGActionBar::IsSpell(first+i)) continue;
-            int32_t pet=0; const int32_t id=CGActionBar::GetSpell(first+i,pet); SpellRec candidate;
-            if (!pet && g_spellDB.GetRecord(id,&candidate) && !std::strcmp(candidate.m_name,base.m_name)) { spell=id; button=i; }
+        float selectionRange = 4.1f;
+        if (melee) {
+            Require(CGUIBindings::s_bindings != nullptr,"Native melee check requires existing bindings");
+            const char* binding=CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,"T",1);
+            Require(binding && !std::strcmp(binding,"ATTACKTARGET"),"Native melee check requires the existing T attack binding");
+            approachRange=4;
+        } else {
+            Require(!CGActionBar::m_bonusBarOffset && !CGActionBar::m_tempPageActiveFlags && CGActionBar::m_currentPage < 6,
+                "Native combat check requires a regular action bar");
+            SpellRec base; Require(g_spellDB.GetRecord(8921, &base), "Original Moonfire record is missing");
+            const unsigned first = CGActionBar::m_currentPage * 12;
+            for (unsigned i = 0; i < 12; ++i) {
+                if (!CGActionBar::IsSpell(first+i)) continue;
+                int32_t pet=0; const int32_t id=CGActionBar::GetSpell(first+i,pet); SpellRec candidate;
+                if (!pet && g_spellDB.GetRecord(id,&candidate) && !std::strcmp(candidate.m_name,base.m_name)) { spell=id; button=i; }
+            }
+            Require(spell && CGUIBindings::s_bindings, "Native combat check requires Moonfire on the existing action bar");
+            char command[32]; std::snprintf(command,sizeof(command),"ACTIONBUTTON%u",button+1);
+            const char* binding=CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,texts[button].UTF8String,1);
+            Require(binding && !std::strcmp(binding,command), "Native combat check does not match current bindings");
+            SpellRec selected; Require(g_spellDB.GetRecord(spell,&selected), "Combat spell is missing");
+            const auto* range=g_spellRangeDB.GetRecord(selected.m_rangeIndex);
+            Require(range != nullptr, "Combat spell range is missing");
+            approachRange=range->m_rangeMax[0]-5;
+            selectionRange=range->m_rangeMax[0]-1;
         }
-        Require(spell && CGUIBindings::s_bindings, "Native combat check requires Moonfire on the existing action bar");
-        char command[32]; std::snprintf(command,sizeof(command),"ACTIONBUTTON%u",button+1);
-        const char* binding=CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE,texts[button].UTF8String,1);
-        Require(binding && !std::strcmp(binding,command), "Native combat check does not match current bindings");
-        SpellRec selected; Require(g_spellDB.GetRecord(spell,&selected), "Combat spell is missing");
-        const auto* range=g_spellRangeDB.GetRecord(selected.m_rangeIndex);
-        Require(range != nullptr, "Combat spell range is missing");
-        approachRange=range->m_rangeMax[0]-5;
-        struct Search { CGPlayer_C* player; float distance; decltype(point)* project; CGUnit_C* selected=nullptr; CGUnit_C* nearby=nullptr; float nearbyDistance=125; } search{player,range->m_rangeMax[0]-1,&point};
+        struct Search { CGPlayer_C* player; float distance; decltype(point)* project; CGUnit_C* selected=nullptr; CGUnit_C* nearby=nullptr; float nearbyDistance=125; } search{player,selectionRange,&point};
         ClntObjMgrEnumVisibleObjects([](WOWGUID guid,void* context) -> int32_t {
             auto& search=*static_cast<Search*>(context);
             auto* candidate=static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid,TYPEMASK_UNIT,__FILE__,__LINE__));
@@ -581,7 +601,7 @@ bool CheckNativeWorldCombat(WowNativeView* view) {
             nativeKey(turnDirection>0 ? kVK_LeftArrow:kVK_RightArrow,turnDirection>0 ? @"\uF702":@"\uF703",true);
             phase=20; started=now; return false;
         }
-        Require(search.selected != nullptr, "Native combat check needs a live on-screen attackable critter within Moonfire range");
+        Require(search.selected != nullptr, "Native combat check needs a live on-screen attackable critter within action range");
         unit=search.selected; target=unit->m_obj->m_guid; health=unit->m_unit->m_unitFieldHealth;
         Require(health>0, "Native combat target has no health");
         std::fprintf(stderr,"Native world combat: picking %s, health %d, spell %d, distance %.2f\n",unit->GetObjectName(),health,spell,search.distance);
@@ -591,16 +611,20 @@ bool CheckNativeWorldCombat(WowNativeView* view) {
     else if (phase == 3 && elapsed >= .5) {
         auto* frame=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("TargetFrame",CSimpleFrame::GetObjectType()));
         Require(CGGameUI::m_lockedTarget == target && frame && frame->m_isVisible, "Native world click did not select the critter and display its original target frame");
-        mana=player->m_unit->m_unitFieldPower[0]; key(true); next();
+        mana=player->m_unit->m_unitFieldPower[0]; attackStarted=FrameTime::s_curTimeMs; key(true); next();
     } else if (phase == 4 && elapsed >= .05) { key(false); next(); }
     else if (phase == 5) {
         Require(unit != nullptr, "Server combat target disappeared before its health/death update");
-        if (unit->m_unit->m_unitFieldHealth < health && player->m_unit->m_unitFieldPower[0] < mana) {
-            std::fprintf(stderr,"Native world combat: original click/target frame/Moonfire, server target health %d -> %d, mana %u -> %u, dead %d\n",
-                health,unit->m_unit->m_unitFieldHealth,mana,player->m_unit->m_unitFieldPower[0],unit->IsDeadOrGhost());
+        if (unit->m_unit->m_unitFieldHealth < health && (melee ? meleeDamage>0 : player->m_unit->m_unitFieldPower[0] < mana)) {
+            std::fprintf(stderr,"Native world combat: original click/target frame/%s, server target health %d -> %d, mana %u -> %u, melee damage %u, dead %d\n",
+                melee ? "T melee":"Moonfire",health,unit->m_unit->m_unitFieldHealth,mana,player->m_unit->m_unitFieldPower[0],meleeDamage,unit->IsDeadOrGhost());
             next(); return true;
         }
-        Require(elapsed<8, "Original Moonfire did not produce server target damage and mana change");
+        if(elapsed>=(melee ? 15:8)) {
+            std::fprintf(stderr,"Native combat result: target health %d -> %d, dead %d, retained melee damage %u\n",
+                health,unit->m_unit->m_unitFieldHealth,unit->IsDeadOrGhost(),meleeDamage);
+            throw std::runtime_error("Original attack did not produce the expected server damage update");
+        }
     }
     return false;
 }

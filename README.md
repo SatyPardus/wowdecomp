@@ -408,11 +408,19 @@ original movement controls, stops on obstruction, clicks the target and checks
 the original target frame plus server health/death and mana changes. It can run
 after `--check-world-travel` and before `--check-world-hearthstone`; it does not
 create targets, change positions or bypass spell range/cooldowns. This covers a
-basic damaging spell, not sustained hostile combat, melee or loot.
+basic damaging spell, not sustained hostile combat or loot.
 In Moonglade, native picking selected a Rabbit at 23.59 units; the server changed
 its health from 1 to 0 and Feral's mana from 347 to 310 after the existing Moonfire
 action. The 3,600-frame travel/combat run, 16 synchronous loading frames, final
 capture and normal shutdown passed Mac ASan/UBSan and Metal validation.
+
+`--check-world-melee` uses the same native approach and picking with the existing
+T attack binding. It requires a retained server SWING_DAMAGE event for the
+selected target and its health update. In Moonglade, Feral approached and selected
+a Deer at 2.57 units; the server reported 27 melee damage, health 2 to 0 and no
+mana use. The 3,000-frame melee/normal Hearthstone return to the Stormwind inn,
+15 synchronous loading frames and normal shutdown passed Mac ASan/UBSan and
+Metal validation. Neither check changes original gameplay or character bindings.
 
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.

@@ -61,6 +61,7 @@ bool checkWorldCasting, worldCastingDone;
 bool checkWorldShadows, worldShadowsDone;
 bool checkWorldMSAA, worldMSAADone;
 bool checkWorldCombat, worldCombatDone;
+bool checkWorldMelee;
 bool checkWorldReentry, worldReentryDone;
 bool checkWorldNPC, worldNPCDone;
 bool browseMerchant;
@@ -332,7 +333,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         if(checkWorldCombat && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
            (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
            (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone))
-            worldCombatDone=CheckNativeWorldCombat(self.view);
+            worldCombatDone=CheckNativeWorldCombat(self.view,checkWorldMelee);
         if(checkWorldHearthstone && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
            (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone) &&
            (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) && (!checkWorldCombat || worldCombatDone))
@@ -404,6 +405,7 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-shadows")) checkWorldShadows = true;
         else if (!std::strcmp(argv[argument], "--check-world-msaa")) checkWorldMSAA = true;
         else if (!std::strcmp(argv[argument], "--check-world-combat")) checkWorldCombat = true;
+        else if (!std::strcmp(argv[argument], "--check-world-melee")) { checkWorldCombat = true; checkWorldMelee = true; }
         else if (!std::strcmp(argv[argument], "--check-world-npc")) checkWorldNPC = true;
         else if (!std::strcmp(argv[argument], "--check-world-merchant")) checkWorldNPC = browseMerchant = true;
         else if (!std::strcmp(argv[argument], "--check-world-travel")) checkWorldTravel = true;
@@ -414,7 +416,7 @@ int main(int argc, char** argv) {
         ++argument;
     }
     if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone) && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat] [--check-world-reentry] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee] [--check-world-reentry] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
