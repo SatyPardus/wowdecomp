@@ -12889,11 +12889,14 @@ void CGUnit_C::OnMonsterMove(CDataStore* msg, NETMESSAGE msgId, uint64_t transpo
 
         C3Vector position = this->GetPosition();
         C3Vector* trimmed = ComputeTransportRelativeMovement(position, path, count, WOWGUID{ transport });
-        C3Vector* spline = trimmed - 1;
 
-        if (!spline || !count) {
+        // An already-reached path returns nullptr and zero points. The original
+        // x86 subtraction is harmless before its zero-count check (0x0073CD30),
+        // but forming that pointer is undefined in C++; keep the same snap path.
+        if (!trimmed || !count) {
             pointCount = 0;
         } else {
+            C3Vector* spline = trimmed - 1;
             spline[count + 1] = spline[count];
             pointCount = count + 2;
             points = spline;
