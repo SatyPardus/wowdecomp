@@ -778,6 +778,11 @@ bool GxMetal::DeferDisplayRestart(void (*restart)()) {
         static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->DeferDisplayRestart(restart);
 }
 void CGxDeviceMetal::ScenePresent() {
+    // Original Scrn still ends a game frame when the native window is hidden,
+    // but deliberately skips all painting. No drawable or GPU command is
+    // needed for that bookkeeping; explicit update/loading draws acquire one
+    // through the host frame provider as usual.
+    if (!m->command && !CapsIsWindowVisible(-1)) { CGxDevice::ScenePresent(); return; }
     Require(m->command != nil, "No active Metal frame to present");
     if (m_scrShotClick) { DeviceScreenShot(); }
     m->EnsurePass();

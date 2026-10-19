@@ -73,8 +73,11 @@ bool receiveQuestReward, acceptQuest;
 bool checkWorldInventory, worldInventoryDone;
 bool checkWorldWalk, worldWalkDone;
 bool checkWorldCorpse, worldCorpseDone;
+bool checkWorldVisibility;
 bool appBundle;
 uint32_t synchronousFrames;
+bool backgroundUpdateActive;
+MTLRenderPassDescriptor* backgroundPass;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 // Explicit local development option: exercise the native input boundary and
 // original bindings/movement, never set player coordinates or camera state.
@@ -204,7 +207,33 @@ int32_t Destroy(const void* data, void* param) {
 }
 bool AcquireSynchronousFrame(CGxDeviceMetal& gpu, void* owner) {
     MTKView* view = (__bridge MTKView*)owner;
-    if (!view || view.paused || !view.window) return false;
+    if (!view || !view.window) return false;
+    if (backgroundUpdateActive) {
+        // Hidden Scrn paints do not draw. A loading/update callback may still
+        // explicitly require GPU work; give it a private surface, never block
+        // the game thread waiting for an occluded CAMetalLayer drawable.
+        const auto size = gpu.m_format.m_size;
+        if (!backgroundPass || backgroundPass.colorAttachments[0].texture.width != size_t(size.x) ||
+            backgroundPass.colorAttachments[0].texture.height != size_t(size.y)) {
+            auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+            auto texture = [&](MTLPixelFormat format) {
+                auto desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:format width:size.x height:size.y mipmapped:NO];
+                desc.storageMode = MTLStorageModePrivate; desc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+                auto result = [gpu.GPU().device newTextureWithDescriptor:desc];
+                Require(result != nil, "Cannot create a background loading surface");
+                return result;
+            };
+            pass.colorAttachments[0].texture = texture(MTLPixelFormatBGRA8Unorm);
+            pass.colorAttachments[0].loadAction = MTLLoadActionClear; pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+            pass.depthAttachment.texture = texture(MTLPixelFormatDepth32Float);
+            pass.depthAttachment.loadAction = MTLLoadActionClear; pass.depthAttachment.storeAction = MTLStoreActionStore;
+            pass.depthAttachment.clearDepth = 1;
+            backgroundPass = pass;
+        }
+        gpu.BeginFrame([backgroundPass copy]); ++synchronousFrames;
+        return true;
+    }
+    if (view.paused) return false;
     if (!GxMetal::PrepareHostDrawable(owner)) return false;
     // MTKView normally retains one drawable for its draw callback. Original
     // map loading may present several times before that callback returns.
@@ -273,13 +302,154 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 @property(nonatomic) NSUInteger characterFrames;
 @property(nonatomic) NSUInteger frameLimit;
 @property(nonatomic) NSUInteger backgroundFrames;
+@property(nonatomic, strong) NSTimer* backgroundTimer;
+@property(nonatomic, strong) id backgroundActivity;
+@property(nonatomic, strong) NSTimer* visibilityCheckTimer;
+@property(nonatomic, strong) NSWindow* visibilityCheckCover;
+@property(nonatomic) BOOL visibilityCheckDone;
 @end
 @implementation OriginalClientHost
+- (BOOL)canPresent {
+    NSWindow* window = self.view.window;
+    return !self.stopping && !self.sleeping && !NSApp.hidden && window.visible && !window.miniaturized &&
+        (window.occlusionState & NSWindowOcclusionStateVisible);
+}
+- (NSInteger)requestedFPS {
+    uint32_t fps = GxGetMaxFPS(), background = GxGetMaxFPSBk();
+    if (!self.active && background && (!fps || background < fps)) fps = background;
+    NSInteger displayFPS = 60;
+    if (@available(macOS 12.0, *)) displayFPS = std::max<NSInteger>(1, self.view.window.screen.maximumFramesPerSecond);
+    return fps ? std::min<NSInteger>(std::max<uint32_t>(8, fps), displayFPS) : displayFPS;
+}
+- (void)stopBackgroundUpdates {
+    [self.backgroundTimer invalidate]; self.backgroundTimer = nil;
+    if (self.backgroundActivity) [NSProcessInfo.processInfo endActivity:self.backgroundActivity];
+    self.backgroundActivity = nil;
+    backgroundPass = nil;
+}
+- (void)updatePresentation {
+    const BOOL visible = [self canPresent];
+    device->CapsIsWindowVisible(visible);
+    self.view.paused = !visible;
+    if (visible || self.stopping || self.sleeping) {
+        [self stopBackgroundUpdates];
+        if (visible && NSApp.active && self.view.window.isKeyWindow) [self gainInputFocus];
+        return;
+    }
+    [self loseInputFocus];
+    const NSTimeInterval interval = 1.0 / [self requestedFPS];
+    if (self.backgroundTimer && std::abs(self.backgroundTimer.timeInterval - interval) < 0.000001) return;
+    [self.view releaseDrawables];
+    [self.backgroundTimer invalidate];
+    __weak OriginalClientHost* weakSelf = self;
+    self.backgroundTimer = [NSTimer timerWithTimeInterval:interval repeats:YES block:^(NSTimer*) { [weakSelf backgroundTick]; }];
+    self.backgroundTimer.tolerance = interval * 0.1;
+    [[NSRunLoop mainRunLoop] addTimer:self.backgroundTimer forMode:NSRunLoopCommonModes];
+    if (!self.backgroundActivity) self.backgroundActivity = [NSProcessInfo.processInfo
+        beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep reason:@"Maintain the user's online game session while the window is hidden"];
+}
+- (void)requestPresentationUpdate {
+    // AppKit can notify while a game frame is still on the stack. Release its
+    // drawable and switch clocks only after that frame has returned.
+    dispatch_async(dispatch_get_main_queue(), ^{ if (!self.stopping) [self updatePresentation]; });
+}
+- (void)backgroundTick {
+    if (self.stopping || self.sleeping || [self canPresent]) { [self updatePresentation]; return; }
+    try {
+        struct Scope { Scope() { backgroundUpdateActive = true; } ~Scope() { backgroundUpdateActive = false; } } scope;
+        const bool running = EventProcessPending();
+        PropSelectContext(context);
+        if (device->FrameCommand()) device->ScenePresent();
+        if (!running) [self stop:nil];
+        else [self updatePresentation];
+    } catch (const std::exception& error) { Fatal(error.what()); }
+}
+- (void)startVisibilityCheck {
+    // A separate AppKit clock is essential: a stopped game scheduler must not
+    // also stop the assertion and window restoration. No player action is sent.
+    __block unsigned phase = 0;
+    __block bool started = false, measuring = false;
+    __block double changed = NSProcessInfo.processInfo.systemUptime;
+    __block uint32_t frames = 0, latencyEnd = 0;
+    __block uint64_t draws = 0;
+    __block ClientConnection* connection = nullptr;
+    __weak OriginalClientHost* weakSelf = self;
+    self.visibilityCheckTimer = [NSTimer timerWithTimeInterval:0.1 repeats:YES block:^(NSTimer*) {
+        OriginalClientHost* host = weakSelf;
+        if (!host || host.stopping) return;
+        NSWindow* window = host.view.window;
+        auto restore = ^{
+            [host.visibilityCheckCover close]; host.visibilityCheckCover = nil;
+            [NSApp unhide:nil]; [window deminiaturize:nil]; [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
+        };
+        try {
+            const double now = NSProcessInfo.processInfo.systemUptime;
+            if (!started) {
+                started = true; changed = now;
+                if (phase == 0) [window miniaturize:nil];
+                else if (phase == 2) [window orderOut:nil];
+                else if (phase == 4) {
+                    host.visibilityCheckCover = [[NSWindow alloc] initWithContentRect:window.frame styleMask:NSWindowStyleMaskBorderless
+                        backing:NSBackingStoreBuffered defer:NO];
+                    host.visibilityCheckCover.releasedWhenClosed = NO;
+                    host.visibilityCheckCover.backgroundColor = NSColor.blackColor;
+                    host.visibilityCheckCover.opaque = YES;
+                    [host.visibilityCheckCover orderWindow:NSWindowAbove relativeTo:window.windowNumber];
+                } else if (phase == 6) [NSApp hide:nil];
+                else restore();
+                return;
+            }
+            if (!(phase & 1)) {
+                const char* names[] = {"minimized", "ordered out", "occluded", "application hidden"};
+                if (!measuring && now - changed >= 1.0) {
+                    Require(![host canPresent] && host.view.paused && !host.active && !host.view.gameInputActive &&
+                        !device->CapsIsWindowVisible(-1), "Hidden native window retained presentation or input");
+                    frames = device->m_frameCount; draws = device->EncodingStats().geometryDraws;
+                    connection = ClientServices::Connection();
+                    Require(CGGameUI::s_inWorld && connection && connection->m_netState == NS_CONNECTED,
+                        "World connection was lost before the visibility check");
+                    connection->m_pingLock.Enter(); latencyEnd = connection->m_latencyEnd; connection->m_pingLock.Leave();
+                    measuring = true; changed = now;
+                    std::fprintf(stderr, "Native visibility: checking %s\n", names[phase / 2]);
+                } else if (measuring && now - changed >= (phase == 6 ? 35.0 : 5.0)) {
+                    const uint32_t updates = device->m_frameCount - frames;
+                    const uint64_t submitted = device->EncodingStats().geometryDraws - draws;
+                    Require(CGGameUI::s_inWorld && ClientServices::Connection() == connection && connection->m_netState == NS_CONNECTED,
+                        "World connection changed while the window was hidden");
+                    Require(updates >= 20 && submitted == 0, "Hidden window stopped the scheduler or continued drawing geometry");
+                    connection->m_pingLock.Enter(); const bool pong = connection->m_latencyEnd != latencyEnd; connection->m_pingLock.Leave();
+                    if (phase == 6) Require(pong, "Original periodic ping/pong did not continue while hidden");
+                    std::fprintf(stderr, "Native visibility: %s: %u original scheduler frames, %llu geometry draws, periodic pong %d\n",
+                        names[phase / 2], updates, (unsigned long long)submitted, pong);
+                    ++phase; started = measuring = false;
+                }
+            } else if (now - changed >= 2.0) {
+                Require([host canPresent] && host.active && host.view.gameInputActive && !host.view.paused &&
+                    device->CapsIsWindowVisible(-1), "Restored window did not regain native input and presentation");
+                Require(device->EncodingStats().geometryDraws > draws, "World drawing did not resume after restoration");
+                if (phase == 7) {
+                    host.visibilityCheckDone = YES;
+                    [host.visibilityCheckTimer invalidate]; host.visibilityCheckTimer = nil;
+                    std::fputs("Native visibility: minimization, order-out, full occlusion, application hide and restoration passed\n", stderr);
+                } else { ++phase; started = false; }
+            }
+        } catch (const std::exception& error) {
+            std::fprintf(stderr, "Native visibility check failed: %s\n", error.what());
+            host.checkFailed = YES; host.frameLimit = host.frames + 1;
+            [host.visibilityCheckTimer invalidate]; host.visibilityCheckTimer = nil;
+            restore();
+        }
+    }];
+    [[NSRunLoop mainRunLoop] addTimer:self.visibilityCheckTimer forMode:NSRunLoopCommonModes];
+}
 - (void)stop:(id)sender {
     if (self.stopping) return;
     self.stopping = YES;
     [self loseInputFocus];
     self.view.paused = YES;
+    [self stopBackgroundUpdates];
+    [self.visibilityCheckTimer invalidate]; self.visibilityCheckTimer = nil;
+    [self.visibilityCheckCover close]; self.visibilityCheckCover = nil;
     try { device->Drain(); }
     catch (const std::exception& error) { Fatal(error.what()); }
     [NSApp stop:nil];
@@ -301,16 +471,17 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
     self.active = YES; self.view.gameInputActive = YES;
     device->CapsWindowHasFocus(1);
     OsQueuePut(OS_INPUT_FOCUS, 1, 0, 0, 0);
-    self.view.paused = NO;
+    [self requestPresentationUpdate];
 }
 - (void)systemWillSleep:(NSNotification*)n {
     self.sleeping = YES; [self loseInputFocus]; self.view.paused = YES;
+    [self stopBackgroundUpdates];
     try { device->Drain(); }
     catch (const std::exception& error) { Fatal(error.what()); }
 }
 - (void)systemDidWake:(NSNotification*)n {
     if (self.stopping) return;
-    self.sleeping = NO; EventResetElapsedTime(); self.view.paused = NO;
+    self.sleeping = NO; EventResetElapsedTime(); [self requestPresentationUpdate];
     if (NSApp.active && self.view.window.isKeyWindow) [self gainInputFocus];
 }
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender { [self stop:nil]; return NSTerminateCancel; }
@@ -319,19 +490,20 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 - (void)windowDidBecomeKey:(NSNotification*)n { [self gainInputFocus]; }
 - (void)applicationDidResignActive:(NSNotification*)n { [self loseInputFocus]; }
 - (void)applicationDidBecomeActive:(NSNotification*)n { if (self.view.window.isKeyWindow) [self gainInputFocus]; }
+- (void)windowDidChangeOcclusionState:(NSNotification*)n { [self requestPresentationUpdate]; }
+- (void)windowDidMiniaturize:(NSNotification*)n { [self requestPresentationUpdate]; }
+- (void)windowDidDeminiaturize:(NSNotification*)n { [self requestPresentationUpdate]; }
+- (void)applicationDidHide:(NSNotification*)n { [self requestPresentationUpdate]; }
+- (void)applicationDidUnhide:(NSNotification*)n { [self requestPresentationUpdate]; }
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
     OsInputSetDrawableSize(uint32_t(size.width), uint32_t(size.height));
     OsQueuePut(OS_INPUT_SIZE, int32_t(size.width), int32_t(size.height), 0, 0);
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (self.stopping || self.sleeping) return;
+    if (![self canPresent]) { [self requestPresentationUpdate]; return; }
     try {
-        uint32_t fps = GxGetMaxFPS();
-        const uint32_t background = GxGetMaxFPSBk();
-        if (!self.active && background && (!fps || background < fps)) fps = background;
-        NSInteger displayFPS = 60;
-        if (@available(macOS 12.0, *)) displayFPS = std::max<NSInteger>(1,view.window.screen.maximumFramesPerSecond);
-        const NSInteger preferred = fps ? std::min<NSInteger>(std::max<uint32_t>(8,fps),displayFPS) : displayFPS;
+        const NSInteger preferred = [self requestedFPS];
         if (view.preferredFramesPerSecond != preferred) view.preferredFramesPerSecond = preferred;
         if (!self.initialFormatReady) {
             // The hidden window's backing scale can settle during activation.
@@ -433,7 +605,10 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             }
         }
         if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; in world: %u; Glue screen: %s\n", CGGameUI::s_inWorld, CGlueMgr::m_currentScreen);
+        if (checkWorldVisibility && self.frames >= 240 && CGGameUI::s_inWorld && !self.visibilityCheckTimer && !self.visibilityCheckDone && !self.checkFailed)
+            [self startVisibilityCheck];
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldVisibility || self.visibilityCheckDone, "Frame limit reached before native window visibility checks completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldInput || worldInputDone,"Frame limit reached before native world input check completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldActions || worldActionsDone,"Frame limit reached before native world action check completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldCasting || worldCastingDone,"Frame limit reached before native world casting check completed");
@@ -502,12 +677,14 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-inventory")) checkWorldInventory = true;
         else if (!std::strcmp(argv[argument], "--check-world-corpse")) checkWorldCorpse = true;
         else if (!std::strcmp(argv[argument], "--check-world-walk")) checkWorldWalk = true;
+        else if (!std::strcmp(argv[argument], "--check-world-visibility")) checkWorldVisibility = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
-    if ((receiveQuestReward && acceptQuest) || ((receiveQuestReward || acceptQuest) && checkWorldNPC) || (checkWorldWalk && checkWorldCorpse) || (argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest || checkWorldInventory || checkWorldWalk || checkWorldCorpse) && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry] [--check-world-panels] [--check-world-quest | --check-world-reward | --check-world-accept] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    const bool actionChecks = checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest || checkWorldInventory || checkWorldWalk || checkWorldCorpse;
+    if ((checkWorldVisibility && actionChecks) || (receiveQuestReward && acceptQuest) || ((receiveQuestReward || acceptQuest) && checkWorldNPC) || (checkWorldWalk && checkWorldCorpse) || (argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((actionChecks || checkWorldVisibility) && enterCharacter.empty())) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry] [--check-world-panels] [--check-world-quest | --check-world-reward | --check-world-accept] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] [--check-world-visibility] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
@@ -565,7 +742,7 @@ int main(int argc, char** argv) {
             EventInitialize(1, 0); OsTimeStartup(OsTimeManager::BestAvailable); OsIMEInitialize();
 
             NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1024, 768)
-                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable
                 backing:NSBackingStoreBuffered defer:NO];
             window.releasedWhenClosed = NO;
             WowNativeView* view = [[WowNativeView alloc] initWithFrame:window.contentView.bounds device:nil];

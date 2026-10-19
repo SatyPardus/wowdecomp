@@ -352,12 +352,27 @@ operations still report failure explicitly.
 The macOS client keeps the original event/network loop running when its window
 loses input focus. Native keys/text/mouse are released, original focus/sound
 events are delivered, and MetalKit uses the existing `maxFPS`/`maxFPSBk` limits
-within the display's cadence. System sleep and shutdown pause submission and
-drain GPU work; wake resets the elapsed frame time. A real Feral session passed
-2,400 frames, loss of focus with input disabled and background frames, about
-152 seconds connected, final capture and normal shutdown under Mac
-ASan/UBSan/Metal. Full occlusion/minimization, system sleep/wake and multiple
-displays have not yet been verified. iOS suspension behavior is separate.
+within the display's cadence. Minimized, ordered-out, fully occluded and hidden
+windows pause MetalKit and use a main-thread timer at the background rate.
+The original Gx visibility flag makes Scrn skip painting while continuing its
+normal update/poll/idle/paint order. These idle frames need no drawable or GPU
+submission. Explicit loading/update GPU work can acquire a private surface
+without waiting for a hidden CAMetalLayer. An activity token preserves the
+ongoing session against App Nap while still allowing system sleep; restoration,
+sleep and shutdown release it and the background timer. Sleep drains GPU work;
+wake resets elapsed time. iOS suspension behavior remains separate.
+
+`--check-world-visibility` runs alone with `--enter-world` and a stationary
+character. An independent native timer exercises minimization, order-out, full
+occlusion by a temporary opaque window, and application hiding, then restores
+input and rendering after each. The original scheduler advanced 150/150/153
+frames in the three five-second checks, and 1,050 frames during 35 seconds hidden;
+all four submitted zero geometry draws. The long check also observed the
+original periodic server ping/pong. Allow 1200 visible frames; hidden scheduler
+iterations do not consume that frame limit. The 1200-frame session, final world
+capture and normal shutdown passed Mac ASan/UBSan and Metal validation; both
+iOS client targets still build. Actual system sleep/wake and
+multiple displays remain unverified.
 
 `--check-world-input` with `--enter-world` is an explicit local development check
 that briefly moves the character, turns it, zooms the camera and jumps through
