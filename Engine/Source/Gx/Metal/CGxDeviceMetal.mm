@@ -1725,8 +1725,10 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const uint32_t inputMask = effect == GxMetal::FragmentEffect::TerrainShadowMap ? 0 : terrain ? GxMetal::TerrainTextureMask(terrainParameters->pixelPermutation, terrainParameters->shadowMode) : ((1u << inputs) - 1) | (model ? GxMetal::ShadowReceiverTextureMask(modelParameters->shadowMode) : wmo ? GxMetal::ShadowReceiverTextureMask(wmoParameters->shadowMode) : detail ? GxMetal::ShadowReceiverTextureMask(detailParameters->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
         auto* texture = static_cast<CGxTex*>(pointer(EGxRenderState(GxRs_Texture0 + i)));
-        Require(texture && texture != m_textureTarget[GxBuffers_Color].m_texture && texture != m_textureTarget[GxBuffers_Depth].m_texture,
-            "Missing Gx shader texture or active target feedback");
+        if (!texture || texture == m_textureTarget[GxBuffers_Color].m_texture || texture == m_textureTarget[GxBuffers_Depth].m_texture) {
+            throw std::runtime_error(std::string(texture ? "Active target feedback" : "Missing texture") +
+                " in " + ShaderFamily(effect) + " slot " + std::to_string(i));
+        }
         const bool cube = terrain && i == 0 && (terrainParameters->pixelPermutation & 1);
         Require((texture->m_target == GxTex_CubeMap) == cube, "Shader and texture target mismatch");
         ITexMarkAsUpdated(texture);

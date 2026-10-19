@@ -1129,8 +1129,11 @@ Northrend and Outland preserve their original bytes, including deliberately
 unaligned input, independent source lifetime, invalid offsets/truncation and a
 final area without holes. Mac ASan/UBSan and iOS simulator resource checks pass;
 both iOS targets build. The simulator renders 120 frames of the complete Dalaran
-map. The Mac Scrn/UI composition reaches a separate missing-texture draw after
-loading; that integration issue remains under investigation.
+map. The standalone host now also owns the original ShadowInit/ShadowDestroy
+lifetime, matching Client.cpp; this supplies the gradient textures needed by
+Dalaran's projected materials. Mac Scrn/UI composition passes 120 frames and
+538,628 main-scene depth pixels with ASan/UBSan/Metal, and the simulator repeats
+120 world frames. Texture failures identify their shader family and slot.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct

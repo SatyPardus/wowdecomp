@@ -2,6 +2,7 @@
 #include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/WorldParam.h"
+#include "WoW/Source/WorldClient/shadow.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
@@ -65,6 +66,10 @@ WorldPreview::WorldPreview(const std::string& selection) {
         // unavailable effect fails. CWorld::Destroy also cleans partial state.
         m_world = true;
         CWorld::Initialize();
+        // Client.cpp owns these gradient textures outside CWorld. The standalone
+        // host needs that same lifetime for projected spell/doodad materials.
+        m_shadows = true;
+        ShadowInit();
     } catch (...) { Shutdown(); throw; }
 }
 WorldPreview::~WorldPreview() { Shutdown(); }
@@ -77,6 +82,7 @@ void WorldPreview::Shutdown() {
         EventSetMouseMode(MOUSE_MODE_NORMAL, 0);
         PropSelectContext(previous); m_inputContext = nullptr;
     }
+    if (m_shadows) { ShadowDestroy(); m_shadows = false; }
     if (m_world) { CWorld::Destroy(); m_world = false; }
     if (m_models) { M2Destroy(); m_models = false; }
     CShaderEffectManager::DestroyAllEffects();
