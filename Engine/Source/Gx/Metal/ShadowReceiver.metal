@@ -15,8 +15,19 @@ inline float receiverShadowSamples(float3 coordinate, constant ShadowReceiverPar
 }
 // Distance fade only affects the dynamic map. Callers combine distant bands
 // before the normal-facing fade and the original ambient contribution.
+inline float receiverShadowSamples(float3 coordinate, constant ShadowReceiverParameters& p,
+    depth2d<float> image, sampler filtering, uint band, bool nine) {
+    const float2 uv = fma(coordinate.xy, 0.5f, 0.5f);
+    // The original PCF permutations sample comparison results, then average;
+    // filtering stored depth before comparing would change the shadow edges.
+    float samples = image.sample_compare(filtering,uv,coordinate.z,level(0));
+    for(uint i=0;i<8;i+=nine ? 1:2)
+        samples += image.sample_compare(filtering,uv+p.offsets[i].xy,coordinate.z,level(0));
+    return samples * (nine ? 1.0f/9.0f : .2f);
+}
+template <typename ShadowTexture>
 inline float receiverDynamicVisibility(float3 coordinate, float3 viewPosition, constant ShadowReceiverParameters& p,
-    texture2d<float> image, sampler filtering, uint mode) {
+    ShadowTexture image, sampler filtering, uint mode) {
     const float border = saturate(fma(max(abs(coordinate.x),abs(coordinate.y)), -3.4482758045196533f, 3.4137930870056152f));
     float visibility = 1;
     if (border > (mode == 3 ? 0.0f : 0.01f)) {
@@ -33,9 +44,10 @@ inline float receiverShadowModulation(float visibility, float3 normal, float3 li
     return fma(visibility,0.3f,0.7f);
 }
 
+template <typename ShadowTexture>
 inline float receiverBandedVisibility(float3 nearShadow, float3 middleShadow, float3 farShadow, constant ShadowReceiverParameters& p,
-    texture2d<float> nearImage, sampler nearSampler, texture2d<float> middleImage, sampler middleSampler,
-    texture2d<float> farImage, sampler farSampler) {
+    ShadowTexture nearImage, sampler nearSampler, ShadowTexture middleImage, sampler middleSampler,
+    ShadowTexture farImage, sampler farSampler) {
     if (max(abs(nearShadow.x),abs(nearShadow.y)) < 1)
         return receiverShadowSamples(nearShadow,p,nearImage,nearSampler,1,false);
     if (max(abs(middleShadow.x),abs(middleShadow.y)) < 1)

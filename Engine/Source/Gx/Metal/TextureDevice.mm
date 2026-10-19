@@ -131,10 +131,13 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(effect != FragmentEffect::ShadowMap || (shadow && shadow->skinning < 3), "Invalid shadow-map specialization");
     Require(effect != FragmentEffect::DetailDoodad || (detail && detail->shadowMode < 4), "Missing detail-doodad parameters");
     const bool modelClipping = model && model->clip.mask != 0;
+    const bool modelHardwareShadow = model && model->hardwareShadow;
+    Require(!modelHardwareShadow || (modelShadowMode && (effect==FragmentEffect::ModelOpaque || effect==FragmentEffect::ModelMod)),
+        "Unsupported model PCF material");
     const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
                            (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
-                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9);
+                           (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow) << 10);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         fixed ? fixed->positionCoords : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
@@ -399,7 +402,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         auto& vertex = m_modelVertex[unsigned(vertexEffect)][modelPermutation][modelClipping];
         const unsigned baseOperation = unsigned(ModelBase(effect));
         const bool textureAlpha = effect == FragmentEffect::ModelMod2xMod2x || effect == FragmentEffect::ModelModMod2xNA || effect == FragmentEffect::ModelModOpaque || effect == FragmentEffect::ModelMod || effect == FragmentEffect::ModelModAddNA || effect == FragmentEffect::ModelModMod || effect == FragmentEffect::ModelModAdd || effect == FragmentEffect::ModelModMod2x;
-        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][modelShadowMode][depthMode];
+        auto& fragment = m_modelFragment[unsigned(effect) - unsigned(FragmentEffect::ModelOpaque)][shaderAlphaTest][state.alphaRef != 0][decodePacked][modelShadowMode][modelHardwareShadow][depthMode];
         auto constants = [MTLFunctionConstantValues new];
         const bool alpha = state.alphaRef != 0;
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
@@ -413,6 +416,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&baseOperation type:MTLDataTypeUInt atIndex:43];
         [constants setConstantValue:&secondaryUV type:MTLDataTypeUInt atIndex:11];
         [constants setConstantValue:&modelShadowMode type:MTLDataTypeUInt atIndex:35];
+        [constants setConstantValue:&modelHardwareShadow type:MTLDataTypeBool atIndex:44];
         [constants setConstantValue:&modelClipping type:MTLDataTypeBool atIndex:38];
         [constants setConstantValue:&depthOffset type:MTLDataTypeBool atIndex:39];
         [constants setConstantValue:&sampleDepthOffset type:MTLDataTypeBool atIndex:40];
@@ -605,11 +609,11 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     return pipeline;
 }
 
-id<MTLSamplerState> GxMetal::TextureDevice::Sampler(const TextureDrawState& state) {
+id<MTLSamplerState> GxMetal::TextureDevice::Sampler(const TextureDrawState& state, bool compareDepth) {
     Require(state.filter >= GxTex_Nearest && state.filter < GxTexFilters_Last && state.wrapU >= GxTex_Clamp && state.wrapU <= GxTex_Wrap &&
         state.wrapV >= GxTex_Clamp && state.wrapV <= GxTex_Wrap && state.anisotropy >= 1 && state.anisotropy <= 16, "Invalid Gx sampler state");
     const uint32_t anisotropy = state.filter == GxTex_Anisotropic ? state.anisotropy : 1;
-    const uint32_t key = uint32_t(state.filter) | (uint32_t(state.wrapU) << 3) | (uint32_t(state.wrapV) << 4) | (anisotropy << 5);
+    const uint32_t key = uint32_t(state.filter) | (uint32_t(state.wrapU) << 3) | (uint32_t(state.wrapV) << 4) | (anisotropy << 5) | (uint32_t(compareDepth) << 10);
     const auto found = m_samplers.find(key);
     if (found != m_samplers.end()) { return found->second; }
     MTLSamplerDescriptor* descriptor = [MTLSamplerDescriptor new];
@@ -621,6 +625,7 @@ id<MTLSamplerState> GxMetal::TextureDevice::Sampler(const TextureDrawState& stat
     descriptor.sAddressMode = state.wrapU == GxTex_Wrap ? MTLSamplerAddressModeRepeat : MTLSamplerAddressModeClampToEdge;
     descriptor.tAddressMode = state.wrapV == GxTex_Wrap ? MTLSamplerAddressModeRepeat : MTLSamplerAddressModeClampToEdge;
     descriptor.maxAnisotropy = anisotropy;
+    if(compareDepth) descriptor.compareFunction = MTLCompareFunctionLessEqual;
     id<MTLSamplerState> sampler = [device newSamplerStateWithDescriptor:descriptor];
     Require(sampler != nil, "Cannot create Metal sampler");
     m_samplers.emplace(key, sampler);

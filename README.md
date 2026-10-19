@@ -814,9 +814,21 @@ equal-size ordered depth blits, cross-frame bindings and destruction of bound
 targets. Invalid attachment formats, undersized depth surfaces and unequal-size
 depth copies fail before GPU submission. Mac ASan/UBSan/Metal and iOS simulator
 checks pass alongside existing color-target regressions; both iOS clients build
-and the simulator continued for 120 frames. PCF capability stays disabled until
-comparison sampling and receivers are integrated. Native float depth is not a
+and the simulator continued for 120 frames. Global PCF capability stays disabled
+while the remaining receivers and depth precision are completed. Native float depth is not a
 claim of original D24 quantization equivalence.
+
+`Combiners_Opaque` / `Combiners_Mod` now accept the original PCF pixel variants
+5/6/7 and 13/14/15. Typed depth textures and native less-equal comparison samplers
+preserve comparison-before-filtering, five/nine taps, band selection and all
+existing fades, material alpha and fog. Resource type mismatches and sampling an
+active depth attachment fail explicitly. Mac ASan/UBSan/Metal and iOS simulator
+pass 13,140 independent PCF outputs plus existing model regressions; iOS continued
+for 120 frames. The original wolf shadow gather/render and material selector also
+exercise both opaque/cutout receivers in all three modes on Mac across two scene
+lifetimes, with 124/129/129 darker pixels and unchanged alpha coverage. Other PCF
+material families remain unsupported; this does not establish Windows D24
+precision or full-world PCF equivalence.
 
 `Diffuse_T1` also supports its 60 R32F dynamic/banded-shadow vertex variants, paired
 with `Combiners_Opaque` / `Combiners_Mod` pixel variants 1/2/3 and 9/10/11.

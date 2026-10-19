@@ -25,7 +25,7 @@ bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation,
     if (target == GxSh_Vertex)
         return vertexEffect < ModelVertexEffect::Count && permutation < 90 && (UsesModelMaterial(vertexEffect) || permutation % 30 < 10);
     return permutation < 16 && ((permutation & 3) == 0 ||
-        (ModelShadowMaterial(effect) && (permutation & 4) == 0));
+        (ModelShadowMaterial(effect) && ((permutation & 4) == 0 || effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod)));
 }
 void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect) {
     if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
@@ -1047,6 +1047,19 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         "c8c0f77d9a790c154bb29c78912a69cb",
         "1828d5431d6af775c6ec498c928d5820",
     };
+    // Original opaque/modulated comparison-sampler permutations, separate from R32F.
+    static const char* comparisonPixel[2][3][2] = {
+        {
+            {"3d36188fc42d36a582bb86b1ed1d7b48", "566ec683d52d57e11dd89ed3d1a57d1d"},
+            {"85f1b03c0a51fd893cf2faad5214e5e1", "fa60ce3f87aadc9748cfa6290f8608b9"},
+            {"3e9294432ee5d50d6e63aca16b7f3d1a", "89145b061409e539369cf24e684dbe63"},
+        },
+        {
+            {"2c58dcbaa1a1593df518d3b338a8b598", "52e7db0267eef4b80b12c73df021acd2"},
+            {"161dff12b11908b795c4ce817d126399", "4cac245289cabded03e4e1c1de774442"},
+            {"4c21a8ddc4e36445885fceca6d0bd3ac", "e80466a0e2ed777c19edca710d3de9a1"},
+        },
+    };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
         if (!SupportsModelPermutation(target, i, vertexEffect, effect)) continue;
         const auto& shader = shaders[i];
@@ -1087,6 +1100,8 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
                     default: expected = coloredVertex[unsigned(vertexEffect)-1][i]; break;
                 }
             }
+        } else if ((i & 3) && (i & 4)) {
+            expected = comparisonPixel[effect==FragmentEffect::ModelMod][(i&3)-1][i>>3];
         } else if (const unsigned mode = i & 3) {
             const unsigned alphaTest = i >> 3;
             switch (effect) {

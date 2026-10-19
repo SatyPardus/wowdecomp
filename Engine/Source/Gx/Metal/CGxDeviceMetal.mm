@@ -1623,6 +1623,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.shadowMode = m->shaders.at(pixel).permutation & 3;
         native.vertexEffect = m->shaders.at(vertex).vertexEffect;
         native.shaderAlphaTest = (m->shaders.at(pixel).permutation & 8) != 0;
+        native.hardwareShadow = native.shadowMode && (m->shaders.at(pixel).permutation & 4);
         native.clip.mask = clipMask;
         for (unsigned i = 0; i < 6; ++i) if (clipMask & (1u << i)) {
             const auto& plane = m_clipPlane[i];
@@ -1720,7 +1721,9 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         ITexMarkAsUpdated(texture);
         textures[i] = m->textures.at(texture).sampled ?: m->textures.at(texture).gpu;
         states[i] = state;
-        states[i].decodeScale = m->gpu.DecodeScale(texture->m_format == GxTex_R32F ? BLP::Format::BGRA8 : ImageFormat(texture->m_format));
+        const bool comparison=model && modelParameters->hardwareShadow && i>=4;
+        Require((texture->m_format==GxTex_D24X8)==comparison,"Gx shader depth comparison and texture format mismatch");
+        states[i].decodeScale = m->gpu.DecodeScale((comparison || texture->m_format == GxTex_R32F) ? BLP::Format::BGRA8 : ImageFormat(texture->m_format));
         states[i].filter = EGxTexFilter(texture->m_flags.m_filter);
         states[i].wrapU = EGxTexWrapMode(texture->m_flags.m_wrapU); states[i].wrapV = EGxTexWrapMode(texture->m_flags.m_wrapV);
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;

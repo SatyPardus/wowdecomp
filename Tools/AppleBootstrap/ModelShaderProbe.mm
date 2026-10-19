@@ -62,10 +62,51 @@ void ShadowPattern(EGxTexCommand command,uint32_t,uint32_t,uint32_t,uint32_t,voi
     }();
     if (command == GxTex_Latch) { stride=5*sizeof(uint32_t); data=values[context ? *static_cast<const unsigned*>(context):0].data(); }
 }
+void CreateComparisonDepths(CGxDeviceMetal& device, MTLRenderPassDescriptor* pass, CGxTex* material, CGxTex** depths) {
+    device.RsPush();
+    struct Cleanup {
+        CGxDeviceMetal& device; CGxShader* vertex[2]{}; CGxShader* pixel[1]{}; CGxTex* color=nullptr;
+        ~Cleanup() {
+            device.DeviceSetRenderTarget(GxBuffers_Depth,nullptr,0); device.DeviceSetRenderTarget(GxBuffers_Color,nullptr,0);
+            if(device.FrameCommand()) device.ScenePresent(); device.RsPop();
+            for(auto* shader:vertex) device.ShaderDestroy(shader);
+            for(auto* shader:pixel) device.ShaderDestroy(shader);
+            if(color) device.TexDestroy(color);
+        }
+    } cleanup{device};
+    device.ShaderCreate(cleanup.vertex,GxSh_Vertex,"Shaders\\Vertex","UI",2);
+    device.ShaderCreate(cleanup.pixel,GxSh_Pixel,"Shaders\\Pixel","UI",1);
+    GxRsSet(GxRs_VertexShader,cleanup.vertex[0]); GxRsSet(GxRs_PixelShader,cleanup.pixel[0]); GxRsSet(GxRs_Texture0,material);
+    GxRsSet(GxRs_DepthTest,0); GxRsSet(GxRs_DepthWrite,1); GxRsSet(GxRs_ColorWrite,0); GxRsSet(GxRs_AlphaRef,0);
+    GxRsSet(GxRs_ScissorTest,0); GxRsSet(GxRs_ClipPlaneMask,0); GxRsSet(GxRs_Culling,0); GxRsSet(GxRs_PolygonOffset,0);
+    GxRsSet(GxRs_Fog,0);
+    CGxTexFlags flags(GxTex_Linear); flags.m_renderTarget=1;
+    device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_Argb8888,GxTex_Argb8888,flags,nullptr,nullptr,"PCF color attachment",cleanup.color);
+    C44Matrix identity(1); GxShaderConstantsSet(GxSh_Vertex,0,&identity.a0,4);
+    device.BeginFrame(pass); device.DeviceSetRenderTarget(GxBuffers_Color,cleanup.color,0);
+    for(unsigned band=0;band<4;++band) {
+        device.TexCreate(GxTex_NonPow2,5,5,0,GxTex_D24X8,GxTex_D24X8,flags,nullptr,nullptr,"PCF depth comparison reference",depths[band]);
+        device.DeviceSetRenderTarget(GxBuffers_Depth,depths[band],0);
+        GxXformSetViewport(0,1,0,1,0,1); device.SceneClear(3,CImVector(0,0,0,0));
+        struct Vertex { float x,y,z; uint32_t color; float u,v; };
+        for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x) {
+            const float z=ShadowDepth(x,y,band);
+            const Vertex data[]={{-1,-1,z,0xFFFFFFFF,0,0},{-1,1,z,0xFFFFFFFF,0,1},{1,-1,z,0xFFFFFFFF,1,0},{1,1,z,0xFFFFFFFF,1,1}};
+            auto* buffer=GxBufStream(GxPoolTarget_Vertex,sizeof(Vertex),4);
+            std::memcpy(device.BufLock(buffer),data,sizeof(data)); device.BufUnlock(buffer,0); GxPrimVertexPtr(buffer,GxVBF_PCT);
+            GxXformSetViewport(float(x)/5,float(x+1)/5,float(y)/5,float(y+1)/5,0,1);
+            CGxBatch batch{GxPrim_TriangleStrip,0,4,0,3}; GxDraw(&batch,0);
+        }
+        GxXformSetViewport(0,1,0,1,0,1);
+        CiRect rect(0,0,5,5); TSGrowableArray<float> values; device.DeviceReadDepths(rect,values);
+        for(unsigned y=0;y<5;++y) for(unsigned x=0;x<5;++x)
+            Require(values[y*5+x]==ShadowDepth(x,y,band),"PCF fixture depth rasterization mismatch");
+    }
+}
 void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opaque,CGxShader** mod,CGxShader** environmentVertex,CGxShader** environmentPixel,
     CGxShader** dualUVVertex,CGxShader** reflectionVertex,CGxShader* (*layerPixel)[16],
     MTLRenderPassDescriptor* pass,CGxTex* material,CGxTex* environment,CGxTex* const* shadows,bool projectedOnly=false,
-    GxMetal::ModelVertexEffect vertexEffect=GxMetal::ModelVertexEffect::Diffuse) {
+    GxMetal::ModelVertexEffect vertexEffect=GxMetal::ModelVertexEffect::Diffuse, bool comparison=false) {
     const bool coordinateFamily=vertexEffect >= GxMetal::ModelVertexEffect::DiffuseSecondUV;
     const unsigned coordinateKind=unsigned(vertexEffect);
     const bool colored=!GxMetal::UsesModelMaterial(vertexEffect);
@@ -164,9 +205,15 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
         const float sx=Dot(c[224],view),sy=Dot(c[225],view);
         const float border=Sat(std::max(std::abs(sx),std::abs(sy))*(-3.4482758045196533f)+3.4137930870056152f);
         auto sample=[&](const Vec& coordinate,unsigned band,float dx,float dy) {
-            const unsigned x=unsigned(std::clamp(int(std::floor((coordinate[0]*.5f+.5f+dx)*5)),0,4));
-            const unsigned y=unsigned(std::clamp(int(std::floor((coordinate[1]*.5f+.5f+dy)*5)),0,4));
-            return ShadowDepth(x,y,band)>=coordinate[2] ? 1.0f : 0.0f;
+            const float x=(coordinate[0]*.5f+.5f+dx)*5, y=(coordinate[1]*.5f+.5f+dy)*5;
+            auto compare=[&](int px,int py) { return ShadowDepth(unsigned(std::clamp(px,0,4)),unsigned(std::clamp(py,0,4)),band)>=coordinate[2] ? 1.0f:0.0f; };
+            if(!comparison) return compare(int(std::floor(x)),int(std::floor(y)));
+            // Independently compare four texels, then bilinearly interpolate
+            // comparison results; this distinguishes PCF from filtering depth.
+            const int left=int(std::floor(x-.5f)), top=int(std::floor(y-.5f));
+            const float fx=x-.5f-left, fy=y-.5f-top;
+            return (compare(left,top)*(1-fx)+compare(left+1,top)*fx)*(1-fy)+
+                (compare(left,top+1)*(1-fx)+compare(left+1,top+1)*fx)*fy;
         };
         auto average=[&](const Vec& coordinate,unsigned band,bool nine) {
             float count=sample(coordinate,band,0,0);
@@ -192,6 +239,7 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
         const float normalFade=Sat(std::pow(1.2f-std::abs(test.normal*normalZ),4)); visibility+=normalFade*(1-visibility);
         const float brightness=mode ? .7f+.3f*visibility:1;
         for(unsigned materialIndex=0;materialIndex<25;++materialIndex) for(unsigned alphaCase=0;alphaCase<3;++alphaCase) {
+            if(comparison && materialIndex>1) continue;
             if(coordinateFamily && materialIndex > (coordinateKind==8 ? 1u:3u)) continue;
             if(projectedOnly && materialIndex!=3 && materialIndex!=9) continue;
             if(colored && !projectedOnly && materialIndex>1) continue;
@@ -238,7 +286,7 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
                 layerPixel[0],layerPixel[1],layerPixel[5],layerPixel[7],layerPixel[9],layerPixel[10],opaque,mod,layerPixel[11],layerPixel[12],layerPixel[13],layerPixel[14],layerPixel[15],layerPixel[16],layerPixel[17],layerPixel[18],layerPixel[19],layerPixel[20]};
             CGxShader** vertexFamily=(projectedOnly || coordinateFamily) ? vertex:reflectionOnly ? reflectionVertex:reflectedLayer ? environmentVertex:materialIndex>=3 ? dualUVVertex:vertex;
             GxRsSet(GxRs_VertexShader,vertexFamily[30*std::min(mode,2u)+permutation]);
-            GxRsSet(GxRs_PixelShader,pixelFamilies[materialIndex][mode+(alphaCase ? 8:0)]);
+            GxRsSet(GxRs_PixelShader,pixelFamilies[materialIndex][mode+(comparison ? 4:0)+(alphaCase ? 8:0)]);
             GxDraw(&batch,0); CiRect rect(0,0,32,32); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels);
             const unsigned x=unsigned(std::floor((view[0]+1)*16)),y=unsigned(std::floor((1-view[1])*16));
             const auto& pixel=pixels[y*32+x]; const unsigned channels[]={pixel.r,pixel.g,pixel.b,pixel.a};
@@ -275,6 +323,10 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
             }
             device.ScenePresent(); ++checks;
         }
+    }
+    if(comparison) {
+        std::fprintf(stderr,"Native PCF model shadows: %u independent outputs, original opaque/modulated receiver variants, comparison-before-filtering, five/nine taps, bands, fades and alpha boundaries passed\n",checks);
+        return;
     }
     if(coordinateFamily) {
         std::fprintf(stderr,"%s: %u independent shadow/UV outputs, rigid/one/four weights, local lights, original coordinate declarations, R32F shadows and alpha/fog passed\n",GxMetal::ModelVertexFamily(vertexEffect),checks);
@@ -331,7 +383,7 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
     device.ShaderCreate(layerPixel[20], GxSh_Pixel, "Shaders\\Pixel", "Combiners_Mod2x_Mod2x", 16);
     device.RsPush();
     struct Cleanup {
-        CGxDeviceMetal& device; CGxShader* (*vertex)[90]; CGxShader** pixel; CGxShader** modPixel; CGxShader* (*layerPixel)[16]; CGxTex* texture[8]{};
+        CGxDeviceMetal& device; CGxShader* (*vertex)[90]; CGxShader** pixel; CGxShader** modPixel; CGxShader* (*layerPixel)[16]; CGxTex* texture[12]{};
         ~Cleanup() {
             if (device.FrameCommand()) device.ScenePresent();
             device.RsPop(); for (auto& image : texture) device.TexDestroy(image);
@@ -538,10 +590,12 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
         }
     }
     device.BeginFrame(pass);
-    device.RsSet(GxRs_VertexShader, vertex[0][30]); device.RsSet(GxRs_PixelShader, pixel[5]);
+    device.RsSet(GxRs_VertexShader, vertex[0][30]); device.RsSet(GxRs_PixelShader, layerPixel[0][5]);
     bool rejected = false; try { GxDraw(&batch, 0); } catch (const std::runtime_error&) { rejected = true; }
     Require(rejected, "Unimplemented model shadow permutation was silently replaced");
     device.ScenePresent();
+    CreateComparisonDepths(device,pass,cleanup.texture[3],cleanup.texture+8);
+    CheckModelShadows(device,vertex[0],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[3],cleanup.texture[2],cleanup.texture+8,false,GxMetal::ModelVertexEffect::Diffuse,true);
     CheckModelShadows(device,vertex[0],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[3],cleanup.texture[2],cleanup.texture+4);
     CheckModelShadows(device,vertex[5],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[1],cleanup.texture[2],cleanup.texture+4,true);
     checkColoredShadows();

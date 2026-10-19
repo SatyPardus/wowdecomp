@@ -109,7 +109,7 @@ struct ModelDrawParameters {
     std::array<ModelAffine, 75> bones{};
     uint32_t permutation = 0, boneCount = 1, shadowMode = 0;
     ModelVertexEffect vertexEffect = ModelVertexEffect::Diffuse;
-    bool shaderAlphaTest = false;
+    bool shaderAlphaTest = false, hardwareShadow = false;
     ShadowReceiverParameters shadow{};
 };
 
@@ -323,7 +323,7 @@ private:
     id<MTLFunction> m_terrainShadowFragment;
     id<MTLFunction> m_terrainFragment[4][4][32][2][2]{};
     id<MTLFunction> m_modelVertex[unsigned(ModelVertexEffect::Count)][90][2]{};
-    id<MTLFunction> m_modelFragment[23][2][2][2][4][3]{};
+    id<MTLFunction> m_modelFragment[23][2][2][2][4][2][3]{};
     id<MTLFunction> m_decodedFragments[5][2][2]{};
     id<MTLFunction> m_vertex;
     id<MTLFunction> m_fragment[2];
@@ -354,7 +354,7 @@ private:
     id<MTLRenderPipelineState> Pipeline(const TextureDrawState& state, const GeometryDraw& geometry,
         bool depthAttachment = false, bool decodePacked = false, MTLPixelFormat colorFormat = MTLPixelFormatBGRA8Unorm,
         uint32_t sampleCount = 1);
-    id<MTLSamplerState> Sampler(const TextureDrawState& state);
+    id<MTLSamplerState> Sampler(const TextureDrawState& state, bool compareDepth = false);
     void DrawGeometry(id<MTLCommandBuffer>, MTLRenderPassDescriptor*, const std::array<id<MTLTexture>, 9>&,
         const GeometryDraw&, const QuadParameters&, const std::array<TextureDrawState, 9>&, id<MTLRenderCommandEncoder>);
 };

@@ -239,7 +239,7 @@ void CheckGameModels() {
         if (!opaque.m_count || !cutout.m_count) throw std::runtime_error("Wolf shadow gather omitted opaque or cutout batches");
         device.RsPush();
         struct RestoreState { CGxDeviceMetal& device; ~RestoreState() { device.RsPop(); } } restoreState{device};
-        struct DepthTarget { CTexture* owner = nullptr; CGxTex* texture = nullptr; ~DepthTarget() { if(owner) HandleClose(reinterpret_cast<HOBJECT>(owner)); } } shadowTarget;
+        struct DepthTarget { CTexture* owner = nullptr; CGxTex* texture = nullptr; ~DepthTarget() { if(owner) HandleClose(reinterpret_cast<HOBJECT>(owner)); } } shadowTarget, comparisonTarget;
         CGxTexFlags flags(GxTex_Nearest); flags.m_renderTarget = 1;
         shadowTarget.owner = TextureCreate(GxTex_2d,128,128,0,GxTex_R32F,GxTex_R32F,flags,nullptr,
             [](EGxTexCommand,uint32_t,uint32_t,uint32_t,uint32_t,void*,uint32_t&,const void*&) {},"Original wolf shadow depth",0);
@@ -309,30 +309,62 @@ void CheckGameModels() {
             lighting->AddAmbient(C3Vector(.4f,.4f,.4f)); lighting->AddDiffuse(C3Vector(.6f,.6f,.6f),C3Vector(0,0,-1));
             lighting->SetFog(C3Vector(.1f,.2f,.3f),1,20); lighting->m_flags|=0x10;
         };
-        for (EShadowMode mode:{SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
-            CShadowCache::s_shadowMode=mode;
-            const uint32_t expectedShadow=CShadowCache::s_shadowValues[mode];
-            device.BeginFrame(pass); visible->m_fFlags|=8; visible->SetAnimating(1); scene->Animate(C3Vector(0,0,0));
-            unsigned receivers=0;
-            for(unsigned i=0;i<scene->m_elements.Count();++i) {
-                const auto& element=scene->m_elements[i];
-                if(element.m_model==visible && element.m_shadowValue==expectedShadow &&
-                    element.m_vertexPermute>=20+30*std::min(expectedShadow,2u) && (element.m_pixelPermute&3)==expectedShadow) ++receivers;
+        auto checkReceivers = [&](bool comparison) {
+            CShaderEffect::s_usePcfFiltering=comparison;
+            for (EShadowMode mode:{SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
+                CShadowCache::s_shadowMode=mode;
+                const uint32_t expectedShadow=CShadowCache::s_shadowValues[mode];
+                device.BeginFrame(pass); visible->m_fFlags|=8; visible->SetAnimating(1); scene->Animate(C3Vector(0,0,0));
+                unsigned receivers=0;
+                for(unsigned i=0;i<scene->m_elements.Count();++i) {
+                    const auto& element=scene->m_elements[i];
+                    if(element.m_model==visible && element.m_shadowValue==expectedShadow &&
+                        element.m_vertexPermute>=20+30*std::min(expectedShadow,2u) && (element.m_pixelPermute&7)==expectedShadow+4*comparison) ++receivers;
+                }
+                if(receivers!=2) throw std::runtime_error("Original wolf scene did not select both shadow receivers");
+                scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
+                TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received); unsigned darker=0;
+                for(unsigned i=0;i<received.Count();++i) {
+                    if(received[i].a!=animated[i].a) throw std::runtime_error("Shadow changed original wolf alpha coverage");
+                    darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(animated[i].r)+animated[i].g+animated[i].b;
+                }
+                if(darker<64) throw std::runtime_error("Generated shadow did not reach the original wolf material");
+                std::fprintf(stderr,"Original wolf %s shadow receivers mode %u: %u batches, %u darker pixels, unchanged alpha coverage\n",comparison ? "PCF":"R32F",expectedShadow,receivers,darker);
+                device.ScenePresent();
+                // Exercise the original ground-decoration selector and cache
+                // bindings with the same generated R32F map and all three modes.
+                if(!comparison) CheckGameDetailDoodads(scene, device, pass);
             }
-            if(receivers!=2) throw std::runtime_error("Original wolf scene did not select both shadow receivers");
-            scene->Draw(M2PASS_0); scene->Draw(M2PASS_1); scene->Draw(M2PASS_2);
-            TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received); unsigned darker=0;
-            for(unsigned i=0;i<received.Count();++i) {
-                if(received[i].a!=animated[i].a) throw std::runtime_error("Shadow changed original wolf alpha coverage");
-                darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(animated[i].r)+animated[i].g+animated[i].b;
-            }
-            if(darker<64) throw std::runtime_error("Generated R32F shadow did not reach the original wolf material");
-            std::fprintf(stderr,"Original wolf shadow receivers mode %u: %u batches, %u darker pixels, unchanged alpha coverage\n",expectedShadow,receivers,darker);
-            device.ScenePresent();
-            // Exercise the original ground-decoration selector and cache
-            // bindings with the same generated R32F map and all three modes.
-            CheckGameDetailDoodads(scene, device, pass);
-        }
+        };
+        checkReceivers(false);
+        CGxTexFlags comparisonFlags(GxTex_Linear); comparisonFlags.m_renderTarget=1;
+        comparisonTarget.owner=TextureCreate(GxTex_2d,128,128,0,GxTex_D24X8,GxTex_D24X8,comparisonFlags,nullptr,
+            [](EGxTexCommand,uint32_t,uint32_t,uint32_t,uint32_t,void*,uint32_t&,const void*&) {},"Original wolf PCF depth",0);
+        if(!comparisonTarget.owner || !(comparisonTarget.texture=TextureGetGxTex(comparisonTarget.owner,1,nullptr)))
+            throw std::runtime_error("Original wolf comparison target creation failed");
+        device.BeginFrame(pass); device.DeviceSetRenderTarget(GxBuffers_Depth,comparisonTarget.texture,0);
+        GxXformSetViewport(0,1,0,1,0,1); GxRsSet(GxRs_ColorWrite,0); GxRsSet(GxRs_Fog,0);
+        device.SceneClear(2,CImVector(0,0,0,0));
+        // The original projection API converts [-w,w] to [0,w]. This maps
+        // light.z to light.z/2, matching the R32F map's explicit scale above.
+        C44Matrix lightProjection(1); lightProjection.d2=-1;
+        device.XformSetProjection(lightProjection);
+        effect->SetCurrent(); CShaderEffect::SetTexMtx_Identity(0); CShaderEffect::UpdateProjMatrix();
+        device.ShaderConstantsSet(GxSh_Vertex,14,lightFromView,3);
+        device.ShaderConstantsSet(GxSh_Pixel,0,depthScale,1);
+        CM2Model::RenderModelBatchesShadowMap(opaque,cutout);
+        TSGrowableArray<float> comparisonDepth; device.DeviceReadDepths(rect,comparisonDepth);
+        unsigned comparisonCovered=0;
+        for(unsigned i=0;i<comparisonDepth.Count();++i) comparisonCovered+=comparisonDepth[i]>0 && comparisonDepth[i]<1;
+        if(comparisonCovered<128) throw std::runtime_error("Original wolf batches did not write comparison depth");
+        std::fprintf(stderr,"Original wolf native comparison depth: %u covered pixels\n",comparisonCovered);
+        device.DeviceSetRenderTarget(GxBuffers_Depth,nullptr,0); device.ScenePresent();
+        device.XformSetProjection(identity); GxRsSet(GxRs_ColorWrite,15);
+        CShadowCache::s_extDynShadow.m_textures[1]=comparisonTarget.owner;
+        for(unsigned band=0;band<3;++band) CShadowCache::s_extShadowBands[band].m_textures[0]=comparisonTarget.owner;
+        checkReceivers(true);
+        CShaderEffect::s_usePcfFiltering=0;
+        for(unsigned band=0;band<3;++band) CShadowCache::s_extShadowBands[band].m_textures[0]=shadowTarget.owner;
         CShadowCache::s_shadowMode=SHADOW_LOWEST;
         CheckGameDetailDoodads(scene, device, pass);
         struct LayeredPose { uint32_t displayID, sequenceID, elapsed; };

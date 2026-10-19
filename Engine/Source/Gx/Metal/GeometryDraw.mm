@@ -181,8 +181,10 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     id<MTLRenderPipelineState> pipeline = Pipeline(state, geometry, hasDepth, decodePacked, target.pixelFormat, uint32_t(target.sampleCount));
     std::array<id<MTLSamplerState>, 9> samplers{};
     for (unsigned i = 0; i < textures.size(); ++i) if (inputMask & (1u << i)) {
-        Require(textures[i] && textures[i] != target, "Missing FFX input or render-target feedback");
-        samplers[i] = Sampler(states[i]);
+        Require(textures[i] && textures[i] != target && textures[i] != pass.depthAttachment.texture, "Missing FFX input or render-target feedback");
+        const bool comparison=model && geometry.model->hardwareShadow && i>=4;
+        Require((textures[i].pixelFormat==MTLPixelFormatDepth32Float)==comparison,"Shader depth comparison and texture format mismatch");
+        samplers[i] = Sampler(states[i],comparison);
     }
     const uint32_t depthKey = geometry.depthFunction | (unsigned(geometry.depthTest) << 2) | (unsigned(geometry.depthWrite) << 3);
     auto depth = m_depthStates.find(depthKey);
