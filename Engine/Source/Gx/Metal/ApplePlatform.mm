@@ -15,6 +15,49 @@
 #import <UIKit/UIKit.h>
 #endif
 
+#if TARGET_OS_OSX
+@interface GxMetalWindow ()
+@property(nonatomic) BOOL borderlessGame, ownsPresentation;
+@property(nonatomic) NSRect restoredFrame;
+@property(nonatomic) NSWindowStyleMask restoredStyle;
+@property(nonatomic) NSApplicationPresentationOptions restoredPresentation, appliedPresentation;
+- (void)setBorderlessGamePresentation:(BOOL)enabled;
+@end
+@implementation GxMetalWindow
+- (BOOL)canBecomeKeyWindow { return YES; }
+- (BOOL)canBecomeMainWindow { return YES; }
+- (void)restoreGamePresentation {
+    if (!self.ownsPresentation) return;
+    if (NSApp.presentationOptions == self.appliedPresentation) NSApp.presentationOptions = self.restoredPresentation;
+    self.ownsPresentation = NO;
+}
+- (void)updateGamePresentation {
+    if (!self.borderlessGame || !self.isKeyWindow) { [self restoreGamePresentation]; return; }
+    if (self.ownsPresentation) return;
+    self.restoredPresentation = NSApp.presentationOptions;
+    self.appliedPresentation = (self.restoredPresentation & ~(NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar)) |
+        NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar;
+    NSApp.presentationOptions = self.appliedPresentation;
+    self.ownsPresentation = YES;
+}
+- (void)becomeKeyWindow { [super becomeKeyWindow]; [self updateGamePresentation]; }
+- (void)resignKeyWindow { [self restoreGamePresentation]; [super resignKeyWindow]; }
+- (void)close { [self restoreGamePresentation]; [super close]; }
+- (void)setBorderlessGamePresentation:(BOOL)enabled {
+    if (enabled == self.borderlessGame) return;
+    if (enabled) {
+        self.restoredFrame = self.frame; self.restoredStyle = self.styleMask;
+        self.borderlessGame = YES; self.styleMask = NSWindowStyleMaskBorderless;
+    } else {
+        self.borderlessGame = NO; [self restoreGamePresentation];
+        self.styleMask = self.restoredStyle;
+        [self setFrame:self.restoredFrame display:NO];
+    }
+    [self updateGamePresentation];
+}
+@end
+#endif
+
 bool GxMetal::GetHostFormat(CGxFormat& format) {
     if (!NSThread.isMainThread) return false;
     MTKView* view = (__bridge MTKView*)OsGuiGetWindow(0);
@@ -28,6 +71,9 @@ bool GxMetal::GetHostFormat(CGxFormat& format) {
 #endif
     format = CGxFormat(true, {int32_t(view.drawableSize.width), int32_t(view.drawableSize.height)},
         CGxFormat::Fmt_Argb8888, CGxFormat::Fmt_Ds320, refresh, 1, true, false, false, true, 0);
+#if TARGET_OS_OSX
+    if ([view.window isKindOfClass:GxMetalWindow.class]) format.m_maximize = ((GxMetalWindow*)view.window).borderlessGame;
+#endif
     return true;
 }
 
@@ -65,17 +111,31 @@ bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     // AppKit/UIKit mutations and drawable acquisition share the host thread.
     if (!NSThread.isMainThread) return false;
     MTKView* view = (__bridge MTKView*)DeviceWindow();
-    if (![view isKindOfClass:MTKView.class] || !format.m_window || format.m_maximize || format.m_vsync > 1) return false;
+    if (![view isKindOfClass:MTKView.class] || !format.m_window || format.m_vsync > 1) return false;
 #if TARGET_OS_OSX
     // This path changes windowed rendering, not the physical display mode.
     if (format.m_refreshRate || !view.window || view.window.contentView != view || view.inFullScreenMode ||
         (view.window.styleMask & NSWindowStyleMaskFullScreen)) return false;
+    if (format.m_maximize < 0 || format.m_maximize > 1 || (format.m_maximize && ![view.window isKindOfClass:GxMetalWindow.class])) return false;
+    GxMetalWindow* gameWindow = [view.window isKindOfClass:GxMetalWindow.class] ? (GxMetalWindow*)view.window : nil;
+    NSScreen* screen = view.window.screen;
     const CGFloat scale = view.window.backingScaleFactor;
     if (!(scale > 0)) return false;
+    if (format.m_maximize) {
+        if (!screen) return false;
+        const NSSize size = [screen convertRectToBacking:screen.frame].size;
+        // Validate the effective screen size before changing either window or
+        // attachments; the caller has only validated the requested size.
+        if (size.width <= 0 || size.height <= 0 || size.width > m_caps.m_texMaxSize[GxTex_2d] || size.height > m_caps.m_texMaxSize[GxTex_2d] ||
+            (format.m_multisampleCount > 1 && size.width * size.height > (256 * 1024 * 1024) / 8 / format.m_multisampleCount)) return false;
+    }
+    const bool restoreWindowSize = gameWindow.borderlessGame && !format.m_maximize &&
+        format.m_size.x == m_format.m_size.x && format.m_size.y == m_format.m_size.y;
+    const BOOL wasKey = view.window.isKeyWindow;
 #else
     // UIKit owns scene size and presentation synchronization. A fixed render
     // resolution may scale into that scene, but cannot disable its vsync.
-    if (!format.m_vsync || (format.m_refreshRate && format.m_refreshRate != view.window.screen.maximumFramesPerSecond)) return false;
+    if (format.m_maximize || !format.m_vsync || (format.m_refreshRate && format.m_refreshRate != view.window.screen.maximumFramesPerSecond)) return false;
 #endif
     Drain();
     // Changing drawableSize can synchronously call the host's size delegate.
@@ -85,7 +145,10 @@ bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     [view releaseDrawables];
     view.autoResizeDrawable = NO;
 #if TARGET_OS_OSX
-    [view.window setContentSize:NSMakeSize(format.m_size.x / scale, format.m_size.y / scale)];
+    [gameWindow setBorderlessGamePresentation:format.m_maximize != 0];
+    if (format.m_maximize) [view.window setFrame:screen.frame display:NO];
+    else if (!restoreWindowSize) [view.window setContentSize:NSMakeSize(format.m_size.x / scale, format.m_size.y / scale)];
+    if (wasKey) [view.window makeKeyWindow];
     // AppKit rounds window points (e.g. 641 pixels at 2x becomes 642).
     // Publish the actual native size, as D3D's adjusted window creation does;
     // do not scale an odd-sized drawable into a differently sized window.
@@ -235,6 +298,16 @@ std::atomic<bool> resizeLocked{false};
 #if TARGET_OS_OSX
 __weak NSWindow* lockedWindow;
 bool restoreResizable, applyingResizeLock;
+NSWindowStyleMask WindowedStyle(NSWindow* window) {
+    if ([window isKindOfClass:GxMetalWindow.class] && ((GxMetalWindow*)window).borderlessGame)
+        return ((GxMetalWindow*)window).restoredStyle;
+    return window.styleMask;
+}
+void SetWindowedStyle(NSWindow* window, NSWindowStyleMask style) {
+    if ([window isKindOfClass:GxMetalWindow.class] && ((GxMetalWindow*)window).borderlessGame)
+        ((GxMetalWindow*)window).restoredStyle = style;
+    else window.styleMask = style;
+}
 #endif
 }
 void OsInputApplyWindowResizeLock(void* nativeView) {
@@ -244,13 +317,13 @@ void OsInputApplyWindowResizeLock(void* nativeView) {
         applyingResizeLock = true;
         NSWindow* window = nativeView ? ((__bridge NSView*)nativeView).window : nil;
         if (lockedWindow && (lockedWindow != window || !resizeLocked.load())) {
-            if (restoreResizable) lockedWindow.styleMask |= NSWindowStyleMaskResizable;
+            if (restoreResizable) SetWindowedStyle(lockedWindow, WindowedStyle(lockedWindow) | NSWindowStyleMaskResizable);
             lockedWindow = nil;
         }
         if (window && resizeLocked.load() && lockedWindow != window) {
-            restoreResizable = (window.styleMask & NSWindowStyleMaskResizable) != 0;
+            restoreResizable = (WindowedStyle(window) & NSWindowStyleMaskResizable) != 0;
             lockedWindow = window;
-            window.styleMask &= ~NSWindowStyleMaskResizable;
+            SetWindowedStyle(window, WindowedStyle(window) & ~NSWindowStyleMaskResizable);
         }
         applyingResizeLock = false;
     };

@@ -4,6 +4,7 @@
 #include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Os/Gui.h"
+#include "Engine/Source/Os/Input.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include <TargetConditionals.h>
@@ -23,7 +24,12 @@ struct NativeDisplayProbe::Impl {
     BOOL automatic;
     CBoundingBox viewport;
     unsigned phase = 0;
-    C2iVector sizes[4];
+    C2iVector sizes[6];
+#if TARGET_OS_OSX
+    NSRect windowedFrame;
+    NSWindowStyleMask windowedStyle;
+    NSApplicationPresentationOptions windowedPresentation;
+#endif
     Impl(CGxDeviceMetal& d, MTKView* v) : device(d), view(v), original(d.m_format), automatic(v.autoResizeDrawable), viewport(d.m_viewport) {
         original.m_size = {int32_t(view.drawableSize.width), int32_t(view.drawableSize.height)};
         sizes[0] = {320, 180}; sizes[1] = {641, 359}; sizes[2] = original.m_size;
@@ -85,6 +91,28 @@ bool NativeDisplayProbe::Impl::Step() {
     {
         const C2iVector size = sizes[phase - 1];
         CGxFormat requested = original; requested.m_size = size;
+#if TARGET_OS_OSX
+        requested.m_maximize = phase == 5;
+        if (phase == 5) {
+            OsInputSetWindowResizeLock(0);
+            OsInputSetWindowResizeLock(1); OsInputSetWindowResizeLock(0);
+            Require(NSEqualRects(view.window.frame, view.window.screen.frame) && view.window.styleMask == NSWindowStyleMaskBorderless &&
+                view.window.canBecomeKeyWindow && view.window.isKeyWindow, "Borderless game window lost screen coverage or input focus");
+            Require((NSApp.presentationOptions & (NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar)) ==
+                (NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar), "Borderless window did not hide desktop chrome");
+            NSWindow* other = [[NSWindow alloc] initWithContentRect:NSMakeRect(40, 40, 180, 80)
+                styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+            other.releasedWhenClosed = NO;
+            [other makeKeyAndOrderFront:nil];
+            Require(other.isKeyWindow, "Display check could not transfer native focus");
+            Require(NSApp.presentationOptions == windowedPresentation, "Borderless focus loss did not restore desktop presentation");
+            [view.window makeKeyAndOrderFront:nil]; [other close];
+            Require(view.window.isKeyWindow, "Borderless window could not regain keyboard focus");
+        } else if (phase == 6) {
+            Require(NSEqualRects(view.window.frame, windowedFrame) && view.window.styleMask == windowedStyle &&
+                NSApp.presentationOptions == windowedPresentation, "Leaving borderless mode did not restore the window and desktop");
+        }
+#endif
         Require(view.drawableSize.width == size.x && view.drawableSize.height == size.y,
             "DeviceSetFormat left the drawable at its old resolution");
 #if TARGET_OS_OSX
@@ -106,7 +134,13 @@ bool NativeDisplayProbe::Impl::Step() {
         MTKView* detached = [[MTKView alloc] initWithFrame:CGRectMake(0, 0, 17, 13) device:view.device];
         Require(!device.DeviceCreate((__bridge void*)detached, invalid) && device.DeviceWindow() == (__bridge void*)view,
             "Failed replacement published the new host");
-        invalid = accepted; invalid.m_maximize = 1; reject(invalid);
+        invalid = accepted;
+#if TARGET_OS_OSX
+        invalid.m_maximize = 2;
+#else
+        invalid.m_maximize = 1;
+#endif
+        reject(invalid);
         invalid = accepted; invalid.m_window = false; reject(invalid);
         invalid = accepted; invalid.m_refreshRate = 777; reject(invalid);
         invalid = accepted; invalid.m_depthFormat = CGxFormat::Fmt_Ds24X; reject(invalid);
@@ -164,6 +198,26 @@ bool NativeDisplayProbe::Impl::Step() {
         sizes[3] = {int32_t(backing.size.width), int32_t(backing.size.height)};
         ++phase; return false;
     }
+    if (phase == 4 || phase == 5) {
+        CGxFormat format = device.m_format;
+        format.m_maximize = phase == 4;
+        if (phase == 4) {
+            windowedFrame = view.window.frame; windowedStyle = view.window.styleMask;
+            windowedPresentation = NSApp.presentationOptions;
+            OsInputSetWindowResizeLock(1);
+        }
+        if (ConsoleDeviceExists()) { SetGxCVars(format); Require(CCGxRestart(nullptr, nullptr), "Borderless gxRestart failed"); }
+        else Require(device.DeviceSetFormat(format), "Native borderless format request failed");
+        sizes[phase] = device.m_format.m_size;
+        Require(device.m_format.m_maximize == format.m_maximize, "Native window did not apply the requested presentation");
+        if (ConsoleDeviceExists()) {
+            Require(CVar::Lookup("gxMaximize")->m_intValue == format.m_maximize && s_lastGoodFormat.m_maximize == format.m_maximize &&
+                s_requestedFormat.m_maximize == format.m_maximize, "Original video options lost the applied borderless mode");
+            Accepted(sizes[phase]);
+        }
+        ++phase; return false;
+    }
+    std::fputs("Native display: borderless screen coverage, full GPU readback, focus/presentation restoration and original window-size restoration passed\n", stderr);
 #endif
     std::fprintf(stderr, "Native display: real drawable/depth resize, odd pixel dimensions, full-surface GPU readback, input bounds, presentation rejection and active-frame/thread safety passed; original ConsoleDevice restart %s\n", ConsoleDeviceExists() ? "passed (deferred latest request and last-good rollback)" : "not active");
     return true;

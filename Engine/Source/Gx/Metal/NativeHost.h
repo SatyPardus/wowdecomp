@@ -1,4 +1,14 @@
 #pragma once
+#if defined(__OBJC__)
+#include <TargetConditionals.h>
+#if TARGET_OS_OSX
+#import <AppKit/AppKit.h>
+// Borderless game windows must retain keyboard focus. The window also scopes
+// Dock/menu presentation to its own key-window lifetime.
+@interface GxMetalWindow : NSWindow
+@end
+#endif
+#endif
 class CGxFormat;
 
 namespace GxMetal {

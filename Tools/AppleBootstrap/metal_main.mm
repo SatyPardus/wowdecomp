@@ -1,6 +1,7 @@
 #include "Tools/AppleBootstrap/MetalProbe.h"
 #include "Tools/AppleBootstrap/MetalView.h"
 #include "Tools/AppleBootstrap/NativeView.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #import <AppKit/AppKit.h>
 #include <cstdio>
@@ -46,7 +47,7 @@ int main(int argc, char** argv) {
                 NSApp.mainMenu = menu;
                 __attribute__((objc_precise_lifetime)) MetalPreviewDelegate* delegate = [MetalPreviewDelegate new];
                 NSApp.delegate = delegate;
-                delegate.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 900, 600)
+                delegate.window = [[GxMetalWindow alloc] initWithContentRect:NSMakeRect(0, 0, 900, 600)
                     styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                     backing:NSBackingStoreBuffered defer:NO];
                 delegate.window.title = [NSString stringWithFormat:@"WoW Metal — %s", argv[4]];

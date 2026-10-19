@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
             try {
                 [NSApplication sharedApplication];
                 [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-                NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 480, 240)
+                NSWindow* window = [[GxMetalWindow alloc] initWithContentRect:NSMakeRect(0, 0, 480, 240)
                     styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
                 window.releasedWhenClosed = NO;
                 [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
@@ -227,7 +227,7 @@ int main(int argc, char** argv) {
             [NSApplication sharedApplication];
             ClientData client(argv[1], "");
             for (unsigned cycle = 0; cycle < 2; ++cycle) {
-            NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 600, 300)
+            NSWindow* window = [[GxMetalWindow alloc] initWithContentRect:NSMakeRect(0, 0, 600, 300)
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable backing:NSBackingStoreBuffered defer:NO];
             window.releasedWhenClosed = NO;
             WowNativeView* view = [[WowNativeView alloc] initWithFrame:window.contentView.bounds device:nil];

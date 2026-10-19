@@ -1610,8 +1610,16 @@ On iOS it applies a fixed rendering resolution inside the UIKit scene. Hosts
 must acquire the next drawable after a size change; an already acquired
 MetalKit color drawable retains its old dimensions until the current view draw
 callback returns. Active Gx frames and non-main-thread native requests fail
-without changing the format. Fullscreen/maximized windows, physical display mode
-changes and disabling iOS presentation synchronization remain unsupported.
+without changing the format. macOS `gxWindow=1`, `gxMaximize=1` now uses a
+borderless window covering the current screen, matching the original D3D9
+maximized-window choice. Its actual native pixel size reaches the original
+CVars and last-good format; leaving the mode restores the prior window frame
+unless a different resolution was explicitly requested. Keyboard focus remains
+available without a title bar. Dock/menu auto-hide belongs only to the key game
+window and is restored on focus loss, mode exit and close. The original resize
+lock updates the saved window style while borderless, without adding a frame.
+Exclusive fullscreen/physical display mode changes and disabling iOS presentation
+synchronization remain unsupported.
 Native hosts now bind their view before the shared Gx factory runs, and the first
 format request updates the real window/drawable. Failed host creation preserves
 the previous binding and active format; a callback-based startup without a host
@@ -1619,15 +1627,18 @@ cannot silently create a headless display. Headless component probes remain
 available when no callback or native view is supplied.
 `WOW_DISPLAY_CHECK=1` checks real drawable/depth reallocation, GPU readback,
 native pixel/input sizes, unsupported requests and continued rendering across
-successive view callbacks in either native preview.
+successive view callbacks in either native preview. On macOS it also checks
+borderless full-surface color/depth readback, transfer of focus to another real
+window and back, resize-lock changes and restoration of desktop presentation,
+window frame and video CVars.
 It also exercises the original restart path, including last-good rollback and
 two requests in one active frame. The complete restart (world fade/portrait
 invalidation, format application, CVars and atlas notification) is deferred until
 submission; the latest request takes effect before the next drawable. Rounded
 window sizes are reflected in both the CVars and last-good format. Metal portrait
 alpha support is known from its BGRA8 attachment contract, so restart does not
-clear/read the framebuffer outside a host frame. Full Glue/player startup and
-remaining shader families are still pending.
+clear/read the framebuffer outside a host frame. Full Glue/player startup now
+uses this same path; remaining shader families are tracked in workspace AGENTS.md.
 The original shared system Lua registration is also linked into Glue and the
 component host: `GetTime`, `GetGameTime`, `ConsoleExec`, the three original
 file-access-denied functions and `GetAccountExpansionLevel`. Their implementations

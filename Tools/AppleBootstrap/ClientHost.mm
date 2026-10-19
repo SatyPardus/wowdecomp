@@ -747,7 +747,7 @@ int main(int argc, char** argv) {
             LoadMopaqFileSigningData(mounts->Locale().c_str());
             EventInitialize(1, 0); OsTimeStartup(OsTimeManager::BestAvailable); OsIMEInitialize();
 
-            NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1024, 768)
+            NSWindow* window = [[GxMetalWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1024, 768)
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable
                 backing:NSBackingStoreBuffered defer:NO];
             window.releasedWhenClosed = NO;
