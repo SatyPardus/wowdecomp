@@ -435,6 +435,24 @@ mana use. The 3,000-frame melee/normal Hearthstone return to the Stormwind inn,
 15 synchronous loading frames and normal shutdown passed Mac ASan/UBSan and
 Metal validation. Neither check changes original gameplay or character bindings.
 
+`--check-world-corpse` follows explicit `WOW_WORLD_WALK` waypoints as a ghost,
+stops as soon as the original corpse-range event permits recovery, and clicks
+the original recovery popup. It can precede other checks but cannot be combined
+with `--check-world-walk`. Corpse recovery and the normal Hearthstone return to
+the Stormwind inn passed a 6,000-frame Mac ASan/UBSan and Metal run.
+
+`--check-world-encounter` extends melee checking to a healthy existing level-10+
+character fighting a level-3-to-8 non-player target. It follows moving targets
+through existing movement bindings, requires repeated two-sided server swings,
+then picks the corpse and uses the original loot buttons. `--check-world-loot`
+exercises only the loot portion on an existing nearby lootable corpse. Loot must
+fit the current inventory; the checks never delete items. Manual looting uses
+the existing Shift modifier if auto-loot is enabled, leaving the preference intact.
+Two real boar fights have passed sustained-combat checks; complete loot acquisition
+has not yet passed. Explicit world-action assertions now save the requested capture,
+run normal shutdown and return failure; game/rendering exceptions still fail at
+the native fatal boundary.
+
 `--check-world-panels` opens, draws and closes Character, Spellbook, Quest Log,
 Talents and World Map through the existing C/P/L/N/M bindings. It requires closed
 panels and leaves character progression untouched. A 2,400-frame Feral run in the

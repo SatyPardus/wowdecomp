@@ -1,4 +1,10 @@
 #pragma once
+#include <stdexcept>
+// Host check failures occur between completed game frames and can close normally.
+class NativeWorldCheckFailure : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
 @class WowNativeView;
 // Explicit local development check using the character's existing bindings
 // and action bar. Returns true after the original UI/server round trip.
@@ -27,8 +33,13 @@ bool CheckNativeWorldQuest(WowNativeView* view);
 bool CheckNativeWorldInventory(WowNativeView* view);
 // Explicit local route through the existing W/arrow bindings and collision.
 // WOW_WORLD_WALK contains x:y waypoints separated by semicolons.
-bool CheckNativeWorldWalk(WowNativeView* view);
+bool CheckNativeWorldWalk(WowNativeView* view, bool recoverCorpse = false);
+// Follow the explicit route as a ghost, stop in original corpse range and accept
+// the original recovery popup through native mouse input.
+bool CheckNativeWorldCorpse(WowNativeView* view);
 
 // Native picking/action-bar Moonfire, or the existing T attack binding, against
 // a nearby non-player critter. Approach uses original movement and collision.
-bool CheckNativeWorldCombat(WowNativeView* view, bool melee = false);
+// Encounter mode instead fights a low-level non-critter to death and acquires
+// available loot through the original loot buttons and server updates.
+bool CheckNativeWorldCombat(WowNativeView* view, bool melee = false, bool encounter = false, bool lootOnly = false);

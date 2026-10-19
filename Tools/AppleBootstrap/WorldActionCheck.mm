@@ -2,6 +2,7 @@
 #include "NativeView.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
+#include "Engine/Source/Frame/CSimpleButton.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
@@ -23,11 +24,13 @@
 #include "WoW/Source/Object/ObjectClient/UnitCombatLog_C.h"
 #include "WoW/Source/Object/Unit.h"
 #include "WoW/Source/Object/Object.h"
+#include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Ui/ActionBarFrame.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/GossipInfo.h"
 #include "WoW/Source/Ui/MerchantFrame.h"
+#include "WoW/Source/Ui/LootFrame.h"
 #include "WoW/Source/Ui/QuestFrame.h"
 #include "WoW/Source/Ui/SpellBookFrame.h"
 #include "WoW/Source/Ui/WorldFrame.h"
@@ -40,11 +43,12 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
 
 namespace {
-void Require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
+void Require(bool ok, const char* message) { if (!ok) throw NativeWorldCheckFailure(message); }
 }
-bool CheckNativeWorldWalk(WowNativeView* view) {
+bool CheckNativeWorldWalk(WowNativeView* view, bool recoverCorpse) {
     static std::vector<C2Vector> points;
     static unsigned readyFrames, waypoint, settledFrames;
     static bool initialized, done, forward, left, right;
@@ -71,6 +75,16 @@ bool CheckNativeWorldWalk(WowNativeView* view) {
             Require(!initialized, "World left during native walking check"); return false;
         }
         if (!initialized && ++readyFrames < 120) return false;
+        if (recoverCorpse) {
+            Require(player->m_player->m_playerFlags & 0x10, "Corpse return requires the original ghost state");
+            Require(CGGameUI::m_corpseMapID == int32_t(ClntObjMgrGetMapID()) &&
+                CGGameUI::m_corpseActualMapID == CGGameUI::m_corpseMapID, "Corpse return requires a corpse on this map");
+            if (CGGameUI::m_corpseInRange) {
+                stop(); done = true;
+                std::fprintf(stderr, "Native corpse return: original corpse range reached, movement stopped\n");
+                return true;
+            }
+        }
         const auto position = player->GetPosition();
         const auto now = std::chrono::steady_clock::now();
         if (!initialized) {
@@ -102,7 +116,7 @@ bool CheckNativeWorldWalk(WowNativeView* view) {
             std::fprintf(stderr, "Native world walk: map %u, origin %.2f %.2f %.2f, outdoors %d, %zu waypoints, %.2f units\n", map, position.x, position.y, position.z,
                 player->m_worldObject ? World::QueryOutdoors(player->m_worldObject) : -1, points.size(), total);
         }
-        Require(ClntObjMgrGetMapID() == map && !player->IsDeadOrGhost(), "Native walking map or living-player precondition changed");
+        Require(ClntObjMgrGetMapID() == map && (recoverCorpse || !player->IsDeadOrGhost()), "Native walking map or living-player precondition changed");
         if (waypoint == points.size()) {
             stop();
             if (++settledFrames < 120) return false;
@@ -122,7 +136,7 @@ bool CheckNativeWorldWalk(WowNativeView* view) {
         if (distance < bestDistance - .05f) { bestDistance = distance; progressed = now; }
         if (std::chrono::duration<double>(now - progressed).count() > 4 || std::chrono::duration<double>(now - legStarted).count() > 60) {
             std::fprintf(stderr, "Native world walk: blocked at %.2f %.2f %.2f, waypoint %.2f %.2f, distance %.2f\n", position.x, position.y, position.z, destination.x, destination.y, distance);
-            throw std::runtime_error("Original walking made no progress; route stopped without a position override");
+            throw NativeWorldCheckFailure("Original walking made no progress; route stopped without a position override");
         }
         const float turn = std::remainder(std::atan2(destination.y - position.y, destination.x - position.x) - player->GetFacing(), 6.283185307f);
         key(kVK_LeftArrow, @"\uF702", turn > .04f, left);
@@ -130,6 +144,63 @@ bool CheckNativeWorldWalk(WowNativeView* view) {
         key(kVK_ANSI_W, @"w", std::abs(turn) < .15f, forward);
         return false;
     } catch (...) { stop(); throw; }
+}
+bool CheckNativeWorldCorpse(WowNativeView* view) {
+    static unsigned phase;
+    static NSPoint point;
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 4) return true;
+    if (!phase) {
+        if (!CheckNativeWorldWalk(view, true)) return false;
+        phase = 1; started = std::chrono::steady_clock::now();
+    }
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    Require(CGGameUI::s_inWorld && player, "World left during corpse recovery");
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now-started).count();
+    if (phase == 1) {
+        Require(CGGameUI::m_corpseInRange, "Original corpse recovery range was lost");
+        CSimpleButton* button = nullptr;
+        auto* lua = FrameScript_GetContext();
+        for (unsigned i=1; i<=4; ++i) {
+            char name[48]; std::snprintf(name, sizeof(name), "StaticPopup%u", i);
+            auto* popup = static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name, CSimpleFrame::GetObjectType()));
+            if (!popup || !popup->m_isVisible) continue;
+            lua_rawgeti(lua, LUA_REGISTRYINDEX, popup->GetLuaObjectRef()); lua_getfield(lua, -1, "which");
+            const char* which = lua_tostring(lua, -1);
+            const bool recover = which && !std::strcmp(which, "RECOVER_CORPSE"); lua_pop(lua, 2);
+            if (!recover) continue;
+            std::snprintf(name, sizeof(name), "StaticPopup%uButton1", i);
+            button = static_cast<CSimpleButton*>(CScriptObject::GetScriptObjectByName(name, CSimpleButton::GetObjectType()));
+            break;
+        }
+        if (!button || !button->m_isVisible || button->m_state == BUTTONSTATE_DISABLED) {
+            Require(elapsed < 130, "Original corpse recovery popup did not become available"); return false;
+        }
+        CRect rect; Require(button->GetRect(&rect), "Corpse recovery button has no rectangle");
+        float x,y; DDCToNDC((rect.minX+rect.maxX)*.5f, (rect.minY+rect.maxY)*.5f, &x, &y);
+        Require(x>0 && x<1 && y>0 && y<1, "Corpse recovery button is outside the view");
+        point = [view convertPoint:NSMakePoint(x*view.bounds.size.width, (view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        for (auto type : {NSEventTypeMouseMoved, NSEventTypeLeftMouseDown}) {
+            NSEvent* event = [NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+                windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+            if (type == NSEventTypeMouseMoved) [view mouseMoved:event]; else [view mouseDown:event];
+        }
+        phase = 2; started = now;
+    } else if (phase == 2 && elapsed >= .05) {
+        [view mouseUp:[NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0]];
+        phase = 3; started = now;
+    } else if (phase == 3) {
+        if (!player->IsDeadOrGhost() && player->m_unit->m_unitFieldHealth > 0) {
+            const auto p = player->GetPosition();
+            std::fprintf(stderr, "Native corpse recovery: original Accept button restored living server state, health %d/%d, position %.2f %.2f %.2f\n",
+                player->m_unit->m_unitFieldHealth, player->m_unit->m_unitFieldMaxhealth, p.x,p.y,p.z);
+            phase = 4; return true;
+        }
+        Require(elapsed < 10, "Original corpse recovery was not confirmed by the server");
+    }
+    return false;
 }
 bool CheckNativeWorldPanels(WowNativeView* view) {
     struct Panel { unsigned short code; const char* key; const char* action; const char* frame; };
@@ -260,7 +331,7 @@ bool CheckNativeWorldQuest(WowNativeView* view) {
             std::fprintf(stderr, "Native quest result: source matches %d, interact matches %d, state %d, quest %d, available %d, in progress %d, frame visible %d\n",
                 CGQuestInfo::m_npc == target, CGGameUI::m_interactTarget == target, CGQuestInfo::m_state, CGQuestInfo::m_currentQuest,
                 CGQuestInfo::m_numQuests, CGQuestInfo::m_numInProgress, frame->m_isVisible);
-            throw std::runtime_error("Native quest-giver click did not display a server quest offer");
+            throw NativeWorldCheckFailure("Native quest-giver click did not display a server quest offer");
         }
     } else if (phase == 4 && elapsed >= 2) {
         Require(frame->m_isVisible && player->GetCoinage() == coins, "Quest offer disappeared or changed money");
@@ -794,16 +865,23 @@ bool CheckNativeWorldHearthstone(WowNativeView* view) {
 }
 
 
-bool CheckNativeWorldCombat(WowNativeView* view, bool melee) {
+bool CheckNativeWorldCombat(WowNativeView* view, bool melee, bool encounter, bool lootOnly) {
     static unsigned phase, readyFrames, button;
     static int32_t spell, health;
     static uint32_t mana;
     static uint32_t meleeDamage, attackStarted;
+    static uint32_t outgoingSwings, incomingSwings, outgoingDamage, incomingDamage, playerHealth;
+    static uint32_t lootCoins, oldCoins;
+    static bool lootShift;
+    static unsigned corpsePickAttempt;
+    static int32_t lootItem, oldItemCount, lootCount;
+    static NSPoint lootPoint;
     static WOWGUID target;
     static std::chrono::steady_clock::time_point started;
     static std::chrono::steady_clock::time_point progressed;
-    static float approachRange, lastDistance, turnDirection;
-    if (phase == 6) return true;
+    static float approachRange, lastDistance;
+    static bool approachForward, approachLeft, approachRight;
+    if ((phase == 6 && !encounter) || phase == 15) return true;
     auto* player = ClntObjMgrGetActivePlayerObj();
     if (!CGGameUI::s_inWorld || !player) {
         Require(!phase, "World left during native combat check"); return false;
@@ -817,6 +895,19 @@ bool CheckNativeWorldCombat(WowNativeView* view, bool melee) {
             if(entry->m_event==1 && entry->m_sourceGuid==player->m_obj->m_guid && entry->m_destGuid==target &&
                 int32_t(entry->m_timestamp-attackStarted)>=0 && entry->m_info.m_values[1]>0)
                 meleeDamage=entry->m_info.m_values[1];
+        if (encounter) {
+            uint32_t outgoing=0, incoming=0, dealt=0, taken=0;
+            for (auto* entry=s_entries.Head(); entry; entry=s_entries.Next(entry)) {
+                if (int32_t(entry->m_timestamp-attackStarted)<0 || (entry->m_event!=1 && entry->m_event!=2)) continue;
+                if (entry->m_sourceGuid==player->m_obj->m_guid && entry->m_destGuid==target) {
+                    ++outgoing; if (entry->m_event==1) dealt += std::max(entry->m_info.m_values[1],0);
+                } else if (entry->m_sourceGuid==target && entry->m_destGuid==player->m_obj->m_guid) {
+                    ++incoming; if (entry->m_event==1) taken += std::max(entry->m_info.m_values[1],0);
+                }
+            }
+            outgoingSwings=std::max(outgoingSwings,outgoing); incomingSwings=std::max(incomingSwings,incoming);
+            outgoingDamage=std::max(outgoingDamage,dealt); incomingDamage=std::max(incomingDamage,taken);
+        }
     }
     const auto now = std::chrono::steady_clock::now();
     const double elapsed = std::chrono::duration<double>(now - started).count();
@@ -831,50 +922,109 @@ bool CheckNativeWorldCombat(WowNativeView* view, bool melee) {
         if (down) [view keyDown:event]; else [view keyUp:event];
     };
     auto key = [&](bool down) { nativeKey(melee ? kVK_ANSI_T:codes[button],melee ? @"t":texts[button],down); };
+    auto shift = [&](bool down) {
+        [view flagsChanged:[NSEvent keyEventWithType:NSEventTypeFlagsChanged location:NSZeroPoint
+            modifierFlags:down ? NSEventModifierFlagShift | NX_DEVICELSHIFTKEYMASK : 0
+            timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil
+            characters:@"" charactersIgnoringModifiers:@"" isARepeat:NO keyCode:kVK_Shift]];
+    };
     auto point = [&](CGUnit_C* candidate, float& x, float& y) {
         const auto feet = candidate->GetPosition(); const auto head = candidate->GetNamePosition();
-        C3Vector body(feet.x, feet.y, feet.z + (head.z - feet.z) * .4f), projected;
+        C3Vector body(feet.x, feet.y, feet.z + (head.z - feet.z) * (candidate->IsDeadOrGhost() ? .1f:.4f)), projected;
         if (!CGWorldFrame::s_currentWorldFrame->GetScreenCoordinates(body, &projected, nullptr)) return false;
         DDCToNDC(projected.x, projected.y, &x, &y);
+        if (candidate->IsDeadOrGhost()) {
+            static constexpr float offsets[] = {0, .008f, -.008f, .016f, -.016f};
+            x += offsets[corpsePickAttempt % 5]; y += offsets[(corpsePickAttempt / 5) % 5];
+        }
         return x > .2f && x < .9f && y > .2f && y < .85f;
     };
     auto mouse = [&](NSEventType type) {
         Require(unit != nullptr, "Native combat target disappeared before picking");
         float x, y; Require(point(unit, x, y), "Native combat target moved outside the world view");
         const NSPoint location = [view convertPoint:NSMakePoint(x * view.bounds.size.width, (view.isFlipped ? 1-y : y) * view.bounds.size.height) toView:nil];
+        if (type == NSEventTypeRightMouseDown || type == NSEventTypeRightMouseUp) {
+            // AppKit's synthetic mouseEvent initializer reports button 0 even
+            // for right-click types. Preserve the actual native button identity.
+            const bool down = type == NSEventTypeRightMouseDown;
+            CGEventRef cg = CGEventCreateMouseEvent(nullptr, down ? kCGEventRightMouseDown:kCGEventRightMouseUp,
+                CGPointMake(location.x, NSMaxY(NSScreen.screens.firstObject.frame)-location.y), kCGMouseButtonRight);
+            Require(cg, "Cannot create native corpse right click");
+            NSEvent* event = [NSEvent eventWithCGEvent:cg];
+            if (down) [view rightMouseDown:event]; else [view rightMouseUp:event];
+            CFRelease(cg); return;
+        }
         NSEvent* event = [NSEvent mouseEventWithType:type location:location modifierFlags:0
             timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
         if (type == NSEventTypeMouseMoved) [view mouseMoved:event];
         else if (type == NSEventTypeLeftMouseDown) [view mouseDown:event];
-        else [view mouseUp:event];
+        else if (type == NSEventTypeLeftMouseUp) [view mouseUp:event];
+    };
+    auto lootMouse = [&](NSEventType type) {
+        NSEvent* event=[NSEvent mouseEventWithType:type location:lootPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+        if (type==NSEventTypeMouseMoved) [view mouseMoved:event];
+        else if (type==NSEventTypeLeftMouseDown) [view mouseDown:event]; else [view mouseUp:event];
     };
     if (phase >= 20) {
-        Require(unit != nullptr, "Approached critter disappeared");
-        const auto a=player->GetPosition(), b=unit->GetPosition();
-        const float distance=std::hypot(b.x-a.x,b.y-a.y);
-        if (phase == 20) {
-            const float turn=std::remainder(std::atan2(b.y-a.y,b.x-a.x)-player->GetFacing(),6.283185307f);
-            if (std::abs(turn)<.08f || turn*turnDirection<0) {
-                nativeKey(turnDirection>0 ? kVK_LeftArrow:kVK_RightArrow,turnDirection>0 ? @"\uF702":@"\uF703",false);
-                if (distance<approachRange) { phase=22; started=now; }
-                else { nativeKey(kVK_ANSI_W,@"w",true); phase=21; progressed=now; lastDistance=distance; started=now; }
-            } else Require(elapsed<4,"Native arrow did not face the combat target");
-        } else if (phase == 21) {
-            if (distance<approachRange) {
-                nativeKey(kVK_ANSI_W,@"w",false); phase=22; started=now;
-                std::fprintf(stderr,"Native world combat: approached through original movement to %.2f units at %.2f %.2f %.2f\n",distance,a.x,a.y,a.z);
-            } else {
-                if (distance<lastDistance-.5f) { lastDistance=distance; progressed=now; }
-                if (std::chrono::duration<double>(now-progressed).count()>2 || elapsed>25) {
-                    nativeKey(kVK_ANSI_W,@"w",false);
-                    std::fprintf(stderr,"Native world combat: approach stopped at %.2f %.2f %.2f; target %.2f %.2f %.2f\n",a.x,a.y,a.z,b.x,b.y,b.z);
-                    throw std::runtime_error("Direct native approach was obstructed; no position override applied");
-                }
+        auto set = [&](unsigned short code, NSString* text, bool value, bool& held) {
+            if (value != held) { nativeKey(code,text,value); held=value; }
+        };
+        auto stop = [&] {
+            set(kVK_ANSI_W,@"w",false,approachForward);
+            set(kVK_LeftArrow,@"\uF702",false,approachLeft);
+            set(kVK_RightArrow,@"\uF703",false,approachRight);
+        };
+        try {
+            Require(unit && !player->IsDeadOrGhost(), "Approached target disappeared or player died");
+            const auto a=player->GetPosition(), b=unit->GetPosition();
+            const float distance=std::hypot(b.x-a.x,b.y-a.y);
+            if (phase == 22) {
+                if (elapsed > .4) phase=0;
+                return false;
             }
-        } else if (elapsed>.7) { phase=0; }
+            if (distance < approachRange) {
+                stop(); phase=22; started=now;
+                std::fprintf(stderr,"Native world combat: approached through original movement to %.2f units at %.2f %.2f %.2f\n",distance,a.x,a.y,a.z);
+                return false;
+            }
+            if (distance < lastDistance-.1f) { lastDistance=distance; progressed=now; }
+            if (std::chrono::duration<double>(now-progressed).count()>4 || elapsed>30) {
+                std::fprintf(stderr,"Native world combat: approach stopped at %.2f %.2f %.2f; target %.2f %.2f %.2f\n",a.x,a.y,a.z,b.x,b.y,b.z);
+                throw NativeWorldCheckFailure("Native approach made no progress; no position override applied");
+            }
+            const float turn=std::remainder(std::atan2(b.y-a.y,b.x-a.x)-player->GetFacing(),6.283185307f);
+            set(kVK_LeftArrow,@"\uF702",turn>.04f,approachLeft);
+            set(kVK_RightArrow,@"\uF703",turn<-.04f,approachRight);
+            set(kVK_ANSI_W,@"w",std::abs(turn)<.15f,approachForward);
+        } catch (...) { stop(); throw; }
+        return false;
+    }
+    if (!phase && lootOnly) {
+        struct Search { CGPlayer_C* player; CGUnit_C* unit=nullptr; float distance=6; } search{player};
+        ClntObjMgrEnumVisibleObjects([](WOWGUID guid,void* context)->int32_t {
+            auto& search=*static_cast<Search*>(context);
+            auto* candidate=static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid,TYPEMASK_UNIT,__FILE__,__LINE__));
+            if (!candidate || (candidate->m_obj->m_type&TYPEMASK_PLAYER) || !candidate->IsDeadOrGhost() ||
+                !candidate->CanBeLooted(FrameTime::s_curTimeMs) || !search.player->CanLoot(candidate)) return 1;
+            const auto a=search.player->GetPosition(),b=candidate->GetPosition();
+            const float distance=std::sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
+            if(distance<search.distance) { search.distance=distance; search.unit=candidate; }
+            return 1;
+        },&search);
+        Require(search.unit,"Loot check needs an existing lootable non-player corpse within six units");
+        target=search.unit->m_obj->m_guid; phase=6; started=now;
+        std::fprintf(stderr,"Native loot: existing %s corpse, distance %.2f\n",search.unit->GetObjectName(),search.distance);
         return false;
     }
     if (!phase) {
+        if (encounter) {
+            Require(melee && g_autoLootDefaultCVar, "Encounter check requires the original loot preference and attack binding");
+            Require(player->m_unit->m_unitFieldLevel>=10 && int64_t(player->m_unit->m_unitFieldHealth)*10>=int64_t(player->m_unit->m_unitFieldMaxhealth)*9,
+                "Encounter check requires a healthy level-10-or-higher existing character");
+            for (unsigned slot=23; slot<39; ++slot) if (auto* item=player->GetBag()->GetItemPointer(slot))
+                std::fprintf(stderr,"Native encounter inventory: backpack %u, item %u, count %u\n",slot-22,item->m_obj->m_entryID,item->m_item->m_itemFieldStackCount);
+        }
         float selectionRange = 4.1f;
         if (melee) {
             Require(CGUIBindings::s_bindings != nullptr,"Native melee check requires existing bindings");
@@ -901,12 +1051,15 @@ bool CheckNativeWorldCombat(WowNativeView* view, bool melee) {
             approachRange=range->m_rangeMax[0]-5;
             selectionRange=range->m_rangeMax[0]-1;
         }
-        struct Search { CGPlayer_C* player; float distance; decltype(point)* project; CGUnit_C* selected=nullptr; CGUnit_C* nearby=nullptr; float nearbyDistance=125; } search{player,selectionRange,&point};
+        struct Search { CGPlayer_C* player; float distance; decltype(point)* project; bool encounter; CGUnit_C* selected=nullptr; CGUnit_C* nearby=nullptr; float nearbyDistance=125; } search{player,selectionRange,&point,encounter};
         ClntObjMgrEnumVisibleObjects([](WOWGUID guid,void* context) -> int32_t {
             auto& search=*static_cast<Search*>(context);
             auto* candidate=static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid,TYPEMASK_UNIT,__FILE__,__LINE__));
-            if (!candidate || candidate == search.player || (candidate->m_obj->m_type & TYPEMASK_PLAYER) || candidate->GetCreatureType()!=8 ||
+            if (!candidate || candidate == search.player || (candidate->m_obj->m_type & TYPEMASK_PLAYER) ||
                 candidate->IsDeadOrGhost() || !search.player->CanAttack(candidate)) return 1;
+            if (search.encounter) {
+                if (candidate->GetCreatureType()==8 || candidate->m_unit->m_unitFieldLevel<3 || candidate->m_unit->m_unitFieldLevel>8 || candidate->m_unit->m_unitFieldHealth<80) return 1;
+            } else if (candidate->GetCreatureType()!=8) return 1;
             const auto a=search.player->GetPosition(),b=candidate->GetPosition();
             const float distance=std::sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
             float x,y; const bool visible=(*search.project)(candidate,x,y);
@@ -923,12 +1076,10 @@ bool CheckNativeWorldCombat(WowNativeView* view, bool melee) {
             target=search.nearby->m_obj->m_guid;
             const auto a=player->GetPosition(),b=search.nearby->GetPosition();
             const float turn=std::remainder(std::atan2(b.y-a.y,b.x-a.x)-player->GetFacing(),6.283185307f);
-            turnDirection=turn>=0 ? 1:-1;
             std::fprintf(stderr,"Native world combat: approach from %.2f %.2f %.2f, turn %.3f radians\n",a.x,a.y,a.z,turn);
-            nativeKey(turnDirection>0 ? kVK_LeftArrow:kVK_RightArrow,turnDirection>0 ? @"\uF702":@"\uF703",true);
-            phase=20; started=now; return false;
+            phase=20; started=progressed=now; lastDistance=search.nearbyDistance; return false;
         }
-        Require(search.selected != nullptr, "Native combat check needs a live on-screen attackable critter within action range");
+        Require(search.selected != nullptr, encounter ? "Native encounter needs a live level 3-8 non-player target with at least 80 health" : "Native combat check needs a live on-screen attackable critter within action range");
         unit=search.selected; target=unit->m_obj->m_guid; health=unit->m_unit->m_unitFieldHealth;
         Require(health>0, "Native combat target has no health");
         std::fprintf(stderr,"Native world combat: picking %s, health %d, spell %d, distance %.2f\n",unit->GetObjectName(),health,spell,search.distance);
@@ -937,21 +1088,99 @@ bool CheckNativeWorldCombat(WowNativeView* view, bool melee) {
     else if (phase == 2 && elapsed >= .05) { mouse(NSEventTypeLeftMouseUp); next(); }
     else if (phase == 3 && elapsed >= .5) {
         auto* frame=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("TargetFrame",CSimpleFrame::GetObjectType()));
-        Require(CGGameUI::m_lockedTarget == target && frame && frame->m_isVisible, "Native world click did not select the critter and display its original target frame");
-        mana=player->m_unit->m_unitFieldPower[0]; attackStarted=FrameTime::s_curTimeMs; key(true); next();
+        Require(CGGameUI::m_lockedTarget == target && frame && frame->m_isVisible, "Native world click did not select the combat target and display its original target frame");
+        mana=player->m_unit->m_unitFieldPower[0]; playerHealth=player->m_unit->m_unitFieldHealth;
+        attackStarted=FrameTime::s_curTimeMs; key(true); next();
     } else if (phase == 4 && elapsed >= .05) { key(false); next(); }
     else if (phase == 5) {
         Require(unit != nullptr, "Server combat target disappeared before its health/death update");
-        if (unit->m_unit->m_unitFieldHealth < health && (melee ? meleeDamage>0 : player->m_unit->m_unitFieldPower[0] < mana)) {
+        if (unit->m_unit->m_unitFieldHealth < health && (melee ? meleeDamage>0 : player->m_unit->m_unitFieldPower[0] < mana) && (!encounter || unit->IsDeadOrGhost())) {
             std::fprintf(stderr,"Native world combat: original click/target frame/%s, server target health %d -> %d, mana %u -> %u, melee damage %u, dead %d\n",
                 melee ? "T melee":"Moonfire",health,unit->m_unit->m_unitFieldHealth,mana,player->m_unit->m_unitFieldPower[0],meleeDamage,unit->IsDeadOrGhost());
-            next(); return true;
+            if (encounter) {
+                std::fprintf(stderr,"Native encounter: %u outgoing / %u incoming swings, %u dealt / %u taken damage, player health %u -> %u\n",
+                    outgoingSwings,incomingSwings,outgoingDamage,incomingDamage,playerHealth,player->m_unit->m_unitFieldHealth);
+                Require(outgoingSwings>=2 && incomingSwings && !player->IsDeadOrGhost(),"Encounter did not retain repeated two-sided server combat");
+            }
+            next(); return !encounter;
         }
-        if(elapsed>=(melee ? 15:8)) {
+        if(elapsed>=(encounter ? 60:melee ? 15:8)) {
             std::fprintf(stderr,"Native combat result: target health %d -> %d, dead %d, retained melee damage %u\n",
                 health,unit->m_unit->m_unitFieldHealth,unit->IsDeadOrGhost(),meleeDamage);
-            throw std::runtime_error("Original attack did not produce the expected server damage update");
+            throw NativeWorldCheckFailure("Original attack did not produce the expected server damage update");
         }
+    } else if (phase == 6) {
+        Require(unit && unit->IsDeadOrGhost(), "Encounter corpse disappeared before loot");
+        if (unit->CanBeLooted(FrameTime::s_curTimeMs) && player->CanLoot(unit)) {
+            mouse(NSEventTypeMouseMoved);
+            lootShift=g_autoLootDefaultCVar->m_intValue!=0;
+            if (lootShift) shift(true);
+            next();
+        }
+        else Require(elapsed<8,"Server corpse did not become lootable");
+    } else if (phase == 7 && elapsed>=.2) {
+        if (CGGameUI::IsAutoLooting()) {
+            if (lootShift) shift(false);
+            throw NativeWorldCheckFailure("Existing Shift binding did not select manual loot; preference left unchanged");
+        }
+        if (CGWorldFrame::s_currentWorldFrame->m_hitGuid != target) {
+            Require(++corpsePickAttempt < 25, "Native cursor did not pick the original corpse mesh");
+            mouse(NSEventTypeMouseMoved); started=now; return false;
+        }
+        mouse(NSEventTypeRightMouseDown); next();
+    } else if (phase == 8 && elapsed>=.05) {
+        mouse(NSEventTypeRightMouseUp); if (lootShift) shift(false); next();
+    }
+    else if (phase == 9) {
+        auto* frame=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("LootFrame",CSimpleFrame::GetObjectType()));
+        if (CGLootInfo::m_lootObj==target && !CGLootInfo::m_itemsPending && frame && frame->m_isVisible) {
+            oldCoins=player->GetCoinage(); lootCoins=CGLootInfo::m_coins;
+            int selected=lootCoins ? 0:-1;
+            if (!lootCoins) for (int i=0;i<CGLootWindow::GetNumLootItems();++i) {
+                const int id=CGLootInfo::GetLootItem(i), count=CGLootInfo::GetLootItemCount(i);
+                const int owned=player->GetBag()->GetItemTypeCount(id,0x6);
+                std::fprintf(stderr,"Native encounter loot: slot %d, item %d, count %d, owned %d, free %d\n",i+1,id,count,owned,player->GetBag()->GetNumFreeInvSlots());
+                struct StackSpace { int id,count; } requested{id,count};
+                const bool stackFits=player->GetBag()->FindItem([](const CGItem_C* item,void* context)->int32_t {
+                    auto& request=*static_cast<StackSpace*>(context);
+                    if (item->m_obj->m_entryID!=uint32_t(request.id)) return 0;
+                    const auto* stats=item->GetStats();
+                    return stats && int64_t(stats->m_stackable)-item->m_item->m_itemFieldStackCount>=request.count;
+                },&requested,0x6)!=nullptr;
+                if (id>0 && count>0 && (stackFits || player->GetBag()->GetNumFreeInvSlots()>0) && selected<0) {
+                    selected=i; lootItem=id; oldItemCount=owned; lootCount=count;
+                }
+            }
+            Require(selected>=0,"Loot is visible but no currency or item can fit the existing inventory");
+            char name[32];std::snprintf(name,sizeof(name),"LootButton%d",selected+1);
+            auto* button=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(name,CSimpleFrame::GetObjectType()));
+            CRect rect; Require(button && button->m_isVisible && button->GetRect(&rect),"Original loot button is not visible");
+            float x,y; DDCToNDC((rect.minX+rect.maxX)*.5f,(rect.minY+rect.maxY)*.5f,&x,&y);
+            lootPoint=[view convertPoint:NSMakePoint(x*view.bounds.size.width,(view.isFlipped?1-y:y)*view.bounds.size.height) toView:nil];
+            std::fprintf(stderr,"Native encounter: original loot frame, %u coins, selecting %s\n",lootCoins,name);
+            lootMouse(NSEventTypeMouseMoved); next();
+        } else Require(elapsed<8,"Native corpse interaction did not open the original loot frame");
+    } else if (phase == 10 && elapsed>=.2) { lootMouse(NSEventTypeLeftMouseDown); next(); }
+    else if (phase == 11 && elapsed>=.05) { lootMouse(NSEventTypeLeftMouseUp); next(); }
+    else if (phase == 12) {
+        const bool acquired=lootCoins ? player->GetCoinage()==oldCoins+lootCoins : player->GetBag()->GetItemTypeCount(lootItem,0x6)==oldItemCount+lootCount;
+        if (acquired) {
+            std::fprintf(stderr,"Native encounter: server delivered %u coins / item %d count %d through original loot UI\n",lootCoins,lootItem,lootCount);
+            auto* close=static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("LootCloseButton",CSimpleFrame::GetObjectType()));
+            if (close && close->m_isVisible) {
+                CRect rect; Require(close->GetRect(&rect),"Original loot close button has no bounds");
+                float x,y;DDCToNDC((rect.minX+rect.maxX)*.5f,(rect.minY+rect.maxY)*.5f,&x,&y);
+                lootPoint=[view convertPoint:NSMakePoint(x*view.bounds.size.width,(view.isFlipped?1-y:y)*view.bounds.size.height) toView:nil];
+                lootMouse(NSEventTypeMouseMoved); lootMouse(NSEventTypeLeftMouseDown); next();
+            } else { phase=14; started=now; }
+        } else Require(elapsed<8,"Server did not deliver the selected loot into the existing inventory");
+    } else if (phase == 13 && elapsed>=.05) { lootMouse(NSEventTypeLeftMouseUp); next(); }
+    else if (phase == 14) {
+        if (!CGLootInfo::m_lootObj && elapsed>=1) {
+            std::fputs(lootOnly ? "Native loot: original corpse/UI, server acquisition and release passed\n" : "Native encounter: sustained combat, death, original loot UI, server acquisition and release passed\n",stderr);
+            next(); return true;
+        }
+        Require(elapsed<8,"Original loot UI did not release the server corpse");
     }
     return false;
 }

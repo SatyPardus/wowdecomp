@@ -62,6 +62,7 @@ bool checkWorldShadows, worldShadowsDone;
 bool checkWorldMSAA, worldMSAADone;
 bool checkWorldCombat, worldCombatDone;
 bool checkWorldMelee;
+bool checkWorldEncounter, checkWorldLoot;
 bool checkWorldReentry, worldReentryDone;
 bool checkWorldNPC, worldNPCDone;
 bool browseMerchant;
@@ -71,6 +72,7 @@ bool checkWorldPanels, worldPanelsDone;
 bool checkWorldQuest, worldQuestDone;
 bool checkWorldInventory, worldInventoryDone;
 bool checkWorldWalk, worldWalkDone;
+bool checkWorldCorpse, worldCorpseDone;
 bool appBundle;
 uint32_t synchronousFrames;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
@@ -264,6 +266,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 @property(nonatomic, weak) WowNativeView* view;
 @property(nonatomic) BOOL active;
 @property(nonatomic) BOOL stopping;
+@property(nonatomic) BOOL checkFailed;
 @property(nonatomic) BOOL initialFormatReady;
 @property(nonatomic) NSUInteger frames;
 @property(nonatomic) NSUInteger characterFrames;
@@ -334,49 +337,60 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         device->BeginFrame(pass, drawable);
         const bool running = EventProcessPending();
         PropSelectContext(context);
-        if (checkWorldMSAA) worldMSAADone = CheckNativeWorldMultisample();
-        if (checkWorldInput) CheckWorldInput(self.view);
-        if (checkWorldActions && (!checkWorldInput || worldInputDone)) worldActionsDone = CheckNativeWorldActions(self.view);
-        if (checkWorldCasting && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone))
-            worldCastingDone = CheckNativeWorldCasting(self.view);
-        if (checkWorldShadows && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) && (!checkWorldCasting || worldCastingDone))
-            worldShadowsDone = CheckNativeWorldShadows();
-        if (checkWorldReentry && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) && (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone))
-            worldReentryDone = CheckNativeWorldReentry(self.view);
-        if (checkWorldNPC && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-            (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone))
-            worldNPCDone = CheckNativeWorldNPC(self.view, browseMerchant);
-        if(checkWorldTravel && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-           (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone))
-            worldTravelDone=CheckNativeWorldTravel();
-        if(checkWorldWalk && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-           (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
-           (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone))
-            worldWalkDone=CheckNativeWorldWalk(self.view);
-        if(checkWorldCombat && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-           (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
-           (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone))
-            worldCombatDone=CheckNativeWorldCombat(self.view,checkWorldMelee);
-        if(checkWorldHearthstone && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-           (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone) &&
-           (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) && (!checkWorldCombat || worldCombatDone))
-            worldHearthstoneDone=CheckNativeWorldHearthstone(self.view);
-        if (checkWorldPanels && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-            (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
-            (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
-            (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone))
-            worldPanelsDone = CheckNativeWorldPanels(self.view);
-        if (checkWorldInventory && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-            (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
-            (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
-            (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone) && (!checkWorldPanels || worldPanelsDone))
-            worldInventoryDone = CheckNativeWorldInventory(self.view);
-        if (checkWorldQuest && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
-            (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
-            (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
-            (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone) && (!checkWorldPanels || worldPanelsDone) &&
-            (!checkWorldInventory || worldInventoryDone))
-            worldQuestDone = CheckNativeWorldQuest(self.view);
+        try {
+            if(checkWorldCorpse) worldCorpseDone = CheckNativeWorldCorpse(self.view);
+            if (!checkWorldCorpse || worldCorpseDone) {
+                if (checkWorldMSAA) worldMSAADone = CheckNativeWorldMultisample();
+                if (checkWorldInput) CheckWorldInput(self.view);
+                if (checkWorldActions && (!checkWorldInput || worldInputDone)) worldActionsDone = CheckNativeWorldActions(self.view);
+                if (checkWorldCasting && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone))
+                    worldCastingDone = CheckNativeWorldCasting(self.view);
+                if (checkWorldShadows && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) && (!checkWorldCasting || worldCastingDone))
+                    worldShadowsDone = CheckNativeWorldShadows();
+                if (checkWorldReentry && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) && (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone))
+                    worldReentryDone = CheckNativeWorldReentry(self.view);
+                if (checkWorldNPC && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                    (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone))
+                    worldNPCDone = CheckNativeWorldNPC(self.view, browseMerchant);
+                if(checkWorldTravel && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                   (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone))
+                    worldTravelDone=CheckNativeWorldTravel();
+                if(checkWorldWalk && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                   (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
+                   (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone))
+                    worldWalkDone=CheckNativeWorldWalk(self.view);
+                if(checkWorldCombat && (!checkWorldCorpse || worldCorpseDone) && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                   (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
+                   (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone))
+                    worldCombatDone=CheckNativeWorldCombat(self.view,checkWorldMelee,checkWorldEncounter,checkWorldLoot);
+                if(checkWorldHearthstone && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                   (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldReentry || worldReentryDone) &&
+                   (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) && (!checkWorldCombat || worldCombatDone))
+                    worldHearthstoneDone=CheckNativeWorldHearthstone(self.view);
+                if (checkWorldPanels && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                    (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
+                    (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
+                    (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone))
+                    worldPanelsDone = CheckNativeWorldPanels(self.view);
+                if (checkWorldInventory && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                    (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
+                    (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
+                    (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone) && (!checkWorldPanels || worldPanelsDone))
+                    worldInventoryDone = CheckNativeWorldInventory(self.view);
+                if (checkWorldQuest && (!checkWorldWalk || worldWalkDone) && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+                    (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
+                    (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
+                    (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone) && (!checkWorldPanels || worldPanelsDone) &&
+                    (!checkWorldInventory || worldInventoryDone))
+                    worldQuestDone = CheckNativeWorldQuest(self.view);
+            }
+        } catch (const NativeWorldCheckFailure& error) {
+            // An explicit check assertion is outside original event dispatch.
+            // Finish this frame/capture and run normal shutdown. Rendering and
+            // game exceptions retain the fatal boundary below.
+            std::fprintf(stderr, "Native world check failed: %s\n", error.what());
+            self.checkFailed = YES; self.frameLimit = self.frames + 1;
+        }
         if (device->FrameCommand()) device->ScenePresent();
         [view.inputContext invalidateCharacterCoordinates];
         if (pendingLogin && self.frames == 2) {
@@ -396,20 +410,21 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         }
         if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; in world: %u; Glue screen: %s\n", CGGameUI::s_inWorld, CGlueMgr::m_currentScreen);
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
-            if (self.frameLimit) Require(!checkWorldInput || worldInputDone,"Frame limit reached before native world input check completed");
-            if (self.frameLimit) Require(!checkWorldActions || worldActionsDone,"Frame limit reached before native world action check completed");
-            if (self.frameLimit) Require(!checkWorldCasting || worldCastingDone,"Frame limit reached before native world casting check completed");
-            if (self.frameLimit) Require(!checkWorldShadows || worldShadowsDone,"Frame limit reached before native world shadow-quality check completed");
-            if (self.frameLimit) Require(!checkWorldMSAA || worldMSAADone,"Frame limit reached before native world MSAA check completed");
-            if (self.frameLimit) Require(!checkWorldCombat || worldCombatDone,"Frame limit reached before native world combat check completed");
-            if (self.frameLimit) Require(!checkWorldReentry || worldReentryDone,"Frame limit reached before native world reentry check completed");
-            if (self.frameLimit) Require(!checkWorldNPC || worldNPCDone,"Frame limit reached before native NPC check completed");
-            if (self.frameLimit) Require(!checkWorldTravel || worldTravelDone,"Frame limit reached before world travel completed");
-            if (self.frameLimit) Require(!checkWorldHearthstone || worldHearthstoneDone,"Frame limit reached before Hearthstone travel completed");
-            if (self.frameLimit) Require(!checkWorldPanels || worldPanelsDone,"Frame limit reached before native world UI panels completed");
-            if (self.frameLimit) Require(!checkWorldQuest || worldQuestDone,"Frame limit reached before native quest offer completed");
-            if (self.frameLimit) Require(!checkWorldInventory || worldInventoryDone,"Frame limit reached before native inventory restoration completed");
-            if (self.frameLimit) Require(!checkWorldWalk || worldWalkDone,"Frame limit reached before native walking completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldInput || worldInputDone,"Frame limit reached before native world input check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldActions || worldActionsDone,"Frame limit reached before native world action check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldCasting || worldCastingDone,"Frame limit reached before native world casting check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldShadows || worldShadowsDone,"Frame limit reached before native world shadow-quality check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldMSAA || worldMSAADone,"Frame limit reached before native world MSAA check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldCombat || worldCombatDone,"Frame limit reached before native world combat check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldReentry || worldReentryDone,"Frame limit reached before native world reentry check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldNPC || worldNPCDone,"Frame limit reached before native NPC check completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldTravel || worldTravelDone,"Frame limit reached before world travel completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldHearthstone || worldHearthstoneDone,"Frame limit reached before Hearthstone travel completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldPanels || worldPanelsDone,"Frame limit reached before native world UI panels completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldQuest || worldQuestDone,"Frame limit reached before native quest offer completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldInventory || worldInventoryDone,"Frame limit reached before native inventory restoration completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldCorpse || worldCorpseDone,"Frame limit reached before native corpse recovery completed");
+            if (self.frameLimit && !self.checkFailed) Require(!checkWorldWalk || worldWalkDone,"Frame limit reached before native walking completed");
             if (NSString* file = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"]) {
                 MTLRenderPassDescriptor* readPass = [pass copy];
                 readPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
@@ -449,6 +464,8 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-msaa")) checkWorldMSAA = true;
         else if (!std::strcmp(argv[argument], "--check-world-combat")) checkWorldCombat = true;
         else if (!std::strcmp(argv[argument], "--check-world-melee")) { checkWorldCombat = true; checkWorldMelee = true; }
+        else if (!std::strcmp(argv[argument], "--check-world-loot")) { checkWorldCombat = checkWorldMelee = checkWorldEncounter = checkWorldLoot = true; }
+        else if (!std::strcmp(argv[argument], "--check-world-encounter")) { checkWorldCombat = checkWorldMelee = checkWorldEncounter = true; }
         else if (!std::strcmp(argv[argument], "--check-world-npc")) checkWorldNPC = true;
         else if (!std::strcmp(argv[argument], "--check-world-merchant")) checkWorldNPC = browseMerchant = true;
         else if (!std::strcmp(argv[argument], "--check-world-travel")) checkWorldTravel = true;
@@ -457,13 +474,14 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-panels")) checkWorldPanels = true;
         else if (!std::strcmp(argv[argument], "--check-world-quest")) checkWorldQuest = true;
         else if (!std::strcmp(argv[argument], "--check-world-inventory")) checkWorldInventory = true;
+        else if (!std::strcmp(argv[argument], "--check-world-corpse")) checkWorldCorpse = true;
         else if (!std::strcmp(argv[argument], "--check-world-walk")) checkWorldWalk = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
-    if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest || checkWorldInventory || checkWorldWalk) && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee] [--check-world-reentry] [--check-world-panels] [--check-world-quest] [--check-world-inventory] [--check-world-walk] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    if ((checkWorldWalk && checkWorldCorpse) || (argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest || checkWorldInventory || checkWorldWalk || checkWorldCorpse) && enterCharacter.empty())) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry] [--check-world-panels] [--check-world-quest] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {
@@ -559,7 +577,7 @@ int main(int argc, char** argv) {
             CVar::Destroy(); ConsoleCommandDestroy(); CVar::s_configFile = nullptr;
             mounts.reset(); BaseDestroyGlobal(); GxLogClose(); StormDestroy();
             [window close];
-            return 0;
+            return host.checkFailed ? EXIT_FAILURE : EXIT_SUCCESS;
         } catch (const std::exception& error) { Fatal(error.what()); }
     }
 }
