@@ -239,7 +239,6 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
         const float normalFade=Sat(std::pow(1.2f-std::abs(test.normal*normalZ),4)); visibility+=normalFade*(1-visibility);
         const float brightness=mode ? .7f+.3f*visibility:1;
         for(unsigned materialIndex=0;materialIndex<25;++materialIndex) for(unsigned alphaCase=0;alphaCase<3;++alphaCase) {
-            if(comparison && materialIndex>1) continue;
             if(coordinateFamily && materialIndex > (coordinateKind==8 ? 1u:3u)) continue;
             if(projectedOnly && materialIndex!=3 && materialIndex!=9) continue;
             if(colored && !projectedOnly && materialIndex>1) continue;
@@ -325,7 +324,7 @@ void CheckModelShadows(CGxDeviceMetal& device,CGxShader** vertex,CGxShader** opa
         }
     }
     if(comparison) {
-        std::fprintf(stderr,"Native PCF model shadows: %u independent outputs, original opaque/modulated receiver variants, comparison-before-filtering, five/nine taps, bands, fades and alpha boundaries passed\n",checks);
+        std::fprintf(stderr,"Native PCF model shadows: %u independent outputs, all 23 original material operators, comparison-before-filtering, five/nine taps, bands, fades and alpha boundaries passed\n",checks);
         return;
     }
     if(coordinateFamily) {
@@ -590,9 +589,10 @@ void CheckModelShaders(CGxDeviceMetal& device,bool projectedShadowsOnly,bool col
         }
     }
     device.BeginFrame(pass);
-    device.RsSet(GxRs_VertexShader, vertex[0][30]); device.RsSet(GxRs_PixelShader, layerPixel[0][5]);
+    device.RsSet(GxRs_VertexShader, vertex[0][30]); device.RsSet(GxRs_PixelShader, pixel[5]);
+    device.RsSet(GxRs_Texture4,cleanup.texture[4]);
     bool rejected = false; try { GxDraw(&batch, 0); } catch (const std::runtime_error&) { rejected = true; }
-    Require(rejected, "Unimplemented model shadow permutation was silently replaced");
+    Require(rejected, "Model comparison sampling accepted a color texture as depth");
     device.ScenePresent();
     CreateComparisonDepths(device,pass,cleanup.texture[3],cleanup.texture+8);
     CheckModelShadows(device,vertex[0],pixel,modPixel,vertex[3],layerPixel[8],vertex[4],vertex[7],layerPixel,pass,cleanup.texture[3],cleanup.texture[2],cleanup.texture+8,false,GxMetal::ModelVertexEffect::Diffuse,true);

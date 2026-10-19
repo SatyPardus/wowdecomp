@@ -132,8 +132,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     Require(effect != FragmentEffect::DetailDoodad || (detail && detail->shadowMode < 4), "Missing detail-doodad parameters");
     const bool modelClipping = model && model->clip.mask != 0;
     const bool modelHardwareShadow = model && model->hardwareShadow;
-    Require(!modelHardwareShadow || (modelShadowMode && (effect==FragmentEffect::ModelOpaque || effect==FragmentEffect::ModelMod)),
-        "Unsupported model PCF material");
+    Require(!modelHardwareShadow || modelShadowMode,"Model comparison sampling requires a shadow receiver");
     const uint32_t flags = uint32_t(state.alphaRef != 0) | (uint32_t(depthAttachment) << 1) | (uint32_t(screenAtDepth) << 2) |
                            (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |

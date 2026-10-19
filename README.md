@@ -826,9 +826,17 @@ active depth attachment fail explicitly. Mac ASan/UBSan/Metal and iOS simulator
 pass 13,140 independent PCF outputs plus existing model regressions; iOS continued
 for 120 frames. The original wolf shadow gather/render and material selector also
 exercise both opaque/cutout receivers in all three modes on Mac across two scene
-lifetimes, with 124/129/129 darker pixels and unchanged alpha coverage. Other PCF
-material families remain unsupported; this does not establish Windows D24
-precision or full-world PCF equivalence.
+lifetimes on both Mac and iOS, with 124/129/129 darker pixels and unchanged alpha
+coverage. The simulator then continued for 120 frames.
+
+All 23 existing M2 material families now support their six original PCF receiver
+variants (138 pixel variants), including independent additive, multiplicative,
+interpolated, reflected and combined-layer alpha rules. Mac ASan/UBSan/Metal and
+iOS simulator pass 80,154 independent PCF outputs; both iOS clients build.
+On Mac, the original water elemental and motorcycle walking/death poses select
+their real PCF materials in all three shadow modes across two scene lifetimes,
+with unchanged alpha coverage. WMO, terrain and detail-doodad PCF remain pending.
+These results do not establish Windows D24 precision or full-world PCF equivalence.
 
 `Diffuse_T1` also supports its 60 R32F dynamic/banded-shadow vertex variants, paired
 with `Combiners_Opaque` / `Combiners_Mod` pixel variants 1/2/3 and 9/10/11.

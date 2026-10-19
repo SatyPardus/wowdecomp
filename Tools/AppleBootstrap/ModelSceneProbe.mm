@@ -411,33 +411,40 @@ void CheckGameModels() {
                 : dualUVBatches != (pose.sequenceID == 1 ? 1u : 0u) || combinedBatches != 2))
                 throw std::runtime_error("Original layered model materials did not reach Metal drawing");
             device.ScenePresent();
-            for(EShadowMode mode:{SHADOW_LOWEST,SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
-                CShadowCache::s_shadowMode=mode;
-                const uint32_t expectedShadow=CShadowCache::s_shadowValues[mode];
-                device.BeginFrame(pass); layeredModel->m_fFlags|=0x10008; layeredModel->SetAnimating(1);
-                // Keep the original particle draw request and freeze elapsed
-                // time while only the shadow-quality selection changes.
-                layeredScene->AdvanceTime(0); layeredScene->Animate(C3Vector(0,0,0));
-                unsigned receivers=0,combinedReceivers=0;
-                for(unsigned i=0;i<layeredScene->m_elements.Count();++i) {
-                    const auto& element=layeredScene->m_elements[i];
-                    if(element.m_type>2 || element.m_model!=layeredModel || !element.m_batch || element.m_batch->m_textureCount!=2 || element.m_shadowValue!=expectedShadow) continue;
-                    ++receivers; combinedReceivers+=(element.m_batch->m_shader&0x8000)!=0;
+            for(bool comparison:{false,true}) {
+                CShaderEffect::s_usePcfFiltering=comparison;
+                for(unsigned band=0;band<3;++band) CShadowCache::s_extShadowBands[band].m_textures[0]=comparison ? comparisonTarget.owner:shadowTarget.owner;
+                for(EShadowMode mode:{SHADOW_LOWEST,SHADOW_LOW,SHADOW_HIGH,SHADOW_VERY_HIGH}) {
+                    CShadowCache::s_shadowMode=mode;
+                    const uint32_t expectedShadow=CShadowCache::s_shadowValues[mode];
+                    device.BeginFrame(pass); layeredModel->m_fFlags|=0x10008; layeredModel->SetAnimating(1);
+                    // Keep the original particle draw request and freeze elapsed
+                    // time while only the shadow-quality selection changes.
+                    layeredScene->AdvanceTime(0); layeredScene->Animate(C3Vector(0,0,0));
+                    unsigned receivers=0,combinedReceivers=0;
+                    for(unsigned i=0;i<layeredScene->m_elements.Count();++i) {
+                        const auto& element=layeredScene->m_elements[i];
+                        if(element.m_type>2 || element.m_model!=layeredModel || !element.m_batch || element.m_batch->m_textureCount!=2 || element.m_shadowValue!=expectedShadow) continue;
+                        if((element.m_pixelPermute&7)!=expectedShadow+4*comparison) throw std::runtime_error("Layered model selected the wrong shadow sampling mode");
+                        ++receivers; combinedReceivers+=(element.m_batch->m_shader&0x8000)!=0;
+                    }
+                    if(expectedShadow && (receivers!=3 || combinedReceivers!=(displayID==25870 ? 2u:0u)))
+                        throw std::runtime_error("Original layered model did not select its shadow receivers");
+                    layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
+                    TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received);
+                    unsigned darker=0;
+                    for(unsigned i=0;i<received.Count();++i) {
+                        if(received[i].a!=image[i].a) throw std::runtime_error("Layered model alpha mismatch mode "+std::to_string(expectedShadow)+" pixel "+std::to_string(i)+" got "+std::to_string(received[i].a)+" expected "+std::to_string(image[i].a));
+                        darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(image[i].r)+image[i].g+image[i].b;
+                    }
+                    if(expectedShadow && !darker) throw std::runtime_error("Generated shadow did not reach the original layered materials");
+                    std::fprintf(stderr,"Original layered model %u sequence %u %s shadow mode %u: %u dual-texture receivers (%u combined), %u darker pixels, unchanged alpha coverage\n",
+                        displayID,pose.sequenceID,comparison ? "PCF":"R32F",expectedShadow,receivers,combinedReceivers,darker);
+                    device.ScenePresent();
                 }
-                if(expectedShadow && (receivers!=3 || combinedReceivers!=(displayID==25870 ? 2u:0u)))
-                    throw std::runtime_error("Original layered model did not select its shadow receivers");
-                layeredScene->Draw(M2PASS_0); layeredScene->Draw(M2PASS_1); layeredScene->Draw(M2PASS_2);
-                TSGrowableArray<CImVector> received; device.DeviceReadPixels(rect,received);
-                unsigned darker=0;
-                for(unsigned i=0;i<received.Count();++i) {
-                    if(received[i].a!=image[i].a) throw std::runtime_error("Layered model alpha mismatch mode "+std::to_string(expectedShadow)+" pixel "+std::to_string(i)+" got "+std::to_string(received[i].a)+" expected "+std::to_string(image[i].a));
-                    darker+=unsigned(received[i].r)+received[i].g+received[i].b+2 < unsigned(image[i].r)+image[i].g+image[i].b;
-                }
-                if(expectedShadow && !darker) throw std::runtime_error("Generated R32F shadow did not reach the original layered materials");
-                std::fprintf(stderr,"Original layered model %u sequence %u shadow mode %u: %u dual-texture receivers (%u combined), %u darker pixels, unchanged alpha coverage\n",
-                    displayID,pose.sequenceID,expectedShadow,receivers,combinedReceivers,darker);
-                device.ScenePresent();
             }
+            CShaderEffect::s_usePcfFiltering=0;
+            for(unsigned band=0;band<3;++band) CShadowCache::s_extShadowBands[band].m_textures[0]=shadowTarget.owner;
             if(displayID==110) {
                 // Explicit model fade and liquid plane exercise the original M2
                 // above/below-water selection. No batch or shader is forced.

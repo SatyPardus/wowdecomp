@@ -25,7 +25,7 @@ bool GxMetal::SupportsModelPermutation(EGxShTarget target, uint32_t permutation,
     if (target == GxSh_Vertex)
         return vertexEffect < ModelVertexEffect::Count && permutation < 90 && (UsesModelMaterial(vertexEffect) || permutation % 30 < 10);
     return permutation < 16 && ((permutation & 3) == 0 ||
-        (ModelShadowMaterial(effect) && ((permutation & 4) == 0 || effect == FragmentEffect::ModelOpaque || effect == FragmentEffect::ModelMod)));
+        ModelShadowMaterial(effect));
 }
 void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget target, FragmentEffect effect, ModelVertexEffect vertexEffect) {
     if (!IsModelEffect(effect)) throw std::runtime_error("Invalid model shader family");
@@ -1047,17 +1047,122 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
         "c8c0f77d9a790c154bb29c78912a69cb",
         "1828d5431d6af775c6ec498c928d5820",
     };
-    // Original opaque/modulated comparison-sampler permutations, separate from R32F.
-    static const char* comparisonPixel[2][3][2] = {
-        {
+    // Original comparison-sampler permutations in FragmentEffect material order.
+    static const char* comparisonPixel[23][3][2] = {
+        { // Combiners_Opaque
             {"3d36188fc42d36a582bb86b1ed1d7b48", "566ec683d52d57e11dd89ed3d1a57d1d"},
             {"85f1b03c0a51fd893cf2faad5214e5e1", "fa60ce3f87aadc9748cfa6290f8608b9"},
             {"3e9294432ee5d50d6e63aca16b7f3d1a", "89145b061409e539369cf24e684dbe63"},
         },
-        {
+        { // Combiners_Mod
             {"2c58dcbaa1a1593df518d3b338a8b598", "52e7db0267eef4b80b12c73df021acd2"},
             {"161dff12b11908b795c4ce817d126399", "4cac245289cabded03e4e1c1de774442"},
             {"4c21a8ddc4e36445885fceca6d0bd3ac", "e80466a0e2ed777c19edca710d3de9a1"},
+        },
+        { // Combiners_Opaque_AddNA
+            {"1970fef6ec1b8e8cf7177540a2e44e1f", "a45fa0c4b246f6ec7d40c7a71d4715e2"},
+            {"8d96b27f60ad8f1357805b078741f8af", "ee86b39e2217fce73756cf1431e780b4"},
+            {"64f1f3be0a1bdfcf7691f93ad5d2ffae", "06b2abad3e13ad1f10ee68bd53cb3344"},
+        },
+        { // Combiners_Mod_AddNA
+            {"f57ee91c62afec053179cdf15812deda", "4e2342494bf175f7ad8d1443f8f3f79f"},
+            {"c99d7d6aac514a393fb4fc0f96adf4ee", "a351e9425f6e262ec30c52acda9c0a60"},
+            {"4a702c4d99c7ba6476fea88ba1b0162d", "b7f226b7afe90a4928c1eb8da17638fe"},
+        },
+        { // Combiners_Mod_Mod
+            {"c85c36e73bc3317038f8662f81c989fa", "3edb0236d29b0cc3f0e5984cc68b41c0"},
+            {"0788d64922b06e4010dee1d663b89f0e", "e13f776d1ac78e21694f52c723ca31a7"},
+            {"7224ba6fab65177505c058692a56b064", "432aa2cefaca17e309c455edc6ef44e2"},
+        },
+        { // Combiners_Opaque_Mod2xNA_Alpha
+            {"d6080a5e2357ea5a01b2840366a689d0", "bfe759068dbde58b58d52e5decbef2f8"},
+            {"b73f471d51c0eb7aca62e31588643a5d", "2a5ed0eaae4a9dcfebdfae5a4025b127"},
+            {"e60a05439e6ee7d6b78be50b7b475792", "36a9e74a711382ff0c84fec826450087"},
+        },
+        { // Combiners_Opaque_Mod2x
+            {"4e617a9f0282ab52c0a9768a69d3719b", "8fce1875b73e07b8c2862ef6df39c327"},
+            {"be716b517288fee4be70303553856f2b", "7fffd31d5e7795d76d632c4f08575667"},
+            {"47331ac3db9612a6f9cda57bcb7776ae", "5ea69e1b6a8e1503ed4e8d07842b3d1e"},
+        },
+        { // Combiners_Mod_Add
+            {"8703b8bcc67c57d8c2325bf17ae12b4a", "fb70c9f0e313d6acff6234c3ba09faf0"},
+            {"dc319068d34a2a8c7c48936f3d2d492d", "40729386b181e29204c7250ae2628ad7"},
+            {"f58142ca4a11029312af93e498a23bd0", "bf7a0105f15ff9d31dc71ac3da5b79ae"},
+        },
+        { // Combiners_Mod_Mod2x
+            {"86011fdc9043b4ce3462b10d9c6aa4b2", "61d6ccba4b4dbf5a373db59ba473eb23"},
+            {"82991a326dfb5f3e04700dfe64814ece", "eeb5142640b7c9fc75a0a5e34120b0f6"},
+            {"ae5ba895399dfdec827206b834841319", "e6362211ea74d7aaae46959f4a7a1a3e"},
+        },
+        { // Combiners_Opaque_Add
+            {"c4e1a3704d30e7705a114b5e90716420", "c6187e1b0306e50796419b852a85347b"},
+            {"44aacb95f7890ba1b48e15ef315c01d8", "3d973a368c525f019a9542d5584ba4ae"},
+            {"3b78dfd5365ed1a91f3baa4b3e4653e5", "3d0d54adbb4d77d7ceef8d2bbee2cc09"},
+        },
+        { // Combiners_Opaque_AddAlpha
+            {"87c482a91cc4bb96fecccba805d1bf2b", "d94c12709a78a1d3cee38b3d5dfb6079"},
+            {"4ce0a4ed70c3436e2c558edf023e8194", "6f03c1d69e77512c5b480510ac61b585"},
+            {"cffdf58e9c8ca410f65d7c0e99ab90f1", "9e75fe02e3cc69c1cc65258cb776cba8"},
+        },
+        { // Combiners_Opaque_AddAlpha_Alpha
+            {"83489761c4b681758ec7d4e4c1ea7e52", "750c161900b496e5e76b28fec68ee7a1"},
+            {"b7c50e944f0b471ab9375e674e2afc46", "f0d0f2068259d49f65b65bdaa4333ec0"},
+            {"6a0f332a71df5e5c4e98b671286ae84c", "d058ee4eb0b89f6fff1f38ff1b941772"},
+        },
+        { // Combiners_Opaque_Mod2xNA
+            {"5bb17270677d6597d4b9ea206182a5b2", "fd8adc4ae1ce70aa030171b177a31d76"},
+            {"4a8d9f6ee81031656751b6839d9e1c76", "38ceac5bf135150a29c0caf6e8581fed"},
+            {"e94fac9c2d431148595b0156ec2e7930", "89665eed8805c0032d7fe566d4e8e19d"},
+        },
+        { // Combiners_Mod_Opaque
+            {"7003f7f97e45774601d3dec9a61b1f0d", "c267fc8f6c692471e8a8b29490fe8885"},
+            {"809a915ca530d44b6c50cdae19f50873", "56b00c93fa7b031b035a9d9614a7bba7"},
+            {"8524f6761a9384fbd95b1561cbea5392", "f24cc482d948bcf1dc1c61081a6ecdbf"},
+        },
+        { // Combiners_Opaque_Opaque
+            {"0949481bea1e34469c1612d1c163c303", "9b1c13392fb5c662dfcd7772e25c4a65"},
+            {"4380926e39c1daa7372c9c27100a19d8", "9a16ccc75bc6cefee81a596c5dff7345"},
+            {"9ded062a6c33df820eaa36119843b93f", "55b25d09822ac8e51b868598158b1765"},
+        },
+        { // Combiners_Opaque_Mod
+            {"f9743f61e5cb87450b6f192251392bb7", "bd5c03d536ecff9b8ba7c3b01e81ac16"},
+            {"848f1ef78bad6c9c162f8ddac6cce735", "9758ecd290dd6290a3159d30da382e16"},
+            {"9afc5a21ecb5c8114b76184eb9479635", "0054a2d0a6fde0352096b6e89acfc512"},
+        },
+        { // Combiners_Mod_Mod2xNA
+            {"f3630e80eed7a3de01844bf8ba9f6afc", "a0a03a6f1d667d8543aa81ddd0375e53"},
+            {"3296e5e08716eb95d9cb8009e7dbad72", "eceb19fd9685296ecf85b6afb3206ddb"},
+            {"29dc9cf5ee1d0f87d2dba5a71868aac5", "056947eae91b12f202ff556b1bdddd3b"},
+        },
+        { // Combiners_Decal
+            {"68cebbd3d5fd7ea2f0205f2d06885794", "7d23e0059f54996fe31d689a12250f3f"},
+            {"76cbfb9fca27c14087753b04b8cd5cee", "09eeb2e203c5f2933eba3eba4662a7cd"},
+            {"ab2a7e7e7915286e1143fcf4cdfca4d1", "9f648e88ced5e21ff9ce966ef9823043"},
+        },
+        { // Combiners_Fade
+            {"3a6a7820faddd0965bff9e4a8a4978fb", "df1eca60c9eba835bbce1cb71a99524c"},
+            {"3c5d1bca5ad80dd75caca6b0a01e0337", "e34436590eee0fe62ff4afe6ce6f0385"},
+            {"2b33ba1be232c8ec1d08eea37c4eaa84", "cd8f75186b9d2ee6c6096f3fb2d6347e"},
+        },
+        { // Combiners_Add
+            {"5f5da19bbf4bf58dd5b43f05f4806006", "2e0772e0ee786e641161f5c65bdbc0f7"},
+            {"5c5cf6b046dc4314fdc571c7847224e1", "91a6ef72b0ccf90db78d853c9c199016"},
+            {"fd4db369f2dee5a8ed321628d125abf4", "41b85c677654692da49eae7b3ca81e63"},
+        },
+        { // Combiners_Mod2x
+            {"f4a1e81d3a91c4137a6d849189e15a6b", "bd589be6a0f86a41abc9576a137d966b"},
+            {"bd2d80ac404525d9066b88381b43ac53", "8185aecf6c12aa8ff770bed281f669f3"},
+            {"b635d4776de3c56fa5fed54fb5a2d102", "cd994dab784418016e91ce3985151810"},
+        },
+        { // Combiners_Add_Mod
+            {"b77b1ae07f0a9f940511f269d9508646", "24b9d8a449b9f4ac60e6209644330f64"},
+            {"812af89d7034be89e2084a64c7fac26f", "d96af2a3ec335ec3a37639ed25423a49"},
+            {"0d381b6f623b3df32d8202f01a2b31c9", "cd04ba239e824a41346dfbd7f507adee"},
+        },
+        { // Combiners_Mod2x_Mod2x
+            {"3c973e0cfb0d05177400214b24134616", "989d5aa0ef78cc953ed8f1392c5add0c"},
+            {"597db9cb80223beb33e7d852fceffbd8", "cf0c943edeaea97cf15252940c8d100d"},
+            {"8452df4b0959ba1eae078634f7ba523e", "874d5cd18bcf08c7b2751ac6a68fbd9c"},
         },
     };
     for (uint32_t i = 0; i < shaders.size(); ++i) {
@@ -1101,7 +1206,7 @@ void GxMetal::ValidateModelShader(const std::vector<uint8_t>& bytes, EGxShTarget
                 }
             }
         } else if ((i & 3) && (i & 4)) {
-            expected = comparisonPixel[effect==FragmentEffect::ModelMod][(i&3)-1][i>>3];
+            expected = comparisonPixel[unsigned(effect)-unsigned(FragmentEffect::ModelOpaque)][(i&3)-1][i>>3];
         } else if (const unsigned mode = i & 3) {
             const unsigned alphaTest = i >> 3;
             switch (effect) {
