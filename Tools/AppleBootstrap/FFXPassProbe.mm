@@ -38,9 +38,10 @@ void Upload(EGxTexCommand command, uint32_t width, uint32_t, uint32_t, uint32_t,
 }
 FFX::Tex Texture(unsigned width, unsigned height, unsigned logicalWidth, unsigned logicalHeight, Image* image = nullptr) {
     CGxTexFlags flags(GxTex_Linear); flags.m_renderTarget = !image;
-    auto* texture = TextureCreate(GxTex_2d, width, height, 0, GxTex_Argb8888, GxTex_Argb8888, flags,
+    const auto target = (width & (width - 1)) || (height & (height - 1)) ? GxTex_NonPow2 : GxTex_2d;
+    auto* texture = TextureCreate(target, width, height, 0, GxTex_Argb8888, GxTex_Argb8888, flags,
         image, image ? Upload : GxTexNullUserFunc, "FFX pass probe", 0);
-    Require(texture, "Cannot create original Services texture for FFX");
+    Require(texture && TextureGetGxTex(texture, 1, nullptr), "Cannot create original Services texture for FFX");
     return {texture, {int(width), int(height)}, {int(logicalWidth), int(logicalHeight)}, {1.0f / width, 1.0f / height}};
 }
 std::array<float, 4> Sample(const Image& image, float x, float y, bool wrap = false) {
@@ -411,12 +412,15 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
     device.ShaderCreate(&scope.pixel, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
     const auto wave = WaveData();
     // The same effect instance survives enable/mode changes and a host resize.
-    struct Case { unsigned size; int mode; bool global, glow; bool death = false; uint8_t glowAmount = 173; };
+    struct Case { unsigned size; int mode; bool global, glow; bool death = false; uint8_t glowAmount = 173; unsigned height = 0; };
     for (const auto test : {Case{32, 0, true, true}, Case{32, 1, true, true}, Case{32, 0, false, true},
         Case{32, 0, true, false}, Case{64, 0, true, true},
         Case{32, 0, true, true, true, 0}, Case{32, 0, true, true, true, 255},
         Case{32, 0, false, true, true}, Case{32, 0, true, false, true},
-        Case{64, 0, true, true, true}, Case{32, 0, true, true}}) {
+        Case{64, 0, true, true, true}, Case{67, 0, true, true, false, 173, 35},
+        Case{70, 0, true, true, false, 173, 46}, Case{70, 1, true, true, false, 173, 46},
+        Case{67, 0, true, true, true, 173, 35}, Case{32, 0, true, true}}) {
+        const unsigned height = test.height ? test.height : test.size;
         FFX::SetEffect(test.death ? static_cast<FFX::Effect*>(scope.death.get()) : scope.effect.get());
         DayNight::GetInfo()->m_bands.m_glow = test.glowAmount / 255.0f;
         ConsoleCommandExecute(test.global ? "set ffx 1" : "set ffx 0", 0);
@@ -424,18 +428,18 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
         ConsoleCommandExecute(test.glow ? "set ffxDeath 1" : "set ffxDeath 0", 0);
         const int parameters[] = {test.mode, 173, 85}; scope.effect->SetParameters(3, parameters);
         const bool enabled = test.global && test.glow;
-        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:test.size height:test.size mipmapped:NO];
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:test.size height:height mipmapped:NO];
         descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
         auto frame = [MTLRenderPassDescriptor renderPassDescriptor];
         frame.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
         frame.colorAttachments[0].loadAction = MTLLoadActionClear;
-        Image source{test.size, test.size, std::vector<Pixel>(test.size * test.size)};
-        for (unsigned y = 0; y < test.size; ++y) { for (unsigned x = 0; x < test.size; ++x) {
+        Image source{test.size, height, std::vector<Pixel>(test.size * height)};
+        for (unsigned y = 0; y < height; ++y) { for (unsigned x = 0; x < test.size; ++x) {
             source.pixels[y * test.size + x] = {uint8_t((x * 53 + y * 29) % 256), uint8_t((x * 79 + y * 17) % 256),
                 uint8_t((x * 23 + y * 61) % 256), uint8_t((x * 31 + y * 37) % 256)};
         } }
         if (scope.source) { HandleClose(reinterpret_cast<HOBJECT>(scope.source)); }
-        scope.source = Texture(test.size, test.size, test.size, test.size, &source).m_texture;
+        scope.source = Texture(test.size, height, test.size, height, &source).m_texture;
         GxRsSet(GxRs_VertexShader, scope.vertex[0]); GxRsSet(GxRs_PixelShader, scope.pixel);
         GxRsSet(GxRs_Texture0, TextureGetGxTex(scope.source, 1, nullptr));
         GxRsSet(GxRs_Fog, 0); GxRsSet(GxRs_DepthTest, 0); GxRsSet(GxRs_DepthWrite, 0); GxRsSet(GxRs_Culling, 0);
@@ -448,13 +452,23 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
         CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3}; GxDraw(&batch, 0);
         GxRsSet(GxRs_VertexShader, static_cast<void*>(nullptr)); GxRsSet(GxRs_PixelShader, static_cast<void*>(nullptr));
         FFX::Finish();
-        FFX::Tex screen{nullptr, {int(test.size), int(test.size)}, {int(test.size), int(test.size)}, {1.0f / test.size, 1.0f / test.size}};
+        FFX::Tex screen{nullptr, {int(test.size), int(height)}, {int(test.size), int(height)}, {1.0f / test.size, 1.0f / height}};
         auto actual = Read(device, screen);
         if (!enabled) { Compare(actual, source, 0); }
         else {
             Require(FFX::s_full[0].m_size.x == int(test.size) && FFX::s_quart[0].m_size.x == int(test.size / 4), "FFX Start did not allocate/resize original targets");
+            Require(FFX::s_full[0].m_texSize.x == int(test.size) && FFX::s_full[0].m_texSize.y == int(height) &&
+                FFX::s_quart[0].m_texSize.x == int(test.size / 4) && FFX::s_quart[0].m_texSize.y == int(height / 4),
+                "Unrestricted native NPOT capability still selected padded FFX targets");
             Compare(Read(device, FFX::s_full[0]), source, 0);
             auto filtered = Read(device, FFX::s_quart[0]);
+            auto reference = Reference(source, test.size / 4, height / 4, test.size, height,
+                {{{-1.5f,-1.5f},{0.5f,-1.5f},{0.5f,0.5f},{-1.5f,0.5f}}}, true);
+            reference = Reference(reference, reference.width, reference.height, reference.width, reference.height,
+                {{{-2.5f,0},{-0.5f,0},{0.5f,0},{2.5f,0}}}, false);
+            reference = Reference(reference, reference.width, reference.height, reference.width, reference.height,
+                {{{0,-2.5f},{0,-0.5f},{0,0.5f},{0,2.5f}}}, false);
+            Compare(filtered, reference, 2);
             const CImVector color(85, 85, 85, 173);
             if (test.death) { Compare(actual, DeathReference(source, filtered, test.glowAmount), 1); }
             else if (!test.mode) { Compare(actual, GlowReference(source, filtered, color), 1); }

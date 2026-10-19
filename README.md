@@ -388,8 +388,8 @@ shadows, toggles PCF at the same quality, then restores both starting values.
 The complete sequence passed in Goldshire during a 4,200-frame Mac ASan/UBSan
 and Metal run, including normal shutdown. Direct PCF startup also passed 720
 Mac frames and 900 iOS simulator client frames with normal shutdown. The iOS
-image revealed a separate pink fringe at the bottom/right edge; its cause is
-still under investigation. It can precede
+image revealed a bottom/right pink fringe, subsequently fixed by correcting
+Metal's restricted-NPOT capability flag; both direct-start runs passed again. It can precede
 `--check-world-reentry`; the earlier R32F-only 4,000-frame Stormwind run also
 completed character reentry. Native PCF retains original projection/bias and
 sampling rules while using Apple Depth32Float storage. Windows D24 quantization
@@ -1111,6 +1111,16 @@ ASan/UBSan/Metal and iOS simulator pass; both iOS client targets build and the
 simulator completes its subsequent 120-frame preview. The full-world R32F/PCF
 quality-switch check is described above; Windows D24
 precision equivalence remains unverified.
+
+Metal reports unrestricted non-power-of-two textures to the original FFX
+selector. The legacy `m_texNonPow2` field denotes restrictions, not support;
+setting it incorrectly selected padded targets whose untouched pixels leaked
+into blur at the bottom/right edge. Exact-size FFX targets now preserve the
+original filters without sampling padding. Odd 67x35 and 70x46 full effect chains,
+including independent Box4/Gauss4 references and Glow/Wave/Death edge pixels,
+pass Mac ASan/UBSan/Metal and iOS simulator checks; both iOS targets build.
+The simulator preview completes 120 frames. Actual PCF worlds pass 720 Mac and
+900 iOS frames with normal shutdown, and the 2622x1206 iOS fringe is gone.
 
 Original LiquidSystem now builds on Apple arm64. Native water, water without
 specular and magma preserve all nine vertex/three pixel variants, their distinct

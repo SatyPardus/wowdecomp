@@ -634,7 +634,10 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     // precision differs from Windows D24 and is not a bitwise-equivalence claim.
     m_caps.m_texTarget[GxTex_CubeMap] = m_caps.m_texTarget[GxTex_2d] = m_caps.m_texTarget[GxTex_NonPow2] = 1;
     m_caps.m_texMaxSize[GxTex_CubeMap] = m_caps.m_texMaxSize[GxTex_2d] = m_caps.m_texMaxSize[GxTex_NonPow2] = 16384;
-    m_caps.m_texNonPow2 = 1;
+    // This legacy field means restricted NPOT sampling, as assigned from
+    // D3DPTEXTURECAPS_NONPOW2CONDITIONAL in the D3D9 backend. Metal supports
+    // unrestricted NPOT textures; let original FFX select exact-size targets.
+    m_caps.m_texNonPow2 = 0;
     // Advertise the original profile; resolve missing assets in the game order.
     // ShaderCreate still rejects every family lacking a verified native effect.
     m_caps.m_shaderTargets[GxSh_Vertex] = 3;
