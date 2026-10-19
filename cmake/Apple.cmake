@@ -520,6 +520,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
         XCODE_GENERATE_SCHEME TRUE
     )
 else ()
+    set(WOW_MACOS_CODE_SIGN_IDENTITY "-" CACHE STRING
+        "macOS client signing identity (certificate name or SHA-1; - for local ad hoc signing)")
+    if (WOW_MACOS_CODE_SIGN_IDENTITY STREQUAL "")
+        message(FATAL_ERROR "Set WOW_MACOS_CODE_SIGN_IDENTITY to a signing identity or - for local ad hoc signing.")
+    endif ()
     target_link_libraries(AppleMetalView PUBLIC "-framework Carbon")
     add_executable(AppleClient Tools/AppleBootstrap/ClientHost.mm Tools/AppleBootstrap/WorldActionCheck.mm)
     target_compile_options(AppleClient PRIVATE -fobjc-arc)
@@ -531,15 +536,18 @@ else ()
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Tools/AppleBootstrap/ClientInfo.plist.in
         MACOSX_BUNDLE_GUI_IDENTIFIER org.wowdecomp.AppleClient
         XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER org.wowdecomp.AppleClient
-        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-"
+        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${WOW_MACOS_CODE_SIGN_IDENTITY}"
         XCODE_ATTRIBUTE_CODE_SIGN_STYLE Manual
         XCODE_GENERATE_SCHEME TRUE
     )
+    # Changing bundle metadata must also rerun the signing step in Make/Ninja.
+    set_property(TARGET WowAppleClient APPEND PROPERTY LINK_DEPENDS
+        ${CMAKE_SOURCE_DIR}/Tools/AppleBootstrap/ClientInfo.plist.in)
     if (NOT CMAKE_GENERATOR STREQUAL "Xcode")
         # Seal Info.plist and the bundle as well as the linker-signed arm64
-        # executable. This is a local development signature, not notarization.
+        # executable. The default is local ad hoc signing, not notarization.
         add_custom_command(TARGET WowAppleClient POST_BUILD
-            COMMAND /usr/bin/codesign --force --sign - "$<TARGET_BUNDLE_DIR:WowAppleClient>"
+            COMMAND /usr/bin/codesign --force --sign "${WOW_MACOS_CODE_SIGN_IDENTITY}" "$<TARGET_BUNDLE_DIR:WowAppleClient>"
             VERBATIM)
     endif ()
     add_executable(AppleInputProbe Tools/AppleBootstrap/NativeInputProbe.mm)

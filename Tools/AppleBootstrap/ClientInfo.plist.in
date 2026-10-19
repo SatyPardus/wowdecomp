@@ -11,5 +11,7 @@
     <key>LSMinimumSystemVersion</key><string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Read the original game resources in your selected Data folder. Game data is kept read-only; settings, caches and logs use a separate folder.</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
 </dict></plist>

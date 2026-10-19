@@ -250,6 +250,22 @@ keeps writable files in `~/Library/Application Support/WoWDecompClient`.
 The app also accepts the command-line options below and remembers explicitly
 supplied paths and local mode after successfully mounting Data. It does not save
 the stdin password. macOS may request removable-volume access for external Data.
+The default ad hoc signature identifies one exact build, so rebuilding can make
+macOS ask again even after access was granted. To retain code identity across
+builds, configure `WOW_MACOS_CODE_SIGN_IDENTITY` with an installed Apple
+Development or Developer ID Application certificate name or SHA-1 fingerprint:
+
+```sh
+security find-identity -v -p codesigning
+cmake --preset macos-arm64 -DWOW_MACOS_CODE_SIGN_IDENTITY='Apple Development: YOUR NAME (TEAMID)'
+cmake --build --preset macos-arm64 --target WowAppleClient
+```
+
+Use the actual identity from the first command; `-` restores ad hoc signing.
+The setting applies to Make/Ninja and Xcode macOS builds, does not install
+certificates or change system permissions, and does not notarize the app.
+Apple explains the permission/identity relationship in
+[TN3127](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
 
 The explicit runtime directory must be outside the original installation. It
 contains `WTF/Config.wtf`, cache, logs and other relative client output. Existing
