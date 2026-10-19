@@ -465,6 +465,22 @@ round trip, all 16 slots/counts, empty cursor, unchanged money and normal shutdo
 under Mac ASan/UBSan and Metal validation. Both iOS clients compile; the other
 corrected GUID callbacks have not all been exercised in live gameplay.
 
+`--check-world-walk` follows an explicit local `WOW_WORLD_WALK` route such as
+`x:y;x:y` through the existing W/Left/Right bindings. It uses original movement,
+collision, camera and server packets; it does not set coordinates, facing or
+speed directly. Routes are limited to 128 points, 200 units per leg and 2,000
+units total. A blocked route, changed map or dead player stops the check and
+releases its keys. The log records reached positions and original indoor/outdoor
+classification, then requires 120 settled frames at the destination. This is a
+development input driver, not navigation added to the game. When combined with
+other checks, walking follows travel and precedes combat, Hearthstone and panels.
+A six-point walk from the Stormwind inn to the square completed 2,400 frames;
+relogin recovered the server-saved destination, and the six-point return completed
+1,800 frames with original outdoor-to-indoor classification changing from 1 to 0.
+Both runs passed Mac ASan/UBSan, Metal validation, final capture and normal
+shutdown. Movement/collision code was unchanged. Feral ended near Allison at
+(-8867.78, 672.28, 98.77), on the adjacent prop's original collision surface.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;

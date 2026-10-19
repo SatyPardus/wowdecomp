@@ -37,10 +37,99 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 void Require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
+}
+bool CheckNativeWorldWalk(WowNativeView* view) {
+    static std::vector<C2Vector> points;
+    static unsigned readyFrames, waypoint, settledFrames;
+    static bool initialized, done, forward, left, right;
+    static uint32_t map;
+    static float bestDistance;
+    static std::chrono::steady_clock::time_point progressed, legStarted;
+    if (done) return true;
+    auto key = [&](unsigned short code, NSString* text, bool value, bool& held) {
+        if (held == value) return;
+        NSEvent* event = [NSEvent keyEventWithType:value ? NSEventTypeKeyDown : NSEventTypeKeyUp
+            location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:code];
+        if (value) [view keyDown:event]; else [view keyUp:event];
+        held = value;
+    };
+    auto stop = [&] {
+        key(kVK_ANSI_W, @"w", false, forward);
+        key(kVK_LeftArrow, @"\uF702", false, left);
+        key(kVK_RightArrow, @"\uF703", false, right);
+    };
+    try {
+        auto* player = ClntObjMgrGetActivePlayerObj();
+        if (!CGGameUI::s_inWorld || !player) {
+            Require(!initialized, "World left during native walking check"); return false;
+        }
+        if (!initialized && ++readyFrames < 120) return false;
+        const auto position = player->GetPosition();
+        const auto now = std::chrono::steady_clock::now();
+        if (!initialized) {
+            Require(CGUIBindings::s_bindings, "Native walking requires existing character bindings");
+            for (const auto& pair : {std::pair{"W", "MOVEFORWARD"}, {"LEFT", "TURNLEFT"}, {"RIGHT", "TURNRIGHT"}}) {
+                const char* action = CGUIBindings::s_bindings->GetCommandAction(BINDING_MODE_ACTIVE, pair.first, 1);
+                Require(action && !std::strcmp(action, pair.second), "Native walking does not match the existing movement bindings");
+            }
+            const char* cursor = std::getenv("WOW_WORLD_WALK");
+            Require(cursor && *cursor, "Native walking requires explicit WOW_WORLD_WALK x:y waypoints");
+            C2Vector previous(position.x, position.y);
+            float total = 0;
+            while (*cursor) {
+                char* end = nullptr;
+                const float x = std::strtof(cursor, &end);
+                Require(end != cursor && *end == ':' && std::isfinite(x) && std::abs(x) < 17067, "Invalid native walking X coordinate");
+                cursor = end + 1;
+                const float y = std::strtof(cursor, &end);
+                Require(end != cursor && (*end == ';' || !*end) && std::isfinite(y) && std::abs(y) < 17067, "Invalid native walking Y coordinate");
+                const float length = std::hypot(x - previous.x, y - previous.y);
+                total += length;
+                Require(points.size() < 128 && length <= 200 && total <= 2000, "Native walking route exceeds its bounded local range");
+                points.emplace_back(x, y); previous = points.back();
+                cursor = *end ? end + 1 : end;
+                Require(!*end || *cursor, "Native walking route has an empty final waypoint");
+            }
+            map = ClntObjMgrGetMapID(); initialized = true;
+            bestDistance = 1e10f; progressed = legStarted = now;
+            std::fprintf(stderr, "Native world walk: map %u, origin %.2f %.2f %.2f, outdoors %d, %zu waypoints, %.2f units\n", map, position.x, position.y, position.z,
+                player->m_worldObject ? World::QueryOutdoors(player->m_worldObject) : -1, points.size(), total);
+        }
+        Require(ClntObjMgrGetMapID() == map && !player->IsDeadOrGhost(), "Native walking map or living-player precondition changed");
+        if (waypoint == points.size()) {
+            stop();
+            if (++settledFrames < 120) return false;
+            std::fprintf(stderr, "Native world walk: completed through original movement/collision, final %.2f %.2f %.2f, outdoors %d, 120 settled frames\n", position.x, position.y, position.z,
+                player->m_worldObject ? World::QueryOutdoors(player->m_worldObject) : -1);
+            done = true; return true;
+        }
+        const auto& destination = points[waypoint];
+        const float distance = std::hypot(destination.x - position.x, destination.y - position.y);
+        if (distance < .45f) {
+            stop();
+            std::fprintf(stderr, "Native world walk: waypoint %u at %.2f %.2f %.2f, outdoors %d\n", waypoint + 1, position.x, position.y, position.z,
+                player->m_worldObject ? World::QueryOutdoors(player->m_worldObject) : -1);
+            ++waypoint; bestDistance = 1e10f; progressed = legStarted = now;
+            return false;
+        }
+        if (distance < bestDistance - .05f) { bestDistance = distance; progressed = now; }
+        if (std::chrono::duration<double>(now - progressed).count() > 4 || std::chrono::duration<double>(now - legStarted).count() > 60) {
+            std::fprintf(stderr, "Native world walk: blocked at %.2f %.2f %.2f, waypoint %.2f %.2f, distance %.2f\n", position.x, position.y, position.z, destination.x, destination.y, distance);
+            throw std::runtime_error("Original walking made no progress; route stopped without a position override");
+        }
+        const float turn = std::remainder(std::atan2(destination.y - position.y, destination.x - position.x) - player->GetFacing(), 6.283185307f);
+        key(kVK_LeftArrow, @"\uF702", turn > .04f, left);
+        key(kVK_RightArrow, @"\uF703", turn < -.04f, right);
+        key(kVK_ANSI_W, @"w", std::abs(turn) < .15f, forward);
+        return false;
+    } catch (...) { stop(); throw; }
 }
 bool CheckNativeWorldPanels(WowNativeView* view) {
     struct Panel { unsigned short code; const char* key; const char* action; const char* frame; };
