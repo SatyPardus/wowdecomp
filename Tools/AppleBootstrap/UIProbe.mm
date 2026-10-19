@@ -27,6 +27,8 @@
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Os/Apple/Input.h"
 #include "Engine/Source/Scrn/Scrn.h"
+#import <Carbon/Carbon.h>
+#import <objc/runtime.h>
 #include <memory>
 #include <cstdio>
 #include <thread>
@@ -45,6 +47,46 @@ void Step() {
     EventProcessPending(); PropSelectContext(context);
 }
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+NSPasteboard* editingPasteboard;
+NSPasteboard* TestEditingPasteboard(id,SEL) { return editingPasteboard; }
+void CheckNativeEditing(WowNativeView* view,CSimpleEditBox* edit) {
+    // Redirect this probe process only to an actual, private AppKit pasteboard.
+    // Original OsClipboard/edit-box code runs unchanged; even a sanitizer abort
+    // cannot replace the user's clipboard. Restore dispatch before proceeding.
+    struct PrivatePasteboard {
+        NSPasteboard* board=[NSPasteboard pasteboardWithUniqueName];
+        Method method=class_getClassMethod(NSPasteboard.class,@selector(generalPasteboard));
+        IMP original;
+        PrivatePasteboard() { editingPasteboard=board; original=method_setImplementation(method,reinterpret_cast<IMP>(TestEditingPasteboard)); }
+        ~PrivatePasteboard() { method_setImplementation(method,original); editingPasteboard=nil; [board releaseGlobally]; }
+    } isolated;
+    NSPasteboard* board=isolated.board;
+    auto command=[&](unsigned short code,NSString* text) {
+        NSEvent* event=[NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:NSEventModifierFlagCommand
+            timestamp:0 windowNumber:view.window.windowNumber context:nil characters:text charactersIgnoringModifiers:text isARepeat:NO keyCode:code];
+        Require([view performKeyEquivalent:event],"Native edit shortcut was not handled"); Step();
+        Require(!OsInputIsKeyDown(KEY_LCONTROL) && !OsInputIsKeyDown(KEY_RCONTROL),"Native editing retained a modifier");
+    };
+    auto clipboard=[&](NSString* text) {
+        Require([[board stringForType:NSPasteboardTypeString] isEqualToString:text],"Native edit clipboard result changed");
+    };
+    const std::string saved=edit->m_text;
+    edit->SetText(u8"Mac \u4f60\u597d",nullptr); Step();
+    command(kVK_ANSI_A,@"a");
+    Require(edit->m_highlightLeft==0 && edit->m_highlightRight==int32_t(std::strlen(edit->m_text)),"Command-A lost the original Unicode selection");
+    command(kVK_ANSI_C,@"c"); clipboard(@"Mac \u4f60\u597d");
+    command(kVK_ANSI_X,@"x"); clipboard(@"Mac \u4f60\u597d");
+    Require(!edit->m_text[0],"Command-X did not delete the original selection");
+    command(kVK_ANSI_V,@"v"); Require(std::string(edit->m_text)==u8"Mac \u4f60\u597d","Command-V did not restore the original Unicode text");
+    CSimpleEditBox::ClearKeyboardFocus(edit,true); edit->SetNumeric(1); edit->SetText("",nullptr); CSimpleEditBox::SetKeyboardFocus(edit);
+    [board clearContents]; [board setString:@"42" forType:NSPasteboardTypeString];
+    command(kVK_ANSI_V,@"v"); Require(std::string(edit->m_text)=="42","Native numeric field did not accept original paste handling");
+    CSimpleEditBox::ClearKeyboardFocus(edit,true); edit->SetNumeric(0); edit->SetPassword(1); edit->SetText("",nullptr); CSimpleEditBox::SetKeyboardFocus(edit);
+    command(kVK_ANSI_V,@"v"); Require(std::string(edit->m_text)=="42","Native secure field did not accept original paste handling");
+    command(kVK_ANSI_A,@"a"); command(kVK_ANSI_C,@"c"); clipboard(@"");
+    CSimpleEditBox::ClearKeyboardFocus(edit,true); edit->SetPassword(0); edit->SetText(saved.c_str(),nullptr); CSimpleEditBox::SetKeyboardFocus(edit); Step();
+    std::puts("Native Command-A/C/X/V -> original edit box: Unicode selection/copy/cut/paste, numeric input and secure copy suppression passed");
+}
 class BackgroundWorld {
     WorldPreview world;
     HLAYER layer = nullptr;
@@ -221,6 +263,7 @@ int main(int argc, char** argv) {
                 UIComponents components(true);
                 auto* button = components.Button();
                 auto* edit = components.Edit();
+                view.textEditingActiveProvider=^BOOL { return CSimpleEditBox::s_currentFocus != nullptr; };
                 view.textInputRectProvider = ^NSRect {
                     auto* focused = CSimpleEditBox::s_currentFocus;
                     CRect rect;
@@ -241,6 +284,7 @@ int main(int argc, char** argv) {
                 const auto afterCaret = [view firstRectForCharacterRange:NSMakeRange(0, 0) actualRange:nullptr];
                 Require(afterCaret.origin.x > beforeCaret.origin.x + 1 && afterCaret.size.height > 1,
                     "Native candidate rectangle did not follow the original edit-box caret");
+                CheckNativeEditing(view,edit);
                 auto* lua = FrameScript_GetContext();
                 const char* click = "AppleOriginalButton:Click(); assert(AppleOriginalButton.clicks == 1)";
                 Require(luaL_loadstring(lua, click) == 0 && lua_pcall(lua, 0, 0, 0) == 0, "Original button Lua callback failed");

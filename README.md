@@ -266,6 +266,15 @@ The setting applies to Make/Ninja and Xcode macOS builds, does not install
 certificates or change system permissions, and does not notarize the app.
 Apple explains the permission/identity relationship in
 [TN3127](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
+After removable-volume approval, the unchanged app has completed a no-argument
+Launch Services launch, the original login screen, 240 frames and normal exit.
+
+macOS Command-A/C/X/V and the app's Edit menu route to the original edit-box
+key handlers. They require a focused game text field and preserve numeric input,
+password-copy suppression and held physical modifiers. Active IME composition
+keeps ownership of its input; the shortcuts do not activate gameplay bindings.
+The native Event checks and two original UI lifetimes pass Mac ASan/UBSan and
+Metal validation. Clipboard checks use a private AppKit pasteboard.
 
 The explicit runtime directory must be outside the original installation. It
 contains `WTF/Config.wtf`, cache, logs and other relative client output. Existing
@@ -787,8 +796,9 @@ receiver normal; diffuse color transforms its authored normal even when unlit.
 transforms, BGRA/white/lit colors, nonzero local lights, dynamic/banded shadows,
 alpha boundaries and fog, including the 30 original unshadowed variants. Mac
 ASan/UBSan and Metal checks and the existing model/character/spell scenes pass;
-both iOS clients and the simulator check app build. Simulator GPU execution is
-pending external Data access. Colored skinning, hardware PCF and Windows visual
+both iOS clients and the simulator check app build. Both the projected and
+colored shadow checks also pass on the iOS simulator, followed by 120 frames
+each after external Data access was restored. Colored skinning, hardware PCF and Windows visual
 comparison remain unverified or unsupported; these explicit-input checks do not
 establish a live colored-shadow encounter.
 

@@ -105,8 +105,33 @@ int main() {
             Require(rejected && OsInputGetMouseSpeed() == .5f, "Invalid sensitivity changed native state");
             OsInputSetMouseSpeed(1);
 
+            __block BOOL editFocused=NO;
+            view.textEditingActiveProvider=^BOOL { return editFocused; };
+            auto shortcut=Key(NSEventTypeKeyDown,kVK_ANSI_V,@"v",NSEventModifierFlagCommand);
+            const auto oldDowns=downs.size(),oldUps=ups.size(),oldChars=characters.size();
+            Require(![view performKeyEquivalent:shortcut],"Command-V was intercepted without an original edit box");
+            editFocused=YES;
+            Require([view performKeyEquivalent:shortcut],"Native Command-V did not reach editing"); Step();
+            Require(downs.size()==oldDowns+2 && ups.size()==oldUps+2 && downs[oldDowns].m_key==KEY_LCONTROL &&
+                downs[oldDowns+1].m_key==KEY_V && (downs[oldDowns+1].m_metaKeyState&(1u<<KEY_LCONTROL)) &&
+                characters.size()==oldChars && !OsInputIsKeyDown(KEY_LCONTROL) && !OsInputIsKeyDown(KEY_V),
+                "Native editing leaked text, lost modifier ordering or retained synthetic keys");
+            OsQueuePut(OS_INPUT_KEY_DOWN,KEY_RCONTROL,1,0,0); Step();
+            const auto controlDowns=downs.size(),controlUps=ups.size();
+            [view paste:nil]; Step();
+            Require(downs.size()==controlDowns+1 && ups.size()==controlUps+1 && OsInputIsKeyDown(KEY_RCONTROL) &&
+                !OsInputIsKeyDown(KEY_LCONTROL),"Native editing released or duplicated a physical Control modifier");
+            OsQueuePut(OS_INPUT_KEY_UP,KEY_RCONTROL,1,0,0); Step();
+            Require(![view performKeyEquivalent:Key(NSEventTypeKeyDown,kVK_ANSI_Q,@"q",NSEventModifierFlagCommand)],
+                "Native editing swallowed an application shortcut");
+            editFocused=NO;
+            std::puts("Native editing: focused Command-V, original Control event ordering, no gameplay/text leakage and held-modifier preservation passed");
+
             characters.clear(); compositions.clear(); OsIMEEnable(1);
             [view setMarkedText:@"ni" selectedRange:NSMakeRange(1, 1) replacementRange:NSMakeRange(NSNotFound, 0)];
+            editFocused=YES;
+            Require(![view performKeyEquivalent:shortcut],"Native edit command interrupted active composition");
+            editFocused=NO;
             [view setMarkedText:@"\u4f60" selectedRange:NSMakeRange(0, 1) replacementRange:NSMakeRange(NSNotFound, 0)];
             [view insertText:@"\u4f60\u597d" replacementRange:NSMakeRange(NSNotFound, 0)]; Step();
             Require(compositions.size() == 5 && compositions[0].action == 1 && compositions[1].text == "ni" && compositions[1].start == 1 &&

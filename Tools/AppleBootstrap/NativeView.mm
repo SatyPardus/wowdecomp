@@ -62,6 +62,8 @@ int32_t Integral(double& remainder, double delta) {
 
 @interface WowNativeView ()
 - (void)textStateChanged;
+- (BOOL)canEditText;
+- (void)queueEditingKey:(KEY)key;
 @end
 @implementation WowNativeView {
     NSString* _marked;
@@ -128,7 +130,10 @@ int32_t Integral(double& remainder, double delta) {
 }
 - (void)keyDown:(NSEvent*)event {
     if (!_gameInputActive) return;
-    if (event.modifierFlags & NSEventModifierFlagCommand) { [super keyDown:event]; return; }
+    if (event.modifierFlags & NSEventModifierFlagCommand) {
+        if (![self performKeyEquivalent:event]) [super keyDown:event];
+        return;
+    }
     const KEY key = GameKey(event.keyCode);
     // While composing, Return/Escape/arrows belong to the input method and
     // must not submit/cancel/navigate the original edit box underneath it.
@@ -141,6 +146,40 @@ int32_t Integral(double& remainder, double delta) {
             !([value characterAtIndex:0] >= 0xF700 && [value characterAtIndex:0] <= 0xF8FF))
             [self insertText:value replacementRange:NSMakeRange(NSNotFound, 0)];
     }
+}
+- (BOOL)canEditText {
+    return _gameInputActive && !_marked.length && self.textEditingActiveProvider && self.textEditingActiveProvider();
+}
+- (BOOL)performKeyEquivalent:(NSEvent*)event {
+    const auto modifiers=event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl |
+        NSEventModifierFlagOption | NSEventModifierFlagShift);
+    if (event.type==NSEventTypeKeyDown && modifiers==NSEventModifierFlagCommand && [self canEditText]) {
+        NSString* key=event.charactersIgnoringModifiers.lowercaseString;
+        if ([key isEqualToString:@"c"]) { [self copy:nil]; return YES; }
+        if ([key isEqualToString:@"x"]) { [self cut:nil]; return YES; }
+        if ([key isEqualToString:@"v"]) { [self paste:nil]; return YES; }
+        if ([key isEqualToString:@"a"]) { [self selectAll:nil]; return YES; }
+    }
+    return [super performKeyEquivalent:event];
+}
+- (void)queueEditingKey:(KEY)key {
+    if (![self canEditText]) return;
+    // Use the original edit-box handler, including numeric limits, selection,
+    // Lua callbacks and password-copy suppression. Preserve physical modifiers.
+    const bool control=OsInputIsKeyDown(KEY_LCONTROL) || OsInputIsKeyDown(KEY_RCONTROL);
+    const bool held=OsInputIsKeyDown(key);
+    if (!control) OsQueuePut(OS_INPUT_KEY_DOWN,KEY_LCONTROL,1,0,0);
+    OsQueuePut(OS_INPUT_KEY_DOWN,key,1,0,0);
+    if (!held) OsQueuePut(OS_INPUT_KEY_UP,key,1,0,0);
+    if (!control) OsQueuePut(OS_INPUT_KEY_UP,KEY_LCONTROL,1,0,0);
+}
+- (void)copy:(id)sender { [self queueEditingKey:KEY_C]; }
+- (void)cut:(id)sender { [self queueEditingKey:KEY_X]; }
+- (void)paste:(id)sender { [self queueEditingKey:KEY_V]; }
+- (void)selectAll:(id)sender { [self queueEditingKey:KEY_A]; }
+- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
+    const SEL action=item.action;
+    return (action==@selector(copy:) || action==@selector(cut:) || action==@selector(paste:) || action==@selector(selectAll:)) && [self canEditText];
 }
 - (void)keyUp:(NSEvent*)event {
     const KEY key = GameKey(event.keyCode);

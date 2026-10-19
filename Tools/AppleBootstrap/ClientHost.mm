@@ -452,7 +452,14 @@ int main(int argc, char** argv) {
                 NSMenu* menu=[NSMenu new]; NSMenuItem* item=[NSMenuItem new]; [menu addItem:item];
                 NSMenu* application=[NSMenu new];
                 [application addItemWithTitle:@"退出 WoW Apple" action:@selector(terminate:) keyEquivalent:@"q"];
-                item.submenu=application; NSApp.mainMenu=menu;
+                item.submenu=application;
+                NSMenuItem* editItem=[NSMenuItem new]; [menu addItem:editItem];
+                NSMenu* editMenu=[[NSMenu alloc] initWithTitle:@"编辑"];
+                [editMenu addItemWithTitle:@"剪切" action:@selector(cut:) keyEquivalent:@"x"];
+                [editMenu addItemWithTitle:@"复制" action:@selector(copy:) keyEquivalent:@"c"];
+                [editMenu addItemWithTitle:@"粘贴" action:@selector(paste:) keyEquivalent:@"v"];
+                [editMenu addItemWithTitle:@"全选" action:@selector(selectAll:) keyEquivalent:@"a"];
+                editItem.submenu=editMenu; NSApp.mainMenu=menu;
             }
             ConsoleInitializeClientCommand();
             std::string settings;
@@ -481,6 +488,7 @@ int main(int argc, char** argv) {
             view.colorPixelFormat = MTLPixelFormatBGRA8Unorm; view.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
             device->SetHostFrameProvider(AcquireSynchronousFrame, (__bridge void*)view);
             view.framebufferOnly = NO; view.clearColor = MTLClearColorMake(0, 0, 0, 1);
+            view.textEditingActiveProvider = ^BOOL { return CSimpleEditBox::s_currentFocus != nullptr; };
             view.textInputRectProvider = ^NSRect {
                 auto* focused = CSimpleEditBox::s_currentFocus; CRect rect;
                 if (!focused || !focused->m_cursorTexture || !focused->m_cursorTexture->GetRect(&rect)) return NSZeroRect;
