@@ -1177,14 +1177,16 @@ void CGCalendar::InitHolidays() {
         return;
     }
 
-    int8_t region = static_cast<int8_t>(s_region);
+    // Original 0x005C05C4 uses SHL r32, CL, including region 0. Preserve
+    // its five-bit shift count without signed subtraction/shift UB.
+    const uint32_t regionBit = uint32_t{1} << ((uint32_t(s_region) - 1u) & 31u);
 
     for (int32_t i = 0; i < g_holidaysDB.m_numRecords; i++) {
         HolidaysRec* holiday = i < 0 || i >= g_holidaysDB.m_numRecords ? nullptr : &g_holidaysDB.m_records[i];
         DYNAMICHOLIDAYHASH* dynamic = s_dynamicHolidays.Ptr(holiday->m_id, HASHKEY_NONE());
         int32_t regionMask = dynamic ? dynamic->m_region : holiday->m_region;
 
-        if (regionMask && !((1 << (region - 1)) & regionMask)) {
+        if (regionMask && !(regionBit & uint32_t(regionMask))) {
             continue;
         }
 
