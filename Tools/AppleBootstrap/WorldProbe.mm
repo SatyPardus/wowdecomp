@@ -1,6 +1,9 @@
 #include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/WorldClient/WorldParam.h"
 #include "WoW/Source/WorldClient/MapWeather.h"
+#include "WoW/Source/WorldClient/Sand.h"
+#include <cstdlib>
+#include <cstring>
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/WorldClient/MapArea.h"
 #include "WoW/Source/WorldClient/MapChunk.h"
@@ -140,6 +143,50 @@ std::array<unsigned, 5> CheckLoadedMap() {
                 "Original world frame omitted terrain/models or produced a flat image");
         std::fprintf(stderr, "Original world frame %u: %u varied / %u main-scene pixels, %u chunks, %u doodads\n", frame, varied, scenePixels, CWorldScene::s_chunksRendered, CWorldScene::nDoodadsRendered);
         device.ScenePresent();
+    }
+    if (const char* focus=std::getenv("WOW_METAL_CHECK"); focus && !std::strcmp(focus,"weather-world")) {
+        auto* weather=World::s_weather;
+        auto* density=CVar::Lookup("weatherDensity"); const std::string oldDensity=density->m_stringValue.m_str;
+        density->Set("2",true,false,false,false);
+        for (unsigned type : {2u,3u,1u}) {
+            weather->Reset(); weather->SetType(type,0.75f,nullptr,false,1.0f); weather->Update();
+            Require((weather->m_snow && weather->m_snow->m_useWeatherShaders) || (weather->m_sand && weather->m_sand->m_useWeatherShaders) ||
+                (weather->m_rain && weather->m_rain->m_useWeatherShaders), "Original weather selected a software fallback");
+            if (weather->m_snow) Require(TextureGetGxTex(weather->m_snow->m_snowFlakeTex,1,nullptr),"Original snow texture missing");
+            if (weather->m_rain) {
+                Require(TextureGetGxTex(weather->m_rain->m_rainDropTex,1,nullptr),"Original rain texture missing");
+                Require(TextureGetGxTex(weather->m_rain->m_rainDropSplashTex,1,nullptr),"Original splash texture missing");
+            }
+            unsigned peakPackets=0,peakPixels=0; uint64_t weatherDraws=0;
+            for (unsigned frame=0;frame<120;++frame) {
+                FrameTime::Update(1.0f/60,2000+type*3000+frame*17);
+                camera.SetGxProjectionAndView(viewport); weather->Update();
+                device.BeginFrame(pass); device.SceneClear(3,CImVector(128,128,128,255));
+                GxXformSetViewport(0,1,0,1,0,1);
+                device.RsPush();
+                device.RsSet(GxRs_VertexShader,static_cast<CGxShader*>(nullptr)); device.RsSet(GxRs_PixelShader,static_cast<CGxShader*>(nullptr));
+                for (unsigned i=0;i<4;++i) device.RsSet(EGxRenderState(GxRs_Texture0+i),static_cast<CGxTex*>(nullptr));
+                const auto before=device.EncodingStats().geometryDraws;
+                weather->Render(); weatherDraws+=device.EncodingStats().geometryDraws-before;
+                device.RsPop();
+                const unsigned packets=weather->m_snow ? weather->m_snow->m_snowFlakePacketList.m_activePacketsCount :
+                    weather->m_sand ? weather->m_sand->m_sandGrainPacketList.m_activePacketsCount : weather->m_rain->m_rainDropPacketList.m_activePacketsCount;
+                peakPackets=std::max(peakPackets,packets);
+                if (frame>=60 && frame%15==0) {
+                    CiRect rect(0,0,128,128); TSGrowableArray<CImVector> pixels; device.DeviceReadPixels(rect,pixels);
+                    unsigned changed=0;
+                    for (unsigned i=0;i<pixels.Count();++i) changed+=pixels[i].r!=128 || pixels[i].g!=128 || pixels[i].b!=128;
+                    peakPixels=std::max(peakPixels,changed);
+                }
+                device.ScenePresent();
+            }
+            Require(peakPackets && weatherDraws && peakPixels,"Original weather packets produced no visible pixels");
+            std::fprintf(stderr,"Original weather type %u: %u active packets, %llu draws, %u changed pixels across 120 frames\n",type,peakPackets,(unsigned long long)weatherDraws,peakPixels);
+            // Exercise the same live weather through the full original scene.
+            device.BeginFrame(pass); GxXformSetViewport(0,1,0,1,0,CWorld::s_unk_ADEEE4);
+            CWorldScene::Render(position,1.0f/60,camera); CWorldScene::RenderScenePasses(1.0f/60); device.ScenePresent();
+        }
+        weather->Reset(); density->Set(oldDensity.c_str(),true,false,false,false);
     }
     return counts;
 }

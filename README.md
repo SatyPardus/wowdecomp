@@ -987,6 +987,23 @@ original ordering, including the submerged-camera branch. Windows UI callbacks
 remain at their original positions. The main scene retains WorldFrame's depth
 range ending at 0.94, before the separate horizon and sky bands.
 
+Native weather now accepts the original `snowpoint`, `sand`, `rain`, and `patter`
+SM2 assets through the original profile lookup order. Typed Metal parameters
+preserve particle lifetime, velocity, camera-relative projection, distance size,
+rain motion blur, splash atlas selection, vertex color and fog. The original
+World simulation, packet allocation, collision and texture loading remain shared.
+Snow and sand use GPU-instanced quads directly from the original point packets:
+Metal's native point clipping would otherwise drop a partly visible flake when
+its center leaves the viewport. The point-size contract supports up to 64 pixels;
+the original weather requests at most 24. No CPU vertex expansion or per-frame
+particle scan is introduced. Texture stages, blending, alpha rejection and depth
+state still use the existing fixed fragment path.
+`WOW_METAL_CHECK=weather` checks 124 lifetime, viewport-edge, UV, alpha and fog
+cases; `WOW_METAL_CHECK=weather-world` exercises the original snow/sand/rain
+objects for 120 frames each over real Elwynn terrain, through two world lifetimes.
+These explicit weather inputs do not change a server's weather. Original Windows
+visual comparison and sustained physical-device performance remain outstanding.
+
 Use `WOW_WORLD=Azeroth:-9465:64:85` with the existing Mac `--preview` command or
 as an iOS environment variable. The format is `Map:worldX:worldY:worldZ`; the
 viewer uses an explicit camera (near 0.2, far 500, FOV 1 radian).

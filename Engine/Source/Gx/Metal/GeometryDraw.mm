@@ -131,6 +131,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     Require((filter || wave) ? geometry.format == GxVertexBufferFormats_Last : geometry.format >= GxVBF_P && geometry.format < GxVertexBufferFormats_Last,
         "Invalid Gx vertex format for native effect");
     Require(model || shadow || geometry.format != GxVBF_PBNT2, "Skinned Gx vertices require a skinning effect");
+    const bool weatherPoints = geometry.fixed && (geometry.fixed->weather == WeatherVertex::Snow || geometry.fixed->weather == WeatherVertex::Sand);
+    Require(!weatherPoints || !geometry.indices, "Weather point packets use non-indexed instances");
     const auto& batch = geometry.batch;
     Require(batch.m_primType >= GxPrim_Points && batch.m_primType < GxPrim_TriangleFan,
         "This Metal geometry path requires points, lines, line strips, triangles or triangle strips");
@@ -218,7 +220,7 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     [encoder setDepthStencilState:depth->second];
     [encoder setFrontFacingWinding:MTLWindingClockwise];
     [encoder setViewport:geometry.viewportEnabled ? geometry.viewport : MTLViewport{0, 0, double(target.width), double(target.height), 0, 1}];
-    [encoder setCullMode:geometry.culling == 0 ? MTLCullModeNone : geometry.culling == 1 ? MTLCullModeFront : MTLCullModeBack];
+    [encoder setCullMode:weatherPoints || geometry.culling == 0 ? MTLCullModeNone : geometry.culling == 1 ? MTLCullModeFront : MTLCullModeBack];
     [encoder setScissorRect:geometry.scissorEnabled ? geometry.scissor : MTLScissorRect{0, 0, target.width, target.height}];
     const float factor = uint32_t(state.blendFactor * 255.0f) / 255.0f;
     [encoder setBlendColorRed:factor green:factor blue:factor alpha:factor];
@@ -229,7 +231,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         native.pixelCenterOffset = {float(1 / viewport.width), float(-1 / viewport.height)};
         [encoder setVertexBytes:&native length:sizeof(native) atIndex:0];
     } else if (geometry.fixed) {
-        [encoder setVertexBytes:&geometry.fixed->vertex length:sizeof(FixedUnlitVertexParameters) atIndex:0];
+        if (geometry.fixed->weather != WeatherVertex::None)
+            [encoder setVertexBytes:&geometry.fixed->weatherParameters length:sizeof(WeatherParameters) atIndex:0];
+        else [encoder setVertexBytes:&geometry.fixed->vertex length:sizeof(FixedUnlitVertexParameters) atIndex:0];
     } else if (geometry.effect == FragmentEffect::WaterRipple) {
         [encoder setVertexBytes:&geometry.clipFromModel length:sizeof(C44Matrix) atIndex:0];
     } else if (detail) {
@@ -318,7 +322,9 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         [encoder setFragmentTexture:textures[i] atIndex:i];
         [encoder setFragmentSamplerState:samplers[i] atIndex:i];
     }
-    if (geometry.indices) {
+    if (weatherPoints) {
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:count];
+    } else if (geometry.indices) {
         [encoder drawIndexedPrimitives:primitives[batch.m_primType] indexCount:count indexType:MTLIndexTypeUInt16
             indexBuffer:geometry.indices indexBufferOffset:indexOffset];
     } else {

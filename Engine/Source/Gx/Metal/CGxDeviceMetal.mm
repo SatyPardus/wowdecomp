@@ -7,6 +7,8 @@
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Gx/ShaderBinary.h"
+#include "Engine/Source/BlizzardCore/Include/Blizzard/Util/MD5.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -103,6 +105,10 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
     if (GxMetal::IsLiquidEffect(effect)) return GxMetal::LiquidShaderFamily(effect, target);
     if (GxMetal::IsWmoEffect(effect)) return target == GxSh_Vertex ? GxMetal::WmoVertexFamily(wmoVertex) : GxMetal::WmoPixelFamily(effect);
     switch (effect) {
+        case GxMetal::FragmentEffect::WeatherSnow: return "snowpoint";
+        case GxMetal::FragmentEffect::WeatherSand: return "sand";
+        case GxMetal::FragmentEffect::WeatherRain: return "rain";
+        case GxMetal::FragmentEffect::WeatherSplash: return "patter";
         case GxMetal::FragmentEffect::FixedUnlit: return "FixedUnlit";
         case GxMetal::FragmentEffect::Desaturate: return "Desaturate";
         case GxMetal::FragmentEffect::DetailDoodad: return "DetailDoodad";
@@ -139,6 +145,26 @@ const char* ShaderFamily(GxMetal::FragmentEffect effect, EGxShTarget target = Gx
         case GxMetal::FragmentEffect::ModelOpaqueMod2x: return "Combiners_Opaque_Mod2x";
         default: return "UI";
     }
+}
+void LoadWeatherShader(GxMetal::FragmentEffect effect) {
+    const char* fingerprints[] = {"41897bb9f0f6d58a6823bbb425531e45", "2ea60fa0276be91bc5fbef13d3337c02",
+        "6d9c8f8815b72aea070ca1d64bceeba1", "feb9fb79b08e2e495ca0eac3382db3ab"};
+    const auto kind = GxMetal::WeatherEffect(effect);
+    Require(kind != GxMetal::WeatherVertex::None, "Invalid native weather family");
+    for (const char* profile : {"vs_3_0", "vs_2_0"}) {
+        const std::string path = std::string("Shaders\\Vertex\\") + profile + "\\" + ShaderFamily(effect) + ".bls";
+        auto bytes = ReadShader(path.c_str(), true);
+        if (bytes.empty()) continue;
+        auto programs = GxReadShaderBinary(bytes, 1024 * 1024);
+        Require(programs.size() == 1, "Unexpected weather shader permutation count");
+        Blizzard::Util::MD5 hash; uint8_t digest[16];
+        hash.Process(programs[0].code.data(), uint32_t(programs[0].code.size())); hash.Finish(digest);
+        std::string fingerprint;
+        for (auto byte : digest) { fingerprint += "0123456789abcdef"[byte >> 4]; fingerprint += "0123456789abcdef"[byte & 15]; }
+        Require(fingerprint == fingerprints[uint32_t(kind) - 1], "Weather shader in mounted Data has no verified native implementation");
+        return;
+    }
+    throw std::runtime_error("Cannot find the original weather shader in mounted Data");
 }
 void LoadPostProcess(GxMetal::FragmentEffect effect, EGxShTarget target = GxSh_Pixel) {
     // Match IShaderLoad's asset lookup. A present but unknown higher-profile
@@ -565,6 +591,10 @@ CGxDeviceMetal::CGxDeviceMetal(id<MTLDevice> device) : m(std::make_unique<Impl>(
     m_api = GxApi_Metal;
     m_caps.m_numTmus = 4;
     m_caps.m_numStreams = 1;
+    // The original weather shaders request at most 24 pixels. Bound the native
+    // billboard contract to 64 pixels; packet data stays on the GPU.
+    m_caps.m_pointSprite = m_caps.m_pointParameters = 1;
+    m_caps.m_pointScaleMax = 64;
     m_caps.m_streamOffset = 1;
     m_caps.m_colorFormat = GxCF_argb;
     m_caps.m_pixelCenterOnEdge = 1;
@@ -1170,6 +1200,10 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     if (SStrCmpI(name, "DetailDoodad", STORM_MAX_STR) == 0) effect = Effect::DetailDoodad;
     if (SStrCmpI(name, "WaterRipples", STORM_MAX_STR) == 0) effect = Effect::WaterRipple;
     if (SStrCmpI(name, "FFXNetherBlur", STORM_MAX_STR) == 0) effect = Effect::NetherBlur;
+    if (target == GxSh_Vertex)
+        for (auto candidate : {Effect::WeatherSnow, Effect::WeatherSand, Effect::WeatherRain, Effect::WeatherSplash})
+            if (SStrCmpI(name, ShaderFamily(candidate), STORM_MAX_STR) == 0) effect = candidate;
+    const bool weather = GxMetal::WeatherEffect(effect) != GxMetal::WeatherVertex::None;
     const bool netherBlur = effect == Effect::NetherBlur;
     const bool ripple = effect == Effect::WaterRipple;
     const bool detail = effect == Effect::DetailDoodad;
@@ -1184,8 +1218,8 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
         throw std::runtime_error(std::string("Gx shader family has no native Metal implementation: ") + path + "\\" + name);
     }
     Require(SStrCmpI(name, family, STORM_MAX_STR) == 0 &&
-        count == (netherBlur ? (target == GxSh_Vertex ? 1u : 2u) : ripple || effect == Effect::Desaturate ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? GxMetal::TerrainPermutationCount(target, effect) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
-        (netherBlur || terrain || model || wmo || liquid || shadow || detail || ripple || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
+        count == (netherBlur ? (target == GxSh_Vertex ? 1u : 2u) : weather || ripple || effect == Effect::Desaturate ? 1u : detail ? (target == GxSh_Vertex ? 6u : 8u) : liquid ? GxMetal::LiquidPermutationCount(effect, target) : terrain ? GxMetal::TerrainPermutationCount(target, effect) : (model || wmo || shadow) ? (target == GxSh_Vertex ? 90u : 16u) : effect == GxMetal::FragmentEffect::Unlit ? (target == GxSh_Vertex ? 2u : 1u) : effect == GxMetal::FragmentEffect::GlowWave ? 4u : 2u) &&
+        (weather || netherBlur || terrain || model || wmo || liquid || shadow || detail || ripple || effect == GxMetal::FragmentEffect::Unlit || target == GxSh_Pixel) &&
         SStrCmpI(path, target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0,
         "Gx shader family has no verified native Metal implementation");
     bool cached = true;
@@ -1203,6 +1237,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     // Validate the mounted assets before adding any live shader objects.
     std::shared_ptr<GxMetal::UIShader> ui;
     if (effect == Effect::Desaturate) { GxMetal::UIShader::ValidateDesaturate(ReadShader("Shaders\\Pixel\\ps_3_0\\Desaturate.bls")); }
+    else if (weather) { LoadWeatherShader(effect); }
     else if (ripple) { LoadWaterRippleShader(target); }
     else if (detail) { LoadDetailDoodadShader(target); }
     else if (shadow) { LoadShadowMapShader(target); }
@@ -1241,6 +1276,7 @@ void CGxDeviceMetal::IShaderReload(CGxShader* shader, const char* path, const ch
         SStrCmpI(path, shader->m_target == GxSh_Vertex ? "Shaders\\Vertex" : "Shaders\\Pixel", STORM_MAX_STR) == 0, "Unsupported native shader reload");
     auto& native = m->shaders.at(shader);
     if (native.effect == GxMetal::FragmentEffect::Desaturate) { GxMetal::UIShader::ValidateDesaturate(ReadShader("Shaders\\Pixel\\ps_3_0\\Desaturate.bls")); }
+    else if (GxMetal::WeatherEffect(native.effect) != GxMetal::WeatherVertex::None) { LoadWeatherShader(native.effect); }
     else if (native.effect == GxMetal::FragmentEffect::WaterRipple) { LoadWaterRippleShader(EGxShTarget(shader->m_target)); }
     else if (native.effect == GxMetal::FragmentEffect::DetailDoodad) { LoadDetailDoodadShader(EGxShTarget(shader->m_target)); }
     else if (native.effect == GxMetal::FragmentEffect::ShadowMap) { LoadShadowMapShader(EGxShTarget(shader->m_target)); }
@@ -1263,7 +1299,9 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     auto pointer = [&](EGxRenderState state) { return m_appRenderStates[state].m_value.m_data.p; };
     auto* vertex = static_cast<CGxShader*>(pointer(GxRs_VertexShader));
     auto* pixel = static_cast<CGxShader*>(pointer(GxRs_PixelShader));
-    const bool fixed = !vertex && !pixel;
+    const auto weatherKind = vertex && !pixel && m->shaders.count(vertex) ? GxMetal::WeatherEffect(m->shaders.at(vertex).effect) : GxMetal::WeatherVertex::None;
+    const bool weather = weatherKind != GxMetal::WeatherVertex::None;
+    const bool fixed = (!vertex && !pixel) || weather;
     Require(fixed || (pixel && m->shaders.count(pixel) && pixel->m_target == GxSh_Pixel), "Gx draw requires a verified native pixel shader");
     const auto effect = fixed ? GxMetal::FragmentEffect::FixedUnlit : m->shaders.at(pixel).effect;
     const bool model = GxMetal::IsModelEffect(effect);
@@ -1337,7 +1375,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     const uint32_t clipMask = uint32_t(integer(GxRs_ClipPlaneMask));
     if (clipMask && !model) unsupportedState("User clip planes are not implemented");
     Require((clipMask & ~0x3Fu) == 0, "Gx clip-plane mask exceeds six planes");
-    if (integer(GxRs_PointSprite)) unsupportedState("Point sprites are not implemented");
+    if (integer(GxRs_PointSprite) && !weather) unsupportedState("Point sprites require a native weather shader");
     if (!ripple && !fixed && !model && m_appRenderStates[GxRs_PolygonOffset].m_value.m_data.f[0] != 0)
         unsupportedState("Depth bias is not implemented");
     if (!MasterEnable(GxMasterEnable_PolygonFill)) unsupportedState("Wireframe is not implemented");
@@ -1388,7 +1426,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             for (unsigned i = 0; i < 3; ++i) native.vertex.materialColor[i] = std::min(1.0f, native.vertex.materialColor[i] + emissive[i]);
         }
         native.fog = MasterEnable(GxMasterEnable_Fog) && integer(GxRs_Fog);
-        if (native.fog) {
+        if (native.fog && !weather) {
             const float start = m_appRenderStates[GxRs_FogStart].m_value.m_data.f[0], end = m_appRenderStates[GxRs_FogEnd].m_value.m_data.f[0];
             Require(std::isfinite(start) && std::isfinite(end) && start != end, "Invalid fixed-function fog interval");
             native.vertex.fog = {start, end, 1 / (end - start), 0};
@@ -1403,6 +1441,39 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             if (texGen) native.positionCoords |= 1u << i;
             native.vertex.uvSet[i] = integer(EGxRenderState(GxRs_TextureCoord0 + i));
             Require(native.vertex.uvSet[i] < 8, "Invalid fixed-function coordinate set");
+        }
+        if (weather) {
+            const bool points = weatherKind == GxMetal::WeatherVertex::Snow || weatherKind == GxMetal::WeatherVertex::Sand;
+            Require(batch->m_primType == (points ? GxPrim_Points : GxPrim_Triangles) &&
+                draw.format == (points ? GxVBF_PNT : weatherKind == GxMetal::WeatherVertex::Rain ? GxVBF_PNCT : GxVBF_PCT),
+                "Weather requires the original particle packet vertex layout");
+            Require(!native.positionCoords, "Weather vertices already produce their texture coordinates");
+            for (unsigned i=0; i<inputs; ++i)
+                Require(!integer(EGxRenderState(GxRs_TextureShader0+i)) && !native.vertex.uvSet[i],
+                    "Weather does not use fixed vertex texture transforms");
+            native.weather = weatherKind; native.pointSprite = points && integer(GxRs_PointSprite);
+            native.fragment.fogColor = color(GxRs_FogColor);
+            auto& p = native.weatherParameters;
+            const float* constants = s_shadowConstants[1].constants;
+            auto vector = [&](unsigned index) { simd_float4 v; std::memcpy(&v, constants + 4*index, sizeof(v)); return v; };
+            const bool sand = weatherKind == GxMetal::WeatherVertex::Sand;
+            simd_float4x4 rows; std::memcpy(&rows, constants + (sand ? 4 : 2)*4, sizeof(rows)); p.clipFromCamera = simd_transpose(rows);
+            p.camera = vector(sand ? 3 : 1); p.color = vector(sand ? 0 : points ? 8 : 7);
+            p.age = constants[(sand ? 8 : 6)*4]; p.sizeFalloff = vector(sand ? 9 : 7);
+            p.minimumSize = m_appRenderStates[GxRs_PointScaleMin].m_value.m_data.f[0];
+            p.maximumSize = std::min(m_caps.m_pointScaleMax, m_appRenderStates[GxRs_PointScaleMax].m_value.m_data.f[0]);
+            Require(!points || (std::isfinite(p.minimumSize) && std::isfinite(p.maximumSize) && p.minimumSize >= 0 && p.maximumSize >= p.minimumSize),
+                "Invalid weather point-size limits");
+            if (!points) {
+                p.minimumSize = p.maximumSize = 1;
+                p.fog = vector(0); p.tailTime = constants[11*4];
+                for (unsigned i=0;i<3;++i) {
+                    p.corners[i] = p.blur[i] = vector(8+i);
+                    p.uvCorners[i] = vector((weatherKind == GxMetal::WeatherVertex::Rain ? 12 : 11)+i);
+                    p.widths[i] = vector(15+i); p.lengths[i] = vector(18+i);
+                }
+
+            }
         }
     } else if (netherBlur) {
         const float* constants = s_shadowConstants[1].constants;
@@ -1583,9 +1654,10 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     draw.culling = MasterEnable(GxMasterEnable_Culling) ? integer(GxRs_Culling) : 0;
     draw.viewportEnabled = true;
     draw.viewport = Viewport();
+    if (weather) fixedParameters->weatherParameters.pixelToClip = {2.0f / float(draw.viewport.width), -2.0f / float(draw.viewport.height)};
     m->scissor = Scissor(); m_scissorRectDirty = 0;
     IRsSync(0);
-    if (fixed) {
+    if (fixed && !weather) {
         auto& native = *fixedParameters;
         for (unsigned i = 0; i < inputs; ++i) {
             const auto& generated = m_texGen[i]; const auto& xform = m_xforms[i];

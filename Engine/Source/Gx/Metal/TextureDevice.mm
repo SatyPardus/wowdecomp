@@ -140,7 +140,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
         fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : wmo ? wmo->shadowMode : detail ? detail->shadowMode : modelShadowMode,
-        fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) : terrain ? uint32_t(terrain->layerPass) : 0, sampleCount};
+        fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) | (uint32_t(fixed->pointSprite) << 5) | (uint32_t(fixed->weather) << 6) : terrain ? uint32_t(terrain->layerPass) : 0, sampleCount};
     const auto found = m_pipelines.find(key);
     if (found != m_pipelines.end()) { return found->second; }
     // CGxDeviceD3d::s_srcBlend/s_dstBlend, preserving all 12 Gx modes.
@@ -560,16 +560,26 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&fixed->colorOps type:MTLDataTypeUInt atIndex:27];
         [constants setConstantValue:&fixed->alphaOps type:MTLDataTypeUInt atIndex:28];
         [constants setConstantValue:&fixed->fog type:MTLDataTypeBool atIndex:29];
+        [constants setConstantValue:&fixed->pointSprite type:MTLDataTypeBool atIndex:41];
+        const uint32_t weatherKind = uint32_t(fixed->weather);
+        [constants setConstantValue:&weatherKind type:MTLDataTypeUInt atIndex:42];
         [constants setConstantValue:&color type:MTLDataTypeBool atIndex:30];
         [constants setConstantValue:&uv0 type:MTLDataTypeBool atIndex:31];
         [constants setConstantValue:&uv1 type:MTLDataTypeBool atIndex:32];
         [constants setConstantValue:&fixed->positionCoords type:MTLDataTypeUInt atIndex:34];
         [constants setConstantValue:&sampleDepthOffset type:MTLDataTypeBool atIndex:40];
         NSError* error = nil;
-        descriptor.vertexFunction = [m_library newFunctionWithName:@"fixedUnlitVertex" constantValues:constants error:&error];
+        descriptor.vertexFunction = [m_library newFunctionWithName:weatherKind ? @"weatherVertex" : @"fixedUnlitVertex" constantValues:constants error:&error];
         descriptor.fragmentFunction = [m_library newFunctionWithName:depthOffset ? @"fixedUnlitBiasedFragment" : @"fixedUnlitFragment" constantValues:constants error:&error];
         if (!descriptor.vertexFunction || !descriptor.fragmentFunction)
             throw std::runtime_error(error.localizedDescription.UTF8String ?: "Unlit fixed-function specialization failed");
+        if (fixed->weather == WeatherVertex::Snow || fixed->weather == WeatherVertex::Sand)
+            descriptor.vertexDescriptor.layouts[1].stepFunction = MTLVertexStepFunctionPerInstance;
+        if (weatherKind && fixed->weather != WeatherVertex::Splash) {
+            descriptor.vertexDescriptor.attributes[4].bufferIndex = 1;
+            descriptor.vertexDescriptor.attributes[4].offset = GxVertexAttribOffset(format, GxVA_Normal);
+            descriptor.vertexDescriptor.attributes[4].format = MTLVertexFormatFloat3;
+        }
         if (uv1) {
             descriptor.vertexDescriptor.attributes[3].bufferIndex = 1;
             descriptor.vertexDescriptor.attributes[3].offset = GxVertexAttribOffset(format, GxVA_TexCoord1);

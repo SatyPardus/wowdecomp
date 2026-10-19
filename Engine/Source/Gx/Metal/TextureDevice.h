@@ -11,6 +11,7 @@
 #include "Engine/Source/Gx/Metal/ShadowMapShader.h"
 #include "Engine/Source/Gx/Metal/DetailDoodadShader.h"
 #include "Engine/Source/Gx/Metal/WaterRippleShader.h"
+#include "Engine/Source/Gx/Metal/WeatherShader.h"
 #include "Engine/Source/BLPFile/BlpImage.h"
 #include "Engine/Source/Gx/Types.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
@@ -29,11 +30,21 @@ struct FixedUnlitFragmentParameters {
 };
 static_assert(sizeof(FixedUnlitVertexParameters) == 400 && sizeof(FixedUnlitFragmentParameters) == 96,
               "Native fixed-function constant layout");
+struct WeatherParameters {
+    simd_float4x4 clipFromCamera;
+    simd_float4 camera, color, sizeFalloff, fog;
+    simd_float4 corners[3], uvCorners[3], widths[3], lengths[3], blur[3];
+    float age, tailTime, minimumSize, maximumSize;
+    simd_float2 pixelToClip, padding;
+};
+static_assert(sizeof(WeatherParameters) == 400, "Native weather layout");
 struct FixedUnlitDrawParameters {
     FixedUnlitVertexParameters vertex{};
     FixedUnlitFragmentParameters fragment{};
     uint32_t stages = 0, colorOps = 0, alphaOps = 0, positionCoords = 0;
-    bool fog = false;
+    bool fog = false, pointSprite = false;
+    WeatherVertex weather = WeatherVertex::None;
+    WeatherParameters weatherParameters{};
 };
 
 struct QuadParameters {
