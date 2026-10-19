@@ -349,6 +349,16 @@ not change the selected character. Map loading acquires subsequent native
 drawables for the original synchronous progress paints. Unsupported world
 operations still report failure explicitly.
 
+The macOS client keeps the original event/network loop running when its window
+loses input focus. Native keys/text/mouse are released, original focus/sound
+events are delivered, and MetalKit uses the existing `maxFPS`/`maxFPSBk` limits
+within the display's cadence. System sleep and shutdown pause submission and
+drain GPU work; wake resets the elapsed frame time. A real Feral session passed
+2,400 frames, loss of focus with input disabled and background frames, about
+152 seconds connected, final capture and normal shutdown under Mac
+ASan/UBSan/Metal. Full occlusion/minimization, system sleep/wake and multiple
+displays have not yet been verified. iOS suspension behavior is separate.
+
 `--check-world-input` with `--enter-world` is an explicit local development check
 that briefly moves the character, turns it, zooms the camera and jumps through
 native events. It first checks the existing W/S, arrow, wheel and Space bindings;

@@ -8,7 +8,6 @@
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
-#include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Ui/GameUI.h"
@@ -267,53 +266,73 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 @property(nonatomic, weak) WowNativeView* view;
 @property(nonatomic) BOOL active;
 @property(nonatomic) BOOL stopping;
+@property(nonatomic) BOOL sleeping;
 @property(nonatomic) BOOL checkFailed;
 @property(nonatomic) BOOL initialFormatReady;
 @property(nonatomic) NSUInteger frames;
 @property(nonatomic) NSUInteger characterFrames;
 @property(nonatomic) NSUInteger frameLimit;
+@property(nonatomic) NSUInteger backgroundFrames;
 @end
 @implementation OriginalClientHost
 - (void)stop:(id)sender {
     if (self.stopping) return;
     self.stopping = YES;
-    [self suspend];
+    [self loseInputFocus];
+    self.view.paused = YES;
+    try { device->Drain(); }
+    catch (const std::exception& error) { Fatal(error.what()); }
     [NSApp stop:nil];
     [NSApp postEvent:[NSEvent otherEventWithType:NSEventTypeApplicationDefined location:NSZeroPoint modifierFlags:0
         timestamp:0 windowNumber:0 context:nil subtype:0 data1:0 data2:0] atStart:NO];
 }
-- (void)suspend {
+- (void)loseInputFocus {
     if (!self.active) return;
-    self.active = NO; self.view.paused = YES; self.view.gameInputActive = NO;
+    // Losing a macOS window's input focus is not application suspension. Keep
+    // the original scheduler/network running under the background FPS limit.
+    self.active = NO; self.view.gameInputActive = NO;
+    self.backgroundFrames = 0;
+    device->CapsWindowHasFocus(0);
     OsQueuePut(OS_INPUT_FOCUS, 0, 0, 0, 0);
-    try {
-        if (initialized) {
-            const int32_t focus = 0;
-            PropSelectContext(context); SI2::OnFocusChanged(&focus, nullptr);
-        }
-        device->Drain();
-    }
+    std::fputs("Native client: input focus lost; original background event loop continues\n",stderr);
+}
+- (void)gainInputFocus {
+    if (self.active || self.stopping || self.sleeping) return;
+    self.active = YES; self.view.gameInputActive = YES;
+    device->CapsWindowHasFocus(1);
+    OsQueuePut(OS_INPUT_FOCUS, 1, 0, 0, 0);
+    self.view.paused = NO;
+}
+- (void)systemWillSleep:(NSNotification*)n {
+    self.sleeping = YES; [self loseInputFocus]; self.view.paused = YES;
+    try { device->Drain(); }
     catch (const std::exception& error) { Fatal(error.what()); }
 }
-- (void)resume {
-    if (self.active || self.stopping) return;
-    self.active = YES; self.view.gameInputActive = YES;
-    EventResetElapsedTime(); OsQueuePut(OS_INPUT_FOCUS, 1, 0, 0, 0);
-    self.view.paused = NO;
+- (void)systemDidWake:(NSNotification*)n {
+    if (self.stopping) return;
+    self.sleeping = NO; EventResetElapsedTime(); self.view.paused = NO;
+    if (NSApp.active && self.view.window.isKeyWindow) [self gainInputFocus];
 }
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender { [self stop:nil]; return NSTerminateCancel; }
 - (BOOL)windowShouldClose:(NSWindow*)sender { [self stop:nil]; return NO; }
-- (void)windowDidResignKey:(NSNotification*)n { [self suspend]; }
-- (void)windowDidBecomeKey:(NSNotification*)n { [self resume]; }
-- (void)applicationDidResignActive:(NSNotification*)n { [self suspend]; }
-- (void)applicationDidBecomeActive:(NSNotification*)n { if (self.view.window.isKeyWindow) [self resume]; }
+- (void)windowDidResignKey:(NSNotification*)n { [self loseInputFocus]; }
+- (void)windowDidBecomeKey:(NSNotification*)n { [self gainInputFocus]; }
+- (void)applicationDidResignActive:(NSNotification*)n { [self loseInputFocus]; }
+- (void)applicationDidBecomeActive:(NSNotification*)n { if (self.view.window.isKeyWindow) [self gainInputFocus]; }
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {
     OsInputSetDrawableSize(uint32_t(size.width), uint32_t(size.height));
     OsQueuePut(OS_INPUT_SIZE, int32_t(size.width), int32_t(size.height), 0, 0);
 }
 - (void)drawInMTKView:(MTKView*)view {
-    if (!self.active) return;
+    if (self.stopping || self.sleeping) return;
     try {
+        uint32_t fps = GxGetMaxFPS();
+        const uint32_t background = GxGetMaxFPSBk();
+        if (!self.active && background && (!fps || background < fps)) fps = background;
+        NSInteger displayFPS = 60;
+        if (@available(macOS 12.0, *)) displayFPS = std::max<NSInteger>(1,view.window.screen.maximumFramesPerSecond);
+        const NSInteger preferred = fps ? std::min<NSInteger>(std::max<uint32_t>(8,fps),displayFPS) : displayFPS;
+        if (view.preferredFramesPerSecond != preferred) view.preferredFramesPerSecond = preferred;
         if (!self.initialFormatReady) {
             // The hidden window's backing scale can settle during activation.
             // Reconcile the startup request before PrepareHostDrawable adopts its
@@ -338,7 +357,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         device->BeginFrame(pass, drawable);
         const bool running = EventProcessPending();
         PropSelectContext(context);
-        try {
+        try { if (self.active) {
             if(checkWorldCorpse) worldCorpseDone = CheckNativeWorldCorpse(self.view);
             if (!checkWorldCorpse || worldCorpseDone) {
                 if (checkWorldMSAA) worldMSAADone = CheckNativeWorldMultisample();
@@ -385,6 +404,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
                     (!checkWorldInventory || worldInventoryDone))
                     worldQuestDone = receiveQuestReward ? CheckNativeWorldReward(self.view) : CheckNativeWorldQuest(self.view);
             }
+        }
         } catch (const NativeWorldCheckFailure& error) {
             // An explicit check assertion is outside original event dispatch.
             // Finish this frame/capture and run normal shutdown. Rendering and
@@ -393,6 +413,9 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             self.checkFailed = YES; self.frameLimit = self.frames + 1;
         }
         if (device->FrameCommand()) device->ScenePresent();
+        if (!self.active && ++self.backgroundFrames == 120)
+            std::fprintf(stderr,"Native client: 120 background scheduler/render frames, in world %u, input %d, requested FPS %ld\n",
+                CGGameUI::s_inWorld,self.view.gameInputActive,long(preferred));
         [view.inputContext invalidateCharacterCoordinates];
         if (pendingLogin && self.frames == 2) {
             Require(CGlueMgr::m_acceptedTOS && CGlueMgr::m_acceptedEULA, "Original agreement preferences are required before stdin login");
@@ -566,10 +589,15 @@ int main(int argc, char** argv) {
             g_clientEventContext = EventCreateContextEx(1, Initialize, Destroy, 1, 0);
             Require(g_clientEventContext != nullptr, "Cannot create the original client context");
             OriginalClientHost* host = [OriginalClientHost new]; host.view = view;
+            auto* workspaceNotifications = NSWorkspace.sharedWorkspace.notificationCenter;
+            [workspaceNotifications addObserver:host selector:@selector(systemWillSleep:) name:NSWorkspaceWillSleepNotification object:nil];
+            [workspaceNotifications addObserver:host selector:@selector(systemDidWake:) name:NSWorkspaceDidWakeNotification object:nil];
             host.frameLimit = [NSProcessInfo.processInfo.environment[@"WOW_CLIENT_FRAMES"] integerValue];
             view.delegate = host; window.delegate = host; NSApp.delegate = host;
             [window center]; [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
-            [host resume]; [NSApp run]; [host suspend];
+            [host gainInputFocus]; [NSApp run]; [host loseInputFocus];
+            [workspaceNotifications removeObserver:host];
+            view.paused = YES; device->Drain();
             view.delegate = nil; window.delegate = nil; NSApp.delegate = nil;
             OsIMEDestroy(); OsTimeShutdown(); EventDestroy();
             device->SetHostFrameProvider(nullptr, nullptr);
