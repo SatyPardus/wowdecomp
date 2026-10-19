@@ -9,6 +9,7 @@
 #include "WoW/Source/WorldClient/MapArea.h"
 #include "WoW/Source/WorldClient/MapChunk.h"
 #include "WoW/Source/WorldClient/MapObjDef.h"
+#include "WoW/Source/WorldClient/MapObj.h"
 #include "WoW/Source/WorldClient/MapDoodadDef.h"
 #include "WoW/Source/UIUtil/CSimpleCamera.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -56,7 +57,10 @@ int32_t DestroyServices(const void*, void*) {
     return 1;
 }
 unsigned portraitRefreshes;
-void CheckMapTransfers(bool continuous = false) {
+enum class WorldRoute { Transfers, Streaming, Portals };
+void CheckWorldRoute(WorldRoute routeType) {
+    const bool portals = routeType == WorldRoute::Portals;
+    const bool continuous = routeType != WorldRoute::Transfers;
     auto& device = *static_cast<CGxDeviceMetal*>(g_theGxDevicePtr);
     const auto projection = device.m_projection;
     device.XformPush(GxXform_View);
@@ -72,7 +76,18 @@ void CheckMapTransfers(bool continuous = false) {
         }
     } restore{device, projection};
     struct Destination { const char* name; int32_t id; C3Vector position; bool dungeon; };
-    const std::vector<Destination> route = continuous ? std::vector<Destination>{
+    // Goldshire Inn's real MOPV/MOPT doorways: exterior -> hall (0) ->
+    // entry (1) -> common room (5), then back. Turn in the entry room rather
+    // than running the diagnostic camera into its back wall/near plane.
+    const std::vector<Destination> route = portals ? std::vector<Destination>{
+        {"Azeroth", 0, {-9458.183f, 52.314f, 58.910f}, false},
+        {"Azeroth", 0, {-9459.525f, 41.391f, 58.910f}, false},
+        {"Azeroth", 0, {-9460.170f, 36.128f, 59.488f}, false},
+        {"Azeroth", 0, {-9470.507f, 37.367f, 59.488f}, false},
+        {"Azeroth", 0, {-9460.170f, 36.128f, 59.488f}, false},
+        {"Azeroth", 0, {-9459.525f, 41.391f, 58.910f}, false},
+        {"Azeroth", 0, {-9458.183f, 52.314f, 58.910f}, false}
+    } : continuous ? std::vector<Destination>{
         {"Azeroth", 0, {-9465, 64, 85}, false},
         {"Azeroth", 0, {-10500, 1000, 120}, false},
         {"Azeroth", 0, {-8913, 554, 130}, false},
@@ -96,6 +111,7 @@ void CheckMapTransfers(bool continuous = false) {
     unsigned tick = 0;
     C3Vector previous = route.front().position;
     unsigned leg = 0, loaded = 0, retired = 0, revisited = 0, peakAreas = 0;
+    unsigned interiorViews = 0, exteriorViews = 0;
     std::array<bool,4096> resident{}, visited{};
     for (const auto& destination : route) {
         // Match Client.cpp's world transfer order, without a player/server or
@@ -109,7 +125,9 @@ void CheckMapTransfers(bool continuous = false) {
         }
         CSimpleCamera camera(0.2f, 500, 1);
         camera.m_position = destination.position;
-        C3Vector direction(1, .3f, -.2f); direction.Normalize(); camera.SetFacing(direction);
+        C3Vector direction(1, .3f, -.2f);
+        if (portals) direction = leg ? destination.position-previous : C3Vector(-.122f,-.993f,0);
+        direction.Normalize(); camera.SetFacing(direction);
         CRect viewport{0, 0, 128, 128};
         camera.SetGxProjectionAndView(viewport);
         World::ViewCameraScope cameraScope(camera);
@@ -121,12 +139,16 @@ void CheckMapTransfers(bool continuous = false) {
         unsigned scenePixels = 0, varied = 0;
         const auto first = device.EncodingStats();
         // Bounded diagnostic camera, not a player teleport. Each moving step
-        // is at most four world units; no unload/reload or forced wait occurs
+        // is at most four world units (0.15 indoors); no unload/reload or forced wait occurs
         // between waypoints. The original local-resource loading policy applies.
-        const unsigned movingFrames = continuous ? unsigned(std::ceil(std::sqrt((destination.position-previous).SquaredMag()) / 4)) : 0;
+        const unsigned movingFrames = continuous ? unsigned(std::ceil(std::sqrt((destination.position-previous).SquaredMag()) / (portals ? .15f : 4))) : 0;
         const unsigned frames = movingFrames + 120;
         for (unsigned frame = 0; frame < frames; ++frame) {
             if (continuous && movingFrames) camera.m_position = previous + (destination.position-previous) * std::min(1.0f,float(frame+1)/movingFrames);
+            if (portals && frame==movingFrames) {
+                direction=(leg+1<route.size() ? route[leg+1].position : route[1].position)-destination.position;
+                direction.Normalize(); camera.SetFacing(direction);
+            }
             if (continuous) Require(EventProcessPending(), "Streaming world Event context stopped");
             FrameTime::Update(1.0f/60, ++tick*17);
             auto& lighting = *DayNight::GetInfo();
@@ -144,7 +166,7 @@ void CheckMapTransfers(bool continuous = false) {
             C3Vector target = camera.m_position + direction;
             CWorld::Update(&camera.m_position, &target, &camera.m_position, camera);
             if (!continuous && frame < 2) AsyncFileReadWaitAll();
-            if (continuous) {
+            if (continuous && !portals) {
                 unsigned areas = 0;
                 for (unsigned index=0;index<resident.size();++index) {
                     const bool present = CMap::m_areaTable[index] != nullptr;
@@ -160,6 +182,10 @@ void CheckMapTransfers(bool continuous = false) {
             GxXformSetViewport(0,1,0,1,0,CWorld::s_unk_ADEEE4);
             CWorldScene::Render(camera.m_position,1.0f/60,camera);
             CMap::RenderFootprints(); CWorldScene::RenderScenePasses(1.0f/60);
+            if (portals) {
+                interiorViews += CWorldScene::s_portalViews.Count();
+                exteriorViews += CWorldScene::s_exteriorPortalViews.Count();
+            }
             if (frame == frames-1) {
                 CiRect rect(0,0,128,128); TSGrowableArray<CImVector> pixels; TSGrowableArray<float> depths;
                 device.DeviceReadPixels(rect,pixels); device.DeviceReadDepths(rect,depths);
@@ -167,19 +193,43 @@ void CheckMapTransfers(bool continuous = false) {
                     scenePixels += depths[i] < CWorld::s_unk_ADEEE4;
                     varied += pixels[i] != pixels[0];
                 }
+                if (portals) if (const char* prefix=std::getenv("WOW_PORTAL_CAPTURE")) {
+                    const auto path=std::string(prefix)+"-"+std::to_string(leg)+".ppm";
+                    FILE* file=std::fopen(path.c_str(),"wb"); Require(file,"Cannot create portal diagnostic capture");
+                    std::fprintf(file,"P6\n128 128\n255\n");
+                    for (unsigned i=0;i<pixels.Count();++i) {
+                        const uint8_t rgb[]{pixels[i].r,pixels[i].g,pixels[i].b}; std::fwrite(rgb,1,3,file);
+                    }
+                    std::fclose(file);
+                }
             }
             device.ScenePresent();
         }
-        Require(scenePixels > 1024 && varied > 1024, "Transferred map did not produce real scene geometry/color");
         std::fprintf(stderr,"World %s %s (map %d, dungeon %d): %u frames, %u scene / %u varied pixels, %llu draws; original world/Metal ownership retained\n",
-                     continuous ? "streaming" : "transfer",destination.name,destination.id,destination.dungeon,frames,scenePixels,varied,
+                     portals ? "portal traversal" : continuous ? "streaming" : "transfer",destination.name,destination.id,destination.dungeon,frames,scenePixels,varied,
                      static_cast<unsigned long long>(device.EncodingStats().geometryDraws-first.geometryDraws));
+        if (portals) {
+            auto* viewer = CWorldScene::s_viewerMapObjDef;
+            std::fprintf(stderr,"Portal waypoint %u: viewer %s, groups",leg,viewer ? viewer->m_owner->m_wmoName : "exterior");
+            for (unsigned i=0;i<CWorldScene::s_viewerMapObjGroups.Count();++i) std::fprintf(stderr," %u",CWorldScene::s_viewerMapObjGroups[i]);
+            std::fprintf(stderr,"; %u interior / %u exterior portal views\n",CWorldScene::s_portalViews.Count(),CWorldScene::s_exteriorPortalViews.Count());
+            const int expectedGroups[]{-1,0,1,5,1,0,-1};
+            if (expectedGroups[leg] < 0) Require(!viewer,"Portal traversal did not return to the exterior");
+            else Require(viewer && !std::strcmp(viewer->m_owner->m_wmoName,"WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREINN\\GOLDSHIREINN.WMO") &&
+                         CWorldScene::s_viewerMapObjGroups.Count()==1 && CWorldScene::s_viewerMapObjGroups[0]==unsigned(expectedGroups[leg]),
+                         "Portal traversal selected the wrong inn group");
+        }
+        Require(scenePixels > 1024 && varied > 1024, "Transferred map did not produce real scene geometry/color");
         previous = destination.position;
         ++leg;
     }
-    if (continuous) {
+    if (continuous && !portals) {
         Require(loaded > 12 && retired > 6 && revisited > 0, "Streaming route did not exercise ADT loading, retirement and reentry");
         std::fprintf(stderr,"Continuous world streaming: %u frames, %u ADT loads, %u retirements, %u revisits, peak %u resident areas; one map/world/device lifetime\n",tick,loaded,retired,revisited,peakAreas);
+    }
+    if (portals) {
+        Require(interiorViews && exteriorViews,"Inn route omitted interior or exterior portal clipping");
+        std::fprintf(stderr,"Continuous inn traversal: %u frames, %u interior / %u exterior portal views; exterior -> hall -> entry -> common room and back\n",tick,interiorViews,exteriorViews);
     }
 }
 std::array<unsigned, 5> CheckLoadedMap() {
@@ -377,7 +427,8 @@ void CheckGameWorldLifecycle() {
     const char* focus = std::getenv("WOW_METAL_CHECK");
     const bool transfers = focus && !std::strcmp(focus,"world-transfers");
     const bool streaming = focus && !std::strcmp(focus,"world-streaming");
-    for (unsigned cycle = 0; cycle < (transfers || streaming ? 1u : 2u); ++cycle) {
+    const bool portals = focus && !std::strcmp(focus,"world-portals");
+    for (unsigned cycle = 0; cycle < (transfers || streaming || portals ? 1u : 2u); ++cycle) {
         // CWorld teardown destroys shader effects. The application-owned M2
         // cache must finish that lifetime too, before another world is started.
         M2Initialize(8, 16);
@@ -400,11 +451,11 @@ void CheckGameWorldLifecycle() {
         World::s_weather->m_densityChanged = 0;
         Require(weatherDensity->Set(cycle ? "3" : "0", true, false, false, false) && World::s_weather->m_densityChanged,
                 "Weather configuration did not notify the current world");
-        if (transfers || streaming) {
+        if (transfers || streaming || portals) {
             scope.shadows = true; ShadowInit();
             Require(s_cvExtShadowQuality && s_cvExtShadowQuality->Set("5",true,false,false,false),"Cannot select original PCF shadow quality");
             Require(CShaderEffect::s_usePcfFiltering, "Map transfer check requires native comparison shadows");
-            CheckMapTransfers(streaming);
+            CheckWorldRoute(portals ? WorldRoute::Portals : streaming ? WorldRoute::Streaming : WorldRoute::Transfers);
             ShadowDestroy(); scope.shadows = false;
         } else {
             CheckDayNightMap(cycle);
@@ -430,8 +481,8 @@ void CheckGameWorldLifecycle() {
         // the next constructor must not touch the destroyed Weather instance.
         Require(weatherDensity->Set("2", true, false, false, false), "Weather configuration failed between world lifetimes");
     }
-    if (transfers || streaming) {
-        std::fputs(streaming ? "Continuous world streaming and final destruction passed\n" : "World transfer lifecycle: five map loads in one world/device lifetime and final destruction passed\n",stderr);
+    if (transfers || streaming || portals) {
+        std::fputs(portals ? "Continuous inn portal traversal and final destruction passed\n" : streaming ? "Continuous world streaming and final destruction passed\n" : "World transfer lifecycle: five map loads in one world/device lifetime and final destruction passed\n",stderr);
         return;
     }
     CheckDayNightTerrain();

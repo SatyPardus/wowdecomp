@@ -1389,6 +1389,16 @@ The iOS simulator passes the same route with the same area counts and then rende
 120 visible world frames; both iOS targets build. This exercises local resource
 streaming, not remote downloads or player movement.
 
+`WOW_METAL_CHECK=world-portals` follows the real Goldshire Inn doorways through
+the exterior, hall, entry and common room, then returns along the same route.
+Steps are at most 0.15 world units; original viewer groups must change from
+exterior to 0/1/5 and back, with both inward and outward portal views and real
+color/depth output. Native PCF remains enabled. Mac ASan/UBSan/Metal and iOS
+simulator runs completed 1,200 frames and final world destruction; both iOS
+targets build. The simulator then rendered 120 visible indoor world frames.
+This is a diagnostic camera, not player collision or server movement testing.
+Optional `WOW_PORTAL_CAPTURE=/absolute/prefix` writes seven waypoint PPM images.
+
 Use `WOW_WORLD=Azeroth:-9465:64:85` with the existing Mac `--preview` command or
 as an iOS environment variable. The format is `Map:worldX:worldY:worldZ`; the
 viewer uses an explicit camera (near 0.2, far 500, FOV 1 radian).
