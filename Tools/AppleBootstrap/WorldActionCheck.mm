@@ -16,6 +16,7 @@
 #include "WoW/Source/Glue/CharacterSelection.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
+#include "WoW/Source/Object/ObjectClient/GameObject_C.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
@@ -27,6 +28,7 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/GossipInfo.h"
 #include "WoW/Source/Ui/MerchantFrame.h"
+#include "WoW/Source/Ui/QuestFrame.h"
 #include "WoW/Source/Ui/SpellBookFrame.h"
 #include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/Ui/UIBindings.h"
@@ -93,6 +95,90 @@ bool CheckNativeWorldPanels(WowNativeView* view) {
                 return true;
             }
         } else Require(elapsed < 5, "Native binding did not close its original UI panel");
+    }
+    return false;
+}
+
+bool CheckNativeWorldQuest(WowNativeView* view) {
+    static unsigned phase, readyFrames;
+    static WOWGUID target;
+    static uint32_t coins, quests[25];
+    static std::chrono::steady_clock::time_point started;
+    if (phase == 5) return true;
+    auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!CGGameUI::s_inWorld || !player) {
+        Require(!phase, "World left during native quest check"); return false;
+    }
+    if (!phase && ++readyFrames < 120) return false;
+    auto* frame = static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName("QuestFrame", CSimpleFrame::GetObjectType()));
+    Require(frame, "Original quest frame is missing");
+    auto project = [](CGGameObject_C* object, float& x, float& y) {
+        const auto feet = object->GetPosition(), head = object->GetNamePosition(); C3Vector screen;
+        if (!CGWorldFrame::s_currentWorldFrame->GetScreenCoordinates(C3Vector(feet.x, feet.y, feet.z + (head.z-feet.z)*.4f), &screen, nullptr)) return false;
+        DDCToNDC(screen.x, screen.y, &x, &y); return x > .15f && x < .85f && y > .2f && y < .85f;
+    };
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now-started).count();
+    auto next = [&] { ++phase; started = now; };
+    if (!phase) {
+        Require(!frame->m_isShown, "Quest check requires a closed quest dialog");
+        struct Search { decltype(project)* project; CGGameObject_C* object=nullptr; } search{&project};
+        ClntObjMgrEnumVisibleObjects([](WOWGUID guid, void* context) -> int32_t {
+            auto& search = *static_cast<Search*>(context);
+            auto* object = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+            if (!object || !object->IsQuestGiver() || !object->CanUseNow()) return 1;
+            float x, y;
+            if ((*search.project)(object, x, y)) { search.object = object; return 0; }
+            return 1;
+        }, &search);
+        Require(search.object, "Quest check needs an on-screen usable quest-giver object in range");
+        target = search.object->m_obj->m_guid; coins = player->GetCoinage();
+        for (unsigned i=0; i<25; ++i) quests[i] = player->m_player->m_playerQuestLog[i].m_questId;
+        float x, y; Require(project(search.object, x, y), "Quest-giver projection changed");
+        const NSPoint point = [view convertPoint:NSMakePoint(x*view.bounds.size.width, (view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        [view mouseMoved:[NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+            windowNumber:view.window.windowNumber context:nil eventNumber:0 clickCount:0 pressure:0]];
+        std::fprintf(stderr, "Native quest: picking original %s\n", search.object->GetObjectName());
+        next();
+    } else if ((phase == 1 && elapsed >= .1) || (phase == 2 && elapsed >= .05)) {
+        auto* object = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+        float x, y; Require(object && project(object, x, y), "Quest-giver moved before native click");
+        if (phase == 1) {
+            auto* hit = ClntObjMgrObjectPtr(CGWorldFrame::s_currentWorldFrame->m_hitGuid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+            std::fprintf(stderr, "Native quest pick: %.4f %.4f, hit matches %d, hit type %u\n", x, y,
+                CGWorldFrame::s_currentWorldFrame->m_hitGuid == target, hit ? hit->m_obj->m_type : 0);
+            Require(CGWorldFrame::s_currentWorldFrame->m_hitGuid == target, "Native mouse did not hit the quest-giver object");
+        }
+        const NSPoint point = [view convertPoint:NSMakePoint(x*view.bounds.size.width, (view.isFlipped ? 1-y:y)*view.bounds.size.height) toView:nil];
+        const bool down = phase == 1;
+        CGEventRef event = CGEventCreateMouseEvent(nullptr, down ? kCGEventRightMouseDown:kCGEventRightMouseUp,
+            CGPointMake(point.x, NSMaxY(NSScreen.screens.firstObject.frame)-point.y), kCGMouseButtonRight);
+        Require(event, "Cannot create native quest right click"); NSEvent* native = [NSEvent eventWithCGEvent:event];
+        if (down) [view rightMouseDown:native]; else [view rightMouseUp:native];
+        CFRelease(event); next();
+    } else if (phase == 3) {
+        const char* panelName = CGQuestInfo::m_state == 1 ? "QuestFrameDetailPanel" :
+            CGQuestInfo::m_state == 2 ? "QuestFrameProgressPanel" : "QuestFrameRewardPanel";
+        const char* text = CGQuestInfo::m_state == 1 ? CGQuestInfo::m_questText :
+            CGQuestInfo::m_state == 2 ? CGQuestInfo::m_progressText : CGQuestInfo::m_rewardText;
+        auto* panel = static_cast<CSimpleFrame*>(CScriptObject::GetScriptObjectByName(panelName, CSimpleFrame::GetObjectType()));
+        if (CGQuestInfo::m_npc == target && CGQuestInfo::m_currentQuest && CGQuestInfo::m_questTitle[0] &&
+            CGQuestInfo::m_state >= 1 && CGQuestInfo::m_state <= 3 && text[0] && frame->m_isVisible && panel && panel->m_isVisible) {
+            std::fprintf(stderr, "Native quest: server quest %d, %s; original %s visible\n",
+                CGQuestInfo::m_currentQuest, CGQuestInfo::m_questTitle, panelName);
+            next();
+        } else if (elapsed >= 10) {
+            std::fprintf(stderr, "Native quest result: source matches %d, interact matches %d, state %d, quest %d, available %d, in progress %d, frame visible %d\n",
+                CGQuestInfo::m_npc == target, CGGameUI::m_interactTarget == target, CGQuestInfo::m_state, CGQuestInfo::m_currentQuest,
+                CGQuestInfo::m_numQuests, CGQuestInfo::m_numInProgress, frame->m_isVisible);
+            throw std::runtime_error("Native quest-giver click did not display a server quest offer");
+        }
+    } else if (phase == 4 && elapsed >= 2) {
+        Require(frame->m_isVisible && player->GetCoinage() == coins, "Quest offer disappeared or changed money");
+        for (unsigned i=0; i<25; ++i)
+            Require(quests[i] == player->m_player->m_playerQuestLog[i].m_questId, "Reading the quest offer changed the quest log");
+        std::fputs("Native quest: server offer rendered; quest log and money unchanged; no acceptance or reward selected\n", stderr);
+        next(); return true;
     }
     return false;
 }

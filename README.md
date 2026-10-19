@@ -445,6 +445,14 @@ Wow.exe `SHL r32, CL` count mask at 0x005E301D. Zero-length gradients preserve
 opaque glyph pixels exactly; zero alpha and the original UI/console regression
 also pass on Mac and iOS simulator. Both iOS clients compile with the fixes.
 
+`--check-world-quest` right-clicks a usable, visible quest-giver game object and
+checks the server's original detail/progress/reward panel. It does not accept a
+quest or claim a reward. The Stormwind inn's Candy Bucket returned quest 12336
+directly at the reward-confirmation step; its title, reward panel and native
+object picking passed a 1,000-frame Mac ASan/UBSan and Metal run, with all 25
+quest-log IDs and money unchanged, final capture and normal shutdown. This
+checks the dialog path, not quest acceptance/completion or reward delivery.
+
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;

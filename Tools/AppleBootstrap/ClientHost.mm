@@ -68,6 +68,7 @@ bool browseMerchant;
 bool checkWorldTravel, worldTravelDone;
 bool checkWorldHearthstone, worldHearthstoneDone;
 bool checkWorldPanels, worldPanelsDone;
+bool checkWorldQuest, worldQuestDone;
 bool appBundle;
 uint32_t synchronousFrames;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
@@ -344,6 +345,11 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
             (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone))
             worldPanelsDone = CheckNativeWorldPanels(self.view);
+        if (checkWorldQuest && (!checkWorldInput || worldInputDone) && (!checkWorldActions || worldActionsDone) &&
+            (!checkWorldCasting || worldCastingDone) && (!checkWorldShadows || worldShadowsDone) && (!checkWorldMSAA || worldMSAADone) &&
+            (!checkWorldReentry || worldReentryDone) && (!checkWorldNPC || worldNPCDone) && (!checkWorldTravel || worldTravelDone) &&
+            (!checkWorldCombat || worldCombatDone) && (!checkWorldHearthstone || worldHearthstoneDone) && (!checkWorldPanels || worldPanelsDone))
+            worldQuestDone = CheckNativeWorldQuest(self.view);
         if (device->FrameCommand()) device->ScenePresent();
         [view.inputContext invalidateCharacterCoordinates];
         if (pendingLogin && self.frames == 2) {
@@ -374,6 +380,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             if (self.frameLimit) Require(!checkWorldTravel || worldTravelDone,"Frame limit reached before world travel completed");
             if (self.frameLimit) Require(!checkWorldHearthstone || worldHearthstoneDone,"Frame limit reached before Hearthstone travel completed");
             if (self.frameLimit) Require(!checkWorldPanels || worldPanelsDone,"Frame limit reached before native world UI panels completed");
+            if (self.frameLimit) Require(!checkWorldQuest || worldQuestDone,"Frame limit reached before native quest offer completed");
             if (NSString* file = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"]) {
                 MTLRenderPassDescriptor* readPass = [pass copy];
                 readPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
@@ -419,12 +426,13 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-hearthstone")) checkWorldHearthstone = true;
         else if (!std::strcmp(argv[argument], "--check-world-reentry")) checkWorldReentry = true;
         else if (!std::strcmp(argv[argument], "--check-world-panels")) checkWorldPanels = true;
+        else if (!std::strcmp(argv[argument], "--check-world-quest")) checkWorldQuest = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
         else break;
         ++argument;
     }
-    if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels) && enterCharacter.empty())) {
-        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee] [--check-world-reentry] [--check-world-panels] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
+    if ((argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest) && enterCharacter.empty())) {
+        std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee] [--check-world-reentry] [--check-world-panels] [--check-world-quest] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
     @autoreleasepool {

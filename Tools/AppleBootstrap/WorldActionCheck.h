@@ -20,6 +20,8 @@ bool CheckNativeWorldHearthstone(WowNativeView* view);
 bool CheckNativeWorldReentry(WowNativeView* view);
 // Native character, spellbook, quest, talent and map toggles with live drawing.
 bool CheckNativeWorldPanels(WowNativeView* view);
+// Read a nearby game-object quest offer through native picking; no acceptance.
+bool CheckNativeWorldQuest(WowNativeView* view);
 
 // Native picking/action-bar Moonfire, or the existing T attack binding, against
 // a nearby non-player critter. Approach uses original movement and collision.
