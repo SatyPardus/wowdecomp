@@ -486,6 +486,13 @@ acquiring Metal attachments, including Retina scaling and interactive resizing.
 The original login now renders at the requested 1024x768 pixels on a 2x display;
 window resizing, color/depth readback, input coordinates and original display
 restart/rollback pass the native UI check under ASan/UBSan and Metal validation.
+The client also reconciles the configured pixel size once after window activation,
+before acquiring its first drawable. A real startup had left a 1024x768-point
+window on a 2x display despite a 1024x768-pixel request. Recreating that mismatch
+confirmed correction from 2048x1536 to 1024x768 before drawing; a final build
+without the temporary reproduction hook also passed 180 login frames, capture
+and normal shutdown under Mac ASan/UBSan and Metal validation. Subsequent user
+resizes continue through the existing native frame-boundary path.
 
 The native `FFXNetherBlur`/`FFXNetherCombine` paths preserve the original noisy
 four-tap RGBA blur, fixed UV bias, two-pass intermediate surface, tint and fade.

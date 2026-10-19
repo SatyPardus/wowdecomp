@@ -264,6 +264,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 @property(nonatomic, weak) WowNativeView* view;
 @property(nonatomic) BOOL active;
 @property(nonatomic) BOOL stopping;
+@property(nonatomic) BOOL initialFormatReady;
 @property(nonatomic) NSUInteger frames;
 @property(nonatomic) NSUInteger characterFrames;
 @property(nonatomic) NSUInteger frameLimit;
@@ -308,14 +309,28 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 }
 - (void)drawInMTKView:(MTKView*)view {
     if (!self.active) return;
-    if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return;
-    auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
-    if (!pass || !drawable) return;
-    if (!self.frames) std::fprintf(stderr,"Native display: bounds %.0fx%.0f, backing %.0fx%.0f, window scale %.1f, layer scale %.1f, drawable %.0fx%.0f, texture %lux%lu, format %dx%d\n",
-        view.bounds.size.width,view.bounds.size.height,[view convertRectToBacking:view.bounds].size.width,[view convertRectToBacking:view.bounds].size.height,
-        view.window.backingScaleFactor,view.layer.contentsScale,view.drawableSize.width,view.drawableSize.height,
-        (unsigned long)drawable.texture.width,(unsigned long)drawable.texture.height,device->m_format.m_size.x,device->m_format.m_size.y);
     try {
+        if (!self.initialFormatReady) {
+            // The hidden window's backing scale can settle during activation.
+            // Reconcile the startup request before PrepareHostDrawable adopts its
+            // actual pixel size. Later interactive resizes keep their normal path.
+            const NSRect backing = [view convertRectToBacking:view.bounds];
+            if (backing.size.width != device->m_format.m_size.x || backing.size.height != device->m_format.m_size.y) {
+                std::fprintf(stderr, "Native display: reconciling activated %.0fx%.0f backing with requested %dx%d pixels\n",
+                    backing.size.width, backing.size.height, device->m_format.m_size.x, device->m_format.m_size.y);
+                Require(device->DeviceSetFormat(device->m_format), "Cannot apply the startup display format after window activation");
+                s_requestedFormat = s_lastGoodFormat = device->m_format;
+                SetGxCVars(s_requestedFormat);
+            }
+            self.initialFormatReady = YES;
+        }
+        if (!GxMetal::PrepareHostDrawable((__bridge void*)view)) return;
+        auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
+        if (!pass || !drawable) return;
+        if (!self.frames) std::fprintf(stderr,"Native display: bounds %.0fx%.0f, backing %.0fx%.0f, window scale %.1f, layer scale %.1f, drawable %.0fx%.0f, texture %lux%lu, format %dx%d\n",
+            view.bounds.size.width,view.bounds.size.height,[view convertRectToBacking:view.bounds].size.width,[view convertRectToBacking:view.bounds].size.height,
+            view.window.backingScaleFactor,view.layer.contentsScale,view.drawableSize.width,view.drawableSize.height,
+            (unsigned long)drawable.texture.width,(unsigned long)drawable.texture.height,device->m_format.m_size.x,device->m_format.m_size.y);
         device->BeginFrame(pass, drawable);
         const bool running = EventProcessPending();
         PropSelectContext(context);
