@@ -768,6 +768,23 @@ boundaries. The original motorcycle (display 25870) draws two combined material
 batches; its dual-UV death effect is exercised at 1137 ms, following the authored
 color-alpha track instead of forcing visibility.
 
+`Diffuse_T2`, `Diffuse_Env_Env`, and `Diffuse_Env_T2` now cover their 270 original
+vertex variants, including rigid/one/four weights, lighting, and R32F receivers.
+Typed coordinate sources select TEXCOORD1/c8-c9 for the first family, reflection
+for both outputs in the second, and reflection plus TEXCOORD0/c6-c7 for the third
+(its T2 name does not describe its actual input declaration). Function constants
+remove unused coordinate attributes and calculations. Original BLS fingerprints
+remain required. Mac ASan/UBSan/Metal and iOS simulator passed 65,700 new shadow/UV
+outputs, minimal rigid streams, unshadowed materials and prior model regressions;
+both iOS clients build and the simulator continued for 120 frames.
+The original scene selects four T2 batches on Ahune, one Env/Env batch on the
+Celestial Steed, and one Env/T2 batch on G_ImpBottle. Mac checks render their
+original textures and geometry across two resource lifetimes (2,286/2,828/863
+visible pixels). The same two lifetimes and subsequent 120 frames pass on iOS
+simulator. Ahune uses its authored stand-sequence bounds for the fixture camera
+because its global bounds include distant effects. PCF and Windows visual
+comparison remain separate gaps.
+
 `Combiners_Mod_Mod2x`, used by authored Northrend sky models, now preserves
 double-modulated RGB and alpha from both textures and vertex color. Its four
 unshadowed BLS variants are verified; 246 additional GPU checks cover layered

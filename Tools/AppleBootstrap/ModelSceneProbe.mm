@@ -469,6 +469,55 @@ void CheckGameModels() {
         }
     }
     {
+        // Self-contained original assets exercise the newly accepted coordinate
+        // families through the original batch/effect selection and texture loader.
+        struct CoordinateFixture { const char* path; GxMetal::ModelVertexEffect family; };
+        for (const auto fixture : {CoordinateFixture{"Creature\\FrostLord\\FrostLord.m2",GxMetal::ModelVertexEffect::DiffuseSecondUV},
+                 {"Creature\\CelestialHorse\\CelestialHorse.m2",GxMetal::ModelVertexEffect::DiffuseDualReflection},
+                 {"World\\Goober\\G_ImpBottle.m2",GxMetal::ModelVertexEffect::DiffuseReflectionUV}}) {
+            auto* coordinateScene=M2CreateScene();
+            if(!coordinateScene) throw std::runtime_error("Coordinate model scene creation failed");
+            Release releaseCoordinate{coordinateScene};
+            auto* subject=coordinateScene->CreateModel(fixture.path,0);
+            if(!subject || !subject->IsLoaded(1,0) || !subject->IsDrawable(1,0))
+                throw std::runtime_error(std::string("Coordinate model resources failed to load: ")+fixture.path);
+            CGxShader* expected[90]{};
+            struct ReleaseShaders {
+                CGxDeviceMetal& device; CGxShader** shaders;
+                ~ReleaseShaders() { for(unsigned i=0;i<90;++i) device.ShaderDestroy(shaders[i]); }
+            } releaseShaders{device,expected};
+            device.ShaderCreate(expected,GxSh_Vertex,"Shaders\\Vertex",GxMetal::ModelVertexFamily(fixture.family),90);
+            const auto& data=*subject->m_shared->m_data;
+            const M2Bounds* bounds=&data.m_bounds;
+            // Ahune's global radius includes distant effect envelopes; frame
+            // this stand-pose fixture with its authored sequence bounds.
+            for(unsigned i=0;i<data.m_sequences.m_count;++i)
+                if(!data.m_sequences[i].m_id && !data.m_sequences[i].m_variationIndex) { bounds=&data.m_sequences[i].m_bounds; break; }
+            C44Matrix world(1); world.RotateAroundX(-.65f); world.Scale(.8f/bounds->m_radius);
+            world.Translate((bounds->m_extent.b+bounds->m_extent.t)*-.5f);
+            subject->SetWorldTransform(world); subject->m_lightingCallback=visible->m_lightingCallback;
+            subject->SetBoneSequence(0xFFFFFFFF,0,0xFFFFFFFF,0,1,0,1);
+            subject->m_fFlags|=0x10008; subject->SetAnimating(1);
+            device.XformSetView(C44Matrix(1)); device.XformSetProjection(C44Matrix(1));
+            coordinateScene->AdvanceTime(137); coordinateScene->Animate(C3Vector(0,0,0));
+            unsigned matching=0;
+            for(unsigned i=0;i<coordinateScene->m_elements.Count();++i) {
+                const auto& e=coordinateScene->m_elements[i];
+                if(e.m_type<=2 && e.m_model==subject && e.m_effect && e.m_vertexPermute<90 &&
+                    e.m_effect->m_vertexShaders[e.m_vertexPermute]==expected[e.m_vertexPermute]) ++matching;
+            }
+            if(!matching) throw std::runtime_error(std::string("Original model did not select coordinate family: ")+fixture.path);
+            device.BeginFrame(pass);
+            coordinateScene->Draw(M2PASS_0); coordinateScene->Draw(M2PASS_1); coordinateScene->Draw(M2PASS_2);
+            TSGrowableArray<CImVector> image; device.DeviceReadPixels(rect,image);
+            unsigned coverage=0;
+            for(unsigned i=0;i<image.Count();++i) coverage+=image[i].r || image[i].g || image[i].b;
+            device.ScenePresent();
+            if(coverage<16) throw std::runtime_error(std::string("Coordinate model produced no visible geometry: ")+fixture.path);
+            std::fprintf(stderr,"Original %s: %u %s batches, %u visible pixels through original scene/material/texture paths\n",fixture.path,matching,GxMetal::ModelVertexFamily(fixture.family),coverage);
+        }
+    }
+    {
         // Exercise authored projected batches through CM2SceneRender. The
         // bounded planar receiver is an explicit fixture, not a world query.
         struct ShadowCleanup {

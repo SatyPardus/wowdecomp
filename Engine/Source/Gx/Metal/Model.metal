@@ -4,13 +4,12 @@ constant bool modelShaderAlphaTest [[function_constant(6)]];
 constant bool modelTextureAlpha [[function_constant(7)]];
 // 0: material diffuse, 1: Color_T1, 2: CDiffuse_T1.
 constant uint modelColorMode [[function_constant(8)]];
-constant bool modelEnvironment [[function_constant(9)]];
+constant uint modelPrimaryUV [[function_constant(9)]];
 constant uint modelLayerOperation [[function_constant(10)]];
 constant uint modelBaseOperation [[function_constant(43)]];
 enum ModelBaseOperation { BaseMultiply, BaseDecal, BaseFade, BaseAdd, BaseDoubleMultiply };
-constant bool modelDualUV [[function_constant(11)]];
-constant bool modelProjected [[function_constant(20)]];
-constant bool modelReflectionOnly [[function_constant(33)]];
+constant uint modelSecondaryUV [[function_constant(11)]];
+enum ModelUVSource { UVNone, UVAuthoredFirst, UVAuthoredSecond, UVReflection, UVProjectedFirst, UVProjectedSecond };
 constant uint modelShadowMode [[function_constant(35)]];
 constant bool modelClipping [[function_constant(38)]];
 constant bool modelDepthOffset [[function_constant(39)]];
@@ -52,6 +51,14 @@ struct ModelRaster {
     // https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf
     float clipDistance [[clip_distance, function_constant(modelClipping)]] [6];
 };
+inline float2 modelCoordinates(uint source, float2 uv, float2 uv2, float3 view, float2 reflection, constant ModelVertexParameters& p) {
+    if (source == UVReflection) return reflection;
+    if (source == UVAuthoredFirst) return float2(dot(p.uv[0].xyw, float3(uv, 1)), dot(p.uv[1].xyw, float3(uv, 1)));
+    if (source == UVAuthoredSecond) return float2(dot(p.uv[2].xyw, float3(uv2, 1)), dot(p.uv[3].xyw, float3(uv2, 1)));
+    if (source == UVProjectedFirst) return float2(dot(p.uv[0], float4(view, 1)), dot(p.uv[1], float4(view, 1)));
+    if (source == UVProjectedSecond) return float2(dot(p.uv[2], float4(view, 1)), dot(p.uv[3], float4(view, 1)));
+    return float2(0);
+}
 inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, float2 uv2, float4 vertexColor,
     ModelAffine viewFromModel, constant ModelVertexParameters& p, constant ShadowReceiverParameters& shadow, constant ModelClipParameters& clip) {
     const float4 point = float4(position, 1);
@@ -62,7 +69,7 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
     // when unlit; neither rule follows from whether vertex lighting is enabled.
     if (modelShadowMode && modelColorMode == 1) {
         direction = float3(0, 0, 1);
-    } else if (modelShadowMode || modelEnvironment || (modelColorMode != 1 && (modelPermutation & 1))) {
+    } else if (modelShadowMode || modelPrimaryUV == UVReflection || modelSecondaryUV == UVReflection || (modelColorMode != 1 && (modelPermutation & 1))) {
         direction = normalize(float3(dot(viewFromModel.x.xyz, normal),
             dot(viewFromModel.y.xyz, normal), dot(viewFromModel.z.xyz, normal)));
     }
@@ -84,25 +91,19 @@ inline ModelRaster modelTransform(float3 position, float3 normal, float2 uv, flo
         color = saturate(fma(modelColorMode == 2 ? vertexColor : p.diffuse, float4(saturate(lighting), 1), p.emissive));
     } else { color = modelColorMode == 2 ? vertexColor : saturate(p.diffuse + p.emissive); }
     const float fog = min(pow(max(fma(view.z, p.fog.x, p.fog.y), 0.0f), p.fog.z), 1.0f);
-    const float3 texturePoint = float3(uv, 1);
-    float2 secondaryUV = 0;
-    if (modelProjected) {
-        secondaryUV = float2(dot(p.uv[2], float4(view, 1)), dot(p.uv[3], float4(view, 1)));
-    } else if (modelDualUV) {
-        const float3 secondPoint = float3(uv2, 1);
-        secondaryUV = float2(dot(p.uv[2].xyw, secondPoint), dot(p.uv[3].xyw, secondPoint));
-    } else if (modelEnvironment) {
+    float2 reflectionUV = 0;
+    if (modelPrimaryUV == UVReflection || modelSecondaryUV == UVReflection) {
         // Original view-space sphere reflection, including its positive Y
         // mapping. The authored second texture matrix is not applied here.
         const float3 incident = -normalize(view);
         const float projection = dot(incident, direction);
         const float3 reflected = fma(float3(projection + projection), -direction, incident);
         const float3 sphere = float3(reflected.xy, reflected.z + 1);
-        secondaryUV = fma(reflected.xy * rsqrt(dot(sphere, sphere)), float2(0.5f), float2(0.5f));
+        reflectionUV = fma(reflected.xy * rsqrt(dot(sphere, sphere)), float2(0.5f), float2(0.5f));
     }
     ModelRaster result{p.projection * float4(view, 1), color,
-        modelReflectionOnly ? secondaryUV : modelProjected ? float2(dot(p.uv[0], float4(view, 1)), dot(p.uv[1], float4(view, 1))) :
-            float2(dot(p.uv[0].xyw, texturePoint), dot(p.uv[1].xyw, texturePoint)), secondaryUV, fog, 1};
+        modelCoordinates(modelPrimaryUV, uv, uv2, view, reflectionUV, p),
+        modelCoordinates(modelSecondaryUV, uv, uv2, view, reflectionUV, p), fog, 1};
     if (modelShadowMode) {
         result.viewPosition = view; result.normal = direction;
         result.shadowCoordinate = float3(dot(shadow.projection[0].x, float4(view,1)),

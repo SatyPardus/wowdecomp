@@ -5,12 +5,26 @@
 #include "Engine/Source/Gx/Metal/PostProcessShader.h"
 
 namespace GxMetal {
-enum class ModelVertexEffect : uint32_t { Diffuse, Color, ColorDiffuse, DiffuseEnvironment, DiffuseDualUV, DiffuseProjected, ColorProjected, DiffuseReflection };
+enum class ModelVertexEffect : uint32_t { Diffuse, Color, ColorDiffuse, DiffuseEnvironment, DiffuseDualUV, DiffuseProjected, ColorProjected, DiffuseReflection, DiffuseSecondUV, DiffuseDualReflection, DiffuseReflectionUV, Count };
 constexpr bool UsesModelMaterial(ModelVertexEffect effect) {
-    return effect == ModelVertexEffect::Diffuse || effect == ModelVertexEffect::DiffuseEnvironment || effect == ModelVertexEffect::DiffuseDualUV || effect == ModelVertexEffect::DiffuseProjected || effect == ModelVertexEffect::DiffuseReflection;
+    return effect < ModelVertexEffect::Count && effect != ModelVertexEffect::Color && effect != ModelVertexEffect::ColorDiffuse && effect != ModelVertexEffect::ColorProjected;
 }
 constexpr bool UsesModelProjection(ModelVertexEffect effect) {
     return effect == ModelVertexEffect::DiffuseProjected || effect == ModelVertexEffect::ColorProjected;
+}
+// Coordinate sources and matrices are paired as in the original BLS declarations.
+// In particular, Diffuse_Env_T2 reads TEXCOORD0/c6-c7, despite its family name.
+enum class ModelUVSource : uint32_t { None, AuthoredFirst, AuthoredSecond, Reflection, ProjectedFirst, ProjectedSecond };
+constexpr ModelUVSource ModelPrimaryUV(ModelVertexEffect effect) {
+    return UsesModelProjection(effect) ? ModelUVSource::ProjectedFirst :
+        effect == ModelVertexEffect::DiffuseSecondUV ? ModelUVSource::AuthoredSecond :
+        (effect == ModelVertexEffect::DiffuseReflection || effect == ModelVertexEffect::DiffuseDualReflection || effect == ModelVertexEffect::DiffuseReflectionUV) ? ModelUVSource::Reflection : ModelUVSource::AuthoredFirst;
+}
+constexpr ModelUVSource ModelSecondaryUV(ModelVertexEffect effect) {
+    return UsesModelProjection(effect) ? ModelUVSource::ProjectedSecond :
+        effect == ModelVertexEffect::DiffuseDualUV ? ModelUVSource::AuthoredSecond :
+        effect == ModelVertexEffect::DiffuseReflectionUV ? ModelUVSource::AuthoredFirst :
+        (effect == ModelVertexEffect::DiffuseEnvironment || effect == ModelVertexEffect::DiffuseDualReflection) ? ModelUVSource::Reflection : ModelUVSource::None;
 }
 constexpr unsigned ModelColorMode(ModelVertexEffect effect) {
     return UsesModelMaterial(effect) ? 0 : effect == ModelVertexEffect::ColorDiffuse ? 2 : 1;

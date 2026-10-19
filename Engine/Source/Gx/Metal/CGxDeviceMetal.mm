@@ -1180,7 +1180,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
     auto wmoVertex = GxMetal::WmoVertexEffect::Diffuse;
     auto effect = Effect::Unlit;
     if (target == GxSh_Vertex) {
-        for (auto candidate : {Vertex::Diffuse, Vertex::Color, Vertex::ColorDiffuse, Vertex::DiffuseEnvironment, Vertex::DiffuseDualUV, Vertex::DiffuseProjected, Vertex::ColorProjected, Vertex::DiffuseReflection}) {
+        for (auto candidate : {Vertex::Diffuse, Vertex::Color, Vertex::ColorDiffuse, Vertex::DiffuseEnvironment, Vertex::DiffuseDualUV, Vertex::DiffuseProjected, Vertex::ColorProjected, Vertex::DiffuseReflection, Vertex::DiffuseSecondUV, Vertex::DiffuseDualReflection, Vertex::DiffuseReflectionUV}) {
             if (SStrCmpI(name, GxMetal::ModelVertexFamily(candidate), STORM_MAX_STR) == 0) {
                 vertexEffect = candidate; effect = Effect::ModelOpaque; break;
             }
