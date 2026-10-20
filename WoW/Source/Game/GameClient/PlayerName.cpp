@@ -31,6 +31,13 @@
 #include "Engine/Source/Tempest/CWFrustum.h"
 #include "WoW/Source/WorldClient/World.h"
 #include "Engine/Source/Os/TimeManager.h"
+#if defined(__APPLE__)
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include "Engine/Source/Gxu/GxuFontFont.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
+#endif
 
 // STATIC: 0x00D380A0
 uint32_t s_nameMask;
@@ -43,6 +50,38 @@ static CGxStringBatch* s_playerNameBatch;
 
 // STATIC: 0x00D380AC
 static CGxFont* s_playerNameFont;
+#if defined(__APPLE__)
+static std::array<CGxFont*, 129> s_screenNameFonts{};
+static uint32_t s_nameFontScreenHeight;
+
+static void ClearScreenNameFonts() {
+    for (auto& font : s_screenNameFonts) if (font) GxuFontDestroyFont(font);
+}
+
+static CGxFont* ScreenNameFont(const C3Vector& position, float& lineHeight) {
+    if (!s_playerNameFont || !g_heightPixels) return s_playerNameFont;
+    C44Matrix view, projection;
+    GxXformView(view); GxXformProjection(projection);
+    const C3Vector eye = position * view;
+    const float w = eye.x * projection.a3 + eye.y * projection.b3 + eye.z * projection.c3 + projection.d3;
+    float left, right, bottom, top, nearZ, farZ;
+    GxXformViewport(left, right, bottom, top, nearZ, farZ);
+    const float pixelsPerUnit = std::abs(projection.b1) * g_heightPixels * (top - bottom) * .5f / w;
+    if (!(w > 0) || !std::isfinite(pixelsPerUnit) || pixelsPerUnit <= 0) return s_playerNameFont;
+    // Keep existing visibility/occlusion and near-camera world sizing, but do
+    // not collapse an already-visible name to 5–8 pixels. The floor is in
+    // native points. Rasterize for the final projected size, not a 32px atlas.
+    const float outputPixels = std::max(lineHeight * pixelsPerUnit, 12.0f * GxMetal::HostPixelScale());
+    lineHeight = outputPixels / pixelsPerUnit;
+    CRect target; g_theGxDevicePtr->CapsWindowSize(target);
+    const float sceneRatio = (target.maxY - target.minY) / float(g_heightPixels);
+    const uint32_t size = std::clamp(uint32_t(std::lround(outputPixels * sceneRatio)), 2u, 128u);
+    auto& font = s_screenNameFonts[size];
+    if (!font) GxuFontCreateFont(s_playerNameFont->GetName(), float(size) / g_heightPixels, font,
+        4 | CGxFont::SCREEN_RASTER_SIZE);
+    return font ? font : s_playerNameFont;
+}
+#endif
 
 // STATIC: 0x00D380B0
 static CTexture* s_playerNameIcons;
@@ -72,6 +111,9 @@ TSExplicitList<PLAYERNAMEDESC, offsetof(PLAYERNAMEDESC, m_link)> s_playerNames;
 // VERIFY: e90bacd6 auto
 // OFFSET: 0x007E53A0
 void PlayerNameShutdown() {
+#if defined(__APPLE__)
+    ClearScreenNameFonts();
+#endif
     if (s_playerNameFont) {
         GxuFontDestroyFont(s_playerNameFont);
     }
@@ -160,6 +202,16 @@ void PlayerNameUpdateDrawCallback(PLAYERNAMEDESC* desc) {
 // OFFSET: 0x007E5120
 void PlayerNameUpdateEarly() {
     s_lastRenderFrame++;
+#if defined(__APPLE__)
+    if (s_nameFontScreenHeight != g_heightPixels) {
+        // Font resize notices also affect cached raster faces. Remove their
+        // strings first, then lazily recreate only sizes actually in view.
+        for (auto* desc = s_playerNames.Head(); desc; desc = s_playerNames.Next(desc))
+            if (desc->m_string) GxuFontDestroyString(desc->m_string);
+        ClearScreenNameFonts();
+        s_nameFontScreenHeight = g_heightPixels;
+    }
+#endif
 }
 
 // VERIFY: fb153d0c auto
@@ -341,6 +393,13 @@ void PLAYERNAMEDESC::Render() {
     C3Vector position = object->GetNamePosition();
 
     if (showName) {
+        CGxFont* nameFont = s_playerNameFont;
+#if defined(__APPLE__)
+        nameFont = ScreenNameFont(position, lineHeight);
+        if (this->m_string && (this->m_string->m_currentFace != nameFont ||
+            std::abs(this->m_string->m_requestedFontHeight - lineHeight) > lineHeight * .002f))
+            this->m_flags |= 0x1;
+#endif
         if (this->m_flags & 0x2) {
             this->m_flags &= ~0x2;
             object->GetSelectionHighlightColor(&this->m_color);
@@ -361,9 +420,9 @@ void PLAYERNAMEDESC::Render() {
             int32_t lines = object->UpdateObjectNameString(s_nameMask, text, sizeof(text));
             this->m_zOffset = lines * lineHeight;
 
-            if (s_playerNameFont && text[0]) {
+            if (nameFont && text[0]) {
                 C3Vector origin(0.0f, 0.0f, 1.0f);
-                GxuFontCreateString(s_playerNameFont, LanguageProcess(text), lineHeight, origin, 100000.0f, 100000.0f, 0.0f, this->m_string, GxVJ_Bottom, GxHJ_Center, 200, this->m_color, 0.0f, 1.0f);
+                GxuFontCreateString(nameFont, LanguageProcess(text), lineHeight, origin, 100000.0f, 100000.0f, 0.0f, this->m_string, GxVJ_Bottom, GxHJ_Center, 200, this->m_color, 0.0f, 1.0f);
             }
 
             this->m_flags &= ~0x1;

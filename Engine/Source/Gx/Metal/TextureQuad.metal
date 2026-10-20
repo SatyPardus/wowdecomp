@@ -94,6 +94,30 @@ fragment float4 desaturateFragment(QuadVertex v [[stage_in]], texture2d<float> c
     return color;
 }
 
+inline float3 fontLinear(float3 c) {
+    return select(c / 12.92f, pow((c + .055f) / 1.055f, float3(2.4f)), c > .04045f);
+}
+inline float3 fontEncoded(float3 c) {
+    return select(c * 12.92f, 1.055f * pow(max(c, 0.0f), float3(1.0f / 2.4f)) - .055f, c > .0031308f);
+}
+// FreeType supplies linear area coverage. Composite only text in linear light,
+// using tile-local attachment reads; the original game's encoded color buffer
+// and all non-text shaders retain their existing semantics.
+fragment float4 fontCoverageFragment(QuadVertex v [[stage_in]],
+    float4 background [[color(0)]], texture2d<float> atlas [[texture(0)]],
+    sampler filtering [[sampler(0)]], constant QuadParameters& p [[buffer(0)]]) {
+    const float4 texel = atlas.sample(filtering, v.uv);
+    const float4 tint = v.color * p.tint;
+    const float alpha = texel.a * tint.a;
+    if (alphaTest && alpha < p.alphaRef) discard_fragment();
+    // Atlas RGB is fill coverage / union coverage (the rest is black outline),
+    // not an sRGB color. Applying the transfer function to it would darken edges.
+    const float3 foreground = fontLinear(tint.rgb) * texel.rgb;
+    const float3 rgb = fontEncoded(mix(fontLinear(background.rgb), foreground, alpha));
+    // Retain the game's original separate-alpha blend equation.
+    return float4(rgb, alpha * alpha + background.a * (1.0f - alpha));
+}
+
 struct Filter4Vertex {
     float3 position [[attribute(0)]]; float4 color [[attribute(1)]];
     float2 uv0 [[attribute(2)]]; float2 uv1 [[attribute(3)]];

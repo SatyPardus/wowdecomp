@@ -183,6 +183,16 @@ NSCursor* GxMetal::CursorForHostView(void* nativeView) {
 }
 #endif
 
+float GxMetal::HostPixelScale() {
+    MTKView* view = (__bridge MTKView*)OsGuiGetWindow(0);
+    if (![view isKindOfClass:MTKView.class] || !view.window) return 1.0f;
+#if TARGET_OS_OSX
+    return std::max(1.0f, float(view.window.backingScaleFactor));
+#else
+    return std::max(1.0f, float(view.contentScaleFactor));
+#endif
+}
+
 bool GxMetal::GetHostFormat(CGxFormat& format) {
     if (!NSThread.isMainThread) return false;
     MTKView* view = (__bridge MTKView*)OsGuiGetWindow(0);

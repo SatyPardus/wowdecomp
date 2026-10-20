@@ -1596,11 +1596,20 @@ in the application resources under `ThirdParty/FTL.TXT`.
 
 The existing Gxu layout/resource path is retained. Apple UI glyphs use full
 stem hinting up to 24 pixels and light hinting above that, with unhinted
-advances, BGRA8 coverage/outline atlases and up to 128
-raster pixels instead of the original 32-pixel limit. Atlas pages grow from
-256 to 512 or 1024 only for larger fonts. Filtered world text retains its
-existing size, geometry metrics and distance scaling; it benefits from the
-new rasterizer and coverage precision.
+advances and BGRA8 coverage/outline atlases. FrameXML/TextBlock fonts preserve
+the original 32-point layout cap: the Chinese ZoneTextFont resource requests
+112, relying on that cap. Native backing scale increases raster precision
+without enlarging that title. Explicit Gxu raster faces support up to 128 pixels;
+atlas pages grow from 256 to 512 or 1024 only for larger fonts.
+On Apple GPUs, text alone composites FreeType's linear coverage in linear light
+using tile-local attachment reads, then returns to the game's encoded color
+buffer. Colored text, outlines, fades and shadows use the same path; unrelated
+UI textures and world shading keep their original blending.
+Already-visible unit names retain their font, visibility and depth tests, but
+have a 12-point minimum projected line height. Their glyph caches follow the
+projected pixel size instead of shrinking a fixed 32-pixel bitmap. Names remain
+in the world rendering pass, so reducing 3D resolution also reduces their
+raster resolution; ordinary screen UI remains at the native output resolution.
 macOS windowed and fullscreen UI use the native backing resolution.
 The **显示 → 3D 渲染比例** menu independently selects 100%, 85%, 75%, 67% or
 50% scene rendering, saved as `gxRenderScale` (default `1`, valid range `0.5–1`).
@@ -1613,7 +1622,9 @@ following the output pixel size; it is not a scene-resolution control.
 ARIALN and ZYKai_T resources, checks proportional Latin/Chinese advances and
 full 8-bit coverage, and exercises small/large glyphs, AA/monochrome,
 outline/shadow, drawable-size changes and cache recreation. It also compares
-glyph bitmap coverage with final GPU pixels and requires identical UI output
+glyph coverage with an independent linear-light compositing reference,
+including colored backgrounds, fill/outline ratios, opacity and 1x/4x MSAA.
+It checks the original oversized zone-title resource's layout cap and requires identical UI output
 across 50%/75%/100% scene scales with 1x/4x MSAA. The FFX checks compare scaled
 glow, wave and death output with independent filtering/composition references.
 

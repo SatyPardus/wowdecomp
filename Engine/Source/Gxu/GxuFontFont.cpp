@@ -10,6 +10,9 @@
 #include "Engine/Source/Gxu/IGxuFontGlyph.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Storm/H/storm.h"
+#if defined(__APPLE__)
+#include "Engine/Source/Gx/Metal/NativeHost.h"
+#endif
 
 // INLINED
 KERNINGHASHKEY& KERNINGHASHKEY::operator=(const KERNINGHASHKEY& key) {
@@ -81,7 +84,12 @@ int32_t CGxFont::UpdateDimensions() {
 #if defined(__APPLE__)
     // Filtered world-space fonts use a virtual height, not a screen pixel size.
     // Keep their existing geometry/metrics and distance scaling.
-    if (!(this->m_fontFlags & 4)) maxPixelSize = 128;
+    if (!(this->m_fontFlags & 4) || (this->m_fontFlags & SCREEN_RASTER_SIZE)) maxPixelSize = 128;
+    // FrameXML fixed-size fonts relied on the old 32-pixel layout limit:
+    // ZoneTextFont is authored at 112. Lifting its raster limit also enlarged
+    // its layout. Preserve that limit in points, including on Retina displays.
+    if (this->m_fontFlags & UI_LAYOUT_SIZE)
+        maxPixelSize = static_cast<uint32_t>(32 * GxMetal::HostPixelScale());
 #endif
     if (pixelSize > maxPixelSize) {
         pixelSize = maxPixelSize;
@@ -129,7 +137,8 @@ bool CGxFont::GetGlyphData(GLYPHBITMAPDATA* data, uint32_t code) {
         padding = 2;
     }
 
-    return IGxuFontGlyphRenderGlyph(face, this->m_pixelSize, code, this->m_baseline, data, this->m_fontFlags & 2, padding, !(this->m_fontFlags & 4));
+    return IGxuFontGlyphRenderGlyph(face, this->m_pixelSize, code, this->m_baseline, data, this->m_fontFlags & 2, padding,
+        !(this->m_fontFlags & 4) || (this->m_fontFlags & SCREEN_RASTER_SIZE));
 }
 
 // VERIFY: 3597e899 auto

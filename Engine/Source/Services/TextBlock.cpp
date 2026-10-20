@@ -4,6 +4,9 @@
 #include "Engine/Source/Services/TextBlock.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Gxu/GxuFont.h"
+#if defined(__APPLE__)
+#include "Engine/Source/Gxu/GxuFontFont.h"
+#endif
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/CImVector.h"
@@ -361,6 +364,9 @@ HTEXTFONT TextBlockGenerateFont(const char* fontName, uint32_t fontFlags, float 
     hashObj = s_fontHash.New(SStrHashHT(key), key, 0, 0);
 
     uint32_t gxFlags = (fontFlags & 0x1) != 0;
+#if defined(__APPLE__)
+    gxFlags |= CGxFont::UI_LAYOUT_SIZE;
+#endif
 
     if (fontFlags & 0x4) {
         gxFlags |= 0x8;

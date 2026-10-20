@@ -267,6 +267,7 @@ bool RectFits(const CiRect& rect, const CiRect& surface) {
 }
 
 struct CGxDeviceMetal::Impl {
+    bool fontRendering = false;
     void (*displayRestart)() = nullptr;
     void (*hostSizeChanged)(const CGxFormat&) = nullptr;
     bool (*acquireFrame)(CGxDeviceMetal&, void*) = nullptr;
@@ -839,6 +840,15 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
 void GxMetal::BeginSceneResolution(float scale) {
     if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
         static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->BeginSceneResolution(scale);
+}
+
+void GxMetal::SetFontRendering(bool enabled) {
+    if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->SetFontRendering(enabled);
+}
+
+void CGxDeviceMetal::SetFontRendering(bool enabled) {
+    m->fontRendering = enabled;
 }
 
 void GxMetal::EndSceneResolution() {
@@ -1966,6 +1976,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     state.blend = EGxBlend(integer(GxRs_BlendingMode)); state.alphaRef = integer(GxRs_AlphaRef);
     state.colorWrite = MasterEnable(GxMasterEnable_ColorWrite) ? integer(GxRs_ColorWrite) : 0;
     state.blendFactor = m_appRenderStates[Unk84].m_value.m_data.f[0];
+    state.linearText = m->fontRendering && effect == GxMetal::FragmentEffect::Unlit &&
+        state.blend == GxBlend_Alpha && [m->gpu.device supportsFamily:MTLGPUFamilyApple2];
     std::array<id<MTLTexture>, 9> textures{};
     std::array<GxMetal::TextureDrawState, 9> states;
     states.fill(state);

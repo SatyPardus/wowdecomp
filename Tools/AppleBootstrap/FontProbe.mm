@@ -1,4 +1,5 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
+#include "Engine/Source/Gx/Metal/NativeHost.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxTex.h"
 #include "Engine/Source/Gxu/GxuFont.h"
@@ -12,6 +13,7 @@
 #include <stdexcept>
 #include <utility>
 #include <array>
+#include <cmath>
 
 namespace {
 struct FontScope {
@@ -113,9 +115,13 @@ void CheckGlyphPixelMapping(CGxDeviceMetal& device) {
             auto* glyph = sample.font->NewCodeDesc(chinese ? 0x4e16 : 'S');
             const auto& bitmap = glyph->m_bitmapData;
             std::array<unsigned, 256> expected{}, actual{};
-            for (unsigned y = 0; y < bitmap.m_glyphHeight; ++y)
-                for (unsigned x = 0; x < bitmap.m_glyphWidth; ++x)
-                    ++expected[static_cast<const uint8_t*>(bitmap.m_data)[y * bitmap.m_glyphPitch + x]];
+            for (unsigned y = 0; y < bitmap.m_glyphHeight; ++y) {
+                for (unsigned x = 0; x < bitmap.m_glyphWidth; ++x) {
+                    const double coverage = static_cast<const uint8_t*>(bitmap.m_data)[y * bitmap.m_glyphPitch + x] / 255.0;
+                    const double encoded = coverage <= .0031308 ? coverage * 12.92 : 1.055 * std::pow(coverage, 1.0 / 2.4) - .055;
+                    ++expected[std::lround(encoded * 255)];
+                }
+            }
             sample.batch = GxuFontCreateBatch(false, false);
             if (!GxuFontCreateString(sample.font, chinese ? "世" : "S", height, C3Vector(.1f, .1f, 0), .8f, .8f, 0,
                 sample.string, GxVJ_Top, GxHJ_Left, 0, CImVector(255, 255, 255, 255), 0, 1))
@@ -127,8 +133,9 @@ void CheckGlyphPixelMapping(CGxDeviceMetal& device) {
             GxReadPixels(rect, pixels);
             GxScenePresent();
             for (unsigned i = 0; i < pixels.Count(); ++i) ++actual[pixels[i].r];
-            // Translation does not change a glyph's coverage histogram. At a
-            // one-to-one UI size, neither resampling nor MSAA may soften it.
+            // Independent sRGB reference for white text over black. Translating
+            // a one-to-one glyph may not resample it; only the documented
+            // linear-coverage composition changes its encoded edge values.
             for (unsigned a = 1; a < 256; ++a) {
                 if (expected[a] != actual[a]) {
                     std::fprintf(stderr, "Font pixel mapping: %s %u px, alpha %u: expected %u, got %u\n", name, size, a, expected[a], actual[a]);
@@ -137,9 +144,23 @@ void CheckGlyphPixelMapping(CGxDeviceMetal& device) {
             }
         }
     }
-    std::fprintf(stderr, "UI font pixel mapping: ten actual-size glyphs preserve bitmap coverage at the final output\n");
+    std::fprintf(stderr, "UI font pixel mapping: ten actual-size glyphs match linear-light coverage composition\n");
 }
 
+void CheckFixedLayoutSize() {
+    FontScope sample;
+    if (!GxuFontCreateFont("Fonts\\ZYKai_T.TTF", 112.0f / g_heightPixels, sample.font,
+        9 | CGxFont::UI_LAYOUT_SIZE))
+        throw std::runtime_error("Cannot create original zone-title font");
+    const uint32_t expectedSize = uint32_t(32 * GxMetal::HostPixelScale());
+    if (sample.font->GetPixelSize() != expectedSize)
+        throw std::runtime_error("FrameXML's 112px zone title lost its legacy 32px layout cap");
+    if (!GxuFontCreateString(sample.font, "艾尔文森林", 0, C3Vector(.1f, .1f, 0), .9f, .5f, 0,
+        sample.string, GxVJ_Top, GxHJ_Left, 4, CImVector(255, 255, 255, 255), 0, 1) ||
+        std::abs(sample.string->m_currentFontHeight * g_heightPixels - expectedSize) > .001f)
+        throw std::runtime_error("Fixed-size zone title changed its displayed line height");
+    std::fprintf(stderr, "Original zone-title resource height 112 retains a 32-point displayed line\n");
+}
 uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags, float height = .1f, const char* fontName = "Fonts\\ARIALN.TTF") {
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:512 height:256 mipmapped:NO];
     descriptor.storageMode = MTLStorageModePrivate;
@@ -265,8 +286,61 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags, float height = .
 }
 }
 
+void CheckTextCompositing(GxMetal::TextureDevice& gpu) {
+    const std::array<uint8_t, 8> coverage{0, 1, 16, 64, 127, 192, 254, 255};
+    auto linear = [](double x) { return x <= .04045 ? x / 12.92 : std::pow((x + .055) / 1.055, 2.4); };
+    auto encoded = [](double x) { return x <= .0031308 ? x * 12.92 : 1.055 * std::pow(x, 1.0 / 2.4) - .055; };
+    for (unsigned samples : {1u, 4u}) for (unsigned fill : {0u, 160u, 255u}) for (float opacity : {.4f, 1.0f}) {
+        BLP::Image image; image.format = BLP::Format::BGRA8;
+        BLP::Mip mip{8, 1, 32, {}};
+        for (uint8_t a : coverage) mip.bytes.insert(mip.bytes.end(), {uint8_t(fill), uint8_t(fill), uint8_t(fill), a});
+        image.mips.push_back(std::move(mip));
+        auto atlas = gpu.Upload(image);
+        auto desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:8 height:1 mipmapped:NO];
+        desc.storageMode = MTLStorageModePrivate; desc.usage = MTLTextureUsageRenderTarget;
+        auto target = [gpu.device newTextureWithDescriptor:desc];
+        auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+        pass.colorAttachments[0].texture = target;
+        pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+        if (samples > 1) {
+            desc.textureType = MTLTextureType2DMultisample; desc.sampleCount = samples;
+            pass.colorAttachments[0].texture = [gpu.device newTextureWithDescriptor:desc];
+            pass.colorAttachments[0].resolveTexture = target;
+            pass.colorAttachments[0].storeAction = MTLStoreActionMultisampleResolve;
+        }
+        pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+        pass.colorAttachments[0].clearColor = MTLClearColorMake(32.0 / 255, 96.0 / 255, 224.0 / 255, .8);
+        GxMetal::TextureDrawState state;
+        state.filter = GxTex_Nearest; state.blend = GxBlend_Alpha; state.linearText = true;
+        GxMetal::QuadParameters parameters; parameters.tint = {1, .6f, .2f, opacity};
+        auto command = [gpu.queue commandBuffer];
+        gpu.Draw(command, pass, atlas, parameters, state);
+        auto buffer = [gpu.device newBufferWithLength:256 options:MTLResourceStorageModeShared];
+        auto blit = [command blitCommandEncoder];
+        [blit copyFromTexture:target sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0, 0, 0)
+            sourceSize:MTLSizeMake(8, 1, 1) toBuffer:buffer destinationOffset:0 destinationBytesPerRow:256 destinationBytesPerImage:256];
+        [blit endEncoding]; [command commit]; [command waitUntilCompleted];
+        if (command.status != MTLCommandBufferStatusCompleted) throw std::runtime_error("Native text composition readback failed");
+        const auto* actual = static_cast<const uint8_t*>(buffer.contents);
+        const double background[] = {224.0 / 255, 96.0 / 255, 32.0 / 255};
+        const double color[] = {.2, .6, 1};
+        for (unsigned x = 0; x < coverage.size(); ++x) {
+            const double a = coverage[x] / 255.0 * opacity;
+            for (unsigned c = 0; c < 4; ++c) {
+                const double result = c == 3 ? a * a + .8 * (1 - a) :
+                    encoded(linear(color[c]) * (fill / 255.0) * a + linear(background[c]) * (1 - a));
+                if (std::abs(int(actual[x * 4 + c]) - int(std::lround(result * 255))) > 1)
+                    throw std::runtime_error("Text fill/outline, colored background, opacity or MSAA composition mismatch");
+            }
+        }
+    }
+    std::fprintf(stderr, "Native text fill/outline, colored backgrounds, opacity and 1x/4x MSAA match linear-light references\n");
+}
+
 void CheckGxFont(CGxDeviceMetal& device) {
+    CheckTextCompositing(device.GPU());
     CheckGlyphPixelMapping(device);
+    CheckFixedLayoutSize();
     CheckLocalizedAdvances();
     struct CacheScope { ~CacheScope() { TextureGxCacheFlush(); } } cache;
     device.PoolSizeSet(device.m_vertexPool, 1024 * 1024);

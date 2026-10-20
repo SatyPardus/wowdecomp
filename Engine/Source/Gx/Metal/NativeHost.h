@@ -20,6 +20,9 @@ namespace GxMetal {
 // Bracket the scene and its post-processing; screen UI keeps output pixels.
 void BeginSceneResolution(float scale);
 void EndSceneResolution();
+// UI layout limits are in native points; glyphs and name labels use pixels.
+float HostPixelScale();
+void SetFontRendering(bool enabled);
 void RefreshHostCursor(void* nativeView);
 #if defined(__OBJC__) && TARGET_OS_OSX
 NSCursor* CursorForHostView(void* nativeView);

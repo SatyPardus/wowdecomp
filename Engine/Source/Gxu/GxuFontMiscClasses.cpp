@@ -13,6 +13,9 @@
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
+#if defined(__APPLE__)
+#include "Engine/Source/Gx/Metal/NativeHost.h"
+#endif
 
 // STATIC: 0x00AD9BCC
 TSList<TEXTLINETEXTURE, TSGetLink<TEXTLINETEXTURE> > TEXTLINETEXTURE::s_freeTextLineTextures;
@@ -509,6 +512,12 @@ CHARCODEDESC* TEXTURECACHEROW::CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t row
 // VERIFY: 1d5b1e44 manual
 // OFFSET: 0x006C53A0
 void CGxStringBatch::RenderBatch() {
+#if defined(__APPLE__)
+    struct FontRenderingScope {
+        FontRenderingScope() { GxMetal::SetFontRendering(true); }
+        ~FontRenderingScope() { GxMetal::SetFontRendering(false); }
+    } fontRendering;
+#endif
     if (g_fontStatsEnabled) {
         return;
     }

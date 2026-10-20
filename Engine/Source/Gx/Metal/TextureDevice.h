@@ -86,6 +86,7 @@ struct TextureDrawState {
     uint32_t alphaRef = 0; // GxRs_AlphaRef, independent of blending mode
     uint32_t colorWrite = 15; // original Gx bit order: R=1, B=2, G=4, A=8
     float blendFactor = 1; // Gx render state Unk84, quantized to UNORM8
+    bool linearText = false; // Native text coverage compositing only.
 };
 
 // View-space palette: three affine rows per bone, already composed with the

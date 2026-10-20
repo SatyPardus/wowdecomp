@@ -23,6 +23,9 @@ struct KERNNODE : public TSHashObject<KERNNODE, KERNINGHASHKEY> {
 };
 
 struct CGxFont : public TSLinkedNode<CGxFont> {
+    // Native-only policies, outside the original outline/mono/filter bits.
+    static constexpr uint32_t UI_LAYOUT_SIZE = 0x10;
+    static constexpr uint32_t SCREEN_RASTER_SIZE = 0x20;
     /* 0008 */ TSExplicitList<CGxString, offsetof(CGxString, m_fontStringLink)> m_strings;
     /* 0014 */ TSHashTable<CHARCODEDESC, HASHKEY_NONE> m_activeCharacters;
     /* 003C */ TSHashTable<KERNNODE, KERNINGHASHKEY> m_kernInfo;

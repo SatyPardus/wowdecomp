@@ -22,6 +22,7 @@ public:
     void BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> drawable = nil);
     void BeginSceneResolution(float scale);
     void EndSceneResolution();
+    void SetFontRendering(bool enabled);
     id<MTLCommandBuffer> FrameCommand() const;
     // Optional host acquisition for original synchronous loading-screen paints.
     // The owner must outlive registration; headless callers keep explicit frames.
