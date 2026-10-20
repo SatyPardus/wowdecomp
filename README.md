@@ -251,9 +251,13 @@ Opening the app without arguments restores its saved Data/runtime paths or asks
 for the original Data directory. The picker has an explicit local AzerothCore
 development option; hold Option while launching to reopen it. A fresh setup
 keeps writable files in `~/Library/Application Support/WoWDecompClient`.
-The app also accepts the command-line options below and remembers explicitly
-supplied paths and local mode after successfully mounting Data. It does not save
-the stdin password. macOS may request removable-volume access for external Data.
+The app remembers explicitly supplied Data/runtime paths and `--local-unchecked`
+after successfully mounting Data. Login and character selection use the original
+game UI. Automated login/world entry, `--check-world-*` player actions and
+synthetic memory/fullscreen/visibility checks are compiled only into the macOS
+`AppleClient` development executable, not the app bundle. Passive frame-limit
+and capture diagnostics remain opt-in for startup verification. macOS may request
+removable-volume access for external Data.
 The default ad hoc signature identifies one exact build, so rebuilding can make
 macOS ask again even after access was granted. To retain code identity across
 builds, configure `WOW_MACOS_CODE_SIGN_IDENTITY` with an installed Apple

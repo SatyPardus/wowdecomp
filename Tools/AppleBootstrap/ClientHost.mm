@@ -1,7 +1,9 @@
 #include "NativeView.h"
-#include "LoginInput.h"
 #include "ClientMemory.h"
+#if WOW_CLIENT_DIAGNOSTICS
+#include "LoginInput.h"
 #include "WorldActionCheck.h"
+#endif
 #include "WoW/Source/Apple/LocalServerPolicy.h"
 #include "WoW/Source/WowServices/ClientData.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
@@ -53,6 +55,7 @@ CGxDeviceMetal* device;
 HPROPCONTEXT context;
 bool initialized;
 NativeClientMemory memoryPressure;
+#if WOW_CLIENT_DIAGNOSTICS
 std::unique_ptr<NativeLoginInput> pendingLogin;
 std::string enterCharacter;
 bool entryQueued;
@@ -78,11 +81,13 @@ bool checkWorldWalk, worldWalkDone;
 bool checkWorldCorpse, worldCorpseDone;
 bool checkWorldVisibility;
 bool checkWorldShapeshift, worldShapeshiftDone;
+#endif
 bool appBundle;
 uint32_t synchronousFrames;
 bool backgroundUpdateActive;
 MTLRenderPassDescriptor* backgroundPass;
 void Require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+#if WOW_CLIENT_DIAGNOSTICS
 // Explicit local development option: exercise the native input boundary and
 // original bindings/movement, never set player coordinates or camera state.
 void CheckWorldInput(WowNativeView* view) {
@@ -168,6 +173,7 @@ void CheckWorldInput(WowNativeView* view) {
         std::fputs("Native world input: movement, turn, camera wheel and jump/landing passed through original bindings\n",stderr);
     }
 }
+#endif
 [[noreturn]] void Fatal(const char* message) {
     // Original initialization and packet dispatch are not exception-safe.
     // Do not unwind partially registered game objects through their full
@@ -191,6 +197,7 @@ int32_t Initialize(const void* data, void* param) {
     std::fprintf(stderr, "Original client initialized; Glue screen: %s\n", CGlueMgr::m_currentScreen);
     return result;
 }
+#if WOW_CLIENT_DIAGNOSTICS
 int32_t EnterSelectedCharacter(const void*, void*) {
     const auto index = CCharacterSelection::s_selectionIndex;
     Require(CGlueMgr::m_idleState == IDLE_NONE && !CGlueMgr::m_suspended &&
@@ -202,6 +209,7 @@ int32_t EnterSelectedCharacter(const void*, void*) {
     CGlueMgr::EnterWorld();
     return 1;
 }
+#endif
 int32_t Destroy(const void* data, void* param) {
     if (!initialized) return 1;
     initialized = false;
@@ -304,17 +312,23 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 @property(nonatomic) BOOL checkFailed;
 @property(nonatomic) BOOL initialFormatReady;
 @property(nonatomic) NSUInteger frames;
+#if WOW_CLIENT_DIAGNOSTICS
 @property(nonatomic) NSUInteger characterFrames;
+#endif
 @property(nonatomic) NSUInteger frameLimit;
 @property(nonatomic) NSUInteger backgroundFrames;
 @property(nonatomic, strong) NSTimer* backgroundTimer;
 @property(nonatomic, strong) id backgroundActivity;
+#if WOW_CLIENT_DIAGNOSTICS
 @property(nonatomic, strong) NSTimer* visibilityCheckTimer;
 @property(nonatomic, strong) NSWindow* visibilityCheckCover;
 @property(nonatomic) BOOL visibilityCheckDone;
 @property(nonatomic) BOOL fullScreenCheckEnabled, fullScreenCheckDone;
+#endif
 @end
-@implementation OriginalClientHost {
+@implementation OriginalClientHost
+#if WOW_CLIENT_DIAGNOSTICS
+{
     unsigned _fullScreenPhase, _fullScreenStableFrames;
     CGxFormat _fullScreenOriginal;
     uint64_t _fullScreenGammaStart;
@@ -352,6 +366,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
     _fullScreenStableFrames = 0; ++_fullScreenPhase;
     _fullScreenGammaStart = device->EncodingStats().gammaPresentations;
 }
+#endif
 - (BOOL)canPresent {
     NSWindow* window = self.view.window;
     return !self.stopping && !self.sleeping && !NSApp.hidden && window.visible && !window.miniaturized &&
@@ -403,11 +418,16 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         const bool running = EventProcessPending();
         PropSelectContext(context);
         if (device->FrameCommand()) device->ScenePresent();
+#if WOW_CLIENT_DIAGNOSTICS
         if (initialized) memoryPressure.Frame(*device, CGGameUI::s_inWorld);
+#else
+        if (initialized) memoryPressure.Process(*device);
+#endif
         if (!running) [self stop:nil];
         else [self updatePresentation];
     } catch (const std::exception& error) { Fatal(error.what()); }
 }
+#if WOW_CLIENT_DIAGNOSTICS
 - (void)startVisibilityCheck {
     // A separate AppKit clock is essential: a stopped game scheduler must not
     // also stop the assertion and window restoration. No player action is sent.
@@ -486,14 +506,17 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
     }];
     [[NSRunLoop mainRunLoop] addTimer:self.visibilityCheckTimer forMode:NSRunLoopCommonModes];
 }
+#endif
 - (void)stop:(id)sender {
     if (self.stopping) return;
     self.stopping = YES;
     [self loseInputFocus];
     self.view.paused = YES;
     [self stopBackgroundUpdates];
+#if WOW_CLIENT_DIAGNOSTICS
     [self.visibilityCheckTimer invalidate]; self.visibilityCheckTimer = nil;
     [self.visibilityCheckCover close]; self.visibilityCheckCover = nil;
+#endif
     try { device->Drain(); }
     catch (const std::exception& error) { Fatal(error.what()); }
     [NSApp stop:nil];
@@ -575,6 +598,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
         device->BeginFrame(pass, drawable);
         const bool running = EventProcessPending();
         PropSelectContext(context);
+#if WOW_CLIENT_DIAGNOSTICS
         try { if (self.active) {
             if (checkWorldShapeshift) worldShapeshiftDone = CheckNativeWorldShapeshift(self.view);
             if(checkWorldCorpse) worldCorpseDone = CheckNativeWorldCorpse(self.view);
@@ -631,13 +655,21 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             std::fprintf(stderr, "Native world check failed: %s\n", error.what());
             self.checkFailed = YES; self.frameLimit = self.frames + 1;
         }
+#endif
         if (device->FrameCommand()) device->ScenePresent();
+#if WOW_CLIENT_DIAGNOSTICS
         if (initialized) memoryPressure.Frame(*device, CGGameUI::s_inWorld);
+#else
+        if (initialized) memoryPressure.Process(*device);
+#endif
+#if WOW_CLIENT_DIAGNOSTICS
         [self checkWorldFullScreen];
+#endif
         if (!self.active && ++self.backgroundFrames == 120)
             std::fprintf(stderr,"Native client: 120 background scheduler/render frames, in world %u, input %d, requested FPS %ld\n",
                 CGGameUI::s_inWorld,self.view.gameInputActive,long(preferred));
         [view.inputContext invalidateCharacterCoordinates];
+#if WOW_CLIENT_DIAGNOSTICS
         if (pendingLogin && self.frames == 2) {
             Require(CGlueMgr::m_acceptedTOS && CGlueMgr::m_acceptedEULA, "Original agreement preferences are required before stdin login");
             Require(!std::strcmp(CGlueMgr::m_currentScreen, "login") && CGlueMgr::m_idleState == IDLE_NONE,
@@ -653,10 +685,14 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
                 entryQueued = true; EventSetTimer(0, EnterSelectedCharacter, nullptr);
             }
         }
+#endif
         if (++self.frames == 120) std::fprintf(stderr, "Original client presented 120 frames; in world: %u; Glue screen: %s\n", CGGameUI::s_inWorld, CGlueMgr::m_currentScreen);
+#if WOW_CLIENT_DIAGNOSTICS
         if (checkWorldVisibility && self.frames >= 240 && CGGameUI::s_inWorld && !self.visibilityCheckTimer && !self.visibilityCheckDone && !self.checkFailed)
             [self startVisibilityCheck];
+#endif
         if (self.frames == (self.frameLimit ? self.frameLimit : 120)) {
+#if WOW_CLIENT_DIAGNOSTICS
             if (self.frameLimit && !self.checkFailed) Require(!self.fullScreenCheckEnabled || self.fullScreenCheckDone,
                 "Frame limit reached before world fullscreen transitions completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldVisibility || self.visibilityCheckDone, "Frame limit reached before native window visibility checks completed");
@@ -676,6 +712,7 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldInventory || worldInventoryDone,"Frame limit reached before native inventory restoration completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldCorpse || worldCorpseDone,"Frame limit reached before native corpse recovery completed");
             if (self.frameLimit && !self.checkFailed) Require(!checkWorldWalk || worldWalkDone,"Frame limit reached before native walking completed");
+#endif
             if (NSString* file = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_CAPTURE"]) {
                 MTLRenderPassDescriptor* readPass = [pass copy];
                 readPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
@@ -704,9 +741,13 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
 
 int main(int argc, char** argv) {
     int argument = 1;
-    bool local = false, loginInput = false;
+    bool local = false;
+#if WOW_CLIENT_DIAGNOSTICS
+    bool loginInput = false;
+#endif
     while (argument < argc && !std::strncmp(argv[argument], "--", 2)) {
         if (!std::strcmp(argv[argument], "--local-unchecked")) local = true;
+#if WOW_CLIENT_DIAGNOSTICS
         else if (!std::strcmp(argv[argument], "--login-stdin")) loginInput = true;
         else if (!std::strcmp(argv[argument], "--check-world-input")) checkWorldInput = true;
         else if (!std::strcmp(argv[argument], "--check-world-actions")) checkWorldActions = true;
@@ -733,14 +774,23 @@ int main(int argc, char** argv) {
         else if (!std::strcmp(argv[argument], "--check-world-visibility")) checkWorldVisibility = true;
         else if (!std::strcmp(argv[argument], "--check-world-shapeshift")) checkWorldShapeshift = true;
         else if (!std::strcmp(argv[argument], "--enter-world") && argument + 1 < argc) enterCharacter = argv[++argument];
+#endif
         else break;
         ++argument;
     }
+#if WOW_CLIENT_DIAGNOSTICS
     const bool actionChecks = checkWorldInput || checkWorldActions || checkWorldCasting || checkWorldShadows || checkWorldMSAA || checkWorldCombat || checkWorldReentry || checkWorldNPC || checkWorldTravel || checkWorldHearthstone || checkWorldPanels || checkWorldQuest || checkWorldInventory || checkWorldWalk || checkWorldCorpse;
     if ((checkWorldVisibility && checkWorldShapeshift) || ((checkWorldVisibility || checkWorldShapeshift) && actionChecks) || (receiveQuestReward && acceptQuest) || ((receiveQuestReward || acceptQuest) && checkWorldNPC) || (checkWorldWalk && checkWorldCorpse) || (argc - argument != 2 && argc - argument != 0) || ((loginInput || !enterCharacter.empty()) && !local) || ((actionChecks || checkWorldVisibility || checkWorldShapeshift) && enterCharacter.empty())) {
         std::fprintf(stderr, "Usage: AppleClient [--local-unchecked] [--login-stdin] [--enter-world CHARACTER] [--check-world-input] [--check-world-actions] [--check-world-casting] [--check-world-shadows] [--check-world-msaa] [--check-world-combat | --check-world-melee | --check-world-encounter | --check-world-loot] [--check-world-reentry | --check-world-hidden-reentry] [--check-world-panels] [--check-world-quest | --check-world-reward | --check-world-accept] [--check-world-inventory] [--check-world-walk | --check-world-corpse] [--check-world-npc] [--check-world-merchant] [--check-world-travel] [--check-world-hearthstone] [--check-world-visibility | --check-world-shapeshift] /absolute/path/to/Data /absolute/path/to/writable-runtime\n");
         return 2;
     }
+#else
+    if ((argc - argument != 2 && argc - argument != 0) ||
+        (argument < argc && !std::strncmp(argv[argument], "--", 2))) {
+        std::fputs("Usage: WowAppleClient [--local-unchecked] [/absolute/path/to/Data /absolute/path/to/writable-runtime]\n", stderr);
+        return 2;
+    }
+#endif
     @autoreleasepool {
         try {
             [NSApplication sharedApplication];
@@ -758,7 +808,9 @@ int main(int argc, char** argv) {
                 EnableNativeLocalServerPolicy();
                 std::fputs("Local development mode: only loopback Grunt/realm endpoints; executable check omitted (server StrictVersionCheck=0 required).\n", stderr);
             }
+#if WOW_CLIENT_DIAGNOSTICS
             if (loginInput) { pendingLogin = std::make_unique<NativeLoginInput>(); pendingLogin->Read(); }
+#endif
             StormInitialize();
             SErrRegisterHandler([](uint32_t, const char*, const char*, int32_t, const char*) -> int32_t {
                 void* frames[40]; const int count = backtrace(frames, 40);
@@ -826,7 +878,9 @@ int main(int argc, char** argv) {
             g_clientEventContext = EventCreateContextEx(1, Initialize, Destroy, 1, 0);
             Require(g_clientEventContext != nullptr, "Cannot create the original client context");
             OriginalClientHost* host = [OriginalClientHost new]; host.view = view;
+#if WOW_CLIENT_DIAGNOSTICS
             host.fullScreenCheckEnabled = NSProcessInfo.processInfo.environment[@"WOW_CLIENT_FULLSCREEN_CHECK"] != nil;
+#endif
             host.memoryPressureSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_MEMORYPRESSURE, 0,
                 DISPATCH_MEMORYPRESSURE_WARN | DISPATCH_MEMORYPRESSURE_CRITICAL, dispatch_get_main_queue());
             Require(host.memoryPressureSource != nil, "Cannot observe native memory pressure");

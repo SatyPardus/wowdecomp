@@ -530,8 +530,11 @@ else ()
     target_link_libraries(AppleMetalView PUBLIC "-framework Carbon")
     add_executable(AppleClient Tools/AppleBootstrap/ClientHost.mm Tools/AppleBootstrap/WorldActionCheck.mm)
     target_compile_options(AppleClient PRIVATE -fobjc-arc)
+    target_compile_definitions(AppleClient PRIVATE WOW_CLIENT_DIAGNOSTICS=1)
     target_link_libraries(AppleClient PRIVATE AppleMetalView AppleClientCore)
-    add_executable(WowAppleClient MACOSX_BUNDLE Tools/AppleBootstrap/ClientHost.mm Tools/AppleBootstrap/WorldActionCheck.mm)
+    # Keep automated player actions and synthetic lifecycle checks in the CLI.
+    add_executable(WowAppleClient MACOSX_BUNDLE Tools/AppleBootstrap/ClientHost.mm)
+    target_compile_definitions(WowAppleClient PRIVATE WOW_CLIENT_DIAGNOSTICS=0)
     target_compile_options(WowAppleClient PRIVATE -fobjc-arc)
     target_link_libraries(WowAppleClient PRIVATE AppleMetalView AppleClientCore)
     set_target_properties(WowAppleClient PROPERTIES
