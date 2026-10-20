@@ -538,6 +538,7 @@ else ()
     target_compile_options(WowAppleClient PRIVATE -fobjc-arc)
     target_link_libraries(WowAppleClient PRIVATE AppleMetalView AppleClientCore)
     set_target_properties(WowAppleClient PROPERTIES
+        OUTPUT_NAME WoW
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Tools/AppleBootstrap/ClientInfo.plist.in
         MACOSX_BUNDLE_GUI_IDENTIFIER org.wowdecomp.AppleClient
         XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER org.wowdecomp.AppleClient

@@ -3,8 +3,8 @@
 <plist version="1.0"><dict>
     <key>CFBundleExecutable</key><string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
     <key>CFBundleIdentifier</key><string>org.wowdecomp.AppleClient</string>
-    <key>CFBundleName</key><string>WoW Apple</string>
-    <key>CFBundleDisplayName</key><string>WoW Apple</string>
+    <key>CFBundleName</key><string>WoW</string>
+    <key>CFBundleDisplayName</key><string>WoW</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>CFBundleShortVersionString</key><string>0.1</string>

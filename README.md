@@ -245,7 +245,7 @@ cmake --build --preset macos-arm64 --target AppleClient
 build/macos-arm64/bin/AppleClient /absolute/path/to/client335a/Data /absolute/path/to/native-runtime
 ```
 
-The `WowAppleClient` target builds `build/macos-arm64/bin/WowAppleClient.app`,
+The `WowAppleClient` target builds `build/macos-arm64/bin/WoW.app`,
 with a local development signature and high-resolution display declaration.
 Opening the app without arguments restores its saved Data/runtime paths or asks
 for the original Data directory. The picker has an explicit local AzerothCore

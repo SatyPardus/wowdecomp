@@ -183,7 +183,7 @@ void CheckWorldInput(WowNativeView* view) {
     if (appBundle && NSThread.isMainThread && !std::getenv("WOW_CLIENT_FRAMES")) {
         if (device && device->DeviceWindow()) ((__bridge MTKView*)device->DeviceWindow()).paused = YES;
         NSAlert* alert=[NSAlert new];
-        alert.messageText=@"WoW Apple 无法继续运行";
+        alert.messageText=@"WoW 无法继续运行";
         alert.informativeText=[NSString stringWithUTF8String:message] ?: @"发生未知错误，请查看运行目录中的日志。";
         [alert addButtonWithTitle:@"关闭"]; [alert runModal];
     }
@@ -787,7 +787,7 @@ int main(int argc, char** argv) {
 #else
     if ((argc - argument != 2 && argc - argument != 0) ||
         (argument < argc && !std::strncmp(argv[argument], "--", 2))) {
-        std::fputs("Usage: WowAppleClient [--local-unchecked] [/absolute/path/to/Data /absolute/path/to/writable-runtime]\n", stderr);
+        std::fputs("Usage: WoW [--local-unchecked] [/absolute/path/to/Data /absolute/path/to/writable-runtime]\n", stderr);
         return 2;
     }
 #endif
@@ -825,7 +825,7 @@ int main(int argc, char** argv) {
                 [preferences setBool:local forKey:@"NativeLocalDevelopment"];
                 NSMenu* menu=[NSMenu new]; NSMenuItem* item=[NSMenuItem new]; [menu addItem:item];
                 NSMenu* application=[NSMenu new];
-                [application addItemWithTitle:@"退出 WoW Apple" action:@selector(terminate:) keyEquivalent:@"q"];
+                [application addItemWithTitle:@"退出 WoW" action:@selector(terminate:) keyEquivalent:@"q"];
                 item.submenu=application;
                 NSMenuItem* editItem=[NSMenuItem new]; [menu addItem:editItem];
                 NSMenu* editMenu=[[NSMenu alloc] initWithTitle:@"编辑"];
