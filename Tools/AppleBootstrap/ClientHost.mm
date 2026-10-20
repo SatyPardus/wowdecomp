@@ -332,12 +332,17 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
     unsigned _fullScreenPhase, _fullScreenStableFrames;
     CGxFormat _fullScreenOriginal;
     uint64_t _fullScreenGammaStart;
+    float _fullScreenOriginalScale;
 }
 - (void)checkWorldFullScreen {
     if (!self.fullScreenCheckEnabled || self.fullScreenCheckDone || !self.active || !CGGameUI::s_inWorld) return;
     auto* window = (GxMetalWindow*)self.view.window;
     if (window.gameFullScreenTransition || ++_fullScreenStableFrames < 120) return;
     const bool nativeFull = (window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+    const auto backing = [self.view convertRectToBacking:self.view.bounds].size;
+    Require(self.view.drawableSize.width == backing.width && self.view.drawableSize.height == backing.height &&
+        device->m_format.m_size.x == backing.width && device->m_format.m_size.y == backing.height,
+        "World output/UI resolution differs from native backing pixels");
     Require(nativeFull == !device->m_format.m_window && window.isKeyWindow && self.view.gameInputActive,
         "World fullscreen mode or input focus disagrees with the native window");
     if (_fullScreenPhase) {
@@ -354,19 +359,39 @@ bool SelectBundlePaths(std::filesystem::path& data, std::filesystem::path& runti
     }
     if (!_fullScreenPhase) {
         _fullScreenOriginal = device->m_format;
+        _fullScreenOriginalScale = CVar::Lookup("gxRenderScale")->m_floatValue;
+        NSMenuItem* option = [NSMenuItem new]; option.tag = 50; [self setSceneRenderScale:option];
         [window toggleFullScreen:nil];
     } else if (_fullScreenPhase == 1) {
+        NSMenuItem* option = [NSMenuItem new]; option.tag = 75; [self setSceneRenderScale:option];
         SetGxCVars(_fullScreenOriginal); CCGxRestart(nullptr,nullptr);
     } else {
         Require(device->m_format.m_size.x == _fullScreenOriginal.m_size.x && device->m_format.m_size.y == _fullScreenOriginal.m_size.y,
             "World fullscreen check did not restore the original render resolution");
         self.fullScreenCheckDone = YES;
+        const auto value = std::to_string(_fullScreenOriginalScale);
+        CVar::Lookup("gxRenderScale")->Set(value.c_str(), true, false, false, true);
         std::fputs("World fullscreen: native action and original gxRestart restored the starting presentation without player actions\n",stderr);
     }
     _fullScreenStableFrames = 0; ++_fullScreenPhase;
     _fullScreenGammaStart = device->EncodingStats().gammaPresentations;
 }
 #endif
+- (void)setSceneRenderScale:(NSMenuItem*)item {
+    if (self.stopping) return;
+    if (auto* scale = CVar::LookupRegistered("gxRenderScale")) {
+        const std::string value = std::to_string(item.tag / 100.0f);
+        scale->Set(value.c_str(), true, false, false, true);
+    }
+}
+- (BOOL)validateMenuItem:(NSMenuItem*)item {
+    if (item.action == @selector(setSceneRenderScale:)) {
+        auto* scale = CVar::LookupRegistered("gxRenderScale");
+        item.state = scale && std::abs(scale->m_floatValue * 100 - item.tag) < .5f ? NSControlStateValueOn : NSControlStateValueOff;
+        return !self.stopping && scale != nullptr;
+    }
+    return YES;
+}
 - (BOOL)canPresent {
     NSWindow* window = self.view.window;
     return !self.stopping && !self.sleeping && !NSApp.hidden && window.visible && !window.miniaturized &&
@@ -838,6 +863,14 @@ int main(int argc, char** argv) {
                 NSMenu* displayMenu=[[NSMenu alloc] initWithTitle:@"显示"];
                 NSMenuItem* fullscreen=[displayMenu addItemWithTitle:@"切换全屏" action:@selector(toggleFullScreen:) keyEquivalent:@"f"];
                 fullscreen.keyEquivalentModifierMask=NSEventModifierFlagControl|NSEventModifierFlagCommand;
+                NSMenuItem* scaleItem = [displayMenu addItemWithTitle:@"3D 渲染比例" action:nil keyEquivalent:@""];
+                NSMenu* scaleMenu = [[NSMenu alloc] initWithTitle:@"3D 渲染比例"];
+                for (NSInteger percent : {100, 85, 75, 67, 50}) {
+                    NSString* title = percent == 100 ? @"100%（原生）" : [NSString stringWithFormat:@"%ld%%", (long)percent];
+                    NSMenuItem* option = [scaleMenu addItemWithTitle:title action:@selector(setSceneRenderScale:) keyEquivalent:@""];
+                    option.tag = percent;
+                }
+                scaleItem.submenu = scaleMenu;
                 displayItem.submenu=displayMenu; NSApp.mainMenu=menu;
             }
             ConsoleInitializeClientCommand();

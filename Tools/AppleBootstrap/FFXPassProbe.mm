@@ -72,6 +72,14 @@ Image Reference(const Image& source, unsigned width, unsigned height, float sour
     } }
     return result;
 }
+Image UpscaleScene(const Image& source, unsigned width, unsigned height) {
+    Image result{width, height, std::vector<Pixel>(width * height)};
+    for (unsigned y = 0; y < height; ++y) for (unsigned x = 0; x < width; ++x) {
+        const auto sample = Sample(source, (x + .5f) * source.width / width - .5f, (y + .5f) * source.height / height - .5f);
+        for (unsigned c = 0; c < 4; ++c) result.pixels[y * width + x][c] = std::lround(sample[c]);
+    }
+    return result;
+}
 Image GlowReference(const Image& scene, const Image& blur, CImVector color) {
     Image result = scene;
     for (unsigned y = 0; y < scene.height; ++y) { for (unsigned x = 0; x < scene.width; ++x) {
@@ -429,20 +437,35 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
     CVar::Initialize((scope.directory + "/Config.wtf").c_str());
     CVar::Register("gxMultisample", "probe sample count", 1, "1", nullptr, CATEGORY_GRAPHICS, false, nullptr, false);
     FFX::Init(); scope.effect = std::make_unique<EffectGlow>(); FFX::SetEffect(scope.effect.get());
+    auto* renderScale = CVar::Lookup("gxRenderScale");
+    for (const char* invalid : {"0", "0.49", "1.01", "nan", "inf", "0.75junk"}) {
+        // Original CVar::Set returns true even when its callback rejects input.
+        renderScale->Set(invalid, true, false, false, false);
+        Require(renderScale->m_floatValue == 1 && !std::strcmp(renderScale->m_stringValue.m_str, "1"),
+            "Scene render scale accepted an invalid persisted/input value");
+    }
     scope.death = std::make_unique<EffectDeath>();
     device.ShaderCreate(scope.vertex, GxSh_Vertex, "Shaders\\Vertex", "UI", 2);
     device.ShaderCreate(&scope.pixel, GxSh_Pixel, "Shaders\\Pixel", "UI", 1);
     const auto wave = WaveData();
     // The same effect instance survives enable/mode changes and a host resize.
-    struct Case { unsigned size; int mode; bool global, glow; bool death = false; uint8_t glowAmount = 173; unsigned height = 0; };
+    struct Case { unsigned size; int mode; bool global, glow; bool death = false; uint8_t glowAmount = 173; unsigned height = 0; float scale = 1; };
     for (const auto test : {Case{32, 0, true, true}, Case{32, 1, true, true}, Case{32, 0, false, true},
         Case{32, 0, true, false}, Case{64, 0, true, true},
         Case{32, 0, true, true, true, 0}, Case{32, 0, true, true, true, 255},
         Case{32, 0, false, true, true}, Case{32, 0, true, false, true},
         Case{64, 0, true, true, true}, Case{67, 0, true, true, false, 173, 35},
         Case{70, 0, true, true, false, 173, 46}, Case{70, 1, true, true, false, 173, 46},
-        Case{67, 0, true, true, true, 173, 35}, Case{32, 0, true, true}}) {
+        Case{67, 0, true, true, true, 173, 35}, Case{32, 0, true, true},
+        Case{32, 0, false, true, false, 173, 40, .5f},
+        Case{32, 0, true, true, false, 173, 40, .5f},
+        Case{48, 1, true, true, false, 173, 48, .75f},
+        Case{32, 0, true, true, true, 173, 40, .5f},
+        Case{32, 0, true, true}}) {
         const unsigned height = test.height ? test.height : test.size;
+        const unsigned outputWidth = std::lround(test.size / test.scale), outputHeight = std::lround(height / test.scale);
+        const std::string scale = std::to_string(test.scale);
+        Require(CVar::Lookup("gxRenderScale")->Set(scale.c_str(), true, false, false, false), "Cannot set scene scale");
         FFX::SetEffect(test.death ? static_cast<FFX::Effect*>(scope.death.get()) : scope.effect.get());
         DayNight::GetInfo()->m_bands.m_glow = test.glowAmount / 255.0f;
         ConsoleCommandExecute(test.global ? "set ffx 1" : "set ffx 0", 0);
@@ -450,7 +473,7 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
         ConsoleCommandExecute(test.glow ? "set ffxDeath 1" : "set ffxDeath 0", 0);
         const int parameters[] = {test.mode, 173, 85}; scope.effect->SetParameters(3, parameters);
         const bool enabled = test.global && test.glow;
-        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:test.size height:height mipmapped:NO];
+        auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:outputWidth height:outputHeight mipmapped:NO];
         descriptor.storageMode = MTLStorageModePrivate; descriptor.usage = MTLTextureUsageRenderTarget;
         auto frame = [MTLRenderPassDescriptor renderPassDescriptor];
         frame.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
@@ -476,9 +499,13 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
         CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3}; GxDraw(&batch, 0);
         GxRsSet(GxRs_VertexShader, static_cast<void*>(nullptr)); GxRsSet(GxRs_PixelShader, static_cast<void*>(nullptr));
         FFX::Finish();
-        FFX::Tex screen{nullptr, {int(test.size), int(height)}, {int(test.size), int(height)}, {1.0f / test.size, 1.0f / height}};
+        FFX::Tex screen{nullptr, {int(outputWidth), int(outputHeight)}, {int(outputWidth), int(outputHeight)}, {1.0f / outputWidth, 1.0f / outputHeight}};
         auto actual = Read(device, screen);
-        if (!enabled) { Compare(actual, source, 0); }
+        auto compareOutput = [&](const Image& expected, unsigned tolerance) {
+            if (test.scale == 1) Compare(actual, expected, tolerance);
+            else Compare(actual, UpscaleScene(expected, outputWidth, outputHeight), tolerance + 1);
+        };
+        if (!enabled) { compareOutput(source, 0); }
         else {
             Require(FFX::s_full[0].m_size.x == int(test.size) && FFX::s_quart[0].m_size.x == int(test.size / 4), "FFX Start did not allocate/resize original targets");
             Require(FFX::s_full[0].m_texSize.x == int(test.size) && FFX::s_full[0].m_texSize.y == int(height) &&
@@ -494,13 +521,13 @@ void CheckGxFFXEffect(CGxDeviceMetal& device) {
                 {{{0,-2.5f},{0,-0.5f},{0,0.5f},{0,2.5f}}}, false);
             Compare(filtered, reference, 2);
             const CImVector color(85, 85, 85, 173);
-            if (test.death) { Compare(actual, ScreenCoverage(device,DeathReference(source, filtered, test.glowAmount),&source), 1); }
-            else if (!test.mode) { Compare(actual, ScreenCoverage(device,GlowReference(source, filtered, color),&source), 1); }
+            if (test.death) { compareOutput(ScreenCoverage(device,DeathReference(source, filtered, test.glowAmount),&source), 1); }
+            else if (!test.mode) { compareOutput(ScreenCoverage(device,GlowReference(source, filtered, color),&source), 1); }
             else {
                 const auto* buffer = device.m_primVertexFormatBuf[GxVA_Position];
                 FFX::VertexPCT3 vertices[4];
                 std::memcpy(vertices, static_cast<const uint8_t*>(buffer->m_pool->m_mem) + buffer->m_index, sizeof(vertices));
-                Compare(actual, ScreenCoverage(device,WaveReference(source, filtered, wave, vertices, color, device.Caps().m_texFmt[GxTex_Uv88] != 0),&source), 2);
+                compareOutput(ScreenCoverage(device,WaveReference(source, filtered, wave, vertices, color, device.Caps().m_texFmt[GxTex_Uv88] != 0),&source), 2);
             }
         }
         GxScenePresent();

@@ -9,6 +9,9 @@
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/CGxVertexPCT.h"
 #include "Engine/Source/Gx/Gx.h"
+#if defined(__APPLE__)
+#include "Engine/Source/Gx/Metal/NativeHost.h"
+#endif
 #include "Engine/Source/Gxu/Gxu.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Tempest/CRect.h"
@@ -367,6 +370,9 @@ void FFX::SetupIB(int32_t cols, int32_t rows) {
 // OFFSET: 0x008C1010
 void FFX::Finish() {
     if (!FFX::s_cvarFFX->m_intValue || !FFX::s_effect || !FFX::s_effect->Valid()) {
+#if defined(__APPLE__)
+        GxMetal::EndSceneResolution();
+#endif
         return;
     }
 
@@ -377,6 +383,9 @@ void FFX::Finish() {
     FFX::s_effect->Execute();
 
     GxXformSetViewport(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+#if defined(__APPLE__)
+    GxMetal::EndSceneResolution();
+#endif
 }
 
 // VERIFY: 4aebbae1 auto
@@ -481,6 +490,14 @@ void FFX::Effect::Execute() {
 // VERIFY: 60f3461e manual
 // OFFSET: 0x008C12F0
 void FFX::Init() {
+#if defined(__APPLE__)
+    CVar::Register("gxRenderScale", "Scene rendering scale; UI remains at output resolution (0.5 to 1)", 1, "1",
+        [](CVar*, const char*, const char* value, void*) {
+            char* end = nullptr;
+            const float scale = std::strtof(value, &end);
+            return end != value && !*end && std::isfinite(scale) && scale >= .5f && scale <= 1;
+        }, CATEGORY_GRAPHICS, false, nullptr, false);
+#endif
     FFX::s_cvarFFX = CVar::Register("ffx", "full screen effects", 1, "1", FFX::CVarCallback, 1, false, nullptr, false);
     FFX::s_cvarFFXRectangle = CVar::Register("ffxRectangle", "use rectangle texture for full screen effects", 1, "1", FFX::CVarCallback, 1, false, nullptr, false);
     FFX::s_cvarMultisample = CVar::Lookup("gxMultisample");
@@ -562,6 +579,10 @@ void FFX::AllocTex() {
 // VERIFY: 7a420d16 auto
 // OFFSET: 0x008C1770
 void FFX::Start() {
+#if defined(__APPLE__)
+    auto* scale = CVar::Lookup("gxRenderScale");
+    GxMetal::BeginSceneResolution(scale ? scale->m_floatValue : 1);
+#endif
     if (!FFX::s_cvarFFX->m_intValue || !FFX::s_effect || !FFX::s_effect->Valid()) {
         return;
     }

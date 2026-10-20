@@ -219,9 +219,9 @@ bool GxMetal::PrepareHostDrawable(void* nativeView) {
     // the layer's contentsScale report native pixels. Own this conversion at
     // the frame boundary, before either color or depth attachments are acquired.
     view.autoResizeDrawable = NO;
-    const bool fixed = window && (window.fullScreenRequested || window.gameFullScreenTransition ||
-        (window.styleMask & NSWindowStyleMaskFullScreen));
-    const NSSize size = fixed ? window.renderSize : backing.size;
+    // Output/UI always uses backing pixels, including native fullscreen.
+    // Scene resolution is controlled independently by gxRenderScale.
+    const NSSize size = backing.size;
     if (size.width > 0 && size.height > 0 && !CGSizeEqualToSize(view.drawableSize, size)) {
         [view releaseDrawables];
         view.drawableSize = size;
@@ -271,13 +271,14 @@ bool CGxDeviceMetal::ApplyHostFormat(CGxFormat& format) {
     NSScreen* screen = view.window.screen;
     const CGFloat scale = view.window.backingScaleFactor;
     if (!(scale > 0)) return false;
-    if (format.m_window && format.m_maximize) {
+    if (!format.m_window || format.m_maximize) {
         if (!screen) return false;
         const NSSize size = [screen convertRectToBacking:screen.frame].size;
         // Validate the effective screen size before changing either window or
         // attachments; the caller has only validated the requested size.
         if (size.width <= 0 || size.height <= 0 || size.width > m_caps.m_texMaxSize[GxTex_2d] || size.height > m_caps.m_texMaxSize[GxTex_2d] ||
             (format.m_multisampleCount > 1 && size.width * size.height > (256 * 1024 * 1024) / 8 / format.m_multisampleCount)) return false;
+        if (!format.m_window) format.m_size = {int32_t(size.width), int32_t(size.height)};
     }
     const bool restoreWindowSize = gameWindow.borderlessGame && !format.m_maximize &&
         format.m_size.x == m_format.m_size.x && format.m_size.y == m_format.m_size.y;
@@ -382,8 +383,14 @@ int32_t CGxDevice::AdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
     CGxMonitorMode current;
     if (!AdapterDesktopMode(current)) { return 0; }
 #if TARGET_OS_OSX
-    // These are Metal rendering sizes, not requests to change the monitor's
-    // physical mode. Both windowed and native fullscreen hosts accept them.
+    // These are window content sizes, not physical display modes.
+    // Fullscreen output always uses the desktop backing size.
+    CGxFormat active;
+    const bool hasHost = GxMetal::GetHostFormat(active);
+    if (hasHost && !active.m_window) {
+        modes.New(current);
+        return 1;
+    }
     std::vector<C2iVector> sizes;
     for (const C2iVector size : {C2iVector{800,600}, {1024,768}, {1280,720}, {1280,800},
             {1280,1024}, {1366,768}, {1440,900}, {1600,900}, {1600,1200}, {1680,1050},
@@ -392,8 +399,7 @@ int32_t CGxDevice::AdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
         if (size.x <= current.m_size.x && size.y <= current.m_size.y) sizes.push_back(size);
     }
     sizes.push_back(current.m_size);
-    CGxFormat active;
-    if (GxMetal::GetHostFormat(active)) sizes.push_back(active.m_size);
+    if (hasHost) sizes.push_back(active.m_size);
     std::sort(sizes.begin(), sizes.end(), [](const auto& a, const auto& b) {
         return a.x < b.x || (a.x == b.x && a.y < b.y);
     });

@@ -17,6 +17,9 @@
 class CGxFormat;
 
 namespace GxMetal {
+// Bracket the scene and its post-processing; screen UI keeps output pixels.
+void BeginSceneResolution(float scale);
+void EndSceneResolution();
 void RefreshHostCursor(void* nativeView);
 #if defined(__OBJC__) && TARGET_OS_OSX
 NSCursor* CursorForHostView(void* nativeView);
@@ -24,8 +27,8 @@ NSCursor* CursorForHostView(void* nativeView);
 // The native host owns its window/scene. Defaults describe its real drawable,
 // independently of the legacy DBC's Windows framebuffer choice.
 bool GetHostFormat(CGxFormat& format);
-// Call before acquiring a host drawable. macOS windows render at their native
-// backing size; UIKit retains its explicitly selected rendering resolution.
+// Call before acquiring a host drawable. macOS windowed/fullscreen output uses
+// native backing pixels, independently of the scene rendering scale.
 // False means a stale activation/resize drawable was discarded; retry next frame.
 bool PrepareHostDrawable(void* nativeView);
 // Native green-button/menu requests return through original video CVars.

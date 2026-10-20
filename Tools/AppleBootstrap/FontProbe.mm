@@ -92,6 +92,54 @@ void CheckCoveragePrecision() {
     std::fprintf(stderr, "Font precision: %zu distinct FreeType coverage values retained exactly\n", count);
 }
 
+void CheckGlyphPixelMapping(CGxDeviceMetal& device) {
+    auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:256 height:128 mipmapped:NO];
+    descriptor.storageMode = MTLStorageModePrivate;
+    descriptor.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:descriptor];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+    for (const char* name : {"Fonts\\ARIALN.TTF", "Fonts\\ZYKai_T.TTF"}) {
+        for (unsigned size : {14u, 18u, 24u, 36u, 48u}) {
+            device.BeginFrame(pass);
+            GxXformSetViewport(0, 1, 0, 1, 0, 1);
+            GxRsSet(GxRs_AlphaRef, 0);
+            CoordinateSetAspectRatio(2);
+            FontScope sample;
+            const float height = size / 128.0f;
+            if (!GxuFontCreateFont(name, height, sample.font, 0)) throw std::runtime_error("Cannot create pixel mapping font");
+            const bool chinese = std::strstr(name, "ZYKai") != nullptr;
+            auto* glyph = sample.font->NewCodeDesc(chinese ? 0x4e16 : 'S');
+            const auto& bitmap = glyph->m_bitmapData;
+            std::array<unsigned, 256> expected{}, actual{};
+            for (unsigned y = 0; y < bitmap.m_glyphHeight; ++y)
+                for (unsigned x = 0; x < bitmap.m_glyphWidth; ++x)
+                    ++expected[static_cast<const uint8_t*>(bitmap.m_data)[y * bitmap.m_glyphPitch + x]];
+            sample.batch = GxuFontCreateBatch(false, false);
+            if (!GxuFontCreateString(sample.font, chinese ? "世" : "S", height, C3Vector(.1f, .1f, 0), .8f, .8f, 0,
+                sample.string, GxVJ_Top, GxHJ_Left, 0, CImVector(255, 255, 255, 255), 0, 1))
+                throw std::runtime_error("Cannot create pixel mapping string");
+            GxuFontAddToBatch(sample.batch, sample.string);
+            GxuFontRenderBatch(sample.batch);
+            TSGrowableArray<CImVector> pixels;
+            CiRect rect(0, 0, 128, 256);
+            GxReadPixels(rect, pixels);
+            GxScenePresent();
+            for (unsigned i = 0; i < pixels.Count(); ++i) ++actual[pixels[i].r];
+            // Translation does not change a glyph's coverage histogram. At a
+            // one-to-one UI size, neither resampling nor MSAA may soften it.
+            for (unsigned a = 1; a < 256; ++a) {
+                if (expected[a] != actual[a]) {
+                    std::fprintf(stderr, "Font pixel mapping: %s %u px, alpha %u: expected %u, got %u\n", name, size, a, expected[a], actual[a]);
+                    throw std::runtime_error("UI glyph coverage changed between its bitmap and final pixels");
+                }
+            }
+        }
+    }
+    std::fprintf(stderr, "UI font pixel mapping: ten actual-size glyphs preserve bitmap coverage at the final output\n");
+}
+
 uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags, float height = .1f, const char* fontName = "Fonts\\ARIALN.TTF") {
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:512 height:256 mipmapped:NO];
     descriptor.storageMode = MTLStorageModePrivate;
@@ -142,6 +190,33 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags, float height = .
     }
     if (ink < 200 || ink > (large ? 70000 : 20000) || colored < 50) { throw std::runtime_error("Original Gxu font did not produce bounded visible colored glyphs"); }
     if (flags == 0) {
+        // Changing only 3D resolution must not rebuild, move or resample UI.
+        // Reuse the same font/string and compare every final output pixel.
+        const auto originalFormat = device.m_format;
+        for (unsigned samples : {1u, 4u}) {
+            auto format = originalFormat; format.m_multisampleCount = samples;
+            if (!device.DeviceSetFormat(format)) throw std::runtime_error("Cannot set scene-resolution check MSAA");
+            for (float scale : {.5f, .75f, 1.0f}) {
+                device.BeginFrame(pass);
+                GxXformSetViewport(0, 1, 0, 1, 0, 1);
+                device.BeginSceneResolution(scale);
+                CRect scene; device.CapsWindowSize(scene);
+                if (scene.maxX != 512 * scale || scene.maxY != 256 * scale)
+                    throw std::runtime_error("Scene render dimensions did not follow its independent scale");
+                GxSceneClear(1, CImVector(0, 0, 0, 255));
+                device.EndSceneResolution();
+                CRect output; device.CapsWindowSize(output);
+                if (output.maxX != 512 || output.maxY != 256 || g_heightPixels != 256)
+                    throw std::runtime_error("Scene scale changed UI coordinate dimensions");
+                GxRsSet(GxRs_Multisample, 0);
+                GxuFontRenderBatch(sample.batch);
+                TSGrowableArray<CImVector> scaled;
+                GxReadPixels(rect, scaled); GxScenePresent();
+                if (scaled.Count() != pixels.Count() || std::memcmp(scaled.Ptr(), pixels.Ptr(), pixels.Count() * sizeof(CImVector)))
+                    throw std::runtime_error("Scene render scale softened or moved output-resolution UI");
+            }
+        }
+        if (!device.DeviceSetFormat(originalFormat)) throw std::runtime_error("Cannot restore scene-resolution check format");
         // Keep the font and string alive while the host changes drawable size.
         // Restoring the original size must reproduce the original glyphs.
         for (unsigned width : {768u, 512u}) {
@@ -191,6 +266,7 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags, float height = .
 }
 
 void CheckGxFont(CGxDeviceMetal& device) {
+    CheckGlyphPixelMapping(device);
     CheckLocalizedAdvances();
     struct CacheScope { ~CacheScope() { TextureGxCacheFlush(); } } cache;
     device.PoolSizeSet(device.m_vertexPool, 1024 * 1024);

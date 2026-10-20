@@ -275,13 +275,15 @@ bool NativeDisplayProbe::Impl::FullScreenStep() {
     const bool full = (window.styleMask & NSWindowStyleMaskFullScreen) != 0;
     if (window.gameFullScreenTransition || (fullscreenPhase <= 2 && !full) || (fullscreenPhase >= 3 && full)) return false;
     auto checkImage = [&] {
-        const auto size = device.m_format.m_size;
-        Require(view.drawableSize.width == size.x && view.drawableSize.height == size.y, "Fullscreen render resolution drifted to native backing size");
-        tagRECT bounds{}; OsGetDefaultWindowRect(&bounds);
-        Require(bounds.right == size.x && bounds.bottom == size.y, "Fullscreen input pixel dimensions changed");
+        const auto backing = [view convertRectToBacking:view.bounds].size;
+        Require(CGSizeEqualToSize(view.drawableSize, backing), "Fullscreen UI/output is not using native backing pixels");
         auto pass = view.currentRenderPassDescriptor; auto drawable = view.currentDrawable;
         Require(pass && drawable, "Fullscreen has no drawable");
         device.BeginFrame(pass,drawable); device.XformSetViewport(0,1,0,1,0,1);
+        const auto size = device.m_format.m_size;
+        Require(view.drawableSize.width == size.x && view.drawableSize.height == size.y, "Fullscreen format differs from output pixels");
+        tagRECT bounds{}; OsGetDefaultWindowRect(&bounds);
+        Require(bounds.right == size.x && bounds.bottom == size.y, "Fullscreen input pixel dimensions changed");
         device.SceneClear(3,CImVector(31,73,149,255));
         CiRect edge(size.y-1,size.x-1,size.y,size.x); TSGrowableArray<CImVector> pixels;
         device.DeviceReadPixels(edge,pixels);
@@ -302,16 +304,17 @@ bool NativeDisplayProbe::Impl::FullScreenStep() {
     };
     checkImage();
     if (fullscreenPhase == 1) {
-        Require(device.m_format.m_size.x == 641 && device.m_format.m_size.y == 359 && window.isKeyWindow,
-            "Fullscreen lost the selected odd resolution or keyboard focus");
+        Require(window.isKeyWindow, "Fullscreen lost keyboard focus");
         auto* cursor = GxMetal::CursorForHostView((__bridge void*)view);
-        Require(std::abs(cursor.image.size.width*641/view.bounds.size.width-32) < .001 &&
-            std::abs(cursor.image.size.height*359/view.bounds.size.height-32) < .001, "Fullscreen hardware cursor did not follow game pixel size");
+        Require(std::abs(cursor.image.size.width*view.drawableSize.width/view.bounds.size.width-32) < .001 &&
+            std::abs(cursor.image.size.height*view.drawableSize.height/view.bounds.size.height-32) < .001, "Fullscreen hardware cursor did not follow output pixel size");
         device.DeviceSetGamma(1); request(true,{1279,719});
         ++fullscreenPhase; return false;
     }
     if (fullscreenPhase == 2) {
-        Require(device.m_format.m_size.x==1279 && device.m_format.m_size.y==719, "Fullscreen resolution update was lost");
+        const auto backing = [view convertRectToBacking:view.bounds].size;
+        Require(device.m_format.m_size.x == backing.width && device.m_format.m_size.y == backing.height,
+            "A legacy fullscreen resolution request reduced UI/output resolution");
         [window toggleFullScreen:nil]; // Native action must use the original restart/CVars.
         Require(device.m_format.m_window, "Native fullscreen action bypassed original video settings");
         fullscreenDeadline = CFAbsoluteTimeGetCurrent()+15;
@@ -328,7 +331,7 @@ bool NativeDisplayProbe::Impl::FullScreenStep() {
     Require(window.styleMask==windowedStyle && NSApp.presentationOptions==windowedPresentation,
         "Native fullscreen did not restore resize style or system presentation");
     device.DeviceSetGamma(originalGamma);
-    std::fputs("Native fullscreen: real AppKit enter/exit and reversed transition, original CVars/native action, fixed odd render resolutions, input/cursor scaling, gamma/readback, frame/style restoration passed\n",stderr);
+    std::fputs("Native fullscreen: real AppKit enter/exit and reversed transition, native-resolution output despite legacy size requests, input/cursor scaling, gamma/readback, frame/style restoration passed\n",stderr);
     return true;
 }
 #endif

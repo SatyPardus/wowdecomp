@@ -1671,6 +1671,9 @@ void CGWorldFrame::OnWorldRender() {
     CM2Scene* scene = World::s_m2Scene;
 
     if (!scene) {
+        g_theGxDevicePtr->RsPop();
+        GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
+        FFX::Finish();
         return;
     }
 

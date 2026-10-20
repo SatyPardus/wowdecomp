@@ -1594,17 +1594,28 @@ Portions of this software are copyright © 2026 The FreeType Project
 (https://freetype.org). All rights reserved. The FreeType license is included
 in the application resources under `ThirdParty/FTL.TXT`.
 
-The existing Gxu layout/resource path is retained. Apple UI glyphs use light
-hinting with unhinted advances, BGRA8 coverage/outline atlases and up to 128
+The existing Gxu layout/resource path is retained. Apple UI glyphs use full
+stem hinting up to 24 pixels and light hinting above that, with unhinted
+advances, BGRA8 coverage/outline atlases and up to 128
 raster pixels instead of the original 32-pixel limit. Atlas pages grow from
 256 to 512 or 1024 only for larger fonts. Filtered world text retains its
 existing size, geometry metrics and distance scaling; it benefits from the
-new rasterizer and coverage precision. This does not separate UI resolution
-from a lower-resolution fullscreen framebuffer.
+new rasterizer and coverage precision.
+macOS windowed and fullscreen UI use the native backing resolution.
+The **显示 → 3D 渲染比例** menu independently selects 100%, 85%, 75%, 67% or
+50% scene rendering, saved as `gxRenderScale` (default `1`, valid range `0.5–1`).
+The login background and world, including their original post-processing,
+render at the selected size and are composed into the native output before UI.
+The scene uses separate cached color/depth/MSAA attachments. At 100% the original
+direct path is retained. UI scale still controls layout size, with glyph caches
+following the output pixel size; it is not a scene-resolution control.
 `WOW_METAL_CHECK=fonts` runs the focused font checks. The probe reads original
 ARIALN and ZYKai_T resources, checks proportional Latin/Chinese advances and
 full 8-bit coverage, and exercises small/large glyphs, AA/monochrome,
-outline/shadow, drawable-size changes and cache recreation.
+outline/shadow, drawable-size changes and cache recreation. It also compares
+glyph bitmap coverage with final GPU pixels and requires identical UI output
+across 50%/75%/100% scene scales with 1x/4x MSAA. The FFX checks compare scaled
+glow, wave and death output with independent filtering/composition references.
 
 Static/dynamic pool
 uploads precede their consuming draws in the same command stream. Transient geometry
@@ -1857,16 +1868,18 @@ window and is restored on focus loss, mode exit and close. The original resize
 lock updates the saved window style while borderless, without adding a frame.
 macOS `gxWindow=0` now selects an AppKit fullscreen Space using `toggleFullScreen`,
 following [Apple's Metal window guidance](https://developer.apple.com/documentation/metal/managing-your-game-window-for-metal-in-macos).
-The original render resolution remains fixed through the native animation and
-can change while fullscreen; native input and cursor coordinates follow that
-render size. Returning to a window restores its frame and resize policy unless
+The output follows native backing pixels through animation and display changes;
+fullscreen resolution enumeration offers the native output, while windowed mode
+retains multiple content sizes. Use the independent 3D render-scale menu to trade
+scene resolution for performance without scaling UI. Input and cursor coordinates
+follow the output size. Returning to a window restores its frame and resize policy unless
 the requested window resolution explicitly changes. Reversed requests wait for
 the current AppKit transition, then apply the latest target. Failure callbacks
 restore the actual native mode; a guarded timeout covers hosts without those
 callbacks. Green-button/menu actions use original CVars and `gxRestart`, with
 the application menu also offering Control-Command-F. Physical monitor mode/
 refresh switching and disabling iOS presentation synchronization remain
-unsupported; fullscreen render dimensions are independent of those modes.
+unsupported.
 Native hosts now bind their view before the shared Gx factory runs, and the first
 format request updates the real window/drawable. Failed host creation preserves
 the previous binding and active format; a callback-based startup without a host
@@ -1882,18 +1895,12 @@ The native display check also covers
 borderless full-surface color/depth readback, transfer of focus to another real
 window and back, resize-lock changes and restoration of desktop presentation,
 window frame and video CVars. Native fullscreen checks also exercise actual
-entry/exit, reversal during animation, fixed 641x359/1279x719 render targets,
+entry/exit, reversal during animation, native output despite legacy size requests,
 cursor/input scaling, gamma/presentation readback and restored window state.
 `WOW_CLIENT_FULLSCREEN_CHECK=1` runs a fullscreen/windowed round trip after
-entering the world, waits for 120 stable frames in each changed mode and restores
-the original format through `gxRestart`, without player actions. Feral completed
-this check at 1024x768 windowed (zero gamma presentations) and 1280x720 fullscreen
-(127 gamma presentations during the stable interval and transition), then
-finished 1,000 frames and normal shutdown under Mac ASan/UBSan/Metal validation.
-An independent fullscreen startup also completed 1,000 frames. These runs used
-separate settings; the normal runtime and authorized application bundle stayed
-unchanged. The first round-trip check was attached to the hidden-frame callback
-and did not execute; only the corrected visible-frame run counts as evidence.
+entering the world, waits for 120 stable frames in each changed mode, exercises
+50%/75% scene rendering, checks native output dimensions and restores the original
+format and render scale, without player actions.
 It also exercises the original restart path, including last-good rollback and
 two requests in one active frame. The complete restart (world fade/portrait
 invalidation, format application, CVars and atlas notification) is deferred until

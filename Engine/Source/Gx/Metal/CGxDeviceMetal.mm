@@ -291,6 +291,9 @@ struct CGxDeviceMetal::Impl {
     id<MTLTexture> targetDepth;
     id<MTLTexture> multisampleColor, multisampleDepth, resolvedDepth;
     id<MTLTexture> fullscreenColor, presentationColor;
+    id<MTLTexture> sceneColor, sceneDepth, sceneMultisampleColor, sceneMultisampleDepth, sceneResolvedDepth;
+    MTLRenderPassDescriptor* outputPass;
+    CRect outputRect{};
     id<MTLDrawable> drawable;
     void* window = nullptr;
     bool scissorEnabled = false;
@@ -691,6 +694,7 @@ void CGxDeviceMetal::DeviceEvictResources() {
     // Preserve that frame's snapshots and allocation cursors until submission.
     if (m->command) { m->evictAfterPresent = true; return; }
     m->evictAfterPresent = false;
+    m->sceneColor = m->sceneDepth = m->sceneMultisampleColor = m->sceneMultisampleDepth = m->sceneResolvedDepth = nil;
     for (auto& entry : m->pools) entry.second.snapshots.clear();
     for (auto& frame : m->streamFrames) {
         for (auto page : frame.pages) m->statistics.discardedStreamBytes += page.length;
@@ -772,6 +776,7 @@ void CGxDeviceMetal::DeviceDestroy() {
     m->window = nullptr; CGxDevice::DeviceDestroy();
     m->multisampleColor = m->multisampleDepth = m->resolvedDepth = nil;
     m->fullscreenColor = m->presentationColor = nil;
+    m->sceneColor = m->sceneDepth = m->sceneMultisampleColor = m->sceneMultisampleDepth = m->sceneResolvedDepth = nil;
 }
 void* CGxDeviceMetal::DeviceWindow() { return m->window; }
 void CGxDeviceMetal::CapsWindowSize(CRect& rect) { rect = m_curWindowRect; }
@@ -829,6 +834,89 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     ApplyRenderTarget();
     if (resized) { m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)}; m_scissorRectDirty = 1; }
     if (resized && m->window && drawable && m->hostSizeChanged) m->hostSizeChanged(m_format);
+}
+
+void GxMetal::BeginSceneResolution(float scale) {
+    if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->BeginSceneResolution(scale);
+}
+
+void GxMetal::EndSceneResolution() {
+    if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->EndSceneResolution();
+}
+
+void CGxDeviceMetal::BeginSceneResolution(float scale) {
+    Require(std::isfinite(scale) && scale >= .5f && scale <= 1, "Scene render scale must be between 0.5 and 1");
+    Require(!m->outputPass, "Scene resolution scopes cannot nest");
+    if (scale == 1) return;
+    EnsureFrame();
+    Require(!m_textureTarget[GxBuffers_Color].m_texture && !m_textureTarget[GxBuffers_Depth].m_texture,
+        "Scene resolution must start on the output target");
+    const auto width = std::max(1u, uint32_t(std::lround(m_defWindowRect.maxX * scale)));
+    const auto height = std::max(1u, uint32_t(std::lround(m_defWindowRect.maxY * scale)));
+    if (width == m_defWindowRect.maxX && height == m_defWindowRect.maxY) return;
+    m->EnsurePass();
+    m->EndRender();
+    auto allocate = [&](id<MTLTexture> texture, MTLPixelFormat format, NSString* label) {
+        if (texture && texture.width == width && texture.height == height) return texture;
+        auto desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:format width:width height:height mipmapped:NO];
+        desc.storageMode = MTLStorageModePrivate;
+        desc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+        texture = [m->gpu.device newTextureWithDescriptor:desc];
+        Require(texture != nil, "Cannot allocate scene render target");
+        texture.label = label;
+        return texture;
+    };
+    if (!m->sceneColor || m->sceneColor.width != width || m->sceneColor.height != height)
+        Log("Native scene resolution: %ux%u (%.0f%%), output/UI %.0fx%.0f",
+            width, height, scale * 100, m_defWindowRect.maxX, m_defWindowRect.maxY);
+    m->sceneColor = allocate(m->sceneColor, MTLPixelFormatBGRA8Unorm, @"Gx scaled scene color");
+    m->sceneDepth = allocate(m->sceneDepth, MTLPixelFormatDepth32Float, @"Gx scaled scene depth");
+    auto scenePass = [MTLRenderPassDescriptor renderPassDescriptor];
+    scenePass.colorAttachments[0].texture = m->sceneColor;
+    scenePass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    scenePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+    scenePass.depthAttachment.texture = m->sceneDepth;
+    scenePass.depthAttachment.loadAction = MTLLoadActionClear;
+    scenePass.depthAttachment.clearDepth = 1;
+    // Keep independent MSAA caches so changing between output and scene does
+    // not allocate attachments every frame or lose per-sample scene contents.
+    std::swap(m->multisampleColor, m->sceneMultisampleColor);
+    std::swap(m->multisampleDepth, m->sceneMultisampleDepth);
+    std::swap(m->resolvedDepth, m->sceneResolvedDepth);
+    m->outputPass = m->defaultPass;
+    m->outputRect = m_defWindowRect;
+    m->defaultPass = m->DefaultPass(scenePass, m_format.m_multisampleCount);
+    m_defWindowRect.maxX = width; m_defWindowRect.maxY = height;
+    ApplyRenderTarget();
+    m_viewportDirty = m_scissorRectDirty = 1;
+}
+
+void CGxDeviceMetal::EndSceneResolution() {
+    if (!m->outputPass) return;
+    Require(!m_textureTarget[GxBuffers_Color].m_texture && !m_textureTarget[GxBuffers_Depth].m_texture,
+        "Scene post-processing did not restore its default target");
+    m->EnsurePass();
+    m->EndRender(); // Resolves scene MSAA before sampling.
+    m->defaultPass = m->outputPass; m->outputPass = nil;
+    m_defWindowRect = m->outputRect;
+    std::swap(m->multisampleColor, m->sceneMultisampleColor);
+    std::swap(m->multisampleDepth, m->sceneMultisampleDepth);
+    std::swap(m->resolvedDepth, m->sceneResolvedDepth);
+    ApplyRenderTarget();
+    m->EnsurePass();
+    GxMetal::QuadParameters parameters;
+    parameters.explicitMip = 1;
+    GxMetal::TextureDrawState state;
+    state.filter = GxTex_Linear;
+    MTLRenderPassDescriptor* compositePass = [m->defaultPass copy];
+    compositePass.depthAttachment.texture = nil;
+    compositePass.depthAttachment.resolveTexture = nil;
+    m->gpu.Draw(m->command, compositePass, m->sceneColor, parameters, state);
+    ++m->statistics.renderPasses;
+    Impl::ConsumedLoads(m->defaultPass);
+    m_viewportDirty = m_scissorRectDirty = 1;
 }
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
 void CGxDeviceMetal::SetHostFrameProvider(bool (*acquire)(CGxDeviceMetal&, void*), void* owner) {
