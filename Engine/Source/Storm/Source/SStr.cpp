@@ -9,6 +9,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#if defined(__APPLE__)
+#include <string>
+#endif
 #include "SOption.h"
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -594,12 +597,43 @@ size_t STORMAPI SStrPack(char* dest, const char* source, size_t destsize) {
     return curr - dest;
 }
 
+#if defined(__APPLE__)
+// Ordinary Windows printf accepts I64 even when Storm's ordered formatter is
+// disabled. Translate only integer length modifiers, preserving escaped percent
+// signs, literal text, width/precision arguments and the original argument list.
+static std::string NativeIntegerFormat(const char* format) {
+    std::string native;
+    const char* copied = format;
+    const char* cursor = format;
+    while ((cursor = std::strchr(cursor, '%'))) {
+        ++cursor;
+        if (*cursor == '%') { ++cursor; continue; }
+        while (*cursor && (std::strchr("-+ #0'.*$", *cursor) || (*cursor >= '0' && *cursor <= '9'))) ++cursor;
+        if (!std::strncmp(cursor, "I64", 3) && cursor[3] && std::strchr("diouxX", cursor[3])) {
+            native.append(copied, size_t(cursor - copied));
+            native.append("ll"); cursor += 3; copied = cursor;
+        }
+        if (*cursor) ++cursor;
+    }
+    if (copied != format) native.append(copied);
+    return native;
+}
+#endif
+
 // VERIFY: 98987d37 manual
 // OFFSET: 0x0076F010
 static size_t ISStrVPrintf(char* dest, size_t maxchars, const char* format, va_list arglist) {
     if (!maxchars) {
         return 0;
     }
+
+#if defined(__APPLE__)
+    std::string nativeFormat;
+    if (!g_opt.orderedprintfenabled && std::strstr(format, "I64")) {
+        nativeFormat = NativeIntegerFormat(format);
+        if (!nativeFormat.empty()) format = nativeFormat.c_str();
+    }
+#endif
 
     if (maxchars == STORM_MAX_STR) {
         if (g_opt.orderedprintfenabled) {
@@ -639,7 +673,9 @@ size_t SStrPrintf(char* dest, size_t maxchars, const char* format, ...) {
 
     va_list arglist;
     va_start(arglist, format);
-    return ISStrVPrintf(dest, maxchars, format, arglist);
+    const size_t result = ISStrVPrintf(dest, maxchars, format, arglist);
+    va_end(arglist);
+    return result;
 }
 
 // VERIFY: 190c39be manual
