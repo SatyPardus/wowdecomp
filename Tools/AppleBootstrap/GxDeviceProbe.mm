@@ -382,6 +382,7 @@ void CheckGxDevice(const char* focus) {
         CheckTerrainShaders(device); CheckTerrainShadowGenerator(device);
         CheckWmoShaders(device); CheckLiquidShaders(device); device.DeviceDestroy(); return;
     }
+    if (focus && !std::strcmp(focus, "liquid-shaders")) { CheckLiquidShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "wireframe")) { CheckWireframe(device); CheckWeatherShaders(device,true); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "gamma")) { CheckPresentationGamma(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "cursor")) { CheckSoftwareCursor(device); device.DeviceDestroy(); return; }

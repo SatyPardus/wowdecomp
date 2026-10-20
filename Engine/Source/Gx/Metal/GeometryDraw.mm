@@ -85,10 +85,10 @@ void GxMetal::TextureDevice::DrawDeath(id<MTLCommandBuffer> command, MTLRenderPa
     Require(geometry.effect == FragmentEffect::Death, "Invalid FFX death effect");
     DrawGeometry(command, pass, {textures[0], textures[1], nil, nil}, geometry, {}, {states[0], states[1], {}, {}}, encoder);
 }
-void GxMetal::TextureDevice::DrawLiquid(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
-    const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder) {
+void GxMetal::TextureDevice::DrawLiquid(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+    const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
     Require(IsLiquidEffect(geometry.effect) && geometry.liquid, "Invalid native liquid effect");
-    DrawGeometry(command, pass, {textures[0], textures[1], nil, nil, nil}, geometry, {}, {states[0], states[1], {}, {}, {}}, encoder);
+    DrawGeometry(command, pass, textures, geometry, {}, states, encoder);
 }
 void GxMetal::TextureDevice::DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
     const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder) {
@@ -121,7 +121,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
     const uint32_t inputMask = terrainShadow ? 0 : terrain ? TerrainTextureMask(geometry.terrain->pixelPermutation, geometry.terrain->shadowMode) : ((1u << inputs) - 1) | (model ? ShadowReceiverTextureMask(geometry.model->shadowMode) : wmo ? ShadowReceiverTextureMask(geometry.wmo->shadowMode) : detail ? ShadowReceiverTextureMask(geometry.detail->shadowMode) : 0);
     for (unsigned i = 0; i < textures.size(); ++i)
         if (inputMask & (1u << i)) {
-            const bool cube = geometry.fixed ? (geometry.fixed->cubeMask & (1u << i)) != 0 : terrain && i == 0 && (geometry.terrain->pixelPermutation & 1);
+            const bool cube = geometry.fixed ? (geometry.fixed->cubeMask & (1u << i)) != 0 :
+                LiquidCubeTexture(geometry.effect, i) || (terrain && i == 0 && (geometry.terrain->pixelPermutation & 1));
             Require(textures[i] && textures[i].textureType == (cube ? MTLTextureType2DArray : MTLTextureType2D) &&
                         (!cube || textures[i].arrayLength == 6),
                     "Native shader texture type mismatch");
@@ -277,6 +278,8 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
             [encoder setVertexBytes:&geometry.model->clip length:sizeof(ModelClipParameters) atIndex:4];
         [encoder setVertexBytes:&geometry.model->vertex length:sizeof(ModelVertexParameters) atIndex:0];
         [encoder setVertexBytes:geometry.model->bones.data() length:geometry.model->boneCount * sizeof(ModelAffine) atIndex:2];
+    } else if (geometry.effect == FragmentEffect::LiquidProcWater) {
+        [encoder setVertexBytes:&geometry.liquid->proceduralVertex length:sizeof(ProceduralWaterVertexParameters) atIndex:0];
     } else if (liquid) { [encoder setVertexBytes:&geometry.liquid->vertex length:sizeof(LiquidVertexParameters) atIndex:0];
     } else if (wmo) {
         if (geometry.wmo->permutation >= 30) {
@@ -314,6 +317,11 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         ModelFragmentParameters material = geometry.model->fragment;
         material.stateAlphaRef = state.alphaRef / 255.0f;
         material.depthOffset = geometry.depthOffset;
+        for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
+        [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
+    } else if (geometry.effect == FragmentEffect::LiquidProcWater) {
+        auto material = geometry.liquid->proceduralFragment;
+        material.stateAlphaRef = state.alphaRef / 255.0f;
         for (unsigned i = 0; i < inputs; ++i) material.decodeScale[i] = states[i].decodeScale;
         [encoder setFragmentBytes:&material length:sizeof(material) atIndex:0];
     } else if (liquid) {

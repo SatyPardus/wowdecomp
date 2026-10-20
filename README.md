@@ -1262,8 +1262,20 @@ strip holes and layer geometry remain in CChunkLiquid. Tile height queries
 reject the exclusive upper edge before indexing neighboring vertices. Original
 Map.dbc selects Outland's green magma type; its localized fields use the selected
 archive locale (zhCN slot 4 on the supplied installation), scoped to ClientData's
-lifetime. Actor ripples, procedural-wave material 3 and fixed-function liquid
-paths remain to be connected.
+lifetime. The remaining fixed-function liquid paths still need scene-level verification.
+
+The game-side procedural-water material (material 3) now has native Metal
+vertex/pixel shaders, including all four original vertex handles (identical
+bytecode, sharing one specialization). Six inputs combine two cube maps with
+four 2D textures for wave normals, depth color and highlights. Native parameters
+preserve the original wave basis, horizontal eye-distance calculation,
+reflection/refraction, Fresnel weights, fog and alpha behavior; the original
+program does not displace mesh positions. `WOW_METAL_CHECK=liquid-shaders` runs
+this branch plus the existing water/no-specular/magma checks. ProcWater output
+is compared with an independent evaluator of the mounted SM3 BLS instructions
+on Mac and iOS simulator. The editor shaders remain unsupported. No natural
+map placement of this material has been established; these checks do not claim
+real-world scene coverage.
 Original terrain alpha/shadow unpacking is now shared as well: four-bit maps stay
 packed, eight-bit maps retain RLE values, and the original edge replication and
 half-resolution source selection are preserved. Checks compare all texels against

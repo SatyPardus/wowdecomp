@@ -176,7 +176,7 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
                            (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow || detailHardwareShadow || terrainHardwareShadow) << 10);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         fixed ? fixed->coordinateSources : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
-        fixed ? fixed->lightMask | (uint32_t(fixed->lighting) << 4) | (uint32_t(fixed->normalizeNormals) << 5) | (uint32_t(fixed->specular) << 6) : terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? liquid->lightCount : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
+        fixed ? fixed->lightMask | (uint32_t(fixed->lighting) << 4) | (uint32_t(fixed->normalizeNormals) << 5) | (uint32_t(fixed->specular) << 6) : terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? (effect == FragmentEffect::LiquidProcWater ? 0 : liquid->lightCount) : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
         fixed ? fixed->colorOps : terrain ? terrain->pixelPermutation : 0,
         fixed ? fixed->alphaOps : terrain ? terrain->shadowMode : wmo ? wmo->shadowMode : detail ? detail->shadowMode : modelShadowMode,
         fixed ? fixed->stages | (uint32_t(fixed->fog) << 4) | (uint32_t(fixed->pointSprite) << 5) | (uint32_t(fixed->weather) << 6) | (fixed->cubeMask << 12) : terrain ? uint32_t(terrain->layerPass) : 0, sampleCount};
@@ -567,9 +567,11 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
     if (IsLiquidEffect(effect)) {
         const uint32_t material = unsigned(effect) - unsigned(FragmentEffect::LiquidWater), lights = liquid->lightCount;
         const bool magma = effect == FragmentEffect::LiquidMagma;
-        Require(!screenAtDepth && GxVertexHasAttrib(format, GxVA_Color0) && GxVertexHasAttrib(format, GxVA_TexCoord0) &&
-            (magma || (GxVertexHasAttrib(format, GxVA_Normal) && GxVertexHasAttrib(format, GxVA_TexCoord1))), "Unsupported liquid vertex layout");
-        auto& vertex = m_liquidVertex[material][lights];
+        const bool procedural = effect == FragmentEffect::LiquidProcWater;
+        Require(!screenAtDepth && (procedural ? format == GxVBF_PT2 :
+            GxVertexHasAttrib(format, GxVA_Color0) && GxVertexHasAttrib(format, GxVA_TexCoord0) &&
+            (magma || (GxVertexHasAttrib(format, GxVA_Normal) && GxVertexHasAttrib(format, GxVA_TexCoord1)))), "Unsupported liquid vertex layout");
+        auto& vertex = m_liquidVertex[material][procedural ? 0 : lights];
         auto& fragment = m_liquidFragment[material][state.alphaRef != 0][decodePacked];
         const bool alpha = state.alphaRef != 0;
         auto constants = [MTLFunctionConstantValues new];
@@ -578,8 +580,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         [constants setConstantValue:&material type:MTLDataTypeUInt atIndex:18];
         [constants setConstantValue:&lights type:MTLDataTypeUInt atIndex:19];
         NSError* error = nil;
-        if (!vertex) vertex = [m_library newFunctionWithName:magma ? @"liquidMagmaVertex" : @"liquidWaterVertex" constantValues:constants error:&error];
-        if (!fragment) fragment = [m_library newFunctionWithName:@"liquidFragment" constantValues:constants error:&error];
+        if (!vertex) vertex = [m_library newFunctionWithName:procedural ? @"proceduralWaterVertex" : magma ? @"liquidMagmaVertex" : @"liquidWaterVertex" constantValues:constants error:&error];
+        if (!fragment) fragment = [m_library newFunctionWithName:procedural ? @"proceduralWaterFragment" : @"liquidFragment" constantValues:constants error:&error];
         if (!vertex || !fragment) throw std::runtime_error(error.localizedDescription.UTF8String ?: "Liquid specialization failed");
         descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment;
         auto layout = [MTLVertexDescriptor vertexDescriptor];
@@ -587,9 +589,12 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
             layout.attributes[index].bufferIndex = 1; layout.attributes[index].offset = GxVertexAttribOffset(format, gx); layout.attributes[index].format = type;
         };
         attribute(0, GxVA_Position, MTLVertexFormatFloat3);
-        attribute(2, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
+        if (!procedural) attribute(2, GxVA_Color0, MTLVertexFormatUChar4Normalized_BGRA);
         attribute(3, GxVA_TexCoord0, MTLVertexFormatFloat2);
-        if (!magma) { attribute(1, GxVA_Normal, MTLVertexFormatFloat3); attribute(4, GxVA_TexCoord1, MTLVertexFormatFloat2); }
+        if (!magma) {
+            if (!procedural) attribute(1, GxVA_Normal, MTLVertexFormatFloat3);
+            attribute(4, GxVA_TexCoord1, MTLVertexFormatFloat2);
+        }
         layout.layouts[1].stride = GxVertexSize(format); descriptor.vertexDescriptor = layout;
     }
     if (effect == FragmentEffect::FixedUnlit) {

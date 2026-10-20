@@ -223,9 +223,28 @@ struct LiquidFragmentParameters {
     float padding[3]{};
 };
 static_assert(sizeof(LiquidVertexParameters) == 448 && sizeof(LiquidFragmentParameters) == 64, "Native liquid constant layout");
+// ProcWater's mounted programs use waves only to construct the shading basis;
+// they neither displace geometry nor consume the four local-light variants.
+struct ProceduralWaterVertexParameters {
+    simd_float4x4 projection, worldView;
+    LiquidUVTransform textureTransform[6];
+    simd_float4 fog, radialPhase, planarPhase;
+    simd_float4 radialWaves[3], radialFalloff, planarFalloff;
+    simd_float4 planarWaves[3], planarFrequency, planarAmplitude;
+};
+struct ProceduralWaterFragmentParameters {
+    simd_float4 fogColor, cameraPosition, sunDirection, specular;
+    simd_float4 optical, fresnel, decodeScale[6];
+    float stateAlphaRef;
+    float padding[3]{};
+};
+static_assert(sizeof(ProceduralWaterVertexParameters) == 624 && sizeof(ProceduralWaterFragmentParameters) == 208,
+              "Native procedural water constant layout");
 struct LiquidDrawParameters {
     LiquidVertexParameters vertex{};
     LiquidFragmentParameters fragment{};
+    ProceduralWaterVertexParameters proceduralVertex{};
+    ProceduralWaterFragmentParameters proceduralFragment{};
     uint32_t lightCount = 0;
 };
 
@@ -302,8 +321,8 @@ public:
         const GeometryDraw& geometry, const TextureDrawState& state, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawModel(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
-    void DrawLiquid(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 2>& textures,
-        const GeometryDraw& geometry, const std::array<TextureDrawState, 2>& states, id<MTLRenderCommandEncoder> encoder = nil);
+    void DrawLiquid(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
+        const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawWmo(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
         const GeometryDraw& geometry, const std::array<TextureDrawState, 9>& states, id<MTLRenderCommandEncoder> encoder = nil);
     void DrawTerrain(id<MTLCommandBuffer> command, MTLRenderPassDescriptor* pass, const std::array<id<MTLTexture>, 9>& textures,
@@ -338,8 +357,8 @@ private:
     id<MTLFunction> m_detailFragment[2][2][4][2]{};
     id<MTLFunction> m_shadowVertex[3][2]{};
     id<MTLFunction> m_shadowFragment[2][2][2]{};
-    id<MTLFunction> m_liquidVertex[3][4]{};
-    id<MTLFunction> m_liquidFragment[3][2][2]{};
+    id<MTLFunction> m_liquidVertex[4][4]{};
+    id<MTLFunction> m_liquidFragment[4][2][2]{};
     id<MTLFunction> m_wmoVertex[7][10][3]{};
     id<MTLFunction> m_wmoFragment[7][2][2][2][4][2]{};
     id<MTLFunction> m_terrainVertex[128]{};

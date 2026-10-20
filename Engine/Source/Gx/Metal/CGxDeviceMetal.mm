@@ -1310,7 +1310,7 @@ void CGxDeviceMetal::ShaderCreate(CGxShader** shaders, EGxShTarget target, const
             effect = Effect(unsigned(Effect::WmoDiffuse) + i);
         }
     }
-    for (auto candidate : {Effect::LiquidWater, Effect::LiquidWaterNoSpec, Effect::LiquidMagma})
+    for (auto candidate : {Effect::LiquidWater, Effect::LiquidWaterNoSpec, Effect::LiquidMagma, Effect::LiquidProcWater})
         if (SStrCmpI(name, GxMetal::LiquidShaderFamily(candidate, target), STORM_MAX_STR) == 0) effect = candidate;
     if (SStrCmpI(name, ShaderFamily(Effect::Terrain, target), STORM_MAX_STR) == 0) effect = Effect::Terrain;
     if (target == GxSh_Pixel)
@@ -1709,6 +1709,19 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         native.vertex.diffuse = vector(35); native.vertex.specular = vector(36);
         for (unsigned i = 0; i < 3; ++i) native.vertex.lights[i] = {vector(37 + i * 3), vector(38 + i * 3), vector(39 + i * 3)};
         std::memcpy(&native.fragment.fogColor, s_shadowConstants[0].constants + 16, sizeof(simd_float4));
+        if (effect == GxMetal::FragmentEffect::LiquidProcWater) {
+            auto& p = native.proceduralVertex;
+            p.projection = native.vertex.projection; p.worldView = native.vertex.worldView; p.fog = vector(4);
+            for (unsigned i = 0; i < 6; ++i) p.textureTransform[i] = {vector(9 + i * 4), vector(10 + i * 4), vector(12 + i * 4)};
+            p.radialPhase = vector(46); p.planarPhase = vector(47);
+            for (unsigned i = 0; i < 3; ++i) { p.radialWaves[i] = vector(48 + i); p.planarWaves[i] = vector(53 + i); }
+            p.radialFalloff = vector(51); p.planarFalloff = vector(52);
+            p.planarFrequency = vector(56); p.planarAmplitude = vector(57);
+            constants = s_shadowConstants[0].constants;
+            auto& f = native.proceduralFragment;
+            f.fogColor = vector(4); f.cameraPosition = vector(5); f.sunDirection = vector(6); f.specular = vector(9);
+            f.optical = vector(10); f.fresnel = vector(11);
+        }
     } else if (wmo) {
         auto& native = wmoParameters.emplace(); draw.wmo = &native;
         native.permutation = m->shaders.at(vertex).permutation;
@@ -1864,7 +1877,8 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
             throw std::runtime_error(std::string(texture ? "Active target feedback" : "Missing texture") +
                 " in " + ShaderFamily(effect) + " slot " + std::to_string(i));
         }
-        const bool cube = fixed ? texture->m_target == GxTex_CubeMap : terrain && i == 0 && (terrainParameters->pixelPermutation & 1);
+        const bool cube = fixed ? texture->m_target == GxTex_CubeMap :
+            GxMetal::LiquidCubeTexture(effect, i) || (terrain && i == 0 && (terrainParameters->pixelPermutation & 1));
         if (fixed && cube) {
             auto& native = *fixedParameters;
             Require(((native.coordinateSources >> (2 * i)) & 3) && !native.vertex.projected[i],
@@ -1893,7 +1907,7 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     else if (detail) { m->gpu.DrawDetailDoodad(m->command, m->pass, textures, draw, states, encoder); }
     else if (shadow) { m->gpu.DrawShadowMap(m->command, m->pass, textures[0], draw, inputs ? states[0] : state, encoder); }
     else if (model) { m->gpu.DrawModel(m->command, m->pass, textures, draw, states, encoder); }
-    else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, {textures[0], textures[1]}, draw, {states[0], states[1]}, encoder); }
+    else if (liquid) { m->gpu.DrawLiquid(m->command, m->pass, textures, draw, states, encoder); }
     else if (wmo) { m->gpu.DrawWmo(m->command, m->pass, textures, draw, states, encoder); }
     else if (terrain) { m->gpu.DrawTerrain(m->command, m->pass, textures, draw, states, encoder); }
     else if (effect == GxMetal::FragmentEffect::PropagateFog || effect == GxMetal::FragmentEffect::FogCombine) { m->gpu.DrawFogEffect(m->command, m->pass, {textures[0], textures[1], textures[2], textures[3]}, draw, {states[0], states[1], states[2], states[3]}, encoder); }

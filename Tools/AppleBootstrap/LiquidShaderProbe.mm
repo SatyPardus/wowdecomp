@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <string>
 
+void CheckProceduralWater(CGxDeviceMetal& device);
+
 namespace {
 using V = std::array<float, 4>;
 float Dot(const V &a, const V &b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
@@ -42,6 +44,7 @@ V Sample(const std::array<uint32_t, 4> &image, float u, float v, bool wrap) {
 }
 } // namespace
 void CheckLiquidShaders(CGxDeviceMetal &device) {
+    CheckProceduralWater(device);
     // The original renderer queues pointers. Exercise both qsort adapters with
     // multiple instances; treating an array slot as an object reads past it.
     Liquid::CInstance instances[3];
