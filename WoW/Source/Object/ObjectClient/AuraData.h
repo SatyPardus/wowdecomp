@@ -18,7 +18,9 @@ class AuraData {
     /* 000E */ uint8_t m_stackCount;
     /* 000F */ uint8_t unused_000F;
     /* 0010 */ int32_t m_duration;
-    /* 0014 */ int32_t m_endTime;
+    // Absolute OsGetAsyncTimeMs timestamp, not a signed duration. The original
+    // Lua conversion at 0x0061494F treats bit 31 as unsigned (adds 2^32).
+    /* 0014 */ uint32_t m_endTime;
 
     void Unpack(CGUnit_C* unit, uint32_t time, CDataStore* msg);
 };
