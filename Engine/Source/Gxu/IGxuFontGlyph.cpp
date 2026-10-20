@@ -7,7 +7,7 @@
 
 // VERIFY: fff26b99 manual
 // OFFSET: 0x006C8C10
-static int32_t FREETYPE_RenderGlyph(FT_Face face, uint32_t code, bool monochrome, bool lightHinting, float& advance) {
+static int32_t FREETYPE_RenderGlyph(FT_Face face, uint32_t code, bool monochrome, bool hintUI, float& advance) {
     FT_UInt index = FT_Get_Char_Index(face, code);
 
     if (!index || FT_Load_Glyph(face, index, monochrome ? FT_LOAD_LINEAR_DESIGN | FT_LOAD_PEDANTIC | FT_LOAD_CROP_BITMAP | FT_LOAD_NO_HINTING : FT_LOAD_LINEAR_DESIGN | FT_LOAD_PEDANTIC | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING)) {
@@ -18,8 +18,11 @@ static int32_t FREETYPE_RenderGlyph(FT_Face face, uint32_t code, bool monochrome
     // wrapping, hyperlink extents or edit-box cursor positions.
     advance = (face->glyph->metrics.horiAdvance / 64) + 1.0f;
 #if defined(__APPLE__)
-    if (lightHinting && !monochrome &&
-        FT_Load_Glyph(face, index, FT_LOAD_LINEAR_DESIGN | FT_LOAD_NO_BITMAP | FT_LOAD_TARGET_LIGHT)) {
+    // Small screen UI needs both horizontal and vertical stem alignment.
+    // Larger glyphs retain light hinting; world-space text stays unhinted.
+    const int32_t target = face->size->metrics.y_ppem <= 24 ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_LIGHT;
+    if (hintUI && !monochrome &&
+        FT_Load_Glyph(face, index, FT_LOAD_LINEAR_DESIGN | FT_LOAD_NO_BITMAP | target)) {
         return 0;
     }
     // FreeType 2.0 used 1 for mono; in modern FreeType 1 means LIGHT.
@@ -63,7 +66,7 @@ static void CalculateYOffset(uint32_t pixelSize, int32_t baseline, FT_Face face,
 
 // VERIFY: 86715750 manual
 // OFFSET: 0x006C8CC0
-bool IGxuFontGlyphRenderGlyph(FT_Face face, uint32_t pixelSize, uint32_t code, uint32_t baseline, GLYPHBITMAPDATA* dataPtr, int32_t monochrome, uint32_t padding, bool lightHinting) {
+bool IGxuFontGlyphRenderGlyph(FT_Face face, uint32_t pixelSize, uint32_t code, uint32_t baseline, GLYPHBITMAPDATA* dataPtr, int32_t monochrome, uint32_t padding, bool hintUI) {
     if (!face || !pixelSize || !dataPtr) {
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return false;
@@ -74,7 +77,7 @@ bool IGxuFontGlyphRenderGlyph(FT_Face face, uint32_t pixelSize, uint32_t code, u
     }
 
     float advance = 0.0f;
-    if (!FREETYPE_RenderGlyph(face, code, monochrome != 0, lightHinting, advance)) {
+    if (!FREETYPE_RenderGlyph(face, code, monochrome != 0, hintUI, advance)) {
         return false;
     }
 
