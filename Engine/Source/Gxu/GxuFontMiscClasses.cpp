@@ -291,6 +291,11 @@ CGxVertexPCT* BATCHEDRENDERFONTDESC::UnlockVertexPtrAndRender(CGxBuf*& buf, int3
 // VERIFY: 7e6d9f88 manual
 // OFFSET: 0x006C4AD0
 void BATCHEDRENDERFONTDESC::RenderBatch() {
+#if defined(__APPLE__)
+    const auto flags = m_face->m_fontFlags;
+    GxMetal::SetFontDistanceField((flags & CGxFont::DISTANCE_FIELD) ? CGxFont::DISTANCE_RANGE : 0,
+        flags & 8 ? 2.0f : flags & 1 ? 1.0f : 0);
+#endif
     if (!BATCHEDRENDERFONTDESC::s_indexPool) {
         return;
     }
@@ -514,9 +519,9 @@ CHARCODEDESC* TEXTURECACHEROW::CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t row
 void CGxStringBatch::RenderBatch() {
 #if defined(__APPLE__)
     struct FontRenderingScope {
-        FontRenderingScope() { GxMetal::SetFontRendering(true); }
+        FontRenderingScope(bool world) { GxMetal::SetFontRendering(true, world); }
         ~FontRenderingScope() { GxMetal::SetFontRendering(false); }
-    } fontRendering;
+    } fontRendering((m_flags & 1) != 0);
 #endif
     if (g_fontStatsEnabled) {
         return;

@@ -26,6 +26,11 @@ struct CGxFont : public TSLinkedNode<CGxFont> {
     // Native-only policies, outside the original outline/mono/filter bits.
     static constexpr uint32_t UI_LAYOUT_SIZE = 0x10;
     static constexpr uint32_t SCREEN_RASTER_SIZE = 0x20;
+    static constexpr uint32_t DISTANCE_FIELD = 0x40;
+    static constexpr uint32_t DISTANCE_LAYOUT_EM = 32;
+    static constexpr uint32_t DISTANCE_EM = 64;
+    static constexpr uint32_t DISTANCE_PADDING = 8;
+    static constexpr float DISTANCE_RANGE = 12.0f;
     /* 0008 */ TSExplicitList<CGxString, offsetof(CGxString, m_fontStringLink)> m_strings;
     /* 0014 */ TSHashTable<CHARCODEDESC, HASHKEY_NONE> m_activeCharacters;
     /* 003C */ TSHashTable<KERNNODE, KERNINGHASHKEY> m_kernInfo;
@@ -49,7 +54,11 @@ struct CGxFont : public TSLinkedNode<CGxFont> {
     float FindNearestFixedSize(FT_Face face, float height);
     float GetGlyphAdvance(uint32_t code);
     float GetGlyphBearing(const CHARCODEDESC* desc, bool scaled, float height);
+    float GetGlyphLayoutWidth(const CHARCODEDESC* desc, bool scaled, float height);
     bool GetGlyphData(GLYPHBITMAPDATA* data, uint32_t code);
+#if defined(__APPLE__)
+    bool GetDistanceGlyph(GLYPHBITMAPDATA* data, uint32_t code);
+#endif
     const char* GetName();
     uint32_t GetPixelSize();
     uint32_t GetTextureSize() const;

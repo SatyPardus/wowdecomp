@@ -22,7 +22,9 @@ void BeginSceneResolution(float scale);
 void EndSceneResolution();
 // UI layout limits are in native points; glyphs and name labels use pixels.
 float HostPixelScale();
-void SetFontRendering(bool enabled);
+void SetFontRendering(bool enabled, bool world = false);
+void SetFontDistanceField(float range, float outlinePixels);
+void SealWorldTextDepth();
 void RefreshHostCursor(void* nativeView);
 #if defined(__OBJC__) && TARGET_OS_OSX
 NSCursor* CursorForHostView(void* nativeView);

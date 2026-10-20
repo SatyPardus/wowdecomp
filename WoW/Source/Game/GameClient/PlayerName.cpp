@@ -33,7 +33,6 @@
 #include "Engine/Source/Os/TimeManager.h"
 #if defined(__APPLE__)
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include "Engine/Source/Gxu/GxuFontFont.h"
 #include "Engine/Source/Gx/Metal/NativeHost.h"
@@ -51,13 +50,6 @@ static CGxStringBatch* s_playerNameBatch;
 // STATIC: 0x00D380AC
 static CGxFont* s_playerNameFont;
 #if defined(__APPLE__)
-static std::array<CGxFont*, 129> s_screenNameFonts{};
-static uint32_t s_nameFontScreenHeight;
-
-static void ClearScreenNameFonts() {
-    for (auto& font : s_screenNameFonts) if (font) GxuFontDestroyFont(font);
-}
-
 static CGxFont* ScreenNameFont(const C3Vector& position, float& lineHeight) {
     if (!s_playerNameFont || !g_heightPixels) return s_playerNameFont;
     C44Matrix view, projection;
@@ -68,18 +60,11 @@ static CGxFont* ScreenNameFont(const C3Vector& position, float& lineHeight) {
     GxXformViewport(left, right, bottom, top, nearZ, farZ);
     const float pixelsPerUnit = std::abs(projection.b1) * g_heightPixels * (top - bottom) * .5f / w;
     if (!(w > 0) || !std::isfinite(pixelsPerUnit) || pixelsPerUnit <= 0) return s_playerNameFont;
-    // Keep existing visibility/occlusion and near-camera world sizing, but do
-    // not collapse an already-visible name to 5–8 pixels. The floor is in
-    // native points. Rasterize for the final projected size, not a 32px atlas.
+    // Keep the existing readability floor and world anchor. A single outline
+    // atlas covers every projected size, independent of scene resolution.
     const float outputPixels = std::max(lineHeight * pixelsPerUnit, 12.0f * GxMetal::HostPixelScale());
     lineHeight = outputPixels / pixelsPerUnit;
-    CRect target; g_theGxDevicePtr->CapsWindowSize(target);
-    const float sceneRatio = (target.maxY - target.minY) / float(g_heightPixels);
-    const uint32_t size = std::clamp(uint32_t(std::lround(outputPixels * sceneRatio)), 2u, 128u);
-    auto& font = s_screenNameFonts[size];
-    if (!font) GxuFontCreateFont(s_playerNameFont->GetName(), float(size) / g_heightPixels, font,
-        4 | CGxFont::SCREEN_RASTER_SIZE);
-    return font ? font : s_playerNameFont;
+    return s_playerNameFont;
 }
 #endif
 
@@ -111,9 +96,6 @@ TSExplicitList<PLAYERNAMEDESC, offsetof(PLAYERNAMEDESC, m_link)> s_playerNames;
 // VERIFY: e90bacd6 auto
 // OFFSET: 0x007E53A0
 void PlayerNameShutdown() {
-#if defined(__APPLE__)
-    ClearScreenNameFonts();
-#endif
     if (s_playerNameFont) {
         GxuFontDestroyFont(s_playerNameFont);
     }
@@ -138,7 +120,11 @@ void PlayerNameInitialize() {
     const char* fontName;
 
     if (FrameScript_GetVariable("UNIT_NAME_FONT", fontName)) {
-        GxuFontCreateFont(fontName, 0.99f, s_playerNameFont, 4);
+        uint32_t flags = 4;
+#if defined(__APPLE__)
+        flags |= CGxFont::DISTANCE_FIELD;
+#endif
+        GxuFontCreateFont(fontName, 0.99f, s_playerNameFont, flags);
     }
 
     s_playerNameBatch = GxuFontCreateBatch(true, true);
@@ -202,16 +188,6 @@ void PlayerNameUpdateDrawCallback(PLAYERNAMEDESC* desc) {
 // OFFSET: 0x007E5120
 void PlayerNameUpdateEarly() {
     s_lastRenderFrame++;
-#if defined(__APPLE__)
-    if (s_nameFontScreenHeight != g_heightPixels) {
-        // Font resize notices also affect cached raster faces. Remove their
-        // strings first, then lazily recreate only sizes actually in view.
-        for (auto* desc = s_playerNames.Head(); desc; desc = s_playerNames.Next(desc))
-            if (desc->m_string) GxuFontDestroyString(desc->m_string);
-        ClearScreenNameFonts();
-        s_nameFontScreenHeight = g_heightPixels;
-    }
-#endif
 }
 
 // VERIFY: fb153d0c auto

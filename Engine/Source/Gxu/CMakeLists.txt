@@ -13,3 +13,6 @@ target_link_libraries(Gxu
     PUBLIC
         freetype
 )
+if (APPLE)
+    target_link_libraries(Gxu PRIVATE msdfgen::msdfgen-core)
+endif ()

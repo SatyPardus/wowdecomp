@@ -349,6 +349,13 @@ void GxMetal::TextureDevice::DrawGeometry(id<MTLCommandBuffer> command, MTLRende
         [encoder setFragmentTexture:textures[i] atIndex:i];
         [encoder setFragmentSamplerState:samplers[i] atIndex:i];
     }
+    if (state.linearText || state.distanceText || state.textSceneDepth) {
+        [encoder setFragmentBytes:&geometry.font length:sizeof(FontParameters) atIndex:1];
+        if (state.textSceneDepth) {
+            Require(geometry.textDepth != nil, "World text is missing its scene depth");
+            [encoder setFragmentTexture:geometry.textDepth atIndex:1];
+        }
+    }
     if (weatherPoints) {
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:count];
     } else if (geometry.indices) {

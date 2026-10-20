@@ -5,6 +5,7 @@
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Gxu/GxuFontFace.h"
 #include "Engine/Source/Gxu/GxuFontFont.h"
+#include "Engine/Source/Gxu/GxuFontUtil.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Services/Texture.h"
 #include <cstdio>
@@ -14,6 +15,7 @@
 #include <utility>
 #include <array>
 #include <cmath>
+#include <vector>
 
 namespace {
 struct FontScope {
@@ -92,6 +94,71 @@ void CheckCoveragePrecision() {
     size_t count = 0; for (bool present : levels) count += present;
     if (count <= 16) throw std::runtime_error("Coverage reference did not exercise more than 16 alpha levels");
     std::fprintf(stderr, "Font precision: %zu distinct FreeType coverage values retained exactly\n", count);
+}
+
+void CheckDistanceLayout() {
+    for (const char* name : {"Fonts\\ARIALN.TTF", "Fonts\\ZYKai_T.TTF"}) {
+        FontScope original;
+        CGxFont* distanceFont = nullptr;
+        if (!GxuFontCreateFont(name, .99f, original.font, 4) ||
+            !GxuFontCreateFont(name, .99f, distanceFont, 4 | CGxFont::DISTANCE_FIELD))
+            throw std::runtime_error("Cannot create world layout reference fonts");
+        const float ratio = float(distanceFont->GetPixelSize()) / original.font->GetPixelSize();
+        if (distanceFont->m_baseline != original.font->m_baseline * ratio)
+            throw std::runtime_error("MSDF changed the world font baseline");
+        for (uint32_t code : {'A', 'V', 'p', 'g', ' ', '?'}) {
+            if (!original.font->NewCodeDesc(code) || !distanceFont->NewCodeDesc(code))
+                throw std::runtime_error("Missing world layout reference glyph");
+            for (uint32_t next : {'A', 'V', 'g'}) {
+                if (std::abs(distanceFont->ComputeStep(code, next) / ratio -
+                    original.font->ComputeStep(code, next)) > .0001f)
+                    throw std::runtime_error("MSDF changed the original world font advance/kerning");
+            }
+        }
+        // Terminal ink bounds determine centered/right-aligned name origins.
+        // Atlas padding must not enter either extent or line-wrap measurement.
+        for (const char* text : {"A", "AV pg", "A ", "Stormwind Guard", "未知目标", "魔兽世界\nAV"}) {
+            for (float height : {.2f, 12.0f, 32.0f}) {
+                float originalExtent = 0, distanceExtent = 0;
+                GxuFontGetTextExtent(original.font, text, std::strlen(text), height, &originalExtent, 0, 1, 0, 0xc8);
+                GxuFontGetTextExtent(distanceFont, text, std::strlen(text), height, &distanceExtent, 0, 1, 0, 0xc8);
+                uint32_t originalBytes = 0, distanceBytes = 0;
+                float originalWidth = 0, distanceWidth = 0;
+                const char *originalNext = nullptr, *distanceNext = nullptr;
+                bool originalBreak = false, distanceBreak = false;
+                CalcWrapPoint(original.font, text, height, 100000, &originalBytes, &originalWidth,
+                    &originalNext, 0, 0xc8, &originalBreak, nullptr, 1);
+                CalcWrapPoint(distanceFont, text, height, 100000, &distanceBytes, &distanceWidth,
+                    &distanceNext, 0, 0xc8, &distanceBreak, nullptr, 1);
+                if (std::abs(originalExtent - distanceExtent) > .0001f ||
+                    std::abs(originalWidth - distanceWidth) > .0001f ||
+                    originalBytes != distanceBytes || originalNext != distanceNext)
+                    throw std::runtime_error("MSDF changed the original name extent/centering");
+            }
+        }
+        if (std::strstr(name, "ZYKai")) {
+            // These real startup/name glyphs include positive bearings larger
+            // than the padding; atlas translation must remain signed.
+            for (uint32_t code : {0x672au, 0x77e5u, 0x76eeu, 0x6807u, 0x4e16u})
+                if (!distanceFont->NewCodeDesc(code))
+                    throw std::runtime_error("Cannot generate localized world-name MSDF");
+        }
+        auto* glyph = distanceFont->NewCodeDesc('A');
+        auto& atlas = distanceFont->m_textureCache[glyph->m_textureNumber];
+        const auto size = distanceFont->GetTextureSize();
+        uint32_t stride; const void* pixels;
+        TEXTURECACHE::TextureCallback(GxTex_Latch, size, size, 0, 0, &atlas, stride, pixels);
+        if (static_cast<const uint32_t*>(pixels)[size * size - 1] != 0)
+            throw std::runtime_error("Unallocated MSDF atlas texels must represent exterior distance");
+        GxuFontCreateString(distanceFont, "A V pg", .2f, C3Vector(0, 0, 1), 1000, 1000, 0,
+            original.string, GxVJ_Bottom, GxHJ_Center, 0x88, CImVector(255, 255, 255, 255), 0, 1);
+        distanceFont->HandleScreenSizeChange();
+        if (distanceFont->m_activeCharacters.Ptr('A', HASHKEY_NONE()) != glyph)
+            throw std::runtime_error("Output resize needlessly regenerated the MSDF atlas");
+        GxuFontDestroyString(original.string);
+        GxuFontDestroyFont(distanceFont);
+    }
+    std::fprintf(stderr, "MSDF retains original world advances, kerning, baseline and atlas across resize\n");
 }
 
 void CheckGlyphPixelMapping(CGxDeviceMetal& device) {
@@ -337,11 +404,87 @@ void CheckTextCompositing(GxMetal::TextureDevice& gpu) {
     std::fprintf(stderr, "Native text fill/outline, colored backgrounds, opacity and 1x/4x MSAA match linear-light references\n");
 }
 
+void CheckNativeWorldText(CGxDeviceMetal& device) {
+    const auto original = device.m_format;
+    device.RsPush();
+    C44Matrix projection(1);
+    projection.a0 = 2.0f / 512; projection.b1 = 2.0f / 256;
+    projection.c2 = 2; projection.d0 = projection.d1 = projection.d2 = -1;
+    auto desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:512 height:256 mipmapped:NO];
+    desc.storageMode = MTLStorageModePrivate; desc.usage = MTLTextureUsageRenderTarget;
+    auto pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = [device.GPU().device newTextureWithDescriptor:desc];
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+    desc.pixelFormat = MTLPixelFormatDepth32Float;
+    pass.depthAttachment.texture = [device.GPU().device newTextureWithDescriptor:desc];
+    pass.depthAttachment.loadAction = MTLLoadActionClear; pass.depthAttachment.clearDepth = 1;
+    unsigned checks = 0;
+    for (uint32_t raster : {12u, 32u}) {
+        FontScope sample;
+        const uint32_t flags = 4 | CGxFont::DISTANCE_FIELD;
+        GxuFontCreateFont("Fonts\\ZYKai_T.TTF", float(raster) / 256, sample.font, flags);
+        sample.batch = GxuFontCreateBatch(true, false);
+        GxuFontCreateString(sample.font, "Stormwind Guard 魔兽世界", float(raster),
+            C3Vector(40.25f, 80.25f, .5f), 100000, 100000, 0, sample.string,
+            GxVJ_Bottom, GxHJ_Left, 0x88, CImVector(30, 255, 60, 255), 0, 1);
+        GxuFontAddToBatch(sample.batch, sample.string);
+        for (unsigned samples : {1u, 4u}) {
+            auto format = original; format.m_multisampleCount = samples;
+            if (!device.DeviceSetFormat(format)) throw std::runtime_error("Cannot set native text MSAA");
+            std::vector<CImVector> reference;
+            for (float scale : {1.0f, .75f, .5f}) for (bool occluder : {false, true}) {
+                device.BeginFrame(pass); GxXformSetViewport(0, 1, 0, 1, 0, .94f);
+                GxXformSetView(C44Matrix(1)); GxXformSetProjection(projection);
+                GxRsSet(GxRs_DepthFunc, 0); GxRsSet(GxRs_Multisample, 1);
+                GxRsSet(GxRs_ScissorTest, 0);
+                device.BeginSceneResolution(scale);
+                GxSceneClear(3, CImVector(0, 0, 0, 255));
+                GxuFontRenderBatch(sample.batch);
+                if (occluder) {
+                    // Geometry submitted AFTER the name must still hide its ink.
+                    for (unsigned i = 0; i < 4; ++i) GxRsSet(EGxRenderState(GxRs_Texture0 + i), static_cast<CGxTex*>(nullptr));
+                    GxRsSet(GxRs_VertexShader, static_cast<CGxShader*>(nullptr));
+                    GxRsSet(GxRs_PixelShader, static_cast<CGxShader*>(nullptr));
+                    for (auto state : {GxRs_Lighting, GxRs_Fog, GxRs_Culling, GxRs_AlphaRef}) GxRsSet(state, 0);
+                    GxRsSet(GxRs_DepthTest, 1); GxRsSet(GxRs_DepthWrite, 1);
+                    GxRsSet(GxRs_BlendingMode, GxBlend_Opaque);
+                    const C3Vector positions[]{{-10,-10,.25f},{150,-10,.25f},{-10,300,.25f},{150,300,.25f}};
+                    CImVector color(0, 0, 0, 255);
+                    GxPrimVertexPtr(4, positions, sizeof(C3Vector), nullptr, 0, &color, 0, nullptr, 0, nullptr, 0);
+                    CGxBatch batch{GxPrim_TriangleStrip, 0, 4, 0, 3}; device.Draw(&batch, 0);
+                }
+                device.SealWorldTextDepth();
+                // Model FFX replacing both scene color and scratch depth.
+                GxSceneClear(3, CImVector(0, 0, 0, 255));
+                device.EndSceneResolution();
+                TSGrowableArray<CImVector> pixels; CiRect rect(0, 0, 256, 512);
+                GxReadPixels(rect, pixels); GxScenePresent();
+                size_t ink = 0;
+                for (uint32_t i = 0; i < pixels.Count(); ++i) {
+                    const auto p = pixels[i]; const unsigned x = i % 512;
+                    ink += p.g != 0;
+                    if (occluder && x < 148 && p.g) throw std::runtime_error("Native text leaked through foreground depth");
+                    if (reference.empty()) continue;
+                    if ((!occluder || x > 152) && std::memcmp(&p, &reference[i], sizeof(p)))
+                        throw std::runtime_error("World text changed with scene scale or post-processing");
+                }
+                if (ink < 50) throw std::runtime_error("Native text was missing or completely occluded");
+                if (reference.empty()) reference.assign(pixels.Ptr(), pixels.Ptr() + pixels.Count());
+                ++checks;
+            }
+        }
+    }
+    device.DeviceSetFormat(original); device.RsPop();
+    std::fprintf(stderr, "Native world text: %u small/large MSDF, scale, post-process and foreground-depth cases passed\n", checks);
+}
+
 void CheckGxFont(CGxDeviceMetal& device) {
     CheckTextCompositing(device.GPU());
     CheckGlyphPixelMapping(device);
     CheckFixedLayoutSize();
     CheckLocalizedAdvances();
+    CheckDistanceLayout();
     struct CacheScope { ~CacheScope() { TextureGxCacheFlush(); } } cache;
     device.PoolSizeSet(device.m_vertexPool, 1024 * 1024);
     device.PoolSizeSet(device.m_indexPool, 64 * 1024);
@@ -351,5 +494,8 @@ void CheckGxFont(CGxDeviceMetal& device) {
     CheckCoveragePrecision();
     for (uint32_t flags : {1u, 2u, 3u, 8u, 11u}) { DrawFontSample(device, flags); }
     for (uint32_t flags : {0u, 1u, 2u, 3u, 9u, 11u}) { DrawFontSample(device, flags, .25f, "Fonts\\ZYKai_T.TTF"); }
+    for (uint32_t flags : {4u, 5u, 13u})
+        DrawFontSample(device, flags | CGxFont::DISTANCE_FIELD, .25f, "Fonts\\ZYKai_T.TTF");
+    CheckNativeWorldText(device);
     if (DrawFontSample(device, 0) != original) { throw std::runtime_error("Gxu font recreation changed the glyph output"); }
 }

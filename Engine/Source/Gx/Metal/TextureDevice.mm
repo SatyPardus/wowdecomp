@@ -174,7 +174,8 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
                            (uint32_t(signedWave) << 3) | (uint32_t(decodePacked) << 4) | (uint32_t(shaderAlphaTest) << 5) |
                            (uint32_t(wmo && wmo->shaderAlphaTest) << 6) | (uint32_t(shadow && shadow->cutout) << 7) |
                            (uint32_t(depthOffset) << 8) | (uint32_t(modelClipping) << 9) | (uint32_t(modelHardwareShadow || wmoHardwareShadow || detailHardwareShadow || terrainHardwareShadow) << 10) |
-                           (uint32_t(state.linearText) << 11);
+                           (uint32_t(state.linearText) << 11) | (uint32_t(state.distanceText) << 12) |
+                           (uint32_t(state.textSceneDepth) << 13);
     const PipelineKey key{uint32_t(state.blend) | (state.colorWrite << 4), uint32_t(format), uint32_t(colorFormat), uint32_t(effect), flags,
         fixed ? fixed->coordinateSources : wmo ? uint32_t(wmo->vertexEffect) : uint32_t(vertexEffect),
         fixed ? fixed->lightMask | (uint32_t(fixed->lighting) << 4) | (uint32_t(fixed->normalizeNormals) << 5) | (uint32_t(fixed->specular) << 6) : terrain ? terrain->vertexPermutation : wmo ? wmo->permutation % 10 : liquid ? (effect == FragmentEffect::LiquidProcWater ? 0 : liquid->lightCount) : shadow ? shadow->skinning : detail ? uint32_t(detail->pointLights) : modelPermutation,
@@ -641,14 +642,16 @@ id<MTLRenderPipelineState> GxMetal::TextureDevice::Pipeline(const TextureDrawSta
         }
     }
     auto attachment = descriptor.colorAttachments[0];
-    if (state.linearText) {
+    if (state.linearText || state.distanceText || state.textSceneDepth) {
         Require(effect == FragmentEffect::Unlit && state.blend == GxBlend_Alpha &&
             colorFormat == MTLPixelFormatBGRA8Unorm, "Invalid native text compositing target");
         const bool alpha = state.alphaRef != 0;
         auto constants = [MTLFunctionConstantValues new];
         [constants setConstantValue:&alpha type:MTLDataTypeBool atIndex:0];
+        [constants setConstantValue:&state.distanceText type:MTLDataTypeBool atIndex:50];
+        [constants setConstantValue:&state.textSceneDepth type:MTLDataTypeBool atIndex:51];
         NSError* error = nil;
-        descriptor.fragmentFunction = [m_library newFunctionWithName:@"fontCoverageFragment" constantValues:constants error:&error];
+        descriptor.fragmentFunction = [m_library newFunctionWithName:state.linearText ? @"fontCoverageFragment" : @"fontDistanceFragment" constantValues:constants error:&error];
         if (!descriptor.fragmentFunction)
             throw std::runtime_error(error.localizedDescription.UTF8String ?: "Font coverage specialization failed");
     }

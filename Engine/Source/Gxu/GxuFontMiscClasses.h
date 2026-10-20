@@ -29,6 +29,11 @@ struct GLYPHBITMAPDATA {
     /* 0020 */ int32_t m_yOffset;
     /* 0024 */ uint32_t m_yStart;
     /* 0028 */ CRect m_textureCoords;
+#if defined(__APPLE__)
+    // Original 32px world-font metrics, separate from padded MSDF quads.
+    float m_layoutBearing = 0;
+    float m_layoutWidth = 0;
+#endif
 
     GLYPHBITMAPDATA();
     ~GLYPHBITMAPDATA();

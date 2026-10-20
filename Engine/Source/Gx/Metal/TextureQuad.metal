@@ -103,10 +103,44 @@ inline float3 fontEncoded(float3 c) {
 // FreeType supplies linear area coverage. Composite only text in linear light,
 // using tile-local attachment reads; the original game's encoded color buffer
 // and all non-text shaders retain their existing semantics.
+constant bool fontDistanceField [[function_constant(50)]];
+constant bool fontSceneDepth [[function_constant(51)]];
+struct FontParameters {
+    float2 inverseOutput;
+    float distanceRange, outlinePixels;
+    uint depthFunction;
+    float padding[3];
+};
+inline float4 fontSample(QuadVertex v, texture2d<float> atlas, sampler filtering,
+    constant FontParameters& f) {
+    float4 texel = atlas.sample(filtering, v.uv);
+    if (fontDistanceField) {
+        const float median = max(min(texel.r, texel.g), min(max(texel.r, texel.g), texel.b));
+        const float2 unitRange = f.distanceRange / float2(atlas.get_width(), atlas.get_height());
+        const float2 texelFootprint = max(fwidth(v.uv), float2(1e-8f));
+        const float screenRange = max(.5f * dot(unitRange, 1.0f / texelFootprint), 1.0f);
+        const float distance = screenRange * (median - .5f);
+        const float fill = saturate(distance + .5f);
+        const float coverage = saturate(distance + .5f + f.outlinePixels);
+        texel = float4(float3(coverage > 0 ? fill / coverage : 0), coverage);
+    }
+    return texel;
+}
+inline void fontOcclusion(QuadVertex v, depth2d<float> sceneDepth, constant FontParameters& f) {
+    constexpr sampler nearest(coord::normalized, address::clamp_to_edge, filter::nearest);
+    const float z = sceneDepth.sample(nearest, v.position.xy * f.inverseOutput);
+    const bool visible = f.depthFunction == 0 ? v.position.z <= z :
+        f.depthFunction == 1 ? v.position.z == z :
+        f.depthFunction == 2 ? v.position.z >= z : v.position.z < z;
+    if (!visible) discard_fragment();
+}
 fragment float4 fontCoverageFragment(QuadVertex v [[stage_in]],
     float4 background [[color(0)]], texture2d<float> atlas [[texture(0)]],
-    sampler filtering [[sampler(0)]], constant QuadParameters& p [[buffer(0)]]) {
-    const float4 texel = atlas.sample(filtering, v.uv);
+    depth2d<float> sceneDepth [[texture(1), function_constant(fontSceneDepth)]],
+    sampler filtering [[sampler(0)]], constant QuadParameters& p [[buffer(0)]],
+    constant FontParameters& f [[buffer(1)]]) {
+    if (fontSceneDepth) fontOcclusion(v, sceneDepth, f);
+    const float4 texel = fontSample(v, atlas, filtering, f);
     const float4 tint = v.color * p.tint;
     const float alpha = texel.a * tint.a;
     if (alphaTest && alpha < p.alphaRef) discard_fragment();
@@ -116,6 +150,15 @@ fragment float4 fontCoverageFragment(QuadVertex v [[stage_in]],
     const float3 rgb = fontEncoded(mix(fontLinear(background.rgb), foreground, alpha));
     // Retain the game's original separate-alpha blend equation.
     return float4(rgb, alpha * alpha + background.a * (1.0f - alpha));
+}
+fragment float4 fontDistanceFragment(QuadVertex v [[stage_in]], texture2d<float> atlas [[texture(0)]],
+    depth2d<float> sceneDepth [[texture(1), function_constant(fontSceneDepth)]],
+    sampler filtering [[sampler(0)]], constant QuadParameters& p [[buffer(0)]],
+    constant FontParameters& f [[buffer(1)]]) {
+    if (fontSceneDepth) fontOcclusion(v, sceneDepth, f);
+    const float4 color = fontSample(v, atlas, filtering, f) * v.color * p.tint;
+    if (alphaTest && color.a < p.alphaRef) discard_fragment();
+    return color;
 }
 
 struct Filter4Vertex {

@@ -42,6 +42,7 @@ uint32_t CGxFont::GetPixelSize() {
 
 uint32_t CGxFont::GetTextureSize() const {
 #if defined(__APPLE__)
+    if (m_fontFlags & DISTANCE_FIELD) return 1024;
     // Grow only the pages of large fonts; small UI fonts retain compact caches.
     return this->m_pixelSize > 64 ? 1024 : this->m_pixelSize > 32 ? 512 : 256;
 #else
@@ -98,6 +99,9 @@ int32_t CGxFont::UpdateDimensions() {
     }
 
     this->m_pixelSize = pixelSize;
+#if defined(__APPLE__)
+    if (m_fontFlags & DISTANCE_FIELD) this->m_pixelSize = pixelSize = DISTANCE_EM;
+#endif
 
     int32_t units = face->ascender + abs(face->descender);
 
@@ -115,6 +119,14 @@ int32_t CGxFont::UpdateDimensions() {
     } else if (this->m_fontFlags & 1) {
         this->m_cellHeight = pixelSize + 2;
     }
+#if defined(__APPLE__)
+    if (m_fontFlags & DISTANCE_FIELD) {
+        m_cellHeight = DISTANCE_EM + 4 * DISTANCE_PADDING;
+        // Match the original world font's line baseline, in atlas units.
+        m_baseline = uint32_t(float(DISTANCE_LAYOUT_EM * face->ascender) / units + .5f) *
+            (DISTANCE_EM / DISTANCE_LAYOUT_EM);
+    }
+#endif
 
     int32_t result = FT_Set_Pixel_Sizes(face, pixelSize, 0) == 0;
 
@@ -126,6 +138,9 @@ int32_t CGxFont::UpdateDimensions() {
 // VERIFY: c831afcc auto
 // OFFSET: 0x006C2480
 bool CGxFont::GetGlyphData(GLYPHBITMAPDATA* data, uint32_t code) {
+#if defined(__APPLE__)
+    if (m_fontFlags & DISTANCE_FIELD) return GetDistanceGlyph(data, code);
+#endif
     FT_Face face = FontFaceGetFace(this->m_fontFaceHandle);
     FT_Set_Pixel_Sizes(face, this->m_pixelSize, 0);
 
@@ -153,6 +168,20 @@ float CGxFont::GetGlyphBearing(const CHARCODEDESC* desc, bool scaled, float heig
     float scale = pixelHeight / this->m_pixelSize;
 
     return scale * desc->m_bitmapData.m_glyphBearing;
+}
+
+float CGxFont::GetGlyphLayoutWidth(const CHARCODEDESC* desc, bool scaled, float height) {
+#if defined(__APPLE__)
+    if (m_fontFlags & DISTANCE_FIELD) {
+        const auto& data = desc->m_bitmapData;
+        const float bearing = scaled ? data.m_layoutBearing * height / DISTANCE_LAYOUT_EM :
+            std::ceil(data.m_layoutBearing);
+        // Retain the original layout's bearing scaling and terminal bitmap
+        // width, then express the result in atlas units for the shared caller.
+        return (bearing + data.m_layoutWidth) * (float(DISTANCE_EM) / DISTANCE_LAYOUT_EM);
+    }
+#endif
+    return GetGlyphBearing(desc, scaled, height) + desc->m_bitmapData.m_glyphCellWidth;
 }
 
 // VERIFY: 29412482 manual
@@ -191,7 +220,7 @@ float CGxFont::GetGlyphAdvance(uint32_t code) {
     float advance = desc->m_bitmapData.m_glyphAdvance;
 
     if (this->m_fontFlags & 8) {
-        advance += 1.0;
+        advance += (m_fontFlags & DISTANCE_FIELD) ? float(DISTANCE_EM) / DISTANCE_LAYOUT_EM : 1.0f;
     }
 
     return advance;
@@ -212,8 +241,15 @@ void CGxFont::ClearGlyphs() {
 // VERIFY: 9be95581 manual
 // OFFSET: 0x006C3960
 void CGxFont::HandleScreenSizeChange() {
+#if defined(__APPLE__)
+    // Distance fields describe outlines in em units, independent of the window.
+    if (!(m_fontFlags & DISTANCE_FIELD)) {
+#endif
     this->ClearGlyphs();
     this->UpdateDimensions();
+#if defined(__APPLE__)
+    }
+#endif
 
     for (CGxString* string = this->m_strings.Head(); string; string = this->m_strings.Next(string)) {
         string->HandleScreenSizeChange();
@@ -299,6 +335,13 @@ float CGxFont::ComputeStep(uint32_t code, uint32_t nextCode) {
 
     node->m_flags |= 2;
     node->m_proportionalSpacing = ceil(step);
+#if defined(__APPLE__)
+    // Atlas resolution must not alter the original 32-pixel world's advances
+    // or its kerning rounding. Layout is independent of outline sampling.
+    if (m_fontFlags & DISTANCE_FIELD)
+        node->m_proportionalSpacing = ceil(step * DISTANCE_LAYOUT_EM / DISTANCE_EM) *
+            (float(DISTANCE_EM) / DISTANCE_LAYOUT_EM);
+#endif
 
     return node->m_proportionalSpacing;
 }

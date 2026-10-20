@@ -268,6 +268,18 @@ bool RectFits(const CiRect& rect, const CiRect& surface) {
 
 struct CGxDeviceMetal::Impl {
     bool fontRendering = false;
+    bool worldFontRendering = false, sceneTextActive = false;
+    float fontDistanceRange = 0, fontOutlinePixels = 0;
+    struct WorldTextDraw {
+        GxMetal::GeometryDraw geometry;
+        GxMetal::TextureDrawState state;
+        id<MTLTexture> atlas;
+        uint32_t sourceWidth, sourceHeight;
+    };
+    std::vector<WorldTextDraw> worldText;
+    std::vector<id<MTLTexture>> textDepthSnapshots;
+    size_t sealedText = 0, textDepthCount = 0;
+    id<MTLTexture> textOrderDepth;
     void (*displayRestart)() = nullptr;
     void (*hostSizeChanged)(const CGxFormat&) = nullptr;
     bool (*acquireFrame)(CGxDeviceMetal&, void*) = nullptr;
@@ -696,6 +708,8 @@ void CGxDeviceMetal::DeviceEvictResources() {
     if (m->command) { m->evictAfterPresent = true; return; }
     m->evictAfterPresent = false;
     m->sceneColor = m->sceneDepth = m->sceneMultisampleColor = m->sceneMultisampleDepth = m->sceneResolvedDepth = nil;
+    m->textDepthSnapshots.clear();
+    m->textOrderDepth = nil;
     for (auto& entry : m->pools) entry.second.snapshots.clear();
     for (auto& frame : m->streamFrames) {
         for (auto page : frame.pages) m->statistics.discardedStreamBytes += page.length;
@@ -778,6 +792,8 @@ void CGxDeviceMetal::DeviceDestroy() {
     m->multisampleColor = m->multisampleDepth = m->resolvedDepth = nil;
     m->fullscreenColor = m->presentationColor = nil;
     m->sceneColor = m->sceneDepth = m->sceneMultisampleColor = m->sceneMultisampleDepth = m->sceneResolvedDepth = nil;
+    m->textDepthSnapshots.clear();
+    m->textOrderDepth = nil;
 }
 void* CGxDeviceMetal::DeviceWindow() { return m->window; }
 void CGxDeviceMetal::CapsWindowSize(CRect& rect) { rect = m_curWindowRect; }
@@ -842,13 +858,114 @@ void GxMetal::BeginSceneResolution(float scale) {
         static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->BeginSceneResolution(scale);
 }
 
-void GxMetal::SetFontRendering(bool enabled) {
+void GxMetal::SetFontRendering(bool enabled, bool world) {
     if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
-        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->SetFontRendering(enabled);
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->SetFontRendering(enabled, world);
 }
 
-void CGxDeviceMetal::SetFontRendering(bool enabled) {
+void CGxDeviceMetal::SetFontRendering(bool enabled, bool world) {
     m->fontRendering = enabled;
+    m->worldFontRendering = enabled && world;
+    if (!enabled) m->fontDistanceRange = m->fontOutlinePixels = 0;
+}
+void GxMetal::SetFontDistanceField(float range, float outlinePixels) {
+    if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->SetFontDistanceField(range, outlinePixels);
+}
+void CGxDeviceMetal::SetFontDistanceField(float range, float outlinePixels) {
+    m->fontDistanceRange = range;
+    m->fontOutlinePixels = outlinePixels;
+}
+void GxMetal::SealWorldTextDepth() {
+    if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->SealWorldTextDepth();
+}
+
+void CGxDeviceMetal::SealWorldTextDepth() {
+    if (m->sealedText == m->worldText.size()) return;
+    m->EnsurePass();
+    m->EndRender();
+    auto source = m->pass.depthAttachment.texture;
+    Require(source != nil, "World text requires the scene's depth attachment");
+    if (m->textDepthCount == m->textDepthSnapshots.size()) m->textDepthSnapshots.push_back(nil);
+    auto& snapshot = m->textDepthSnapshots[m->textDepthCount++];
+    if (!snapshot || snapshot.width != source.width || snapshot.height != source.height) {
+        auto desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+            width:source.width height:source.height mipmapped:NO];
+        desc.storageMode = MTLStorageModePrivate;
+        desc.usage = MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget;
+        snapshot = [m->gpu.device newTextureWithDescriptor:desc];
+        Require(snapshot != nil, "Cannot allocate world text occlusion depth");
+        snapshot.label = @"Native text scene occlusion";
+    }
+    if (source.sampleCount > 1) {
+        MTLRenderPassDescriptor* resolve = [m->pass copy];
+        resolve.depthAttachment.resolveTexture = snapshot;
+        // Conservatively retain foreground coverage at reduced scene resolution.
+        resolve.depthAttachment.depthResolveFilter = MTLMultisampleDepthResolveFilterMin;
+        resolve.depthAttachment.storeAction = MTLStoreActionStoreAndMultisampleResolve;
+        auto encoder = [m->command renderCommandEncoderWithDescriptor:resolve];
+        Require(encoder != nil, "Cannot resolve text occlusion depth");
+        [encoder endEncoding]; ++m->statistics.renderPasses;
+    } else {
+        auto encoder = [m->command blitCommandEncoder];
+        [encoder copyFromTexture:source sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0, 0, 0)
+            sourceSize:MTLSizeMake(source.width, source.height, 1) toTexture:snapshot
+            destinationSlice:0 destinationLevel:0 destinationOrigin:MTLOriginMake(0, 0, 0)];
+        [encoder endEncoding];
+    }
+    for (; m->sealedText < m->worldText.size(); ++m->sealedText)
+        m->worldText[m->sealedText].geometry.textDepth = snapshot;
+
+}
+
+void CGxDeviceMetal::CompositeWorldText() {
+    m->sceneTextActive = false;
+    if (m->worldText.empty()) return;
+    Require(m->sealedText == m->worldText.size(), "World text depth must be captured before post-processing");
+    m->EnsurePass(); m->EndRender();
+    auto target = m->defaultPass.colorAttachments[0].texture;
+    if (!m->textOrderDepth || m->textOrderDepth.width != target.width ||
+        m->textOrderDepth.height != target.height || m->textOrderDepth.sampleCount != target.sampleCount) {
+        auto desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+            width:target.width height:target.height mipmapped:NO];
+        desc.textureType = target.sampleCount > 1 ? MTLTextureType2DMultisample : MTLTextureType2D;
+        desc.sampleCount = target.sampleCount;
+        desc.storageMode = MTLStorageModePrivate;
+        desc.usage = MTLTextureUsageRenderTarget;
+        m->textOrderDepth = [m->gpu.device newTextureWithDescriptor:desc];
+        Require(m->textOrderDepth != nil, "Cannot allocate native text ordering depth");
+        m->textOrderDepth.label = @"Native text ordering";
+    }
+    MTLRenderPassDescriptor* pass = [m->defaultPass copy];
+    pass.depthAttachment.texture = m->textOrderDepth;
+    pass.depthAttachment.resolveTexture = nil;
+    pass.depthAttachment.loadAction = MTLLoadActionClear;
+    pass.depthAttachment.clearDepth = 1;
+    pass.depthAttachment.storeAction = MTLStoreActionDontCare;
+    pass.depthAttachment.storeActionOptions = MTLStoreActionOptionNone;
+    auto encoder = [m->command renderCommandEncoderWithDescriptor:pass];
+    Require(encoder != nil, "Cannot begin native world text pass");
+    encoder.label = @"Native resolution world text";
+    for (const auto& text : m->worldText) {
+        auto draw = text.geometry;
+        const double sx = double(target.width) / text.sourceWidth, sy = double(target.height) / text.sourceHeight;
+        draw.viewport.originX *= sx; draw.viewport.width *= sx;
+        draw.viewport.originY *= sy; draw.viewport.height *= sy;
+        if (draw.scissorEnabled) {
+            const size_t right = std::min(target.width, NSUInteger(std::ceil((draw.scissor.x + draw.scissor.width) * sx)));
+            const size_t bottom = std::min(target.height, NSUInteger(std::ceil((draw.scissor.y + draw.scissor.height) * sy)));
+            draw.scissor.x = size_t(std::floor(draw.scissor.x * sx));
+            draw.scissor.y = size_t(std::floor(draw.scissor.y * sy));
+            draw.scissor.width = right - draw.scissor.x; draw.scissor.height = bottom - draw.scissor.y;
+        }
+        draw.font.inverseOutput = {1.0f / target.width, 1.0f / target.height};
+        m->gpu.DrawUnlit(m->command, pass, text.atlas, draw, {}, text.state, encoder);
+        ++m->statistics.geometryDraws;
+    }
+    [encoder endEncoding]; ++m->statistics.renderPasses;
+    Impl::ConsumedLoads(m->defaultPass);
+    m->worldText.clear(); m->sealedText = 0; m->textDepthCount = 0;
 }
 
 void GxMetal::EndSceneResolution() {
@@ -859,6 +976,8 @@ void GxMetal::EndSceneResolution() {
 void CGxDeviceMetal::BeginSceneResolution(float scale) {
     Require(std::isfinite(scale) && scale >= .5f && scale <= 1, "Scene render scale must be between 0.5 and 1");
     Require(!m->outputPass, "Scene resolution scopes cannot nest");
+    Require(m->worldText.empty(), "Previous world text pass was not composited");
+    m->sceneTextActive = true;
     if (scale == 1) return;
     EnsureFrame();
     Require(!m_textureTarget[GxBuffers_Color].m_texture && !m_textureTarget[GxBuffers_Depth].m_texture,
@@ -904,7 +1023,9 @@ void CGxDeviceMetal::BeginSceneResolution(float scale) {
 }
 
 void CGxDeviceMetal::EndSceneResolution() {
-    if (!m->outputPass) return;
+    // Non-FFX callers also bracket a complete scene with this API.
+    SealWorldTextDepth();
+    if (!m->outputPass) { CompositeWorldText(); return; }
     Require(!m_textureTarget[GxBuffers_Color].m_texture && !m_textureTarget[GxBuffers_Depth].m_texture,
         "Scene post-processing did not restore its default target");
     m->EnsurePass();
@@ -927,6 +1048,7 @@ void CGxDeviceMetal::EndSceneResolution() {
     ++m->statistics.renderPasses;
     Impl::ConsumedLoads(m->defaultPass);
     m_viewportDirty = m_scissorRectDirty = 1;
+    CompositeWorldText();
 }
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
 void CGxDeviceMetal::SetHostFrameProvider(bool (*acquire)(CGxDeviceMetal&, void*), void* owner) {
@@ -1000,6 +1122,7 @@ void CGxDeviceMetal::SceneClear(uint32_t mask, CImVector color) {
     EnsureFrame();
     Require(m->command && (mask & ~3u) == 0, "Invalid Metal Gx clear");
     if (!mask) { return; }
+    if (mask & 2) SealWorldTextDepth();
     if (mask & 2) { Require(m->pass.depthAttachment.texture != nil, "No depth surface to clear"); }
     const auto viewport = Viewport();
     size_t left = viewport.originX, top = viewport.originY;
@@ -1978,6 +2101,9 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
     state.blendFactor = m_appRenderStates[Unk84].m_value.m_data.f[0];
     state.linearText = m->fontRendering && effect == GxMetal::FragmentEffect::Unlit &&
         state.blend == GxBlend_Alpha && [m->gpu.device supportsFamily:MTLGPUFamilyApple2];
+    state.distanceText = m->fontRendering && m->fontDistanceRange > 0;
+    draw.font.distanceRange = m->fontDistanceRange;
+    draw.font.outlinePixels = m->fontOutlinePixels;
     std::array<id<MTLTexture>, 9> textures{};
     std::array<GxMetal::TextureDrawState, 9> states;
     states.fill(state);
@@ -2010,6 +2136,17 @@ void CGxDeviceMetal::Draw(CGxBatch* batch, int32_t indexed) {
         states[i].anisotropy = texture->m_flags.m_maxAnisotropy;
         Require(texture->m_format != GxTex_R32F || states[i].filter == GxTex_Nearest || states[i].filter == GxTex_NearestMipNearest ||
             m->gpu.device.supports32BitFloatFiltering, "This GPU cannot filter R32F textures with the requested sampler");
+    }
+    if (m->fontRendering && m->worldFontRendering && m->sceneTextActive) {
+        Require(effect == GxMetal::FragmentEffect::Unlit, "Unexpected world text shader");
+        state = states[0];
+        state.textSceneDepth = draw.depthTest;
+        draw.font.depthFunction = draw.depthFunction;
+        // Draw packets own immutable GPU resource references. No game strings,
+        // atlas descriptors or mutable render states survive across this boundary.
+        m->worldText.push_back({draw, state, textures[0],
+            uint32_t(m->pass.colorAttachments[0].texture.width), uint32_t(m->pass.colorAttachments[0].texture.height)});
+        return;
     }
     m->MultisampleState(integer(GxRs_Multisample) != 0);
     const auto encoder = m->DrawEncoder();

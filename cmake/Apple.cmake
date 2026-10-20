@@ -571,3 +571,5 @@ endif ()
 
 set_source_files_properties("${WOW_FREETYPE_LICENSE}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources/ThirdParty)
 target_sources(WowAppleClient PRIVATE "${WOW_FREETYPE_LICENSE}")
+set_source_files_properties("${WOW_MSDF_LICENSE}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources/ThirdParty/msdfgen)
+target_sources(WowAppleClient PRIVATE "${WOW_MSDF_LICENSE}")

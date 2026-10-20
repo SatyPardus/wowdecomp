@@ -1593,6 +1593,11 @@ copy of that release. Windows retains its original vendored FreeType.
 Portions of this software are copyright © 2026 The FreeType Project
 (https://freetype.org). All rights reserved. The FreeType license is included
 in the application resources under `ThirdParty/FTL.TXT`.
+Unit-name outlines use the statically linked core of msdfgen 1.12.1, fetched
+with a pinned SHA-256. It consumes the existing FreeType face from the original
+archives; no replacement font or system text layout is used. Offline builds can
+set `FETCHCONTENT_SOURCE_DIR_APPLE_MSDF` to an extracted copy of that release.
+Its MIT license is bundled under `ThirdParty/msdfgen/LICENSE.txt`.
 
 The existing Gxu layout/resource path is retained. Apple UI glyphs use full
 stem hinting up to 24 pixels and light hinting above that, with unhinted
@@ -1606,17 +1611,25 @@ using tile-local attachment reads, then returns to the game's encoded color
 buffer. Colored text, outlines, fades and shadows use the same path; unrelated
 UI textures and world shading keep their original blending.
 Already-visible unit names retain their font, visibility and depth tests, but
-have a 12-point minimum projected line height. Their glyph caches follow the
-projected pixel size instead of shrinking a fixed 32-pixel bitmap. Names remain
-in the world rendering pass, so reducing 3D resolution also reduces their
-raster resolution; ordinary screen UI remains at the native output resolution.
+have a 12-point minimum projected line height. Names now share a 64-pixel/em
+MSDF atlas across projected sizes and output-size changes. Original world-font
+advances, kerning rounding, terminal glyph bounds and baseline are retained
+separately from atlas sampling, so atlas padding cannot shift centered names.
+Fixed-size UI keeps screen-pixel FreeType coverage and hinting.
+The Metal backend queues immutable name draw packets, captures scene depth
+before depth clears or FFX scratch reuse, then draws names at native output
+resolution after the original post-processing and scene upscaling, before UI.
+Scene depth still occludes names; a separate native-resolution depth attachment
+retains ordering between names. MSAA scene depth uses the nearest covered depth
+when resolving for occlusion, so low-resolution geometry edges can still affect
+the visible boundary of a name, without lowering the glyph's raster resolution.
 macOS windowed and fullscreen UI use the native backing resolution.
 The **显示 → 3D 渲染比例** menu independently selects 100%, 85%, 75%, 67% or
 50% scene rendering, saved as `gxRenderScale` (default `1`, valid range `0.5–1`).
 The login background and world, including their original post-processing,
 render at the selected size and are composed into the native output before UI.
-The scene uses separate cached color/depth/MSAA attachments. At 100% the original
-direct path is retained. UI scale still controls layout size, with glyph caches
+The scene uses separate cached color/depth/MSAA attachments. At 100% no scene
+upscale is needed; the name pass still follows FFX. UI scale controls layout size, with glyph caches
 following the output pixel size; it is not a scene-resolution control.
 `WOW_METAL_CHECK=fonts` runs the focused font checks. The probe reads original
 ARIALN and ZYKai_T resources, checks proportional Latin/Chinese advances and
@@ -1624,8 +1637,11 @@ full 8-bit coverage, and exercises small/large glyphs, AA/monochrome,
 outline/shadow, drawable-size changes and cache recreation. It also compares
 glyph coverage with an independent linear-light compositing reference,
 including colored backgrounds, fill/outline ratios, opacity and 1x/4x MSAA.
-It checks the original oversized zone-title resource's layout cap and requires identical UI output
-across 50%/75%/100% scene scales with 1x/4x MSAA. The FFX checks compare scaled
+It checks the original oversized zone-title resource's layout cap, MSDF layout
+metrics and atlas reuse, and requires identical UI and unoccluded name output
+across 50%/75%/100% scene scales with 1x/4x MSAA. Name checks include small/large
+MSDF glyphs, foreground occlusion, and scene color/depth replacement before
+composition. The FFX checks compare scaled
 glow, wave and death output with independent filtering/composition references.
 
 Static/dynamic pool

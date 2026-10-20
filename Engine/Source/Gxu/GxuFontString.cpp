@@ -257,6 +257,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
     float fontPixelHeight = ScreenToPixelHeight((this->m_flags >> 7) & 1, this->m_currentFontHeight);
     double pixelHeight = fontPixelHeight;
     float scale = pixelHeight / this->m_currentFace->GetPixelSize();
+    const bool distanceField = (this->m_currentFace->m_fontFlags & CGxFont::DISTANCE_FIELD) != 0;
     float cellHeight = ScreenToPixelHeight((this->m_flags >> 7) & 1, this->m_currentFontHeight);
 
     if (this->m_currentFace->m_fontFlags & 8) {
@@ -383,7 +384,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                         CHARCODEDESC* desc = this->m_currentFace->NewCodeDesc(lastCode);
 
                         if (desc) {
-                            step = this->m_currentFace->GetGlyphBearing(desc, (this->m_flags >> 7) & 1, this->m_currentFontHeight) + desc->m_bitmapData.m_glyphCellWidth;
+                            step = this->m_currentFace->GetGlyphLayoutWidth(desc, (this->m_flags >> 7) & 1, this->m_currentFontHeight);
                         }
 
                         x = step * scale;
@@ -480,7 +481,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
 
                     uint32_t flags = this->m_flags;
 
-                    if (!(flags & 0x80)) {
+                    if (!(flags & 0x80) && !distanceField) {
                         x = x + 0.5;
                         x = floor(x);
                     }
@@ -494,16 +495,17 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                     vert.m_tc.x = 0.0f;
                     vert.m_tc.y = 0.0f;
                     vert.m_vc.x = this->m_currentFace->GetGlyphBearing(desc, (flags >> 7) & 1, this->m_currentFontHeight) + pos.x;
+                    if (distanceField) vert.m_vc.x = desc->m_bitmapData.m_glyphBearing * scale + pos.x;
 
                     float width = desc->m_bitmapData.m_glyphCellWidth * scale;
 
-                    if (!(this->m_flags & 0x80)) {
+                    if (!(this->m_flags & 0x80) && !distanceField) {
                         width = floor(width);
                     }
 
-                    if (this->m_currentFace->m_fontFlags & 8) {
+                    if (!distanceField && (this->m_currentFace->m_fontFlags & 8)) {
                         vert.m_vc.y = vert.m_vc.y - 2.0;
-                    } else if (this->m_currentFace->m_fontFlags & 1) {
+                    } else if (!distanceField && (this->m_currentFace->m_fontFlags & 1)) {
                         vert.m_vc.y = vert.m_vc.y - 1.0;
                     }
 
@@ -519,13 +521,15 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                     verts[2].m_vc.x = width;
 
                     float top = (this->m_flags & 0x80 ? fontPixelHeight : cellHeight) + verts[3].m_vc.y;
+                    if (distanceField) top = this->m_currentFace->m_cellHeight * scale + verts[3].m_vc.y;
                     verts[3].m_vc.y = top;
                     verts[1].m_vc.y = top;
                     verts[0].m_vc.y = verts[2].m_vc.y;
 
                     CRect coords = desc->m_bitmapData.m_textureCoords;
 
-                    if (this->m_flags & 0x80) {
+                    if ((this->m_flags & 0x80) && !(this->m_currentFace->m_fontFlags &
+                        (CGxFont::DISTANCE_FIELD | CGxFont::SCREEN_RASTER_SIZE))) {
                         coords.minY = coords.minY + pixelAdjustments.minY;
                         coords.minX = coords.minX + pixelAdjustments.minX;
                         coords.maxY = coords.maxY + pixelAdjustments.maxY;

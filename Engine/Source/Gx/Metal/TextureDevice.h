@@ -87,6 +87,8 @@ struct TextureDrawState {
     uint32_t colorWrite = 15; // original Gx bit order: R=1, B=2, G=4, A=8
     float blendFactor = 1; // Gx render state Unk84, quantized to UNORM8
     bool linearText = false; // Native text coverage compositing only.
+    bool distanceText = false;
+    bool textSceneDepth = false;
 };
 
 // View-space palette: three affine rows per bone, already composed with the
@@ -259,6 +261,13 @@ struct NetherBlurParameters {
     simd_float2 pixelCenterOffset{};
     float padding2[2]{};
 };
+struct FontParameters {
+    simd_float2 inverseOutput{};
+    float distanceRange = 0, outlinePixels = 0;
+    uint32_t depthFunction = 0;
+    float padding[3]{};
+};
+static_assert(sizeof(FontParameters) == 32, "Native text constant layout");
 static_assert(sizeof(NetherBlurParameters) == 32, "Native nether blur constant layout");
 struct GeometryDraw {
     id<MTLBuffer> vertices = nil, indices = nil;
@@ -274,6 +283,8 @@ struct GeometryDraw {
     const WmoDrawParameters* wmo = nullptr;
     const LiquidDrawParameters* liquid = nullptr;
     C44Matrix clipFromModel{1.0f};
+    FontParameters font{};
+    id<MTLTexture> textDepth = nil;
     simd_float2 waveSceneScale{}, waveBlurScale{};
     NetherBlurParameters netherBlur{};
     simd_float4 netherTintFade{};

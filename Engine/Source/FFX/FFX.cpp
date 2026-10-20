@@ -369,6 +369,9 @@ void FFX::SetupIB(int32_t cols, int32_t rows) {
 // VERIFY: c85eddce auto
 // OFFSET: 0x008C1010
 void FFX::Finish() {
+#if defined(__APPLE__)
+    GxMetal::SealWorldTextDepth();
+#endif
     if (!FFX::s_cvarFFX->m_intValue || !FFX::s_effect || !FFX::s_effect->Valid()) {
 #if defined(__APPLE__)
         GxMetal::EndSceneResolution();

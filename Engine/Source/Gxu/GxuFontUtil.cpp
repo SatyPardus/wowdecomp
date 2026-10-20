@@ -169,7 +169,7 @@ static float GetCharacterWidth(const char* text, uint32_t flags, uint32_t code, 
     CHARCODEDESC* desc = face->NewCodeDesc(code);
 
     if (desc) {
-        width = face->GetGlyphBearing(desc, (flags >> 7) & 1, fontHeight) + desc->m_bitmapData.m_glyphCellWidth;
+        width = face->GetGlyphLayoutWidth(desc, (flags >> 7) & 1, fontHeight);
     }
 
     return width;

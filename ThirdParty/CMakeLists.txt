@@ -68,6 +68,7 @@ endif ()
 
 if (APPLE)
     include(${CMAKE_SOURCE_DIR}/cmake/AppleFreeType.cmake)
+    include(${CMAKE_SOURCE_DIR}/cmake/AppleMSDF.cmake)
 else ()
 add_library(freetype STATIC
     freetype/src/base/ftsystem.c

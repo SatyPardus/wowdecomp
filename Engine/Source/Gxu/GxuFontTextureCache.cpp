@@ -413,7 +413,8 @@ void TEXTURECACHE::TextureCallback(EGxTexCommand command, uint32_t width, uint32
 #if defined(__APPLE__)
     // Rebuild from resident descriptors. Clearing prevents an evicted, wider
     // glyph from leaking into a new glyph's filtering footprint.
-    s_fontPixels.assign(size_t(width) * height, 0x00FFFFFF);
+    s_fontPixels.assign(size_t(width) * height,
+        cache->m_theFace->m_fontFlags & CGxFont::DISTANCE_FIELD ? 0 : 0x00FFFFFF);
 #endif
     for (uint32_t row = cache->m_textureRows.m_count; row > 0; row--) {
         TEXTURECACHEROW& cacheRow = cache->m_textureRows.m_data[row - 1];
@@ -426,7 +427,13 @@ void TEXTURECACHE::TextureCallback(EGxTexCommand command, uint32_t width, uint32
             CGxFont* font = cache->m_theFace;
 #if defined(__APPLE__)
             uint32_t* dest = &s_fontPixels[glyph->m_glyphStartPixel + glyph->m_rowNumber * font->m_cellHeight * width];
-            PasteGlyph8(glyph->m_bitmapData, dest, width, font->m_cellHeight, font->m_fontFlags);
+            if (font->m_fontFlags & CGxFont::DISTANCE_FIELD) {
+                const auto& data = glyph->m_bitmapData;
+                for (uint32_t y = 0; y < data.m_glyphHeight; ++y)
+                    memcpy(dest + y * width, static_cast<const uint8_t*>(data.m_data) + y * data.m_glyphPitch, data.m_glyphPitch);
+            } else {
+                PasteGlyph8(glyph->m_bitmapData, dest, width, font->m_cellHeight, font->m_fontFlags);
+            }
 #else
             uint16_t* dest = &s_textureData[glyph->m_glyphStartPixel + ((glyph->m_rowNumber * font->m_cellHeight) << 8)];
 
