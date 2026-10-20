@@ -49,6 +49,7 @@ struct CGxFont : public TSLinkedNode<CGxFont> {
     bool GetGlyphData(GLYPHBITMAPDATA* data, uint32_t code);
     const char* GetName();
     uint32_t GetPixelSize();
+    uint32_t GetTextureSize() const;
     void HandleScreenSizeChange();
     int32_t Initialize(const char* name, uint32_t fontFlags, float fontHeight);
     CHARCODEDESC* NewCodeDesc(uint32_t code);

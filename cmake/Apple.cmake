@@ -568,3 +568,6 @@ else ()
     target_compile_options(AppleMetalProbe PRIVATE -fobjc-arc)
     target_link_libraries(AppleMetalProbe PRIVATE AppleMetalProbeCore AppleMetalView AppleArchives "-framework AppKit")
 endif ()
+
+set_source_files_properties("${WOW_FREETYPE_LICENSE}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources/ThirdParty)
+target_sources(WowAppleClient PRIVATE "${WOW_FREETYPE_LICENSE}")

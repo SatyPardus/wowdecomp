@@ -1583,11 +1583,30 @@ per-texture shader normalization. This avoids rounding to an approximate 8-bit
 color before filtering. A function constant removes normalization from native
 packed/ordinary draws. Upload memory budgets include the fallback representation. Packed format,
 conversion, linear sampling, partial-update and Services mip-reload checks run
-through GPU readback. The original Gxu/FreeType font layout and rasterizer draw
-the preview text.
-The font probe reads ARIALN from the installation, covers multiline/color,
-AA/monochrome, outline/shadow and drawable-size changes, and checks identical
-pixels after restoring the size or recreating the font cache. Static/dynamic pool
+through GPU readback.
+
+Apple font rendering uses unmodified FreeType 2.14.3, downloaded from the official
+release archive with a pinned SHA-256 during the first CMake configure. It is
+statically linked, without Homebrew or optional font-library dependencies.
+For offline builds, set `FETCHCONTENT_SOURCE_DIR_APPLE_FREETYPE` to an extracted
+copy of that release. Windows retains its original vendored FreeType.
+Portions of this software are copyright © 2026 The FreeType Project
+(https://freetype.org). All rights reserved. The FreeType license is included
+in the application resources under `ThirdParty/FTL.TXT`.
+
+The existing Gxu layout/resource path is retained. Apple UI glyphs use light
+hinting with unhinted advances, BGRA8 coverage/outline atlases and up to 128
+raster pixels instead of the original 32-pixel limit. Atlas pages grow from
+256 to 512 or 1024 only for larger fonts. Filtered world text retains its
+existing size, geometry metrics and distance scaling; it benefits from the
+new rasterizer and coverage precision. This does not separate UI resolution
+from a lower-resolution fullscreen framebuffer.
+`WOW_METAL_CHECK=fonts` runs the focused font checks. The probe reads original
+ARIALN and ZYKai_T resources, checks proportional Latin/Chinese advances and
+full 8-bit coverage, and exercises small/large glyphs, AA/monochrome,
+outline/shadow, drawable-size changes and cache recreation.
+
+Static/dynamic pool
 uploads precede their consuming draws in the same command stream. Transient geometry
 uses append-only, write-combined shared pages owned by each of three in-flight
 frames. Completion of that specific frame gates page reuse; logical pool wrapping

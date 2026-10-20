@@ -8,7 +8,11 @@
 #include <alloca.h>
 #endif
 #include <typeinfo>
+#if defined(__APPLE__)
+#include <freetype/ftmodapi.h>
+#else
 #include <freetype/ftmodule.h>
+#endif
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Base/ConvertUTF.h"
 #include "Engine/Source/Gx/CGxBuf.h"

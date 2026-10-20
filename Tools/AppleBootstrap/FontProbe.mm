@@ -1,43 +1,19 @@
 #include "Engine/Source/Gx/Metal/CGxDeviceMetal.h"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Gx/CGxTex.h"
 #include "Engine/Source/Gxu/GxuFont.h"
 #include "Engine/Source/Gxu/GxuFontFace.h"
 #include "Engine/Source/Gxu/GxuFontFont.h"
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Services/Texture.h"
-#include <freetype/internal/ftstream.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <utility>
+#include <array>
 
 namespace {
-void CheckFontIntegerReads() {
-    for (uint32_t expected : {0u, 0x01020304u, 0x7fffffffu, 0x80000000u, 0xffffffffu}) {
-        const int64_t signedExpected = expected & 0x80000000u ? int64_t(expected) - 0x100000000ll : expected;
-        FT_Byte bytes[4];
-        for (bool little : {false, true}) {
-            for (unsigned i = 0; i < 4; ++i) { bytes[i] = uint8_t(expected >> (8 * (little ? i : 3 - i))); }
-            FT_StreamRec_ record{};
-            record.base = record.cursor = bytes;
-            record.size = 4; record.limit = bytes + 4;
-            FT_Stream stream = &record;
-            auto* pointer = bytes;
-            FT_ULong next = little ? NEXT_ULongLE(pointer) : NEXT_ULong(pointer);
-            FT_ULong get = little ? GET_ULongLE() : GET_ULong();
-            record.cursor = bytes;
-            FT_Long signedGet = little ? GET_LongLE() : GET_Long();
-            FT_ULong read = 0;
-            FT_Error error = 0;
-            bool failed = little ? READ_ULongLE(read) : READ_ULong(read);
-            if (next != expected || get != expected || read != expected || signedGet != signedExpected || failed) {
-                throw std::runtime_error("FreeType font integer width or sign-extension mismatch");
-            }
-        }
-    }
-}
-
 struct FontScope {
     CGxFont* font = nullptr;
     CGxString* string = nullptr;
@@ -64,7 +40,7 @@ void CheckLocalizedAdvances() {
         if (face->units_per_EM != 256 || !(face->face_flags & FT_FACE_FLAG_FIXED_WIDTH)) {
             throw std::runtime_error("Localized font metric reference does not match mounted Data");
         }
-        for (unsigned size : {12u, 24u, 32u}) {
+        for (unsigned size : {12u, 24u, 32u, 48u, 64u, 96u, 128u}) {
             sample.font->ClearGlyphs(); sample.font->m_pixelSize = size;
             for (auto metric : {std::pair<uint32_t, unsigned>{'A', 176}, {'p', 133}, {0x4f60, 256}}) {
                 const float expected = (metric.second * size / 256) + 1;
@@ -84,7 +60,39 @@ void CheckLocalizedAdvances() {
     }
 }
 
-uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
+void CheckCoveragePrecision() {
+    FontScope sample;
+    if (!GxuFontCreateFont("Fonts\\ARIALN.TTF", 24.0f / g_heightPixels, sample.font, 0))
+        throw std::runtime_error("Cannot load coverage reference font");
+    std::array<bool, 256> levels{};
+    for (uint32_t code : {'S', 'a', 'W', 'g'}) {
+        CHARCODEDESC* glyph = sample.font->NewCodeDesc(code);
+        if (!glyph) throw std::runtime_error("Missing coverage reference glyph");
+        auto& cache = sample.font->m_textureCache[glyph->m_textureNumber];
+        const uint32_t size = sample.font->GetTextureSize();
+        uint32_t stride = 0; const void* texels = nullptr;
+        TEXTURECACHE::TextureCallback(GxTex_Latch, size, size, 0, 0, &cache, stride, texels);
+        if (stride != size * 4 || TextureGetGxTex(cache.m_texture, 1, nullptr)->m_format != GxTex_Argb8888)
+            throw std::runtime_error("Font atlas did not retain 8-bit coverage");
+        const auto& bitmap = glyph->m_bitmapData;
+        const auto* source = static_cast<const uint8_t*>(bitmap.m_data);
+        const auto* pixels = static_cast<const uint32_t*>(texels);
+        for (uint32_t y = 0; y < bitmap.m_glyphHeight; ++y) {
+            for (uint32_t x = 0; x < bitmap.m_glyphWidth; ++x) {
+                const uint8_t alpha = source[y * bitmap.m_glyphPitch + x];
+                const uint32_t pixel = pixels[(glyph->m_rowNumber * sample.font->m_cellHeight + bitmap.m_yStart + y) * size + glyph->m_glyphStartPixel + x];
+                if (pixel != (uint32_t(alpha) << 24 | 0xFFFFFF))
+                    throw std::runtime_error("Font atlas quantized or moved FreeType coverage");
+                levels[alpha] = true;
+            }
+        }
+    }
+    size_t count = 0; for (bool present : levels) count += present;
+    if (count <= 16) throw std::runtime_error("Coverage reference did not exercise more than 16 alpha levels");
+    std::fprintf(stderr, "Font precision: %zu distinct FreeType coverage values retained exactly\n", count);
+}
+
+uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags, float height = .1f, const char* fontName = "Fonts\\ARIALN.TTF") {
     auto descriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:512 height:256 mipmapped:NO];
     descriptor.storageMode = MTLStorageModePrivate;
     descriptor.usage = MTLTextureUsageRenderTarget;
@@ -97,11 +105,14 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
     GxRsSet(GxRs_AlphaRef, 0);
     CoordinateSetAspectRatio(2);
     FontScope sample;
-    if (!GxuFontCreateFont("Fonts\\ARIALN.TTF", 0.1f, sample.font, flags)) {
+    if (!GxuFontCreateFont(fontName, height, sample.font, flags)) {
         throw std::runtime_error("Cannot initialize the original game font from mounted Data");
     }
     sample.batch = GxuFontCreateBatch(false, false);
-    if (!GxuFontCreateString(sample.font, "World of Warcraft\nMetal |cffffcc00native UI|r", 0.1f,
+    const bool large = height > .1f;
+    if (large && sample.font->GetPixelSize() <= 32) throw std::runtime_error("High-resolution UI glyph was capped at 32 pixels");
+    const char* text = large ? "魔兽世界 Ag\n|cffffcc00清晰文字|r" : "World of Warcraft\nMetal |cffffcc00native UI|r";
+    if (!GxuFontCreateString(sample.font, text, height,
         C3Vector(0.05f, 0.1f, 0), 0.9f, 0.75f, 0, sample.string, GxVJ_Top, GxHJ_Left, 0, CImVector(255, 255, 255, 255), 0, 1)) {
         throw std::runtime_error("Cannot create original Gxu text geometry");
     }
@@ -119,7 +130,7 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
         colored += pixels[i].r > pixels[i].g && pixels[i].g > pixels[i].b;
         for (uint8_t component : {pixels[i].r, pixels[i].g, pixels[i].b, pixels[i].a}) { hash = (hash ^ component) * 1099511628211ull; }
     }
-    if (const char* output = flags == 0 ? std::getenv("WOW_FONT_OUTPUT") : nullptr) {
+    if (const char* output = flags == 0 ? std::getenv(large ? "WOW_FONT_LARGE_OUTPUT" : "WOW_FONT_OUTPUT") : nullptr) {
         FILE* file = std::fopen(output, "wb");
         if (!file) { throw std::runtime_error("Cannot write font probe image"); }
         std::fprintf(file, "P6\n512 256\n255\n");
@@ -129,7 +140,7 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
         }
         std::fclose(file);
     }
-    if (ink < 200 || ink > 20000 || colored < 50) { throw std::runtime_error("Original Gxu font did not produce bounded visible colored glyphs"); }
+    if (ink < 200 || ink > (large ? 70000 : 20000) || colored < 50) { throw std::runtime_error("Original Gxu font did not produce bounded visible colored glyphs"); }
     if (flags == 0) {
         // Keep the font and string alive while the host changes drawable size.
         // Restoring the original size must reproduce the original glyphs.
@@ -180,7 +191,6 @@ uint64_t DrawFontSample(CGxDeviceMetal& device, uint32_t flags) {
 }
 
 void CheckGxFont(CGxDeviceMetal& device) {
-    CheckFontIntegerReads();
     CheckLocalizedAdvances();
     struct CacheScope { ~CacheScope() { TextureGxCacheFlush(); } } cache;
     device.PoolSizeSet(device.m_vertexPool, 1024 * 1024);
@@ -188,6 +198,8 @@ void CheckGxFont(CGxDeviceMetal& device) {
     // Exercise the original AA/monochrome and normal/thick outline paths,
     // including texture reuse after destroying and recreating the font system.
     uint64_t original = DrawFontSample(device, 0);
+    CheckCoveragePrecision();
     for (uint32_t flags : {1u, 2u, 3u, 8u, 11u}) { DrawFontSample(device, flags); }
+    for (uint32_t flags : {0u, 1u, 2u, 3u, 9u, 11u}) { DrawFontSample(device, flags, .25f, "Fonts\\ZYKai_T.TTF"); }
     if (DrawFontSample(device, 0) != original) { throw std::runtime_error("Gxu font recreation changed the glyph output"); }
 }

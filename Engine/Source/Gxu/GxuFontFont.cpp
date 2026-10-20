@@ -37,6 +37,15 @@ uint32_t CGxFont::GetPixelSize() {
     return this->m_pixelSize;
 }
 
+uint32_t CGxFont::GetTextureSize() const {
+#if defined(__APPLE__)
+    // Grow only the pages of large fonts; small UI fonts retain compact caches.
+    return this->m_pixelSize > 64 ? 1024 : this->m_pixelSize > 32 ? 512 : 256;
+#else
+    return 256;
+#endif
+}
+
 // VERIFY: 3c5dbf73 manual
 // OFFSET: 0x006C2280
 float CGxFont::FindNearestFixedSize(FT_Face face, float height) {
@@ -68,8 +77,14 @@ int32_t CGxFont::UpdateDimensions() {
 
     uint32_t pixelSize = static_cast<uint32_t>(ScreenToPixelHeight(0, height));
 
-    if (pixelSize > 32) {
-        pixelSize = 32;
+    uint32_t maxPixelSize = 32;
+#if defined(__APPLE__)
+    // Filtered world-space fonts use a virtual height, not a screen pixel size.
+    // Keep their existing geometry/metrics and distance scaling.
+    if (!(this->m_fontFlags & 4)) maxPixelSize = 128;
+#endif
+    if (pixelSize > maxPixelSize) {
+        pixelSize = maxPixelSize;
     } else if (pixelSize == 0) {
         DebugLog("Error, font %s being created with height %g at screen res of %dx%d which is %d pixels!", this->m_fontName, height, g_widthPixels, g_heightPixels, pixelSize);
     }
@@ -114,7 +129,7 @@ bool CGxFont::GetGlyphData(GLYPHBITMAPDATA* data, uint32_t code) {
         padding = 2;
     }
 
-    return IGxuFontGlyphRenderGlyph(face, this->m_pixelSize, code, this->m_baseline, data, this->m_fontFlags & 2, padding);
+    return IGxuFontGlyphRenderGlyph(face, this->m_pixelSize, code, this->m_baseline, data, this->m_fontFlags & 2, padding, !(this->m_fontFlags & 4));
 }
 
 // VERIFY: 3597e899 auto
@@ -355,8 +370,8 @@ CHARCODEDESC* CGxFont::NewCodeDesc(uint32_t code) {
 
         if (!current->m_texture || !TextureGetGxTex(current->m_texture, 1, nullptr)) {
             cache = current;
-            cache->CreateTexture(this->m_fontFlags & 4);
             cache->Initialize(this, this->m_cellHeight);
+            cache->CreateTexture(this->m_fontFlags & 4);
             desc = cache->AllocateNewGlyph(&data);
             break;
         }

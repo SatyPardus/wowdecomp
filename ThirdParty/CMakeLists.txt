@@ -66,6 +66,9 @@ if (WIN32)
     endif ()
 endif ()
 
+if (APPLE)
+    include(${CMAKE_SOURCE_DIR}/cmake/AppleFreeType.cmake)
+else ()
 add_library(freetype STATIC
     freetype/src/base/ftsystem.c
     freetype/src/base/ftinit.c
@@ -90,6 +93,7 @@ target_include_directories(freetype
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/freetype/src
 )
+endif ()
 
 add_library(expat STATIC
     expat/lib/xmlparse.c

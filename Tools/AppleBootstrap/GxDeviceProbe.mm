@@ -375,6 +375,7 @@ void CheckGxDevice(const char* focus) {
     std::unique_ptr<CGxDevice> owner(CreateGxDevice(GxDefaultApi(), static_cast<GxWindowProc>(nullptr), format));
     Require(owner && GxApiSupported(GxApi_Metal) && !GxApiSupported(GxApi_D3d9), "Apple Gx factory failed");
     auto& device = *static_cast<CGxDeviceMetal*>(owner.get());
+    if (focus && !std::strcmp(focus, "fonts")) { CheckGxFont(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "raster")) { CheckRasterPixelCenters(device); CheckGxFont(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "raster-shaders")) {
         CheckRasterPixelCenters(device); CheckGxFont(device); CheckShadowMapShaders(device);

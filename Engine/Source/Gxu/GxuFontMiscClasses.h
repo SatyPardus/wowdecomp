@@ -45,7 +45,7 @@ struct CHARCODEDESC : public TSHashObject<CHARCODEDESC, HASHKEY_NONE> {
     /* 0038 */ GLYPHBITMAPDATA m_bitmapData;
 
     CHARCODEDESC();
-    void GenerateTextureCoords(uint32_t rowNumber, uint32_t cellHeight);
+    void GenerateTextureCoords(uint32_t rowNumber, uint32_t cellHeight, uint32_t textureSize);
     uint32_t GapToPrevious();
 };
 
@@ -94,8 +94,12 @@ struct CGxStringBatch : public TSLinkedNode<CGxStringBatch> {
 struct TEXTURECACHEROW {
     /* 0000 */ uint32_t m_widestFreeSlot;
     /* 0004 */ TSExplicitList<CHARCODEDESC, offsetof(CHARCODEDESC, m_textureRowLink)> m_glyphlist;
+#if defined(__APPLE__)
+    uint32_t m_textureSize = 256;
+#endif
 
     TEXTURECACHEROW();
+    uint32_t TextureSize() const;
     CHARCODEDESC* CreateNewDesc(GLYPHBITMAPDATA* data, uint32_t rowNumber, uint32_t cellHeight);
     void EvictGlyph(CHARCODEDESC* desc);
 };

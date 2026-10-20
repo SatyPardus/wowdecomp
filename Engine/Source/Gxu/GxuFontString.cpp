@@ -269,7 +269,8 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
         parseInfo.m_hyperlink.m_right = pos.x;
     }
 
-    static CRect pixelAdjustments = { 1.0f / 512.0f, 1.0f / 512.0f, -1.0f / 512.0f, -1.0f / 512.0f };
+    const float halfTexel = 0.5f / this->m_currentFace->GetTextureSize();
+    const CRect pixelAdjustments = { halfTexel, halfTexel, -halfTexel, -halfTexel };
 
     float step = 0.0f;
     float x = 0.0f;

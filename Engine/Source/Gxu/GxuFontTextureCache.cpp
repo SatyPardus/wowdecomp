@@ -1,6 +1,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#if defined(__APPLE__)
+#include <algorithm>
+#include <vector>
+#endif
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Gx/CGxTexFlags.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -12,6 +16,42 @@
 
 // STATIC: 0x00C7D328
 static uint16_t s_textureData[256 * 256];
+
+#if defined(__APPLE__)
+namespace {
+// BGRA8 uses the existing UI shader and straight-alpha blending. Keep full
+// FreeType coverage for both the glyph and its outline instead of UNORM4.
+static std::vector<uint32_t> s_fontPixels;
+
+void PasteGlyph8(const GLYPHBITMAPDATA& data, uint32_t* dest, uint32_t stride,
+                 uint32_t cellHeight, uint32_t flags) {
+    const bool mono = (flags & 2) != 0;
+    const uint32_t radius = (flags & 1) ? ((flags & 8) ? 2 : 1) : 0;
+    const int cellWidth = int(data.m_glyphCellWidth);
+    auto coverage = [&](int x, int y) -> uint32_t {
+        x -= int(radius); y -= int(data.m_yStart + (radius ? 1 : 0));
+        if (x < 0 || y < 0 || x >= int(data.m_glyphWidth) || y >= int(data.m_glyphHeight)) return 0;
+        const auto* row = static_cast<const uint8_t*>(data.m_data) + y * data.m_glyphPitch;
+        return mono ? ((row[x / 8] & (0x80 >> (x % 8))) ? 255 : 0) : row[x];
+    };
+    for (int y = 0; y < int(cellHeight); ++y) {
+        for (int x = 0; x < cellWidth; ++x) {
+            const uint32_t fill = coverage(x, y);
+            uint32_t alpha = fill;
+            for (int dy = -int(radius); dy <= int(radius); ++dy) {
+                for (int dx = -int(radius); dx <= int(radius); ++dx) {
+                    uint32_t edge = coverage(x + dx, y + dy);
+                    if (std::max(std::abs(dx), std::abs(dy)) == 2) edge = (edge * 119 + 127) / 255;
+                    alpha = std::max(alpha, edge);
+                }
+            }
+            const uint32_t gray = alpha ? (fill * 255 + alpha / 2) / alpha : 255;
+            dest[y * stride + x] = (alpha << 24) | (gray << 16) | (gray << 8) | gray;
+        }
+    }
+}
+}
+#endif
 
 // VERIFY: 7a9fdc75 manual
 // OFFSET: 0x006C8E70
@@ -339,7 +379,8 @@ void TEXTURECACHE::PasteGlyphNonOutlinedAA(const GLYPHBITMAPDATA& data, uint16_t
 void TEXTURECACHE::UpdateDirty() {
     if (this->m_anyDirtyGlyphs && this->m_texture) {
         CGxTex* gxTex = TextureGetGxTex(this->m_texture, 1, nullptr);
-        GxTexUpdate(gxTex, 0, 0, 256, 256, 1);
+        const uint32_t size = this->m_theFace->GetTextureSize();
+        GxTexUpdate(gxTex, 0, 0, size, size, 1);
         this->m_anyDirtyGlyphs = 0;
     }
 }
@@ -369,6 +410,11 @@ void TEXTURECACHE::TextureCallback(EGxTexCommand command, uint32_t width, uint32
 
     TEXTURECACHE* cache = static_cast<TEXTURECACHE*>(userArg);
 
+#if defined(__APPLE__)
+    // Rebuild from resident descriptors. Clearing prevents an evicted, wider
+    // glyph from leaking into a new glyph's filtering footprint.
+    s_fontPixels.assign(size_t(width) * height, 0x00FFFFFF);
+#endif
     for (uint32_t row = cache->m_textureRows.m_count; row > 0; row--) {
         TEXTURECACHEROW& cacheRow = cache->m_textureRows.m_data[row - 1];
 
@@ -378,6 +424,10 @@ void TEXTURECACHE::TextureCallback(EGxTexCommand command, uint32_t width, uint32
             }
 
             CGxFont* font = cache->m_theFace;
+#if defined(__APPLE__)
+            uint32_t* dest = &s_fontPixels[glyph->m_glyphStartPixel + glyph->m_rowNumber * font->m_cellHeight * width];
+            PasteGlyph8(glyph->m_bitmapData, dest, width, font->m_cellHeight, font->m_fontFlags);
+#else
             uint16_t* dest = &s_textureData[glyph->m_glyphStartPixel + ((glyph->m_rowNumber * font->m_cellHeight) << 8)];
 
             if (font->m_fontFlags & 1) {
@@ -391,29 +441,44 @@ void TEXTURECACHE::TextureCallback(EGxTexCommand command, uint32_t width, uint32
             } else {
                 cache->PasteGlyphNonOutlinedAA(glyph->m_bitmapData, dest);
             }
+#endif
         }
     }
 
+#if defined(__APPLE__)
+    texelStrideInBytes = width * sizeof(uint32_t);
+    texels = s_fontPixels.data();
+#else
     texelStrideInBytes = 512;
     texels = s_textureData;
+#endif
 }
 
 // VERIFY: 0f656a97 auto
 // OFFSET: 0x006CA050
 void TEXTURECACHE::CreateTexture(int32_t filter) {
     CGxTexFlags flags(static_cast<EGxTexFilter>(filter != 0), 0, 0, 0, 0, 0, 1, 0, 0, 0);
+#if defined(__APPLE__)
+    const uint32_t size = this->m_theFace->GetTextureSize();
+    this->m_texture = TextureCreate(size, size, GxTex_Argb8888, GxTex_Argb8888, flags, this, TEXTURECACHE::TextureCallback, "GxuFont", 0);
+#else
     this->m_texture = TextureCreate(256, 256, GxTex_Argb4444, GxTex_Argb4444, flags, this, TEXTURECACHE::TextureCallback, "GxuFont", 0);
+#endif
 }
 
 // VERIFY: ba005b39 manual
 // OFFSET: 0x006CA130
 void TEXTURECACHE::Initialize(CGxFont* face, uint32_t cellHeight) {
     this->m_theFace = face;
-    uint32_t rows = 256 / cellHeight;
+    const uint32_t size = face->GetTextureSize();
+    uint32_t rows = size / cellHeight;
     this->m_textureRows.SetCount(rows);
 
     for (uint32_t i = 0; i < rows; i++) {
-        this->m_textureRows.m_data[i].m_widestFreeSlot = 256;
+        this->m_textureRows.m_data[i].m_widestFreeSlot = size;
+#if defined(__APPLE__)
+        this->m_textureRows.m_data[i].m_textureSize = size;
+#endif
     }
 }
 
