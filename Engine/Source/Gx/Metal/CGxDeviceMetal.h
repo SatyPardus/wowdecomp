@@ -24,6 +24,7 @@ public:
     // Optional host acquisition for original synchronous loading-screen paints.
     // The owner must outlive registration; headless callers keep explicit frames.
     void SetHostFrameProvider(bool (*acquire)(CGxDeviceMetal&, void*), void* owner);
+    void SetHostSizeChanged(void (*changed)(const CGxFormat&));
     void Drain();
     bool DeferDisplayRestart(void (*restart)());
     int32_t DeviceCreate(GxWindowProc proc, const CGxFormat& format) override;

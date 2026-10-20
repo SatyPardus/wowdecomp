@@ -268,6 +268,7 @@ bool RectFits(const CiRect& rect, const CiRect& surface) {
 
 struct CGxDeviceMetal::Impl {
     void (*displayRestart)() = nullptr;
+    void (*hostSizeChanged)(const CGxFormat&) = nullptr;
     bool (*acquireFrame)(CGxDeviceMetal&, void*) = nullptr;
     void* frameOwner = nullptr;
     explicit Impl(id<MTLDevice> device) : gpu(device) {}
@@ -763,6 +764,7 @@ void CGxDeviceMetal::CursorSetVisible(int32_t visible) {
 void CGxDeviceMetal::DeviceDestroy() {
     Require(!m->command, "End the Metal frame before destroying its host");
     m->displayRestart = nullptr;
+    m->hostSizeChanged = nullptr;
     m->acquireFrame = nullptr; m->frameOwner = nullptr;
     Drain(); OsInputApplyWindowResizeLock(nullptr);
     if (m->window && OsGuiGetWindow(0) == m->window) OsGuiSetGxWindow(nullptr);
@@ -826,11 +828,20 @@ void CGxDeviceMetal::BeginFrame(MTLRenderPassDescriptor* pass, id<MTLDrawable> d
     }
     ApplyRenderTarget();
     if (resized) { m->scissor = {0, 0, size_t(m_curWindowRect.maxX), size_t(m_curWindowRect.maxY)}; m_scissorRectDirty = 1; }
+    if (resized && m->window && drawable && m->hostSizeChanged) m->hostSizeChanged(m_format);
 }
 id<MTLCommandBuffer> CGxDeviceMetal::FrameCommand() const { return m->command; }
 void CGxDeviceMetal::SetHostFrameProvider(bool (*acquire)(CGxDeviceMetal&, void*), void* owner) {
     Require(NSThread.isMainThread, "Host frame provider requires the native host thread");
     m->acquireFrame = acquire; m->frameOwner = acquire ? owner : nullptr;
+}
+void CGxDeviceMetal::SetHostSizeChanged(void (*changed)(const CGxFormat&)) {
+    Require(NSThread.isMainThread, "Host resize handler requires the native host thread");
+    m->hostSizeChanged = changed;
+}
+void GxMetal::SetHostSizeChanged(void (*changed)(const CGxFormat&)) {
+    if (g_theGxDevicePtr && g_theGxDevicePtr->DeviceApi() == GxApi_Metal)
+        static_cast<CGxDeviceMetal*>(g_theGxDevicePtr)->SetHostSizeChanged(changed);
 }
 void CGxDeviceMetal::EnsureFrame() {
     if (m->command) return;

@@ -633,16 +633,15 @@ shutdown. Movement/collision code was unchanged. Feral ended near Allison at
 
 macOS host frames explicitly track the window's native backing pixels before
 acquiring Metal attachments, including Retina scaling and interactive resizing.
-The original login now renders at the requested 1024x768 pixels on a 2x display;
-window resizing, color/depth readback, input coordinates and original display
-restart/rollback pass the native UI check under ASan/UBSan and Metal validation.
-The client also reconciles the configured pixel size once after window activation,
-before acquiring its first drawable. A real startup had left a 1024x768-point
-window on a 2x display despite a 1024x768-pixel request. Recreating that mismatch
-confirmed correction from 2048x1536 to 1024x768 before drawing; a final build
-without the temporary reproduction hook also passed 180 login frames, capture
-and normal shutdown under Mac ASan/UBSan and Metal validation. Subsequent user
-resizes continue through the existing native frame-boundary path.
+The client reconciles the configured pixel size after window activation. Each
+interactive resize publishes the acquired drawable size to `gxResolution`, the
+pending format and last-good format before original size events run, so the game
+camera and UI use the new aspect instead of stretching their old projection.
+Only the resolution is synchronized; other pending video settings stay pending.
+The video menu offers common rendering sizes that fit the current display,
+its native pixel size and the current custom window size. Selecting a resolution
+uses the original apply/restart flow; it does not change the monitor's physical
+mode or refresh rate. iOS retains its scene-based resolution list.
 
 The native `FFXNetherBlur`/`FFXNetherCombine` paths preserve the original noisy
 four-tap RGBA blur, fixed UV bias, two-pass intermediate surface, tint and fade.
@@ -1857,6 +1856,10 @@ available when no callback or native view is supplied.
 `WOW_DISPLAY_CHECK=1` checks real drawable/depth reallocation, GPU readback,
 native pixel/input sizes, unsupported requests and continued rendering across
 successive view callbacks in either native preview. On macOS it also checks
+the original aspect and display CVars after interactive resizing.
+`WOW_METAL_CHECK=display` independently checks video-menu enumeration/selection,
+latched resolution application, invalid indices and configuration save/reload.
+The native display check also covers
 borderless full-surface color/depth readback, transfer of focus to another real
 window and back, resize-lock changes and restoration of desktop presentation,
 window frame and video CVars. Native fullscreen checks also exercise actual

@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <atomic>
 #include <cmath>
+#include <algorithm>
+#include <vector>
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 #else
@@ -356,7 +358,8 @@ int32_t CGxDevice::AdapterDesktopMode(CGxMonitorMode& mode) {
         return result;
     }
 #if TARGET_OS_OSX
-    NSScreen* screen = NSScreen.mainScreen;
+    NSView* view = (__bridge NSView*)OsGuiGetWindow(0);
+    NSScreen* screen = view.window.screen ?: NSScreen.mainScreen;
     if (!screen) { return 0; }
     const NSRect pixels = [screen convertRectToBacking:screen.frame];
     mode.m_size.x = int32_t(pixels.size.width); mode.m_size.y = int32_t(pixels.size.height);
@@ -370,12 +373,40 @@ int32_t CGxDevice::AdapterDesktopMode(CGxMonitorMode& mode) {
     return 1;
 }
 int32_t CGxDevice::AdapterMonitorModes(TSGrowableArray<CGxMonitorMode>& modes) {
+    if (!NSThread.isMainThread) {
+        __block int32_t result;
+        dispatch_sync(dispatch_get_main_queue(), ^{ result = AdapterMonitorModes(modes); });
+        return result;
+    }
     modes.SetCount(0);
     CGxMonitorMode current;
     if (!AdapterDesktopMode(current)) { return 0; }
-    // Native hosts use resizable windows / scene dimensions. Display mode
-    // switching is not implemented, so do not advertise selectable modes.
+#if TARGET_OS_OSX
+    // These are Metal rendering sizes, not requests to change the monitor's
+    // physical mode. Both windowed and native fullscreen hosts accept them.
+    std::vector<C2iVector> sizes;
+    for (const C2iVector size : {C2iVector{800,600}, {1024,768}, {1280,720}, {1280,800},
+            {1280,1024}, {1366,768}, {1440,900}, {1600,900}, {1600,1200}, {1680,1050},
+            {1920,1080}, {1920,1200}, {2048,1152}, {2560,1440}, {2560,1600},
+            {2880,1800}, {3200,1800}, {3840,2160}}) {
+        if (size.x <= current.m_size.x && size.y <= current.m_size.y) sizes.push_back(size);
+    }
+    sizes.push_back(current.m_size);
+    CGxFormat active;
+    if (GxMetal::GetHostFormat(active)) sizes.push_back(active.m_size);
+    std::sort(sizes.begin(), sizes.end(), [](const auto& a, const auto& b) {
+        return a.x < b.x || (a.x == b.x && a.y < b.y);
+    });
+    C2iVector last{0,0};
+    for (const auto& size : sizes) {
+        if (size.x == last.x && size.y == last.y) continue;
+        CGxMonitorMode mode = current; mode.m_size = size;
+        modes.New(mode); last = size;
+    }
+#else
+    // UIKit owns its scene dimensions, including portrait orientations.
     modes.New(current);
+#endif
     return 1;
 }
 int32_t CGxDevice::AdapterFormats(EGxApi api, TSGrowableArray<CGxFormat>& formats) {

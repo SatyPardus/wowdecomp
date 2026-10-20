@@ -177,8 +177,8 @@ static int32_t Script_IsStereoVideoAvailable(lua_State* L) {
 static void SetupFormats() {
 #if defined(__APPLE__)
     // Native scene dimensions can change across host rebuilds/display moves.
-    // Report available native surfaces, including portrait iOS scenes, instead
-    // of inventing the Windows fallback display modes or caching an old screen.
+    // Report native rendering choices/current window size on macOS and the
+    // active scene on iOS, without caching a previous display or orientation.
     s_resolutions.SetCount(0);
     TSGrowableArray<CGxMonitorMode> modes;
     GxAdapterMonitorModes(modes);

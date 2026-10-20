@@ -7,6 +7,7 @@
 #include "Engine/Source/Os/Input.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
+#include "WoW/Source/Ui/Screen.h"
 #include <TargetConditionals.h>
 #include <cstdio>
 #include <cstdlib>
@@ -178,6 +179,11 @@ bool NativeDisplayProbe::Impl::Step() {
         device.BeginFrame(pass, drawable);
         // Interactive resizing publishes its actual format with the new frame.
         accepted = device.m_format;
+        if (ConsoleDeviceExists()) {
+            auto actual = size; Accepted(actual);
+            Require(std::abs(Screen::GetAspectRatio() - float(size.x)/size.y) < .00001f,
+                "Native resizing left the original UI/world aspect at the old resolution");
+        }
         invalid = accepted; invalid.m_size = {123, 77}; reject(invalid);
         device.SceneClear(3, CImVector(31, 73, 149, 255));
         CiRect rect(0, 0, size.y, size.x); TSGrowableArray<CImVector> pixels;

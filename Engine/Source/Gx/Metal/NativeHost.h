@@ -30,6 +30,9 @@ bool GetHostFormat(CGxFormat& format);
 bool PrepareHostDrawable(void* nativeView);
 // Native green-button/menu requests return through original video CVars.
 void SetHostFullScreenRequest(void (*request)(const CGxFormat&));
+// Publish an actual drawable resize before the original size events run. This
+// only updates game display state; the callback must not restart the device.
+void SetHostSizeChanged(void (*changed)(const CGxFormat&));
 // Coalesce display restarts requested during input/update/paint. The complete
 // restart runs after submission, before the next drawable is acquired.
 bool DeferDisplayRestart(void (*restart)());

@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <vector>
+#include <TargetConditionals.h>
 
 namespace {
 void Require(bool ok, const char* text) { if (!ok) throw std::runtime_error(text); }
@@ -115,6 +116,16 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
             std::snprintf(expectedResolution, sizeof(expectedResolution), "%dx%d", desktop.m_size.x, desktop.m_size.y);
             lua_pushstring(lua, expectedResolution); lua_setglobal(lua, "expectedResolution");
             lua_pushnumber(lua, desktop.m_refreshRate); lua_setglobal(lua, "expectedRefresh");
+            TSGrowableArray<CGxMonitorMode> modes; GxAdapterMonitorModes(modes);
+#if TARGET_OS_OSX
+            Require(modes.Count() > 1, "macOS resolution menu only exposes the desktop size");
+#endif
+            lua_newtable(lua);
+            for (uint32_t i=0;i<modes.Count();++i) {
+                char size[64]; std::snprintf(size,sizeof(size),"%dx%d",modes[i].m_size.x,modes[i].m_size.y);
+                lua_pushstring(lua,size); lua_rawseti(lua,-2,i+1);
+            }
+            lua_setglobal(lua,"expectedResolutions");
             TSGrowableArray<CGxFormat> formats; CGxDevice::AdapterFormats(GxApi_Metal, formats);
             lua_newtable(lua);
             for (uint32_t i=0;i<formats.Count();++i) {
@@ -127,27 +138,40 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
                 "assert(t[1e100]=='large' and t[-1e100]=='small' and t[math.huge]=='inf' and t[-math.huge]=='negative inf'); "
                 "assert(t[2147483647]=='max' and t[2147483648]=='above' and t[-2147483648]=='min' and t[-2147483649]=='below'); "
                 "assert(not pcall(function() t[0/0]='invalid' end) and t[0/0] == nil)");
-            run("local r={GetScreenResolutions()}; assert(#r == 1 and r[1] == expectedResolution); "
-                "local hz={GetRefreshRates(1)}; assert(#hz == 1 and hz[1] == expectedRefresh); "
+            run("local r={GetScreenResolutions()}; assert(#r == #expectedResolutions); local seen={}; "
+                "for i,v in ipairs(r) do assert(v==expectedResolutions[i] and not seen[v]); seen[v]=true; "
+                    "if v==expectedResolution then expectedResolutionIndex=i end; "
+                    "local hz={GetRefreshRates(i)}; assert(#hz==1 and hz[1]==expectedRefresh); "
+                "end; assert(expectedResolutionIndex); "
                 "local f={GetMultisampleFormats()}; assert(#f == 3*#expectedSamples); "
                 "for i,n in ipairs(expectedSamples) do assert(f[3*i-2]==24 and f[3*i-1]==32 and f[3*i]==n); SetMultisampleFormat(i); end; SetMultisampleFormat(1); "
                 "assert(GetCurrentMultisampleFormat() == 1 and not IsStereoVideoAvailable()); "
                 "assert(select('#', GetVideoCaps()) == 7 and IsPlayerResolutionAvailable()); "
-                "for _,i in ipairs({0,-1,2,1e100,math.huge,-math.huge,0/0}) do "
-                    "assert(not pcall(SetScreenResolution,i)); if i~=2 then assert(not pcall(SetMultisampleFormat,i)); end; "
+                "for _,i in ipairs({0,-1,1e100,math.huge,-math.huge,0/0}) do "
+                    "assert(not pcall(SetScreenResolution,i)); assert(not pcall(SetMultisampleFormat,i)); "
                     "assert(select('#',GetRefreshRates(i)) == 0); "
-                "end; assert(not pcall(SetMultisampleFormat,#expectedSamples+1)); SetMultisampleFormat(1.75); SetScreenResolution(1.75)");
+                "end; assert(not pcall(SetScreenResolution,#r+1) and select('#',GetRefreshRates(#r+1))==0); "
+                "assert(not pcall(SetMultisampleFormat,#expectedSamples+1)); SetMultisampleFormat(1.75); SetScreenResolution(expectedResolutionIndex+0.75)");
             Require(s_requestedFormat.m_size.x == desktop.m_size.x && s_requestedFormat.m_size.y == desktop.m_size.y,
                 "Original Lua resolution selection did not update pending display settings");
             UpdateGxCVars();
-            run("assert(GetCurrentResolution() == 1)");
+            run("assert(GetCurrentResolution() == expectedResolutionIndex)");
+            for (uint32_t i=0;i<modes.Count();++i) {
+                lua_pushnumber(lua,i+1); lua_setglobal(lua,"selectionIndex");
+                run("SetScreenResolution(selectionIndex)");
+                Require(s_requestedFormat.m_size.x == modes[i].m_size.x && s_requestedFormat.m_size.y == modes[i].m_size.y,
+                    "Resolution menu did not select the requested rendering size");
+                UpdateGxCVars(); // The original resolution CVar is latched until apply.
+                run("assert(GetCurrentResolution()==selectionIndex)");
+            }
+            run("SetScreenResolution(expectedResolutionIndex)"); UpdateGxCVars();
             Require(std::abs(Screen::GetAspectRatio() - float(desktop.m_size.x) / desktop.m_size.y) < .00001f,
                 "Original screen aspect did not use selected resolution");
             Set("widescreen", "0");
             Require(Screen::GetAspectRatio() == 4.0f / 3.0f, "Original constrained screen aspect changed");
-            run("assert(GetScreenResolutions() == expectedResolution)");
+            run("assert(select(expectedResolutionIndex,GetScreenResolutions()) == expectedResolution)");
             Set("widescreen", "1"); Set("gxResolution", "29x17"); UpdateGxCVars(); Set("gxWindow", "0");
-            run("SetScreenResolution(1)");
+            run("SetScreenResolution(expectedResolutionIndex)");
             Require(s_requestedFormat.m_size.x == desktop.m_size.x && s_requestedFormat.m_size.y == desktop.m_size.y,
                 "Native scene dimensions were rejected by the display CVar");
             for (const auto& invalid : {std::pair{"gxDepthBits", "24"}, {"gxColorBits", "30"}}) {
@@ -160,7 +184,7 @@ void CheckDisplaySettings(CGxDeviceMetal& device) {
             CGVideoOptions::UnregisterScriptFunctions();
             run("assert(GetScreenResolutions == nil and GetMultisampleFormats == nil and GetVideoCaps == nil)");
             CGVideoOptions::RegisterScriptFunctions();
-            run("assert(GetCurrentMultisampleFormat() == 1 and GetScreenResolutions() == expectedResolution)");
+            run("assert(GetCurrentMultisampleFormat() == 1 and select(expectedResolutionIndex,GetScreenResolutions()) == expectedResolution)");
             std::puts("Original video options Lua: native modes/capabilities, selection, aspect, invalid indices, empty/rebuilt format lists and registration lifecycle passed");
         }
         Require(device.DeviceSetFormat(s_requestedFormat), "Original display CVars could not round trip the native format");

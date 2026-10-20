@@ -407,6 +407,7 @@ void CheckGxDevice(const char* focus) {
     if (focus && !std::strcmp(focus, "wmo-shaders")) { CheckWmoShaders(device); CheckModelShaders(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ffx")) { CheckGxFFXPasses(device); CheckGxFFXEffect(device); device.DeviceDestroy(); return; }
     if (focus && !std::strcmp(focus, "ui")) { CheckOriginalUI(device); device.DeviceDestroy(); return; }
+    if (focus && !std::strcmp(focus, "display")) { CheckDisplaySettings(device); device.DeviceDestroy(); return; }
     CheckDisplaySettings(device);
     if (!focus) CheckGxQueries(device);
     if (focus && !std::strcmp(focus, "models")) { CheckGameAsyncFiles(true); device.DeviceDestroy(); return; }

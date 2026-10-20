@@ -510,6 +510,17 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
     s_lastGoodFormat = format;
     SetGxCVars(s_requestedFormat);
 #if defined(__APPLE__)
+    GxMetal::SetHostSizeChanged([](const CGxFormat& applied) {
+        // Interactive resizing bypasses gxRestart. Keep the original aspect,
+        // video menu and last-good size in step with the acquired drawable,
+        // without applying unrelated settings still pending in the menu.
+        s_lastGoodFormat.m_size = applied.m_size;
+        char resolution[32];
+        SStrPrintf(resolution, sizeof(resolution), "%dx%d", applied.m_size.x, applied.m_size.y);
+        CVar* var = CVar::Lookup("gxResolution");
+        var->Set(resolution, true, false, false, true);
+        var->Update();
+    });
     GxMetal::SetHostFullScreenRequest([](const CGxFormat& requested) {
         SetGxCVars(requested);
         CCGxRestart(nullptr, nullptr);
