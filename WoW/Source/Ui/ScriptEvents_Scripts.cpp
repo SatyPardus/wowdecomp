@@ -3779,11 +3779,11 @@ static int32_t Script_UnitRangedDamage(lua_State* L) {
 
     uint32_t positive = player->m_obj->m_guid == ClntObjMgrGetActivePlayer() ? player->m_player->m_playerFieldModDamageDonePos[school] : 0;
     lua_pushnumber(L, positive);
-    uint32_t negative = player->m_obj->m_guid == ClntObjMgrGetActivePlayer() ? player->m_player->m_playerFieldModDamageDoneNeg[school] : 0;
+    int32_t negative = player->m_obj->m_guid == ClntObjMgrGetActivePlayer() ? player->m_player->m_playerFieldModDamageDoneNeg[school] : 0;
     lua_pushnumber(L, negative);
 
     if (player->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
-        lua_pushnumber(L, *reinterpret_cast<float*>(&player->m_player->m_playerFieldModDamageDonePct[school]));
+        lua_pushnumber(L, player->m_player->m_playerFieldModDamageDonePct[school]);
     } else {
         lua_pushnumber(L, 0.0);
     }
