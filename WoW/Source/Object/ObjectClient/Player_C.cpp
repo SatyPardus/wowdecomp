@@ -774,6 +774,9 @@ static int32_t OnUpdateInventoryComponent(WOWGUID guid, uint32_t fieldOffset, ui
 
     if (player) {
         player->UpdateInventoryComponent(static_cast<INVENTORY_SLOTS>((fieldOffset - offsetof(CGPlayerData, m_playerVisibleItems)) / sizeof(VisibleItem_C)), static_cast<const VisibleItem_C*>(oldValue));
+#ifdef DISABLE_ITEM_CACHE
+        Script_SendUnitSignal(guid, SCRIPT_EVENT_UNIT_INVENTORY_CHANGED);
+#endif
     }
 
     return 1;
@@ -10343,6 +10346,7 @@ static void VisibleItemStatsCallback(int32_t id, const WOWGUID& guid, void* para
 
     if (abs(item->m_itemId) == id) {
         player->EquipVisibleItem(item, slot);
+        Script_SendUnitSignal(guid, SCRIPT_EVENT_UNIT_INVENTORY_CHANGED);
     }
 }
 
