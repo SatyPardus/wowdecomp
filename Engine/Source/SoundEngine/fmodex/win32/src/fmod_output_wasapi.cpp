@@ -82,8 +82,8 @@ FMOD_RESULT OutputWASAPI::enumerateDefaultDevices(IMMDeviceEnumerator *pEnumerat
     HRESULT          hr;
     IMMDevice       *device      = NULL;
     IPropertyStore  *properties  = NULL;
-    PROPVARIANT      description;
-    PROPVARIANT      friendlyname;
+    PROPVARIANT      description = {};
+    PROPVARIANT      friendlyname = {};
     char             name[512] = {0};
 
     hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
@@ -210,8 +210,8 @@ FMOD_RESULT OutputWASAPI::enumerate()
     IMMDeviceCollection  *collection  = NULL;
     IMMDevice            *device      = NULL;
     IPropertyStore       *properties  = NULL;
-    PROPVARIANT           description;
-    PROPVARIANT           friendlyname;
+    PROPVARIANT           description = {};
+    PROPVARIANT           friendlyname = {};
     UINT                  numdevices  = 0;
     UINT                  count;
     int                   i;
