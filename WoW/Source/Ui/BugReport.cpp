@@ -202,6 +202,11 @@ static void ReportBuild(FILE* file) {
 #else
     fprintf(file, "  signature check ON (stock behaviour: modified signed files are rejected)\n");
 #endif
+#ifdef FIX_SECOND_MOON
+    fprintf(file, "  second moon fix ON (built with WOWDECOMP_FIX_SECOND_MOON)\n");
+#else
+    fprintf(file, "  second moon fix OFF (stock behaviour)\n");
+#endif
 
     uint8_t digest[16];
     int32_t signature = FrameXML_CheckSignature("Interface\\FrameXML\\FrameXML.toc", "Interface\\FrameXML\\Bindings.xml", InterfaceKey, digest);

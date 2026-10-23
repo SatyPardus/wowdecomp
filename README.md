@@ -79,6 +79,7 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 | CMake option | Default | Effect |
 |---|---|---|
 | `WOWDECOMP_DISABLE_SIGNATURE_CHECKS` | `OFF` | Skip the MPQ file and `.toc.sig` signature checks, so modified game data and interface files load |
+| `WOWDECOMP_FIX_SECOND_MOON` | `OFF` | Initialize the second moon's color and apply flash lighting so it renders correctly |
 | `WOWCLIENT_CRASH_LOG` | `ON` | Build `WowClient` with the crash logger |
 | `WOWCLIENT_OUTPUT_OVERRIDE` | empty | Name the `WowClient` executable something other than `WowClient64` / `WowClient32` |
 

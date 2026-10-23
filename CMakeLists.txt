@@ -54,6 +54,12 @@ if (WOWDECOMP_DISABLE_SIGNATURE_CHECKS)
     add_compile_definitions(DISABLE_SIGNATURE_CHECKS=1)
 endif ()
 
+# Off by default: preserve the original second moon lighting unless explicitly enabled.
+option(WOWDECOMP_FIX_SECOND_MOON "Fix second moon color and flash lighting" OFF)
+if (WOWDECOMP_FIX_SECOND_MOON)
+    add_compile_definitions(FIX_SECOND_MOON=1)
+endif ()
+
 # Third-party code is linked, not decompiled, for now.
 if (EXISTS ${CMAKE_SOURCE_DIR}/ThirdParty/CMakeLists.txt)
     add_subdirectory(ThirdParty)
