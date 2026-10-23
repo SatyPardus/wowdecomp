@@ -3,7 +3,10 @@
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/H/stpl.h"
+#include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/DB/Rec/MapDifficultyRec.h"
+#include "WoW/Source/Object/ItemStats.h"
+#include <map>
 
 // STATIC: 0x00AD3028
 const char* g_localeNames[NUM_DB_LOCALES] = { "deDE", "enGB", "enUS", "esES", "frFR", "koKR", "zhCN", "zhTW", "enCN", "enTW", "esMX", "ruRU" };
@@ -304,6 +307,48 @@ WowClientDB<HolidayNamesRec> g_holidayNamesDB;
 
 // STATIC: 0x00AD3D28
 WowClientDB<HolidaysRec> g_holidaysDB;
+
+#ifdef DISABLE_ITEM_CACHE
+static std::map<int32_t, ItemRec> s_itemDBOverlay;
+
+static void ItemDBOverlayCallback(int32_t id, const WOWGUID& guid, void* param, bool success) {
+}
+#endif
+
+template <>
+ItemRec* WowClientDB<ItemRec>::GetRecord(int32_t id) const {
+#ifdef DISABLE_ITEM_CACHE
+    WOWGUID none = WOWGUID();
+    ItemStats_C* stats = g_itemDBCache.GetRecord(id, none, ItemDBOverlayCallback, nullptr, true);
+
+    if (!stats) {
+        return nullptr;
+    }
+
+    ItemRec& rec = s_itemDBOverlay[id];
+    rec.m_id = id;
+    rec.m_classID = stats->m_class;
+    rec.m_subclassID = stats->m_subClass;
+    rec.m_soundOverrideSubclassID = stats->m_soundOverrideSubclass;
+    rec.m_material = stats->m_material;
+    rec.m_displayInfoID = stats->m_displayId;
+    rec.m_inventoryType = stats->m_inventoryType;
+    rec.m_sheatheType = stats->m_sheatheType;
+    return &rec;
+#else
+    if (id < this->m_minID || id > this->m_maxID) {
+        return nullptr;
+    }
+
+    return this->m_recordsById[id - this->m_minID];
+#endif
+}
+
+void ClearItemDBOverlay() {
+#ifdef DISABLE_ITEM_CACHE
+    s_itemDBOverlay.clear();
+#endif
+}
 
 // STATIC: 0x00AD3D4C
 WowClientDB<ItemRec> g_itemDB;

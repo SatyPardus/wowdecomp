@@ -24,6 +24,12 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 
+#ifdef DISABLE_ITEM_CACHE
+static constexpr bool ITEM_CACHE_ENABLED = false;
+#else
+static constexpr bool ITEM_CACHE_ENABLED = true;
+#endif
+
 // STATIC: 0x00C5D690
 DBCache<CreatureStats_C, int32_t, HASHKEY_INT> g_creatureDBCache('WMOB', "creaturecache.wdb", CMSG_QUERY_CREATURE, 0, true, true, 0);
 
@@ -31,10 +37,10 @@ DBCache<CreatureStats_C, int32_t, HASHKEY_INT> g_creatureDBCache('WMOB', "creatu
 DBCache<GameObjectStats_C, int32_t, HASHKEY_INT> g_gameObjectDBCache('WGOB', "gameobjectcache.wdb", CMSG_QUERY_GAME_OBJECT, 0, true, true, 0);
 
 // STATIC: 0x00C5D7A0
-DBCache<ItemNameCache_C, int32_t, HASHKEY_INT> g_itemNameDBCache('WNDB', "itemnamecache.wdb", CMSG_ITEM_NAME_QUERY, 0, true, true, 0);
+DBCache<ItemNameCache_C, int32_t, HASHKEY_INT> g_itemNameDBCache('WNDB', "itemnamecache.wdb", CMSG_ITEM_NAME_QUERY, 0, true, ITEM_CACHE_ENABLED, 0);
 
 // STATIC: 0x00C5D828
-DBCache<ItemStats_C, int32_t, HASHKEY_INT> g_itemDBCache('WIDB', "itemcache.wdb", CMSG_ITEM_QUERY_SINGLE, CMSG_ITEM_QUERY_MULTIPLE, false, true, 512);
+DBCache<ItemStats_C, int32_t, HASHKEY_INT> g_itemDBCache('WIDB', "itemcache.wdb", CMSG_ITEM_QUERY_SINGLE, CMSG_ITEM_QUERY_MULTIPLE, false, ITEM_CACHE_ENABLED, 512);
 
 // STATIC: 0x00C5D8B0
 DBCache<NPCText, int32_t, HASHKEY_INT> g_npcTextDBCache('WNPC', "npccache.wdb", CMSG_QUERY_NPC_TEXT, 0, true, true, 0);
@@ -394,6 +400,7 @@ void DBCache_Destroy() {
     g_creatureDBCache.Destroy();
     g_gameObjectDBCache.Destroy();
     g_itemDBCache.Destroy();
+    ClearItemDBOverlay();
     g_itemNameDBCache.Destroy();
     g_npcTextDBCache.Destroy();
     g_nameDBCache.Destroy();
@@ -467,6 +474,7 @@ void DBCache_ClearTemporaryCaches() {
 
     if (!g_itemDBCache.m_enabled) {
         g_itemDBCache.Clear();
+        ClearItemDBOverlay();
     }
 
     if (!g_itemNameDBCache.m_enabled) {

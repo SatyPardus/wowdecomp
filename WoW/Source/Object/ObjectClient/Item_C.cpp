@@ -89,9 +89,7 @@ static int32_t OnUpdateStackCount(WOWGUID guid, uint32_t fieldOffset, uint32_t f
             CGCurrencyTypes::EnterWorld();
         }
 
-        ItemRec* rec = g_itemDB.GetRecord(item->m_obj->m_entryID);
-
-        if (rec && rec->m_inventoryType == 24) {
+        if (CGItem_C::GetInventoryType(item->m_obj->m_entryID) == 24) {
             CGCharacterInfo::UpdateInventoryAlerts();
         }
     }
@@ -269,7 +267,7 @@ void CGItem_C::Shutdown() {
 static void LoadItemCacheCallback(int32_t id, const WOWGUID& guid, void* param, bool success) {
     CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
-    if (!item || !success) {
+    if (!item) {
         return;
     }
 
@@ -277,8 +275,12 @@ static void LoadItemCacheCallback(int32_t id, const WOWGUID& guid, void* param, 
 
     CGPlayer_C* owner = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(item->m_item->m_itemFieldOwner, TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (owner) {
+    if (owner && owner->m_pendingItemCacheCount) {
         owner->m_pendingItemCacheCount--;
+    }
+
+    if (success) {
+        item->PostInitWithStats();
     }
 }
 
@@ -291,23 +293,12 @@ CGItem_C::CGItem_C(uint32_t time, const CClientObjCreate& create) : CGObject_C(t
 
     ClntObjMgrHideObject(this->m_obj->m_guid);
 
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    this->m_virtualItem.m_classID = rec ? rec->m_classID : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    this->m_virtualItem.m_subclassID = rec ? rec->m_subclassID : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    this->m_virtualItem.m_material = rec ? rec->m_material : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    this->m_virtualItem.m_inventoryType = rec ? rec->m_inventoryType : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    this->m_virtualItem.m_sheatheType = rec ? rec->m_sheatheType : 0;
-
-    rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    this->m_virtualItem.m_soundOverrideSubclassID = rec ? rec->m_soundOverrideSubclassID : -1;
+    this->m_virtualItem.m_classID = CGItem_C::GetClassID(this->m_obj->m_entryID);
+    this->m_virtualItem.m_subclassID = CGItem_C::GetSubtypeID(this->m_obj->m_entryID);
+    this->m_virtualItem.m_material = CGItem_C::GetMaterial(this->m_obj->m_entryID);
+    this->m_virtualItem.m_inventoryType = CGItem_C::GetInventoryType(this->m_obj->m_entryID);
+    this->m_virtualItem.m_sheatheType = CGItem_C::GetSheatheType(this->m_obj->m_entryID);
+    this->m_virtualItem.m_soundOverrideSubclassID = CGItem_C::GetSoundOverrideSubclassID(this->m_obj->m_entryID);
 
     memset(this->m_enchantmentExpiration, 0, sizeof(this->m_enchantmentExpiration));
     this->m_itemPurchaseData = nullptr;
@@ -473,41 +464,106 @@ int32_t CGItem_C::GetSelectionHighlightColor(CImVector* color) const {
 // VERIFY: 3f2f878c auto
 // OFFSET: 0x00707220
 uint32_t CGItem_C::GetClassID() const {
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
+    return CGItem_C::GetClassID(this->m_obj->m_entryID);
+}
+
+uint32_t CGItem_C::GetClassID(int32_t itemId) {
+#ifdef DISABLE_ITEM_CACHE
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    return stats ? stats->m_class : 0;
+#else
+    ItemRec* rec = g_itemDB.GetRecord(itemId);
 
     return rec ? rec->m_classID : 0;
+#endif
 }
 
 // VERIFY: 955a9609 auto
 // OFFSET: 0x00707250
 uint32_t CGItem_C::GetSubtypeID() const {
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
+    return CGItem_C::GetSubtypeID(this->m_obj->m_entryID);
+}
+
+uint32_t CGItem_C::GetSubtypeID(int32_t itemId) {
+#ifdef DISABLE_ITEM_CACHE
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    return stats ? stats->m_subClass : 0;
+#else
+    ItemRec* rec = g_itemDB.GetRecord(itemId);
 
     return rec ? rec->m_subclassID : 0;
+#endif
 }
 
 // VERIFY: 6c114c7d auto
 // OFFSET: 0x00707280
 uint32_t CGItem_C::GetInventoryType() const {
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
+    return CGItem_C::GetInventoryType(this->m_obj->m_entryID);
+}
+
+uint32_t CGItem_C::GetInventoryType(int32_t itemId) {
+#ifdef DISABLE_ITEM_CACHE
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    return stats ? stats->m_inventoryType : 0;
+#else
+    ItemRec* rec = g_itemDB.GetRecord(itemId);
 
     return rec ? rec->m_inventoryType : 0;
+#endif
 }
 
 // VERIFY: b59c1299 auto
 // OFFSET: 0x00707300
 uint32_t CGItem_C::GetDisplayID() const {
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
+    return CGItem_C::GetDisplayID(this->m_obj->m_entryID);
+}
+
+uint32_t CGItem_C::GetDisplayID(int32_t itemId) {
+#ifdef DISABLE_ITEM_CACHE
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    return stats ? stats->m_displayId : 0;
+#else
+    ItemRec* rec = g_itemDB.GetRecord(itemId);
 
     return rec ? rec->m_displayInfoID : 0;
+#endif
 }
 
 // VERIFY: 8c746859 auto
 // OFFSET: 0x00707330
 uint32_t CGItem_C::GetSheatheType() const {
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
+    return CGItem_C::GetSheatheType(this->m_obj->m_entryID);
+}
+
+uint32_t CGItem_C::GetSheatheType(int32_t itemId) {
+#ifdef DISABLE_ITEM_CACHE
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    return stats ? stats->m_sheatheType : 0;
+#else
+    ItemRec* rec = g_itemDB.GetRecord(itemId);
 
     return rec ? rec->m_sheatheType : 0;
+#endif
+}
+
+uint32_t CGItem_C::GetMaterial(int32_t itemId) {
+#ifdef DISABLE_ITEM_CACHE
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    return stats ? stats->m_material : 0;
+#else
+    ItemRec* rec = g_itemDB.GetRecord(itemId);
+    return rec ? rec->m_material : 0;
+#endif
+}
+
+uint32_t CGItem_C::GetSoundOverrideSubclassID(int32_t itemId) {
+#ifdef DISABLE_ITEM_CACHE
+    ItemStats_C* stats = g_itemDBCache.GetRecord(itemId, WOWGUID(), nullptr, nullptr, false);
+    return stats ? stats->m_soundOverrideSubclass : 0xFF;
+#else
+    ItemRec* rec = g_itemDB.GetRecord(itemId);
+    return rec ? rec->m_soundOverrideSubclassID : 0xFF;
+#endif
 }
 
 // INLINED
@@ -542,8 +598,7 @@ bool CGItem_C::HasSoulboundEnchant() {
 // VERIFY: a5c81637 auto
 // OFFSET: 0x00707500
 int32_t CGItem_C::GetRandomItemSlot() const {
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    uint32_t inventoryType = rec ? rec->m_inventoryType : 0;
+    uint32_t inventoryType = this->GetInventoryType();
 
     switch (inventoryType) {
         case 0:
@@ -1121,13 +1176,7 @@ const char* CGItem_C::GetInventoryArt(int32_t displayId) {
 // VERIFY: 3c4650e1 auto
 // OFFSET: 0x0070AA00
 const char* CGItem_C::GetInventoryArt() const {
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-
-    if (rec) {
-        return CGItem_C::GetInventoryArt(rec->m_displayInfoID);
-    }
-
-    return CGItem_C::GetInventoryArt(0);
+    return CGItem_C::GetInventoryArt(this->GetDisplayID());
 }
 
 // VERIFY: 61c58006 manual
@@ -1721,16 +1770,15 @@ int32_t CGItem_C::UseItem(WOWGUID* target, int32_t confirmed) {
 // OFFSET: 0x0070AA40
 void CGItem_C::PostInitWithStats() {
     this->m_itemFlags |= 2;
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    this->m_virtualItem.m_classID = rec ? rec->m_classID : 0;
-    this->m_virtualItem.m_subclassID = rec ? rec->m_subclassID : 0;
-    this->m_virtualItem.m_material = rec ? rec->m_material : 0;
-    this->m_virtualItem.m_inventoryType = rec ? rec->m_inventoryType : 0;
-    this->m_virtualItem.m_sheatheType = rec ? rec->m_sheatheType : 0;
-    this->m_virtualItem.m_soundOverrideSubclassID = rec ? rec->m_soundOverrideSubclassID : 0xFF;
+    this->m_virtualItem.m_classID = CGItem_C::GetClassID(this->m_obj->m_entryID);
+    this->m_virtualItem.m_subclassID = CGItem_C::GetSubtypeID(this->m_obj->m_entryID);
+    this->m_virtualItem.m_material = CGItem_C::GetMaterial(this->m_obj->m_entryID);
+    this->m_virtualItem.m_inventoryType = CGItem_C::GetInventoryType(this->m_obj->m_entryID);
+    this->m_virtualItem.m_sheatheType = CGItem_C::GetSheatheType(this->m_obj->m_entryID);
+    this->m_virtualItem.m_soundOverrideSubclassID = CGItem_C::GetSoundOverrideSubclassID(this->m_obj->m_entryID);
     ItemDisplayInfoRec display;
 
-    if (g_itemDisplayInfoDB.GetRecord(rec ? rec->m_displayInfoID : 0, &display)) {
+    if (g_itemDisplayInfoDB.GetRecord(CGItem_C::GetDisplayID(this->m_obj->m_entryID), &display)) {
         this->m_groupSounds = g_itemGroupSoundsDB.GetRecord(display.m_groupSoundIndex);
     } else {
         this->m_groupSounds = nullptr;
@@ -1797,41 +1845,49 @@ int32_t CGItem_C::CanGoInSlot(int32_t itemId, uint32_t slot, int32_t bypass) {
         return 0;
     }
 
-    ItemRec* rec = g_itemDB.GetRecord(itemId);
+#ifndef DISABLE_ITEM_CACHE
+    if (!g_itemDB.GetRecord(itemId)) {
+        return 0;
+    }
+#endif
 
-    if (!rec) {
+    uint32_t itemClass = CGItem_C::GetClassID(itemId);
+    uint32_t itemSubclass = CGItem_C::GetSubtypeID(itemId);
+    uint32_t inventoryType = CGItem_C::GetInventoryType(itemId);
+
+    if (inventoryType >= sizeof(s_inventoryTypeSlots) / sizeof(s_inventoryTypeSlots[0])) {
         return 0;
     }
 
     if (slot == 0xFFFFFFFF) {
-        return rec->m_classID == 6;
+        return itemClass == 6;
     }
 
     if (slot == 17) {
-        if (bypass != (rec->m_inventoryType == 28)) {
+        if (bypass != (inventoryType == 28)) {
             return 0;
         }
 
-        return (s_inventoryTypeSlots[rec->m_inventoryType] & (1 << slot)) != 0;
+        return (s_inventoryTypeSlots[inventoryType] & (1 << slot)) != 0;
     }
 
-    if ((slot != 15 && slot != 16) || rec->m_classID != 2) {
+    if ((slot != 15 && slot != 16) || itemClass != 2) {
         if (slot >= 23) {
             return 1;
         }
 
-        return (s_inventoryTypeSlots[rec->m_inventoryType] & (1 << slot)) != 0;
+        return (s_inventoryTypeSlots[inventoryType] & (1 << slot)) != 0;
     }
 
     if (slot == 16) {
-        if (rec->m_inventoryType != 17 && rec->m_inventoryType != 21) {
-            return (s_inventoryTypeSlots[rec->m_inventoryType] & (1 << slot)) != 0;
+        if (inventoryType != 17 && inventoryType != 21) {
+            return (s_inventoryTypeSlots[inventoryType] & (1 << slot)) != 0;
         }
-    } else if (rec->m_inventoryType != 22) {
-        return (s_inventoryTypeSlots[rec->m_inventoryType] & (1 << slot)) != 0;
+    } else if (inventoryType != 22) {
+        return (s_inventoryTypeSlots[inventoryType] & (1 << slot)) != 0;
     }
 
-    if ((stats->m_flags[0] & 0x40000000) || rec->m_subclassID == 13) {
+    if ((stats->m_flags[0] & 0x40000000) || itemSubclass == 13) {
         return 0;
     }
 
@@ -1840,7 +1896,7 @@ int32_t CGItem_C::CanGoInSlot(int32_t itemId, uint32_t slot, int32_t bypass) {
     for (uint32_t i = 0; i < player->m_equipBypassSkills.m_count; i++) {
         SpellRec spell;
 
-        if (!g_spellDB.GetRecord(player->GetEquipBypassSkill(i), &spell) || rec->m_classID != spell.m_equippedItemClass || !((1 << rec->m_subclassID) & spell.m_equippedItemSubclass)) {
+        if (!g_spellDB.GetRecord(player->GetEquipBypassSkill(i), &spell) || itemClass != spell.m_equippedItemClass || !((1 << itemSubclass) & spell.m_equippedItemSubclass)) {
             continue;
         }
 
@@ -1917,8 +1973,7 @@ void CGItem_C::UpdateEnchantments() {
 // OFFSET: 0x00708040
 int32_t CGItem_C::GetItemEnchantmentVisualID() const {
     ItemDisplayInfoRec displayRec;
-    ItemRec* rec = g_itemDB.GetRecord(this->m_obj->m_entryID);
-    int32_t displayId = rec ? rec->m_displayInfoID : 0;
+    int32_t displayId = this->GetDisplayID();
 
     if (!g_itemDisplayInfoDB.GetRecord(displayId, &displayRec)) {
         return 0;

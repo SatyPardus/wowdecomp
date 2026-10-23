@@ -54,6 +54,13 @@ if (WOWDECOMP_DISABLE_SIGNATURE_CHECKS)
     add_compile_definitions(DISABLE_SIGNATURE_CHECKS=1)
 endif ()
 
+# Off by default: item metadata is loaded from and saved to the original WDB cache files. ON keeps item metadata
+# session-only so every item absent from memory is queried from the server.
+option(WOWDECOMP_DISABLE_ITEM_CACHE "Ignore persisted item metadata and use server item query responses" OFF)
+if (WOWDECOMP_DISABLE_ITEM_CACHE)
+    add_compile_definitions(DISABLE_ITEM_CACHE=1)
+endif ()
+
 # Game identity (build 12340, version 3.3.5, client name) lives in GameVersion.h at the repository root.
 # WaystoneVersion.h is regenerated from git on every build; the login screen shows its build number.
 set(WAYSTONE_VERSION_HEADER ${CMAKE_BINARY_DIR}/generated/WaystoneVersion.h)

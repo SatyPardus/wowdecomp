@@ -18,6 +18,7 @@
 
 class CHashKeyGUID;
 class CWardenKey;
+class ItemStats_C;
 
 struct HASHKEY_INT {
     HASHKEY_INT();
@@ -301,14 +302,24 @@ T* DBCache<T, TKey, THashKey>::GetRecord(TKey key, const WOWGUID& guid, void (*c
     DBCACHEHASH* hash = this->m_entries.Ptr(DBCacheHashKey(key), key);
 
     if (!hash) {
-        if (callback) {
+        bool request = callback != nullptr;
+
+#ifdef DISABLE_ITEM_CACHE
+        if constexpr (std::is_same<T, ItemStats_C>::value) {
+            request = true;
+        }
+#endif
+
+        if (request) {
             hash = this->m_entries.New(DBCacheHashKey(key), key, 0, 0);
             hash->m_id = key;
 
-            DBCACHECALLBACK* node = hash->m_callbacks.NewNode(2, 0, 0);
-            node->m_callback = callback;
-            node->m_guid = guid;
-            node->m_param = param;
+            if (callback) {
+                DBCACHECALLBACK* node = hash->m_callbacks.NewNode(2, 0, 0);
+                node->m_callback = callback;
+                node->m_guid = guid;
+                node->m_param = param;
+            }
 
             if (this->m_maxQueriesPerPump && this->m_queriesSent >= this->m_maxQueriesPerPump) {
                 this->m_pending.LinkToTail(hash);

@@ -774,6 +774,9 @@ static int32_t OnUpdateInventoryComponent(WOWGUID guid, uint32_t fieldOffset, ui
 
     if (player) {
         player->UpdateInventoryComponent(static_cast<INVENTORY_SLOTS>((fieldOffset - offsetof(CGPlayerData, m_playerVisibleItems)) / sizeof(VisibleItem_C)), static_cast<const VisibleItem_C*>(oldValue));
+#ifdef DISABLE_ITEM_CACHE
+        Script_SendUnitSignal(guid, SCRIPT_EVENT_UNIT_INVENTORY_CHANGED);
+#endif
     }
 
     return 1;
@@ -10327,8 +10330,40 @@ void CGPlayer_C::AutoEquipItem(WOWGUID container, uint32_t slot, int32_t ignoreB
 
 // VERIFY: d775d48d manual
 // OFFSET: 0x006E08C0
+static void VisibleItemStatsCallback(int32_t id, const WOWGUID& guid, void* param, bool success) {
+    if (!success) {
+        return;
+    }
+
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
+    int32_t slot = static_cast<int32_t>(reinterpret_cast<intptr_t>(param));
+
+    if (!player || slot < 0 || slot >= 19) {
+        return;
+    }
+
+    VisibleItem_C* item = &player->m_player->m_playerVisibleItems[slot];
+
+    if (abs(item->m_itemId) == id) {
+        player->EquipVisibleItem(item, slot);
+        Script_SendUnitSignal(guid, SCRIPT_EVENT_UNIT_INVENTORY_CHANGED);
+    }
+}
+
 void CGPlayer_C::EquipVisibleItem(const VisibleItem_C* item, int32_t slot) {
-    if (!item || !abs(item->m_itemId) || static_cast<int32_t>(const_cast<VisibleItem_C*>(item)->GetDisplayID()) <= 0) {
+    if (!item || !abs(item->m_itemId)) {
+        return;
+    }
+
+#ifdef DISABLE_ITEM_CACHE
+    WOWGUID guid = this->m_obj->m_guid;
+
+    if (!g_itemDBCache.GetRecord(abs(item->m_itemId), guid, &VisibleItemStatsCallback, reinterpret_cast<void*>(static_cast<intptr_t>(slot)), false)) {
+        return;
+    }
+#endif
+
+    if (static_cast<int32_t>(const_cast<VisibleItem_C*>(item)->GetDisplayID()) <= 0) {
         return;
     }
 

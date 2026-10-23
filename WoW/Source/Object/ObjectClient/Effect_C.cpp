@@ -672,7 +672,7 @@ void CEffect::ClearItemVisualEffect() {
     }
 
     if (this->m_pendingCacheId) {
-        g_itemDBCache.CancelCallback(this->m_pendingCacheId, CEffect::ApplyItemVisualByItemId, nullptr);
+        g_itemDBCache.CancelCallback(this->m_pendingCacheId, CEffect::ApplyItemVisualByItemId, this);
         this->m_pendingCacheId = 0;
     }
 
