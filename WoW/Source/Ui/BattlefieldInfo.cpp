@@ -644,43 +644,70 @@ int32_t Packet_SMSG_GROUP_JOINED_BATTLEGROUND(void* param, NETMESSAGE msgId, uin
     return 1;
 }
 
-// VERIFY: ded4dbc4 auto
 // OFFSET: 0x0054B3F0
 int32_t Packet_MSG_BATTLEGROUND_PLAYER_POSITIONS(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    msg->Get(CGBattlefieldInfo::m_numPlayerPositions);
+    constexpr uint32_t playerCapacity = sizeof(CGBattlefieldInfo::m_playerPositionGuids) / sizeof(CGBattlefieldInfo::m_playerPositionGuids[0]);
+    constexpr uint32_t flagCapacity = sizeof(CGBattlefieldInfo::m_flagCarriers) / sizeof(CGBattlefieldInfo::m_flagCarriers[0]);
+    constexpr uint32_t recordBytes = sizeof(uint64_t) + 2 * sizeof(float);
+    static_assert(playerCapacity == sizeof(CGBattlefieldInfo::m_playerPositions) / sizeof(CGBattlefieldInfo::m_playerPositions[0]), "Player position arrays must agree");
+    static_assert(flagCapacity == sizeof(CGBattlefieldInfo::m_flagPositions) / sizeof(CGBattlefieldInfo::m_flagPositions[0]), "Flag position arrays must agree");
 
-    for (uint32_t i = 0; i < CGBattlefieldInfo::m_numPlayerPositions; i++) {
-        msg->Get(CGBattlefieldInfo::m_playerPositionGuids[i].m_guid);
-        msg->Get(CGBattlefieldInfo::m_playerPositions[i].x);
-        msg->Get(CGBattlefieldInfo::m_playerPositions[i].y);
+    const auto canRead = [msg](uint32_t bytes) {
+        return msg && msg->m_read <= msg->m_size && bytes <= msg->m_size - msg->m_read;
+    };
+    if (!canRead(sizeof(uint32_t))) {
+        return 0;
     }
 
-    int32_t numFlags;
-    msg->Get(reinterpret_cast<uint32_t&>(numFlags));
+    uint32_t numPlayers = 0;
+    msg->Get(numPlayers);
+    if (numPlayers > playerCapacity || !canRead(numPlayers * recordBytes + sizeof(uint32_t))) {
+        return 0;
+    }
 
-    if (numFlags > 0) {
-        if (numFlags < 2) {
-            CGBattlefieldInfo::m_flagCarriers[1] = WOWGUID();
-            CGBattlefieldInfo::m_flagPositions[1].x = 0.0f;
-            CGBattlefieldInfo::m_flagPositions[1].y = 0.0f;
+    WOWGUID playerGuids[playerCapacity];
+    C2Vector playerPositions[playerCapacity];
+    for (uint32_t i = 0; i < numPlayers; i++) {
+        msg->Get(playerGuids[i].m_guid);
+        msg->Get(playerPositions[i].x);
+        msg->Get(playerPositions[i].y);
+        if (!canRead(0)) {
+            return 0;
         }
-
-        do {
-            numFlags--;
-            msg->Get(CGBattlefieldInfo::m_flagCarriers[numFlags].m_guid);
-            msg->Get(CGBattlefieldInfo::m_flagPositions[numFlags].x);
-            msg->Get(CGBattlefieldInfo::m_flagPositions[numFlags].y);
-        } while (numFlags > 0);
-
-        return 1;
     }
 
-    CGBattlefieldInfo::m_flagPositions[0].x = 0.0f;
-    CGBattlefieldInfo::m_flagPositions[0].y = 0.0f;
-    CGBattlefieldInfo::m_flagCarriers[0] = WOWGUID();
-    CGBattlefieldInfo::m_flagPositions[1].x = 0.0f;
-    CGBattlefieldInfo::m_flagCarriers[1] = WOWGUID();
-    CGBattlefieldInfo::m_flagPositions[1].y = 0.0f;
+    uint32_t numFlags = 0;
+    msg->Get(numFlags);
+    if (numFlags > flagCapacity || !canRead(numFlags * recordBytes)) {
+        return 0;
+    }
+
+    WOWGUID flagCarriers[flagCapacity];
+    C2Vector flagPositions[flagCapacity];
+    for (uint32_t i = 0; i < flagCapacity; i++) {
+        flagCarriers[i] = WOWGUID();
+        flagPositions[i].x = 0.0f;
+        flagPositions[i].y = 0.0f;
+    }
+    for (uint32_t remaining = numFlags; remaining > 0; remaining--) {
+        const uint32_t i = remaining - 1;
+        msg->Get(flagCarriers[i].m_guid);
+        msg->Get(flagPositions[i].x);
+        msg->Get(flagPositions[i].y);
+        if (!canRead(0)) {
+            return 0;
+        }
+    }
+
+    for (uint32_t i = 0; i < numPlayers; i++) {
+        CGBattlefieldInfo::m_playerPositionGuids[i] = playerGuids[i];
+        CGBattlefieldInfo::m_playerPositions[i] = playerPositions[i];
+    }
+    for (uint32_t i = 0; i < flagCapacity; i++) {
+        CGBattlefieldInfo::m_flagCarriers[i] = flagCarriers[i];
+        CGBattlefieldInfo::m_flagPositions[i] = flagPositions[i];
+    }
+    CGBattlefieldInfo::m_numPlayerPositions = numPlayers;
     return 1;
 }
 
