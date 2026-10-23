@@ -182,7 +182,7 @@ static int32_t Script_GetFactionForRace(lua_State* L) {
 
         if (factionTemplate) {
             for (int32_t i = 0; i < g_factionGroupDB.m_numRecords; i++) {
-                FactionGroupRec* group = i >= 0 && i < g_factionGroupDB.m_numRecords ? &g_factionGroupDB.m_records[i] : nullptr;
+                const FactionGroupRec* group = &g_factionGroupDB.m_records[i];
 
                 if (group && group->m_maskID && ((1 << group->m_maskID) & factionTemplate->m_factionGroup)) {
                     lua_pushstring(L, group->m_name);
@@ -204,7 +204,12 @@ static int32_t Script_GetAvailableClasses(lua_State* L) {
     int32_t count = g_chrClassesDB.m_numRecords;
 
     for (int32_t i = 0; i < count; i++) {
-        ChrClassesRec* classRec = i >= 0 && i < g_chrClassesDB.m_numRecords ? &g_chrClassesDB.m_records[i] : nullptr;
+        const ChrClassesRec* classRec = &g_chrClassesDB.m_records[i];
+        
+        if (!classRec) {
+            continue;
+        }
+
         const char* name = CGUnit_C::GetDisplayClassNameFromRecord(classRec, CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr);
         bool available = ClientServices::Connection()->m_accountExpansion >= classRec->m_requiredExpansion;
 
@@ -282,9 +287,9 @@ static int32_t Script_GetSelectedClass(lua_State* L) {
     int32_t index = 0;
 
     for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
-        ChrClassesRec* rec = i >= 0 && i < g_chrClassesDB.m_numRecords ? &g_chrClassesDB.m_records[i] : nullptr;
+        const ChrClassesRec* rec = &g_chrClassesDB.m_records[i];
 
-        if (rec->m_id == classID) {
+        if (rec && rec->m_id == classID) {
             index = i;
         }
     }

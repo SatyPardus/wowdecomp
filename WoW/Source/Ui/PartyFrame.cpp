@@ -380,7 +380,7 @@ uint8_t CGPartyInfo::GetPartyAssignments(const WOWGUID& guid) {
     }
 
     for (uint32_t i = 0; i < 4; i++) {
-        WOWGUID member = i < 4 ? CGPartyInfo::m_members[i] : WOWGUID();
+        WOWGUID member = CGPartyInfo::m_members[i];
 
         if (member == guid) {
             return CGPartyInfo::m_memberAssignments[i];

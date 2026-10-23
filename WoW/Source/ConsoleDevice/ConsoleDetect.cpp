@@ -94,7 +94,7 @@ void ConsoleDetectSetDefaultsFormat(DefaultSettings& defaults, const Hardware& h
 // OFFSET: 0x0076B540
 static void SetVideoIdx(Hardware& hardware) {
     for (int32_t i = 1; i < g_videoHardwareDB.m_numRecords; i++) {
-        const VideoHardwareRec* rec = i < 0 || i >= g_videoHardwareDB.m_numRecords ? nullptr : &g_videoHardwareDB.m_records[i];
+        const VideoHardwareRec* rec = &g_videoHardwareDB.m_records[i];
 
         if (hardware.m_videoDevice.m_vendorID == rec->m_vendorID && hardware.m_videoDevice.m_deviceID == rec->m_deviceID) {
             hardware.m_videoID = rec->m_id;

@@ -5703,7 +5703,7 @@ void CGGameUI::UnlockAllItems() {
     uint32_t numSlots = bag->m_numSlots;
 
     for (uint32_t i = 0; i < numSlots; i++) {
-        WOWGUID guid = i < static_cast<uint32_t>(bag->m_numSlots) ? bag->m_slots[i] : WOWGUID();
+        WOWGUID guid = bag->m_slots[i];
         CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
         if (!item) {
@@ -5718,7 +5718,7 @@ void CGGameUI::UnlockAllItems() {
 
         for (uint32_t j = 0; j < static_cast<uint32_t>(item->GetBag()->m_numSlots); j++) {
             CGBag_C* container = item->GetBag();
-            WOWGUID contained = i < static_cast<uint32_t>(container->m_numSlots) ? container->m_slots[i] : WOWGUID();
+            WOWGUID contained = container->m_slots[j];
             CGItem_C* containedItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(contained, TYPE_ITEM, __FILE__, __LINE__));
 
             if (containedItem) {

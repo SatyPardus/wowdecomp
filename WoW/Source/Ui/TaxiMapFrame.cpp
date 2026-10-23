@@ -647,7 +647,7 @@ void CGTaxiMap::InitializeGame() {
     CGTaxiMap::m_routeLines.SetCount(CGTaxiMap::m_maxNodeID);
 
     for (int32_t i = g_taxiPathDB.m_numRecords - 1; i >= 0; i--) {
-        TaxiPathRec* path = i < 0 || i >= g_taxiPathDB.m_numRecords ? nullptr : &g_taxiPathDB.m_records[i];
+        TaxiPathRec* path = &g_taxiPathDB.m_records[i];
         TaxiNodesRec* from = g_taxiNodesDB.GetRecord(path->m_fromTaxiNode);
         TaxiNodesRec* to = g_taxiNodesDB.GetRecord(path->m_toTaxiNode);
 
@@ -660,7 +660,12 @@ void CGTaxiMap::InitializeGame() {
     TAXIPATHNODESCLIENT* pathNodes = nullptr;
 
     for (int32_t i = 0; i < g_taxiPathNodeDB.m_numRecords; i++) {
-        TaxiPathNodeRec* node = i < 0 || i >= g_taxiPathNodeDB.m_numRecords ? nullptr : &g_taxiPathNodeDB.m_records[i];
+        TaxiPathNodeRec* node = &g_taxiPathNodeDB.m_records[i];
+
+        if (!node) {
+            continue;
+        }
+
         int32_t pathID = node->m_pathID;
 
         if (pathID == lastPathID) {

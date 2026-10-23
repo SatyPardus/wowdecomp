@@ -245,7 +245,7 @@ int32_t CGTalentInfo::IsTalentAvailableForPet(CGUnit_C* pet, const TalentRec* ta
     if (category >= 0) {
         word = category / 32;
 
-        if (word > 2) {
+        if (word >= 2) {
             return 0;
         }
 

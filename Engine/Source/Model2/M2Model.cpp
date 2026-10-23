@@ -1053,7 +1053,7 @@ int32_t CM2Model::HasSequence(const M2Data* data, uint32_t id) {
     if (!hashCount) {
         for (index = 0; index < data->m_sequences.m_count; index++) {
             if (data->m_sequences[index].m_id == id) {
-                return index < data->m_sequences.m_count;
+                return true;
             }
         }
 
@@ -2088,8 +2088,8 @@ uint32_t CM2Model::GetEventSequenceTime(uint32_t sequenceId, uint32_t eventId) {
     for (uint32_t i = 0; i < data->m_events.m_count; i++) {
         M2Event* event = &data->m_events[i];
 
-        if (event->m_eventId == eventId) {
-            return event ? event->m_enabled.m_sequenceTimes[index][0] : 0;
+        if (event && event->m_eventId == eventId) {
+            return event->m_enabled.m_sequenceTimes[index][0];
         }
     }
 

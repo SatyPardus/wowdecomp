@@ -813,7 +813,7 @@ void CGBattlefieldInfo::InitializeGame() {
     }
 
     for (int32_t i = 0; i < g_battlemasterListDB.m_numRecords; i++) {
-        BattlemasterListRec* rec = i < 0 || i >= g_battlemasterListDB.m_numRecords ? nullptr : &g_battlemasterListDB.m_records[i];
+        BattlemasterListRec* rec = &g_battlemasterListDB.m_records[i];
 
         if (rec && rec->m_instanceType == 3) {
             CGBattlefieldInfo::m_battlegroundTypes.New(rec->m_id);

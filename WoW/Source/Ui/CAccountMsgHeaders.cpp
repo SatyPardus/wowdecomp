@@ -87,7 +87,7 @@ int32_t CAccountMsgHeaders::GetIndexHighestPriorityUnreadMsg() {
     int32_t index = 0;
 
     for (int32_t i = 0; i < this->m_count; i++) {
-        bool read = i >= 0 && i < this->m_count && this->m_opened.m_data[i];
+        bool read = this->m_opened.m_data[i];
 
         if (!read && this->GetHeaderPriority(i) >= 3) {
             index = i;
@@ -105,7 +105,7 @@ int32_t CAccountMsgHeaders::GetIndexNextUnreadMsg(int32_t index) {
     }
 
     for (int32_t i = 0; i < this->m_count; i++) {
-        bool read = i >= 0 && i < this->m_count && this->m_opened.m_data[i];
+        bool read = this->m_opened.m_data[i];
 
         if (i > index && !read) {
             return i;
