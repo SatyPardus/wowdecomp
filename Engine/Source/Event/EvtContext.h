@@ -56,7 +56,7 @@ class EvtIdTable {
 template <class T>
 class TInstanceId : public TSLinkedNode<T> {
     public:
-    /* 000C */ uint32_t m_id;
+    /* 000C */ INSTANCEID m_id;
 
     TInstanceId();
     virtual ~TInstanceId();

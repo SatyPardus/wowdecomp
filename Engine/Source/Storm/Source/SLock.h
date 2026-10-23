@@ -62,6 +62,10 @@ struct CDebugLockEntry {
 
 class CDebugLock {
     public:
+    enum : uint32_t {
+        MAX_ENTRIES = 256,
+    };
+
     /* 0000 */ uint32_t m_entry;
     /* 0004 */ uint32_t unused_0004;
     /* 0008 */ CDebugLock* m_next;
@@ -70,7 +74,7 @@ class CDebugLock {
 template <class T>
 class TDebugLock : public CDebugLock {
     public:
-    static CDebugLockEntry s_entries[256];
+    static CDebugLockEntry s_entries[CDebugLock::MAX_ENTRIES];
     static uint32_t s_freeEntry;
     static CInitCritSect s_critsect;
     static CDebugLock* s_lockList;

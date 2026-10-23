@@ -198,7 +198,7 @@ static StationeryInfo* GetStationery(uint32_t index) {
 // OFFSET: 0x005717B0
 int32_t Packet_SMSG_SEND_MAIL_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
     uint32_t itemGuid = 0;
-    uint32_t inventoryError = 40;
+    uint32_t inventoryError = BAG_INTERNAL_BAG_ERROR;
     uint32_t itemCount = 0;
     uint32_t messageID;
     uint32_t action;
@@ -982,7 +982,7 @@ void CGMailInfo::Complain(uint32_t index) {
 // VERIFY: 77c88115 manual
 // OFFSET: 0x0056FC80
 void CGMailInfo::UpdateStationeryList() {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
@@ -1069,7 +1069,7 @@ void CGMailInfo::QueryNextMailTime() {
 // VERIFY: db821221 manual
 // OFFSET: 0x0056FFF0
 bool CGMailInfo::AddItemToOutgoingMail(uint32_t index, WOWGUID item, WOWGUID container, uint8_t slot) {
-    CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!object) {
         return false;
@@ -1100,7 +1100,7 @@ bool CGMailInfo::AddItemToOutgoingMail(uint32_t index, WOWGUID item, WOWGUID con
         }
     }
 
-    if (object->GetItemStaticFlags(0) & 0x2) {
+    if (object->GetItemStaticFlags(0) & ITEM_FLAG_CONJURED) {
         CGGameUI::DisplayError(ERR_MAIL_CONJURED_ITEM);
         return false;
     }
@@ -1115,7 +1115,7 @@ bool CGMailInfo::AddItemToOutgoingMail(uint32_t index, WOWGUID item, WOWGUID con
         return false;
     }
 
-    if (object->m_obj->m_type & TYPEMASK_CONTAINER) {
+    if (object->m_obj->m_type & TYPE_CONTAINER) {
         CGBag_C* bag = object->GetBag();
 
         if (bag && bag->GetNumItems()) {

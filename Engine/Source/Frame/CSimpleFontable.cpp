@@ -5,7 +5,7 @@
 
 // INLINED
 CSimpleFontable::CSimpleFontable() {
-    this->m_fontableFlags = 0x1F;
+    this->m_fontableFlags = FLAG_COMPLETE_UPDATE;
     this->m_fontObject = nullptr;
 }
 
@@ -30,8 +30,8 @@ void CSimpleFontable::SetFontObject(CSimpleFont* font) {
 
     if (font) {
         font->m_fontableList.LinkToTail(this);
-        font->m_attributes.m_flags |= 0x1F;
+        font->m_attributes.m_flags |= FLAG_COMPLETE_UPDATE;
         this->FontObjectUpdated(font->m_attributes);
-        font->m_attributes.m_flags &= ~0x1Fu;
+        font->m_attributes.m_flags &= ~FLAG_COMPLETE_UPDATE;
     }
 }

@@ -105,6 +105,13 @@ struct KEYDOWNSTATE {
 
 class CGWorldFrame : public CSimpleFrame {
     public:
+    enum HIT_TYPE : int32_t {
+        HIT_NONE = 0,
+        HIT_GROUND = 1,
+        HIT_OBJECT = 2,
+        HIT_WORLD_OBJECT = 3, // World intersection with a collision GUID; object lookup may fail.
+    };
+
     int32_t SetupDefaultAction();
     static CDataAllocator s_worldFrameHeap;
     static FFX::Effect* ffxEffectSwirlingFog;

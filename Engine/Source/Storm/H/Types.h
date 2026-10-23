@@ -36,6 +36,10 @@ enum ArgumentSize {
     e_takesNoSpace = 5,
 };
 
+enum : uint32_t {
+    SMEM_ALLOCATOR_SYSTEM = 2,
+};
+
 enum SMEMREPORTTYPE {
     SMEM_REPORT_BY_CALLER = 0,
     SMEM_REPORT_HISTOGRAM = 1,

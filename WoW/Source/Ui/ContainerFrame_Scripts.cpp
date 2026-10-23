@@ -70,7 +70,7 @@ static int32_t Script_GetContainerNumFreeSlots(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         lua_pushnumber(L, 0.0);
@@ -80,8 +80,8 @@ static int32_t Script_GetContainerNumFreeSlots(lua_State* L) {
     double index = lua_tonumber(L, 1);
 
     if (index == 0.0 || (index == -1.0 && CGBankInfo::m_banker)) {
-        uint32_t first = index == 0.0 ? 23 : 39;
-        uint32_t last = index == 0.0 ? 38 : 66;
+        uint32_t first = index == 0.0 ? BACKPACK_FIRST : BANKGENERIC_FIRST;
+        uint32_t last = index == 0.0 ? BACKPACK_LAST : BANKGENERIC_LAST;
         int32_t free = 0;
 
         for (uint32_t slot = first; slot <= last; slot++) {
@@ -96,7 +96,7 @@ static int32_t Script_GetContainerNumFreeSlots(lua_State* L) {
     }
 
     if (index != -1.0 && static_cast<uint32_t>(static_cast<int32_t>(index) - 1) <= 10) {
-        CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(static_cast<int32_t>(index) - 1), TYPEMASK_CONTAINER, __FILE__, __LINE__));
+        CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(static_cast<int32_t>(index) - 1), TYPE_CONTAINER, __FILE__, __LINE__));
 
         if (container) {
             lua_pushnumber(L, container->GetFreeSlots());
@@ -119,7 +119,7 @@ static int32_t Script_GetContainerNumSlots(lua_State* L) {
 
     double slots = 0.0;
 
-    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         int32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
 
         if (index == -1) {
@@ -129,7 +129,7 @@ static int32_t Script_GetContainerNumSlots(lua_State* L) {
         } else if (index == -3 || index == -5) {
             slots = 32.0;
         } else if (static_cast<uint32_t>(index) <= 10) {
-            CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(index), TYPEMASK_CONTAINER, __FILE__, __LINE__));
+            CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(index), TYPE_CONTAINER, __FILE__, __LINE__));
 
             if (container) {
                 slots = container->GetBag()->m_numSlots;
@@ -149,7 +149,7 @@ static int32_t Script_GetBagName(lua_State* L) {
         return 0;
     }
 
-    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         double index = lua_tonumber(L, 1);
 
         if (index == 0.0) {
@@ -158,7 +158,7 @@ static int32_t Script_GetBagName(lua_State* L) {
         }
 
         if (static_cast<uint32_t>(static_cast<int32_t>(index) - 1) <= 10) {
-            CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(static_cast<int32_t>(index) - 1), TYPEMASK_CONTAINER, __FILE__, __LINE__));
+            CGContainer_C* container = static_cast<CGContainer_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(static_cast<int32_t>(index) - 1), TYPE_CONTAINER, __FILE__, __LINE__));
 
             if (container) {
                 ItemStats_C* stats = g_itemDBCache.GetRecord(container->m_obj->m_entryID, WOWGUID(), nullptr, nullptr, false);
@@ -197,7 +197,7 @@ static int32_t Script_GetContainerItemInfo(lua_State* L) {
         return 0;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", item->GetInventoryArt());
     lua_pushstring(L, texture);
@@ -223,7 +223,7 @@ static int32_t Script_GetContainerItemInfo(lua_State* L) {
         lua_pushnil(L);
     }
 
-    if (item->GetItemStaticFlags(0) & 0x4) {
+    if (item->GetItemStaticFlags(0) & ITEM_FLAG_HAS_LOOT) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);
@@ -271,7 +271,7 @@ static int32_t Script_UseContainerItem(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -310,7 +310,7 @@ static int32_t Script_UseContainerItem(lua_State* L) {
         return 0;
     }
 
-    if (CursorGetResetMode() == 17 && CGMerchantInfo::CanRepair()) {
+    if (CursorGetResetMode() == REPAIR_CURSOR && CGMerchantInfo::CanRepair()) {
         uint32_t cost = CGMerchantInfo::GetRepairCost(item);
 
         if (cost <= player->GetCoinage()) {
@@ -419,7 +419,7 @@ static int32_t Script_PickupContainerItem(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     CGBag_C* bag;
     int32_t slot;
     int32_t bank;
@@ -428,7 +428,7 @@ static int32_t Script_PickupContainerItem(lua_State* L) {
         return 0;
     }
 
-    if (bag->m_hasBank && ((slot >= 39 && slot <= 66) || static_cast<uint32_t>(slot - 67) <= 6) && !CGBankInfo::m_banker) {
+    if (bag->m_hasBank && ((slot >= BANKGENERIC_FIRST && slot <= BANKGENERIC_LAST) || static_cast<uint32_t>(slot - BANKBAG_FIRST) <= BANKBAG_LAST - BANKBAG_FIRST) && !CGBankInfo::m_banker) {
         return 0;
     }
 
@@ -538,7 +538,7 @@ static int32_t Script_PickupContainerItem(lua_State* L) {
         Spell_C_StopTargeting();
     }
 
-    if (CursorGetResetMode() == 17 && CGMerchantInfo::CanRepair()) {
+    if (CursorGetResetMode() == REPAIR_CURSOR && CGMerchantInfo::CanRepair()) {
         uint32_t cost = CGMerchantInfo::GetRepairCost(item);
 
         if (cost <= player->GetCoinage()) {
@@ -578,7 +578,7 @@ static int32_t Script_PickupContainerItem(lua_State* L) {
 // VERIFY: 6deefa52 auto
 // OFFSET: 0x005D8BD0
 static int32_t Script_ShowContainerSellCursor(lua_State* L) {
-    if (Spell_C_IsTargeting() || CursorGetResetMode() != 1) {
+    if (Spell_C_IsTargeting() || CursorGetResetMode() != POINT_CURSOR) {
         return 0;
     }
 
@@ -601,7 +601,7 @@ static int32_t Script_ShowContainerSellCursor(lua_State* L) {
         return 0;
     }
 
-    CursorSetMode(3);
+    CursorSetMode(BUY_CURSOR);
     return 0;
 }
 
@@ -627,13 +627,13 @@ static int32_t Script_SetBagPortraitTexture(lua_State* L) {
     }
 
     texture->SetTexture(static_cast<CTexture*>(nullptr));
-    CGItem_C* bag = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(slot), TYPEMASK_CONTAINER, __FILE__, __LINE__));
+    CGItem_C* bag = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(slot), TYPE_CONTAINER, __FILE__, __LINE__));
 
     if (!bag) {
         return 0;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char fileName[260];
     SStrPrintf(fileName, sizeof(fileName), "%s%s%s", path, *path ? "\\" : "", bag->GetInventoryArt());
     SetPortraitTexture(texture, fileName);
@@ -687,7 +687,7 @@ static int32_t Script_GetContainerItemPurchaseInfo(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -782,7 +782,7 @@ static int32_t Script_SplitContainerItem(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     CGBag_C* bag;
     int32_t slot;
     int32_t bank;
@@ -825,7 +825,7 @@ static int32_t Script_SocketContainerItem(lua_State* L) {
         return 0;
     }
 
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return 0;
     }
 
@@ -860,7 +860,7 @@ static bool BuildItemIconPath(int32_t itemId, char* buffer, uint32_t size) {
         return false;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(buffer, size, "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(rec->m_displayInfoID));
     return true;
 }
@@ -922,7 +922,7 @@ static int32_t Script_GetContainerFreeSlots(lua_State* L) {
         return 0;
     }
 
-    CGItem_C* container = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(static_cast<uint32_t>(index - 1.0)), TYPEMASK_CONTAINER, __FILE__, __LINE__));
+    CGItem_C* container = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(GetBagAtIndex(static_cast<uint32_t>(index - 1.0)), TYPE_CONTAINER, __FILE__, __LINE__));
 
     if (!container) {
         return 0;
@@ -995,8 +995,8 @@ static int32_t Script_GetContainerItemDurability(lua_State* L) {
         return 0;
     }
 
-    uint32_t maxDurability = (item->m_item->m_itemFieldFlags & 8) ? 0 : item->m_item->m_itemFieldMaxdurability;
-    uint32_t durability = (item->m_item->m_itemFieldFlags & 8) ? 0 : item->m_item->m_itemFieldDurability;
+    uint32_t maxDurability = (item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) ? 0 : item->m_item->m_itemFieldMaxdurability;
+    uint32_t durability = (item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) ? 0 : item->m_item->m_itemFieldDurability;
 
     if (!maxDurability) {
         return 0;
@@ -1158,7 +1158,7 @@ static int32_t Script_GetContainerItemGems(lua_State* L) {
 
         if (item) {
             for (int32_t i = 0; i < 3; i++) {
-                int32_t enchantId = (item->GetItemStaticFlags(0) & 0x2000) ? 0 : item->m_item->m_itemFieldEnchantment[2 + i].m_id;
+                int32_t enchantId = (item->GetItemStaticFlags(0) & ITEM_FLAG_PETITION) ? 0 : item->m_item->m_itemFieldEnchantment[2 + i].m_id;
                 SpellItemEnchantmentRec* enchant = g_spellItemEnchantmentDB.GetRecord(enchantId);
 
                 if (enchant && enchant->m_srcItemID) {

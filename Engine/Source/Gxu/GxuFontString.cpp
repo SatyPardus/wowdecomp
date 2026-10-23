@@ -53,7 +53,7 @@ GXUEMBEDDEDTEXTUREINFO::GXUEMBEDDEDTEXTUREINFO() {
 // VERIFY: f12e437f auto
 // OFFSET: 0x006C60C0
 EMBEDDEDPARSEINFO::EMBEDDEDPARSEINFO() {
-    this->m_state = 0;
+    this->m_state = HYPERLINKNONE;
     this->m_hyperlink.m_lineHeight = 0.0f;
     this->m_hyperlink.m_indentation = 0.0f;
     this->m_hyperlink.m_linkData = nullptr;
@@ -265,7 +265,7 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
         cellHeight = cellHeight + 2.0;
     }
 
-    if (parseInfo.m_state == 1) {
+    if (parseInfo.m_state == HYPERLINKDISPLAY) {
         parseInfo.m_hyperlink.m_right = pos.x;
     }
 
@@ -319,11 +319,11 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                 }
 
                 case CODE_HYPERLINKSTART: {
-                    if (parseInfo.m_state != 0) {
+                    if (parseInfo.m_state != HYPERLINKNONE) {
                         break;
                     }
 
-                    parseInfo.m_state = 1;
+                    parseInfo.m_state = HYPERLINKDISPLAY;
                     parseInfo.m_hyperlink.m_linkData = text - advance + g_quotedCodeLengths[CODE_HYPERLINKSTART];
                     parseInfo.m_hyperlink.m_linkDataLength = advance - g_quotedCodeLengths[CODE_HYPERLINKSTOP] - g_quotedCodeLengths[CODE_HYPERLINKSTART];
                     parseInfo.m_hyperlink.m_linkText = text - advance;
@@ -351,19 +351,19 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                 }
 
                 case CODE_HYPERLINKSTOP: {
-                    if (parseInfo.m_state == 1) {
+                    if (parseInfo.m_state == HYPERLINKDISPLAY) {
                         parseInfo.m_hyperlink.m_right = x + pos.x;
-                    } else if (parseInfo.m_state != 2) {
+                    } else if (parseInfo.m_state != HYPERLINKTEXTURE) {
                         break;
                     }
 
-                    parseInfo.m_state = 0;
+                    parseInfo.m_state = HYPERLINKNONE;
                     this->AddHyperlinkParseInfo(parseInfo.m_hyperlink);
                     break;
                 }
 
                 case CODE_TEXTURESTART: {
-                    if (parseInfo.m_state == 2) {
+                    if (parseInfo.m_state == HYPERLINKTEXTURE) {
                         break;
                     }
 
@@ -423,12 +423,12 @@ void CGxString::InitializeTextLine(const char* text, uint32_t numBytes, CImVecto
                     lastCode = 0;
                     step = 0.0f;
 
-                    if (parseInfo.m_state == 1) {
+                    if (parseInfo.m_state == HYPERLINKDISPLAY) {
                         parseInfo.m_hyperlink.m_lineHeight = texture.m_lineHeight;
                         parseInfo.m_hyperlink.m_indentation = texture.m_left;
                         parseInfo.m_hyperlink.m_baseLineHeight = texture.m_baseLineHeight;
                         parseInfo.m_hyperlink.m_right = texture.m_right;
-                        parseInfo.m_state = 2;
+                        parseInfo.m_state = HYPERLINKTEXTURE;
                     }
 
                     this->AddEmbeddedTextureParseInfo(texture);
@@ -897,7 +897,7 @@ void CGxString::CreateGeometry() {
             }
         }
 
-        if (parseInfo.m_state == 1) {
+        if (parseInfo.m_state == HYPERLINKDISPLAY) {
             this->AddHyperlinkParseInfo(parseInfo.m_hyperlink);
         }
 

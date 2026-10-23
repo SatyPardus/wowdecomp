@@ -6,7 +6,7 @@
 // VERIFY: 369810f6 auto
 // OFFSET: 0x007125C0
 CGGameObject_C_Type_QuestGiver::CGGameObject_C_Type_QuestGiver(CGGameObject_C* owner) : CGGameObject_C_TypeAnimated(owner) {
-    this->m_interactDistance = 5.5555553f;
+    this->m_interactDistance = MAX_SHOP_DISTANCE;
 }
 
 // VERIFY: 8178ce5d auto

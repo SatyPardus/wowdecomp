@@ -53,8 +53,8 @@ MerchantItem* CGMerchantInfo::FindItemById(int32_t itemId) {
 // OFFSET: 0x00584B20
 int32_t CGMerchantInfo::GetRepairCost(CGItem_C* item) {
     float multiplier = 1.0f;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    CGUnit_C* merchant = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* merchant = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPE_UNIT, __FILE__, __LINE__));
 
     if (player && merchant) {
         multiplier = 1.0f - merchant->GetPlayerDiscount(player);
@@ -79,9 +79,9 @@ void CGMerchantInfo::CloseMerchant() {
         CGGameUI::ClearCursor(1, 1);
     }
 
-    if (CursorGetResetMode() == 17) {
-        CursorSetResetMode(1);
-        CursorSetMode(1);
+    if (CursorGetResetMode() == REPAIR_CURSOR) {
+        CursorSetResetMode(POINT_CURSOR);
+        CursorSetMode(POINT_CURSOR);
     }
 }
 
@@ -164,7 +164,7 @@ void CGMerchantInfo::SortBuybackItems() {
     memset(CGMerchantInfo::m_buybackSlots, 0, sizeof(CGMerchantInfo::m_buybackSlots));
     CGMerchantInfo::m_numBuybackItems = 0;
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
@@ -236,7 +236,7 @@ void CGMerchantInfo::RefreshList() {
 // VERIFY: ceeabfca manual
 // OFFSET: 0x005845B0
 int32_t CGMerchantInfo::CanRepair() {
-    CGUnit_C* merchant = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* merchant = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGMerchantInfo::m_merchant, TYPE_UNIT, __FILE__, __LINE__));
     return merchant && (merchant->m_unit->m_unitNpcFlags & 0x1000);
 }
 

@@ -10,6 +10,7 @@
 #include "WoW/Source/DB/Rec/ItemPetFoodRec.h"
 #include "WoW/Source/DB/Rec/TalentTabRec.h"
 #include "WoW/Source/DB/Rec/StableSlotPricesRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/CreatureStats.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/Unit.h"
@@ -171,7 +172,7 @@ static int32_t Script_SetPetStablePaperdoll(lua_State* L) {
     CreatureStats_C* stats;
 
     if (selected == -1) {
-        CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
         if (pet && pet->CanGainXP() && pet->m_creatureCacheEntry) {
             stats = pet->m_creatureCacheEntry;
@@ -270,7 +271,7 @@ static int32_t Script_ClosePetStables(lua_State* L) {
 static int32_t Script_StablePet(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-    if (CGStableInfo::m_stableMaster || (player && player->HasAuraEffect(292))) {
+    if (CGStableInfo::m_stableMaster || (player && player->HasAuraEffect(SPELL_AURA_OPEN_STABLE))) {
         WDataStore msg;
         msg.Put(static_cast<uint32_t>(CMSG_STABLE_PET));
         msg.Put(CGStableInfo::m_stableMaster.m_guid);

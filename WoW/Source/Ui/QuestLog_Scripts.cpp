@@ -23,6 +23,7 @@
 #include "WoW/Source/UIUtil/Tooltip.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "WoW/Source/DB/Rec/CharTitlesRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Ui/PartyFrame.h"
 #include "WoW/Source/Ui/RaidInfo.h"
@@ -245,7 +246,7 @@ static int32_t Script_GetQuestLogPushable(lua_State* L) {
 // OFFSET: 0x005E6240
 static int32_t Script_GetQuestTimers(lua_State* L) {
     int32_t count = 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -523,7 +524,7 @@ static int32_t Script_GetQuestLogCompletionText(lua_State* L) {
 // VERIFY: ea272adb manual
 // OFFSET: 0x005E3D60
 static int32_t Script_GetAbandonQuestItems(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     uint32_t count = 0;
 
     if (!player) {
@@ -668,7 +669,7 @@ static int32_t Script_AbandonQuest(lua_State* L) {
 static int32_t Script_GetNumQuestLeaderBoards(lua_State* L) {
     int32_t count = 0;
 
-    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         int32_t questId;
 
         if (lua_isnumber(L, 1)) {
@@ -690,7 +691,7 @@ static int32_t Script_GetNumQuestLeaderBoards(lua_State* L) {
 static int32_t Script_GetNumQuestItemDrops(lua_State* L) {
     int32_t count = 0;
 
-    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         int32_t questId;
 
         if (lua_isnumber(L, 1)) {
@@ -731,7 +732,7 @@ static int32_t Script_GetQuestLogRewardInfo(lua_State* L) {
         return 5;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(s_texture, sizeof(s_texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, stats->GetName(0));
     lua_pushstring(L, s_texture);
@@ -774,7 +775,7 @@ static int32_t Script_GetQuestLogChoiceInfo(lua_State* L) {
         return 5;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(s_texture, sizeof(s_texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, stats->GetName(0));
     lua_pushstring(L, s_texture);
@@ -796,7 +797,7 @@ static int32_t Script_GetQuestLogChoiceInfo(lua_State* L) {
 // VERIFY: ead48f31 manual
 // OFFSET: 0x005E48F0
 static int32_t Script_GetQuestLogRewardMoney(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     bool maxLevel = player && static_cast<int32_t>(player->m_unit->m_unitFieldLevel) >= static_cast<int32_t>(player->m_player->m_playerFieldMaxLevel);
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_selectedQuest, none, nullptr, nullptr, false);
@@ -819,7 +820,7 @@ static int32_t Script_GetQuestLogRewardMoney(lua_State* L) {
 // VERIFY: f994e29c manual
 // OFFSET: 0x005E4B70
 static int32_t Script_GetQuestLogRewardHonor(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t honor = 0;
 
     if (player) {
@@ -883,7 +884,7 @@ static int32_t Script_GetQuestLogRewardSpell(lua_State* L) {
 
         if (g_spellDB.GetRecord(quest->m_effectOnPlayer, &effect)) {
             for (uint32_t i = 0; i < 3; i++) {
-                if (effect.m_effect[i] == 36 || effect.m_effect[i] == 57) {
+                if (effect.m_effect[i] == SPELL_EFFECT_LEARN_SPELL || effect.m_effect[i] == SPELL_EFFECT_LEARN_PET_SPELL) {
                     learns = 1;
                     break;
                 }
@@ -909,7 +910,7 @@ static int32_t Script_GetQuestIndexForTimer(lua_State* L) {
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     int32_t found = 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         uint32_t numQuest = CGQuestLog::m_numQuest;
@@ -984,7 +985,7 @@ static int32_t Script_GetQuestLink(lua_State* L) {
         return 1;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t level = player && quest->m_level == 0xFFFFFFFF ? player->m_unit->m_unitFieldLevel : quest->m_level;
     lua_pushstring(L, CGTooltip::GetQuestLink(questId, level));
     return 1;
@@ -1102,7 +1103,7 @@ static int32_t Script_ShiftQuestWatches(lua_State* L) {
 // VERIFY: 44c065ff manual
 // OFFSET: 0x005E4320
 static int32_t Script_GetQuestLogTimeLeft(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         int32_t index = CGQuestLog::GetSelectedLogEntry();
@@ -1132,7 +1133,7 @@ static int32_t Script_GetQuestLogTimeLeft(lua_State* L) {
 // VERIFY: b1296081 manual
 // OFFSET: 0x005E43F0
 static int32_t Script_IsCurrentQuestFailed(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         int32_t index = CGQuestLog::GetSelectedLogEntry();
@@ -1164,7 +1165,7 @@ static int32_t Script_IsUnitOnQuest(lua_State* L) {
     CGPlayer_C* member;
     WOWGUID guid;
 
-    if (index >= 0 && index < CGQuestLog::m_numQuest && !CGQuestLog::m_quests[index].m_isHeader && (questId = CGQuestLog::m_quests[index].m_questId) && (guid = GetGuidByKeyword(lua_tolstring(L, 2, nullptr)), CGPartyInfo::IsMember(guid)) && (member = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__))) && !(member->m_modelFlags & 0x10000)) {
+    if (index >= 0 && index < CGQuestLog::m_numQuest && !CGQuestLog::m_quests[index].m_isHeader && (questId = CGQuestLog::m_quests[index].m_questId) && (guid = GetGuidByKeyword(lua_tolstring(L, 2, nullptr)), CGPartyInfo::IsMember(guid)) && (member = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__))) && !(member->m_modelFlags & 0x10000)) {
         for (uint32_t slot = 0; slot < 25; slot++) {
             PlayerQuestLogEntry* entry = member->GetQuestLogEntry(slot);
 
@@ -1201,7 +1202,7 @@ static int32_t Script_GetQuestLogSpellLink(lua_State* L) {
 // VERIFY: 8200413a manual
 // OFFSET: 0x005E49B0
 static int32_t Script_GetQuestLogRewardXP(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t questId = CGQuestLog::m_selectedQuest;
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(questId, none, nullptr, nullptr, false);
@@ -1215,7 +1216,7 @@ static int32_t Script_GetQuestLogRewardXP(lua_State* L) {
 
             for (uint32_t i = 0; i < 5; i++) {
                 WOWGUID guid = GetPartyMemberGUID(i);
-                CGPlayer_C* member = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+                CGPlayer_C* member = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
                 if (!member || !player->IsRAFPlayer(guid) || !(player->GetDistanceToPos(member->GetPosition()) < 10000.0f)) {
                     continue;
@@ -1256,7 +1257,7 @@ static int32_t Script_GetQuestLogRewardTitle(lua_State* L) {
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(CGQuestLog::m_selectedQuest, none, nullptr, nullptr, false);
     int32_t titleId = quest ? quest->m_rewardTitleId : 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     CharTitlesRec* title = g_charTitlesDB.GetRecord(titleId);
 
     if (!title) {
@@ -1300,7 +1301,7 @@ static int32_t Script_QuestLogPushQuest(lua_State* L) {
         questId = CGQuestLog::m_selectedQuest;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     WOWGUID none = { 0 };
     QuestCache* quest = g_questDBCache.GetRecord(questId, none, nullptr, nullptr, false);
 
@@ -1325,7 +1326,7 @@ static int32_t Script_GetQuestLogSpecialItemInfo(lua_State* L) {
     }
 
     lua_pushstring(L, CGTooltip::GetItemHyperlinkString(item));
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", item->GetInventoryArt());
     lua_pushstring(L, texture);
@@ -1370,7 +1371,7 @@ static int32_t Script_IsQuestLogSpecialItemInRange(lua_State* L) {
     WOWGUID target;
     uint8_t inRange;
 
-    if (g_spellDB.GetRecord(spellId, &spell) && (player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__))) && Script_GetGUIDFromToken(lua_tolstring(L, 2, nullptr), target, true) && Spell_C_RangeCheckSelected(player, &spell, target, &inRange, 0, 0)) {
+    if (g_spellDB.GetRecord(spellId, &spell) && (player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__))) && Script_GetGUIDFromToken(lua_tolstring(L, 2, nullptr), target, true) && Spell_C_RangeCheckSelected(player, &spell, target, &inRange, 0, 0)) {
         lua_pushnumber(L, inRange ? 1.0 : 0.0);
         return 1;
     }
@@ -1463,7 +1464,7 @@ static int32_t Script_GetQuestLogTitle(lua_State* L) {
         lua_pushnil(L);
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     bool failed = false;
 
     if (player) {

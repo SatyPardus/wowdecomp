@@ -21,7 +21,7 @@ class WowSysMessageOutput {
     static void Enable();
     static void Hide();
     static void Initialize();
-    static void Output(const char* text, STATUS_TYPE severity);
+    static void Output(const char* text, SYSMSG_TYPE severity);
     static void Paint(void* param, const RECTF* rect, const RECTF* visible, float elapsedSec);
     static void Show();
     static void Shutdown();

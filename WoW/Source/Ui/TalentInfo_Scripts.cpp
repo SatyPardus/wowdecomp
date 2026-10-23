@@ -184,7 +184,7 @@ static int32_t Script_LearnPreviewTalents(lua_State* L) {
         return 0;
     }
 
-    CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
+    CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
 
     if (!unit) {
         return 0;
@@ -283,7 +283,7 @@ static int32_t Script_GetTalentInfo(lua_State* L) {
     TalentTabInfo* tab = CGTalentInfo::GetTab(tabIndex, inspect, pet);
 
     if (tab && talentIndex < tab->m_numTalents) {
-        CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
+        CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
         const TalentRec* talent = &tab->m_talents[talentIndex];
 
         if (talent && (!pet || CGTalentInfo::IsTalentAvailableForPet(unit, talent))) {
@@ -471,7 +471,7 @@ static int32_t Script_GetTalentLink(lua_State* L) {
     TalentTabInfo* tab = CGTalentInfo::GetTab(tabIndex, inspect, pet);
 
     if (tab && talentIndex < tab->m_numTalents) {
-        CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : nullptr;
+        CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__)) : nullptr;
         const TalentRec* talent = &tab->m_talents[talentIndex];
 
         if (talent && (!pet || CGTalentInfo::IsTalentAvailableForPet(unit, talent))) {
@@ -506,7 +506,7 @@ static int32_t Script_LearnTalent(lua_State* L) {
     uint32_t tabIndex = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
     uint32_t talentIndex = static_cast<uint32_t>(lua_tonumber(L, 2)) - 1;
     int32_t pet = StringToBOOL(L, 3, 0);
-    CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
+    CGUnit_C* unit = pet ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
     TalentTabInfo* tab = CGTalentInfo::GetTab(tabIndex, 0, pet);
 
     if (!unit || !tab || talentIndex >= tab->m_numTalents) {

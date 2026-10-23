@@ -1,4 +1,5 @@
 #include "Bag_C.h"
+#include "WoW/Common/ComponentCore/Types.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/Object/ItemStats.h"
@@ -13,7 +14,7 @@
 #include "WoW/Source/UIUtil/Tooltip.h"
 
 // STATIC: 0x00A37B10
-static const BAGSLOTRANGE s_bagSlotRanges[8] = { { 23, 38 }, { 19, 22 }, { 86, 117 }, { 39, 66 }, { 67, 73 }, { 118, 149 }, { 0, 18 }, { 74, 85 } };
+static const BAGSLOTRANGE s_bagSlotRanges[8] = { { BACKPACK_FIRST, BACKPACK_LAST }, { INVSLOT_BAG0, INVSLOT_BAG3 }, { KEYRING_FIRST, KEYRING_LAST }, { BANKGENERIC_FIRST, BANKGENERIC_LAST }, { BANKBAG_FIRST, BANKBAG_LAST }, { CURRENCYTOKEN_FIRST, CURRENCYTOKEN_LAST }, { INVSLOT_HEAD, INVSLOT_TABARD }, { BUYBACK_FIRST, BUYBACK_LAST } };
 
 // VERIFY: 3944bddf auto
 // OFFSET: 0x00753B00
@@ -61,7 +62,7 @@ int32_t CGBag_C::FindItemSlot(const CGItem_C* item) const {
     for (uint32_t slot = 0; slot < static_cast<uint32_t>(this->m_numSlots); slot++) {
         WOWGUID guid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
 
-        if (ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__) == item) {
+        if (ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__) == item) {
             return slot;
         }
     }
@@ -72,25 +73,25 @@ int32_t CGBag_C::FindItemSlot(const CGItem_C* item) const {
 // VERIFY: 121306f8 manual
 // OFFSET: 0x00754390
 const CGItem_C* CGBag_C::GetItemPointer(int32_t slot) const {
-    if ((this->m_hasBank && ((slot >= 39 && slot <= 66) || static_cast<uint32_t>(slot - 67) <= 6) && !CGBankInfo::m_banker) || slot >= this->m_numSlots) {
+    if ((this->m_hasBank && ((slot >= BANKGENERIC_FIRST && slot <= BANKGENERIC_LAST) || static_cast<uint32_t>(slot - BANKBAG_FIRST) <= BANKBAG_LAST - BANKBAG_FIRST) && !CGBankInfo::m_banker) || slot >= this->m_numSlots) {
         return nullptr;
     }
 
     WOWGUID guid = static_cast<uint32_t>(slot) < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
 
-    return static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    return static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 }
 
 // VERIFY: 6a3b7079 manual
 // OFFSET: 0x00754400
 CGItem_C* CGBag_C::GetItemPointer(int32_t slot) {
-    if ((this->m_hasBank && ((slot >= 39 && slot <= 66) || static_cast<uint32_t>(slot - 67) <= 6) && !CGBankInfo::m_banker) || slot >= this->m_numSlots) {
+    if ((this->m_hasBank && ((slot >= BANKGENERIC_FIRST && slot <= BANKGENERIC_LAST) || static_cast<uint32_t>(slot - BANKBAG_FIRST) <= BANKBAG_LAST - BANKBAG_FIRST) && !CGBankInfo::m_banker) || slot >= this->m_numSlots) {
         return nullptr;
     }
 
     WOWGUID guid = static_cast<uint32_t>(slot) < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
 
-    return static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    return static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 }
 
 // VERIFY: 8829b660 manual
@@ -100,13 +101,13 @@ int32_t CGBag_C::GetNumFreeInvSlots() {
 
     for (uint32_t slot = 0; slot < static_cast<uint32_t>(this->m_numSlots); slot++) {
         if (this->m_hasBank) {
-            if (slot <= 18 || (slot >= 39 && slot <= 66) || (slot >= 67 && slot <= 73) || (slot >= 86 && slot <= 117) || (slot >= 74 && slot <= 85) || slot - 118 <= 31) {
+            if (slot <= INVSLOT_TABARD || (slot >= BANKGENERIC_FIRST && slot <= BANKGENERIC_LAST) || (slot >= BANKBAG_FIRST && slot <= BANKBAG_LAST) || (slot >= KEYRING_FIRST && slot <= KEYRING_LAST) || (slot >= BUYBACK_FIRST && slot <= BUYBACK_LAST) || slot - CURRENCYTOKEN_FIRST <= CURRENCYTOKEN_LAST - CURRENCYTOKEN_FIRST) {
                 continue;
             }
 
-            if (slot - 19 <= 3) {
+            if (slot - INVSLOT_BAG0 <= INVSLOT_BAG3 - INVSLOT_BAG0) {
                 WOWGUID guid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
-                CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+                CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
                 if (item && item->GetClassID() == 1) {
                     freeSlots += item->GetBag()->GetNumFreeInvSlots();
@@ -142,13 +143,13 @@ uint32_t CGBag_C::GetAvgEquippedDurability() const {
     int32_t durability = 0;
     int32_t maxDurability = 0;
 
-    for (uint32_t slot = 0; slot <= 18; slot++) {
-        if ((this->m_hasBank && ((slot >= 39 && slot <= 66) || slot - 67 <= 6) && !CGBankInfo::m_banker) || static_cast<int32_t>(slot) >= this->m_numSlots) {
+    for (uint32_t slot = 0; slot <= INVSLOT_TABARD; slot++) {
+        if ((this->m_hasBank && ((slot >= BANKGENERIC_FIRST && slot <= BANKGENERIC_LAST) || slot - BANKBAG_FIRST <= BANKBAG_LAST - BANKBAG_FIRST) && !CGBankInfo::m_banker) || static_cast<int32_t>(slot) >= this->m_numSlots) {
             continue;
         }
 
         WOWGUID guid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
         if (!item) {
             continue;
@@ -182,7 +183,7 @@ int32_t CGBag_C::GetNumItems() const {
 // VERIFY: 724d9331 auto
 // OFFSET: 0x00753A50
 static int32_t __stdcall SlotMatchesSearchFlags(uint32_t slot, uint32_t flags) {
-    return (slot <= 18 && (flags & 0x1)) || (slot - 23 <= 15 && (flags & 0x4)) || (slot - 19 <= 3 && (flags & 0x2)) || (((slot >= 39 && slot <= 66) || slot - 67 <= 6) && (flags & 0x8)) || (slot - 86 <= 31 && (flags & 0x40)) || (slot - 118 <= 31 && (flags & 0x200));
+    return (slot <= INVSLOT_TABARD && (flags & BAG_SEARCH_EQUIPMENT)) || (slot - BACKPACK_FIRST <= BACKPACK_LAST - BACKPACK_FIRST && (flags & BAG_SEARCH_BACKPACK)) || (slot - INVSLOT_BAG0 <= INVSLOT_BAG3 - INVSLOT_BAG0 && (flags & BAG_SEARCH_BAG_SLOTS)) || (((slot >= BANKGENERIC_FIRST && slot <= BANKGENERIC_LAST) || slot - BANKBAG_FIRST <= BANKBAG_LAST - BANKBAG_FIRST) && (flags & BAG_SEARCH_BANK)) || (slot - KEYRING_FIRST <= KEYRING_LAST - KEYRING_FIRST && (flags & BAG_SEARCH_KEYRING)) || (slot - CURRENCYTOKEN_FIRST <= CURRENCYTOKEN_LAST - CURRENCYTOKEN_FIRST && (flags & BAG_SEARCH_CURRENCY));
 }
 
 // VERIFY: ddfa3202 auto
@@ -197,245 +198,245 @@ static int32_t FindItemFullNameCallback(const CGItem_C* item, void* param) {
 // OFFSET: 0x00753BB0
 int32_t GetDisplayErrorByInventoryError(int32_t error) {
     switch (error) {
-        case 0:
-        case 81:
-        case 83:
+        case BAG_OK:
+        case BAG_AUTOEQUIP_BIND_CONFIRM:
+        case BAG_NO_DISPLAY_ERROR:
             return ERR_MAX_VALUE;
 
-        case 1:
+        case BAG_CANT_EQUIP_LEVEL_I:
             return ERR_CANT_EQUIP_LEVEL_I;
 
-        case 2:
+        case BAG_CANT_EQUIP_SKILL:
             return ERR_CANT_EQUIP_SKILL;
 
-        case 3:
+        case BAG_WRONG_SLOT:
             return ERR_WRONG_SLOT;
 
-        case 5:
+        case BAG_IN_BAG:
             return ERR_BAG_IN_BAG;
 
-        case 6:
+        case BAG_TRADE_EQUIPPED_BAG:
             return ERR_TRADE_EQUIPPED_BAG;
 
-        case 7:
+        case BAG_AMMO_ONLY:
             return ERR_AMMO_ONLY;
 
-        case 8:
+        case BAG_PROFICIENCY_NEEDED:
             return ERR_PROFICIENCY_NEEDED;
 
-        case 9:
-        case 12:
-        case 18:
+        case BAG_NO_SLOT_AVAILABLE:
+        case BAG_NO_SLOT_AVAILABLE_2:
+        case BAG_NO_SLOT_AVAILABLE_3:
             return ERR_NO_SLOT_AVAILABLE;
 
-        case 10:
-        case 11:
+        case BAG_CANT_EQUIP_EVER:
+        case BAG_CANT_EQUIP_EVER_2:
             return ERR_CANT_EQUIP_EVER;
 
-        case 13:
+        case BAG_2HANDED_EQUIPPED:
             return ERR_2HANDED_EQUIPPED;
 
-        case 14:
+        case BAG_2HSKILLNOTFOUND:
             return ERR_2HSKILLNOTFOUND;
 
-        case 15:
-        case 16:
+        case BAG_WRONG_BAG_TYPE:
+        case BAG_WRONG_BAG_TYPE_2:
             return ERR_WRONG_BAG_TYPE;
 
-        case 17:
+        case BAG_ITEM_MAX_COUNT:
             return ERR_ITEM_MAX_COUNT;
 
-        case 19:
-        case 55:
+        case BAG_CANT_STACK:
+        case BAG_CANT_STACK_2:
             return ERR_CANT_STACK;
 
-        case 20:
+        case BAG_NOT_EQUIPPABLE:
             return ERR_NOT_EQUIPPABLE;
 
-        case 21:
+        case BAG_CANT_SWAP:
             return ERR_CANT_SWAP;
 
-        case 22:
+        case BAG_SLOT_EMPTY:
             return ERR_SLOT_EMPTY;
 
-        case 23:
-        case 54:
+        case BAG_ITEM_NOT_FOUND:
+        case BAG_ITEM_NOT_FOUND_2:
             return ERR_ITEM_NOT_FOUND;
 
-        case 24:
+        case BAG_DROP_BOUND_ITEM:
             return ERR_DROP_BOUND_ITEM;
 
-        case 25:
+        case BAG_OUT_OF_RANGE:
             return ERR_OUT_OF_RANGE;
 
-        case 26:
+        case BAG_TOO_FEW_TO_SPLIT:
             return ERR_TOO_FEW_TO_SPLIT;
 
-        case 27:
+        case BAG_SPLIT_FAILED:
             return ERR_SPLIT_FAILED;
 
-        case 28:
+        case BAG_SPELL_FAILED_REAGENTS_GENERIC:
             return ERR_SPELL_FAILED_REAGENTS_GENERIC;
 
-        case 29:
+        case BAG_NOT_ENOUGH_MONEY:
             return ERR_NOT_ENOUGH_MONEY;
 
-        case 30:
+        case BAG_NOT_A_BAG:
             return ERR_NOT_A_BAG;
 
-        case 31:
+        case BAG_DESTROY_NONEMPTY_BAG:
             return ERR_DESTROY_NONEMPTY_BAG;
 
-        case 32:
+        case BAG_NOT_OWNER:
             return ERR_NOT_OWNER;
 
-        case 33:
+        case BAG_ONLY_ONE_QUIVER:
             return ERR_ONLY_ONE_QUIVER;
 
-        case 34:
+        case BAG_NO_BANK_SLOT:
             return ERR_NO_BANK_SLOT;
 
-        case 35:
+        case BAG_NO_BANK_HERE:
             return ERR_NO_BANK_HERE;
 
-        case 36:
+        case BAG_ITEM_LOCKED:
             return ERR_ITEM_LOCKED;
 
-        case 37:
+        case BAG_GENERIC_STUNNED:
             return ERR_GENERIC_STUNNED;
 
-        case 38:
+        case BAG_PLAYER_DEAD:
             return ERR_PLAYER_DEAD;
 
-        case 39:
+        case BAG_CLIENT_LOCKED_OUT:
             return ERR_CLIENT_LOCKED_OUT;
 
-        case 40:
-        case 73:
+        case BAG_INTERNAL_BAG_ERROR:
+        case BAG_INTERNAL_BAG_ERROR_2:
             return ERR_INTERNAL_BAG_ERROR;
 
-        case 41:
+        case BAG_ONLY_ONE_BOLT:
             return ERR_ONLY_ONE_BOLT;
 
-        case 42:
+        case BAG_ONLY_ONE_AMMO:
             return ERR_ONLY_ONE_AMMO;
 
-        case 43:
+        case BAG_CANT_WRAP_STACKABLE:
             return ERR_CANT_WRAP_STACKABLE;
 
-        case 44:
+        case BAG_CANT_WRAP_EQUIPPED:
             return ERR_CANT_WRAP_EQUIPPED;
 
-        case 45:
+        case BAG_CANT_WRAP_WRAPPED:
             return ERR_CANT_WRAP_WRAPPED;
 
-        case 46:
+        case BAG_CANT_WRAP_BOUND:
             return ERR_CANT_WRAP_BOUND;
 
-        case 47:
+        case BAG_CANT_WRAP_UNIQUE:
             return ERR_CANT_WRAP_UNIQUE;
 
-        case 48:
+        case BAG_CANT_WRAP_BAGS:
             return ERR_CANT_WRAP_BAGS;
 
-        case 49:
+        case BAG_LOOT_GONE:
             return ERR_LOOT_GONE;
 
-        case 50:
+        case BAG_INV_FULL:
             return ERR_INV_FULL;
 
-        case 51:
+        case BAG_BANK_FULL:
             return ERR_BANK_FULL;
 
-        case 52:
-        case 57:
+        case BAG_VENDOR_SOLD_OUT:
+        case BAG_VENDOR_SOLD_OUT_2:
             return ERR_VENDOR_SOLD_OUT;
 
-        case 58:
+        case BAG_OBJECT_IS_BUSY:
             return ERR_OBJECT_IS_BUSY;
 
-        case 59:
+        case BAG_CANT_BE_DISENCHANTED:
             return ERR_CANT_BE_DISENCHANTED;
 
-        case 60:
+        case BAG_NOT_IN_COMBAT:
             return ERR_NOT_IN_COMBAT;
 
-        case 61:
+        case BAG_NOT_WHILE_DISARMED:
             return ERR_NOT_WHILE_DISARMED;
 
-        case 63:
+        case BAG_CANT_EQUIP_RANK:
             return ERR_CANT_EQUIP_RANK;
 
-        case 64:
+        case BAG_CANT_EQUIP_REPUTATION:
             return ERR_CANT_EQUIP_REPUTATION;
 
-        case 65:
+        case BAG_TOO_MANY_SPECIAL_BAGS:
             return ERR_TOO_MANY_SPECIAL_BAGS;
 
-        case 66:
+        case BAG_LOOT_CANT_LOOT_THAT_NOW:
             return ERR_LOOT_CANT_LOOT_THAT_NOW;
 
-        case 67:
+        case BAG_ITEM_UNIQUE_EQUIPPABLE:
             return ERR_ITEM_UNIQUE_EQUIPPABLE;
 
-        case 68:
+        case BAG_VENDOR_MISSING_TURNINS:
             return ERR_VENDOR_MISSING_TURNINS;
 
-        case 69:
+        case BAG_NOT_ENOUGH_HONOR_POINTS:
             return ERR_NOT_ENOUGH_HONOR_POINTS;
 
-        case 70:
+        case BAG_NOT_ENOUGH_ARENA_POINTS:
             return ERR_NOT_ENOUGH_ARENA_POINTS;
 
-        case 71:
+        case BAG_ITEM_MAX_COUNT_SOCKETED:
             return ERR_ITEM_MAX_COUNT_SOCKETED;
 
-        case 72:
+        case BAG_MAIL_BOUND_ITEM:
             return ERR_MAIL_BOUND_ITEM;
 
-        case 75:
+        case BAG_ITEM_MAX_COUNT_EQUIPPED_SOCKETED:
             return ERR_ITEM_MAX_COUNT_EQUIPPED_SOCKETED;
 
-        case 76:
+        case BAG_ITEM_UNIQUE_EQUIPPABLE_SOCKETED:
             return ERR_ITEM_UNIQUE_EQUIPPABLE_SOCKETED;
 
-        case 77:
+        case BAG_TOO_MUCH_GOLD:
             return ERR_TOO_MUCH_GOLD;
 
-        case 78:
+        case BAG_NOT_DURING_ARENA_MATCH:
             return ERR_NOT_DURING_ARENA_MATCH;
 
-        case 79:
+        case BAG_TRADE_BOUND_ITEM:
             return ERR_TRADE_BOUND_ITEM;
 
-        case 80:
+        case BAG_CANT_EQUIP_RATING:
             return ERR_CANT_EQUIP_RATING;
 
-        case 82:
+        case BAG_NOT_SAME_ACCOUNT:
             return ERR_NOT_SAME_ACCOUNT;
 
-        case 84:
+        case BAG_ITEM_MAX_LIMIT_CATEGORY_COUNT_EXCEEDED_IS:
             return ERR_ITEM_MAX_LIMIT_CATEGORY_COUNT_EXCEEDED_IS;
 
-        case 85:
+        case BAG_ITEM_MAX_LIMIT_CATEGORY_SOCKETED_EXCEEDED_IS:
             return ERR_ITEM_MAX_LIMIT_CATEGORY_SOCKETED_EXCEEDED_IS;
 
-        case 86:
+        case BAG_SCALING_STAT_ITEM_LEVEL_EXCEEDED:
             return ERR_SCALING_STAT_ITEM_LEVEL_EXCEEDED;
 
-        case 87:
+        case BAG_PURCHASE_LEVEL_TOO_LOW:
             return ERR_PURCHASE_LEVEL_TOO_LOW;
 
-        case 88:
+        case BAG_CANT_EQUIP_NEED_TALENT:
             return ERR_CANT_EQUIP_NEED_TALENT;
 
-        case 89:
+        case BAG_ITEM_MAX_LIMIT_CATEGORY_EQUIPPED_EXCEEDED_IS:
             return ERR_ITEM_MAX_LIMIT_CATEGORY_EQUIPPED_EXCEEDED_IS;
 
-        case 90:
+        case BAG_SHAPESHIFT_FORM_CANNOT_EQUIP:
             return ERR_SHAPESHIFT_FORM_CANNOT_EQUIP;
 
-        case 91:
+        case BAG_ITEM_INVENTORY_FULL_SATCHEL:
             return ERR_ITEM_INVENTORY_FULL_SATCHEL;
 
         default:
@@ -470,8 +471,8 @@ int32_t FindItemIDCallback(const CGItem_C* item, void* param) {
 // VERIFY: 45f963f6 manual
 // OFFSET: 0x007541F0
 bool CGBag_C::FindTotemCategory(int32_t type, int32_t& mask, bool recurse, uint32_t flags) {
-    if (!(flags & 0x7)) {
-        flags |= 0x7;
+    if (!(flags & BAG_SEARCH_TOTEM_LOCATIONS)) {
+        flags |= BAG_SEARCH_TOTEM_LOCATIONS;
     }
 
     uint32_t slot = this->m_hasBank ? s_bagSlotRanges[0].m_first : 0;
@@ -479,9 +480,9 @@ bool CGBag_C::FindTotemCategory(int32_t type, int32_t& mask, bool recurse, uint3
     while (slot < static_cast<uint32_t>(this->m_numSlots)) {
         if (!this->m_hasBank || SlotMatchesSearchFlags(slot, flags)) {
             WOWGUID guid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
-            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
-            if (item && (!this->m_hasBank || slot < 74 || slot > 85)) {
+            if (item && (!this->m_hasBank || slot < BUYBACK_FIRST || slot > BUYBACK_LAST)) {
                 WOWGUID none = { 0 };
                 ItemStats_C* stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, none, nullptr, nullptr, false);
 
@@ -497,7 +498,7 @@ bool CGBag_C::FindTotemCategory(int32_t type, int32_t& mask, bool recurse, uint3
                     }
                 }
 
-                if (recurse && (item->m_obj->m_type & TYPEMASK_CONTAINER) && item->GetBag() && item->GetBag()->FindTotemCategory(type, mask, false, flags)) {
+                if (recurse && (item->m_obj->m_type & TYPE_CONTAINER) && item->GetBag() && item->GetBag()->FindTotemCategory(type, mask, false, flags)) {
                     return true;
                 }
             }
@@ -536,16 +537,16 @@ bool CGBag_C::ContainsItem(WOWGUID guid, bool recurse, uint32_t flags) const {
     while (slot < static_cast<uint32_t>(this->m_numSlots)) {
         if (!hasBank || SlotMatchesSearchFlags(slot, flags)) {
             WOWGUID slotGuid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
-            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(slotGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(slotGuid, TYPE_ITEM, __FILE__, __LINE__));
 
-            if (item && (!hasBank || slot < 74 || slot > 85)) {
+            if (item && (!hasBank || slot < BUYBACK_FIRST || slot > BUYBACK_LAST)) {
                 WOWGUID itemGuid = slot < static_cast<uint32_t>(this->m_numSlots) ? this->m_slots[slot] : WOWGUID();
 
                 if (itemGuid == guid) {
                     return true;
                 }
 
-                if (recurse && (item->m_obj->m_type & TYPEMASK_CONTAINER) && item->GetBag() && item->GetBag()->ContainsItem(guid, false, flags)) {
+                if (recurse && (item->m_obj->m_type & TYPE_CONTAINER) && item->GetBag() && item->GetBag()->ContainsItem(guid, false, flags)) {
                     return true;
                 }
             }
@@ -668,7 +669,7 @@ static int32_t FindItemLinkCallback(const CGItem_C* item, void* param) {
         return 0;
     }
 
-    if (object->m_item->m_itemFieldFlags & 0x8) {
+    if (object->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) {
         if (link->m_enchants[0]) {
             return 0;
         }
@@ -781,8 +782,8 @@ CGItem_C* CGBag_C::FindItem(int32_t (*callback)(const CGItem_C* item, void* para
 // VERIFY: 35fbcc70 manual
 // OFFSET: 0x007546F0
 CGItem_C* CGBag_C::FindItem(int32_t (*callback)(const CGItem_C* item, void* param), void* param, WOWGUID& container, uint32_t& slot, uint32_t flags) {
-    if (this->m_hasBank && !(flags & 0x247)) {
-        flags |= 0x247;
+    if (this->m_hasBank && !(flags & BAG_SEARCH_DEFAULT_LOCATIONS)) {
+        flags |= BAG_SEARCH_DEFAULT_LOCATIONS;
     }
 
     container = WOWGUID();
@@ -798,20 +799,20 @@ CGItem_C* CGBag_C::FindItem(int32_t (*callback)(const CGItem_C* item, void* para
     while (true) {
         if (!this->m_hasBank || SlotMatchesSearchFlags(index, flags)) {
             WOWGUID guid = index < numSlots ? this->m_slots[index] : WOWGUID();
-            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
-            if (item && !(item->m_modelFlags & 0x10000) && ((flags & 0x80) || (((item->m_item->m_itemFieldFlags & 0x8) || !item->m_item->m_itemFieldMaxdurability || item->m_item->m_itemFieldDurability) && !(item->m_item->m_itemFieldFlags & 0x10))) && (!(flags & 0x20) || (item->GetBag() && !(flags & 0x10)) || (item->GetEnchantmentSpell(0) && item->GetCurrentSpellCharges()))) {
+            if (item && !(item->m_modelFlags & 0x10000) && ((flags & BAG_SEARCH_IGNORE_ITEM_STATE) || (((item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) || !item->m_item->m_itemFieldMaxdurability || item->m_item->m_itemFieldDurability) && !(item->m_item->m_itemFieldFlags & 0x10))) && (!(flags & BAG_SEARCH_REQUIRE_CHARGES) || (item->GetBag() && !(flags & BAG_SEARCH_NO_RECURSE)) || (item->GetEnchantmentSpell(0) && item->GetCurrentSpellCharges()))) {
                 if (callback(item, param)) {
                     container = this->m_guid;
                     slot = index;
-                } else if (item->GetBag() && !(flags & 0x10)) {
+                } else if (item->GetBag() && !(flags & BAG_SEARCH_NO_RECURSE)) {
                     item = item->GetBag()->FindItem(callback, param, container, slot, flags);
                 } else {
                     item = nullptr;
                 }
 
                 if (item) {
-                    if (!(flags & 0x100)) {
+                    if (!(flags & BAG_SEARCH_SMALLEST_STACK)) {
                         return item;
                     }
 

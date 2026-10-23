@@ -18,14 +18,14 @@ static uint32_t s_enableCount;
 
 // VERIFY: 6474e2bb auto
 // OFFSET: 0x0086CC20
-int32_t OsIMEGetLanguageMode() {
-    HWND window = static_cast<HWND>(OsGuiGetWindow(0));
+OS_IME_LANGUAGEMODE OsIMEGetLanguageMode() {
+    HWND window = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
     HIMC context = ImmGetContext(window);
     if (!context) {
-        return 0;
+        return OS_IME_MODE_ROMAN;
     }
 
-    int32_t mode = 0;
+    OS_IME_LANGUAGEMODE mode = OS_IME_MODE_ROMAN;
     DWORD conversion = 0;
     DWORD sentence;
     ImmGetConversionStatus(context, &conversion, &sentence);
@@ -35,13 +35,13 @@ int32_t OsIMEGetLanguageMode() {
 
         switch (reinterpret_cast<uintptr_t>(layout) & 0xFF) {
             case LANG_CHINESE:
-                mode = reinterpret_cast<uintptr_t>(layout) == 0x08040804 ? 0 : 3;
+                mode = reinterpret_cast<uintptr_t>(layout) == 0x08040804 ? OS_IME_MODE_ROMAN : OS_IME_MODE_CHINESE;
                 break;
             case LANG_JAPANESE:
-                mode = 1;
+                mode = OS_IME_MODE_JAPANESE;
                 break;
             case LANG_KOREAN:
-                mode = 2;
+                mode = OS_IME_MODE_KOREAN;
                 break;
         }
     }
@@ -55,7 +55,7 @@ int32_t OsIMEGetLanguageMode() {
 static int32_t GetCompositionString(DWORD index, char* buffer, uint32_t bufferSize) {
     memset(buffer, 0, bufferSize);
 
-    HWND window = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND window = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
     HIMC context = ImmGetContext(window);
     if (!context) {
         return 0;
@@ -89,7 +89,7 @@ int32_t OsIMEGetCompositionResult(char* buffer, uint32_t bufferSize) {
 int32_t OsIMEGetClauseInfo(uint32_t& clauseStart, uint32_t& clauseEnd, uint32_t& cursor) {
     UINT codePage = GetACP();
 
-    HWND window = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND window = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
     HIMC context = ImmGetContext(window);
     if (!context) {
         return 0;
@@ -155,7 +155,7 @@ int32_t OsIMEGetClauseInfo(uint32_t& clauseStart, uint32_t& clauseEnd, uint32_t&
 // VERIFY: 2af47370 auto
 // OFFSET: 0x0086CF90
 void OsIMEEnable(int32_t enable) {
-    HWND window = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND window = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
 
     if (enable) {
         if (++s_enableCount == 1) {
@@ -171,7 +171,7 @@ void OsIMEEnable(int32_t enable) {
 // VERIFY: 3444e0a4 auto
 // OFFSET: 0x0086CFF0
 void OsIMESync() {
-    HWND window = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND window = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
     HIMC context = ImmGetContext(window);
 
     if (s_enableCount) {
@@ -186,7 +186,7 @@ void OsIMESync() {
 // VERIFY: 215fd519 auto
 // OFFSET: 0x0086D030
 void OsIMESetLanguageMode(int32_t native) {
-    HIMC context = ImmGetContext(static_cast<HWND>(OsGuiGetWindow(0)));
+    HIMC context = ImmGetContext(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)));
     if (!context) {
         return;
     }
@@ -207,13 +207,13 @@ void OsIMESetLanguageMode(int32_t native) {
 // VERIFY: a0a00041 auto
 // OFFSET: 0x0086D0A0
 void OsIMEInitialize() {
-    s_context = ImmAssociateContext(static_cast<HWND>(OsGuiGetWindow(0)), nullptr);
+    s_context = ImmAssociateContext(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)), nullptr);
 }
 
 // VERIFY: 1c6b3a2c auto
 // OFFSET: 0x0086D0C0
 void OsIMEDestroy() {
-    ImmAssociateContextEx(static_cast<HWND>(OsGuiGetWindow(0)), nullptr, IACE_DEFAULT);
+    ImmAssociateContextEx(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)), nullptr, IACE_DEFAULT);
     s_context = nullptr;
 }
 
@@ -222,7 +222,7 @@ void OsIMEDestroy() {
 int32_t OsIMEGetCandidates(uint32_t listMask, uint32_t& pageStart, uint32_t& pageSize, uint32_t& count, uint32_t& selection, TSGrowableArray<OsIMECandidate>& candidates) {
     candidates.Clear();
 
-    HWND window = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND window = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
     HIMC context = ImmGetContext(window);
     if (!context) {
         return 0;

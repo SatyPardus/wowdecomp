@@ -4,7 +4,7 @@
 
 // INLINED: [0x0077EC47->0x0077EC57]
 static int32_t ISMemGetAllocator(va_list arglist) {
-    *va_arg(arglist, uint32_t*) = 2;
+    *va_arg(arglist, uint32_t*) = SMEM_ALLOCATOR_SYSTEM;
     return 1;
 }
 

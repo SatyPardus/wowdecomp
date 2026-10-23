@@ -95,7 +95,7 @@ static int32_t Script_GetArenaTeam(lua_State* L) {
 
     lua_checkstack(L, 22);
     uint32_t index = static_cast<uint32_t>(static_cast<int64_t>(lua_tonumber(L, 1)) - 1);
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     uint32_t* info = player && index < 3 ? &player->m_player->m_playerFieldArenaTeamInfo11[index * 7] : nullptr;
     ArenaTeam* team = index < 3 ? &CGArenaTeamInfo::m_arenaTeams[index] : nullptr;
     ArenaTeamCache* cache = nullptr;

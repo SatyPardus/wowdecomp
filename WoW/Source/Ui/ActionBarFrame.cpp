@@ -12,6 +12,7 @@
 #include "WoW/Source/DB/Rec/OverrideSpellDataRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
@@ -143,7 +144,7 @@ CGItem_C* CGActionBar::FindUseEnchantItemPtr(int32_t itemId) {
         return nullptr;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return nullptr;
@@ -212,7 +213,7 @@ int32_t CGActionBar::ActionHasRange(uint32_t slot) {
         return 0;
     }
 
-    CGUnit_C* caster = petSpell ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
+    CGUnit_C* caster = petSpell ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
 
     if (!caster) {
         return 0;
@@ -239,7 +240,7 @@ int32_t CGActionBar::IsAttackAction(uint32_t slot) {
     SpellRec spell;
     int32_t petSpell;
 
-    if (g_spellDB.GetRecord(CGActionBar::GetSpell(slot, petSpell), &spell) && spell.m_effect[0] == 78) {
+    if (g_spellDB.GetRecord(CGActionBar::GetSpell(slot, petSpell), &spell) && spell.m_effect[0] == SPELL_EFFECT_ATTACK) {
         return 1;
     }
 
@@ -267,7 +268,7 @@ int32_t CGActionBar::IsRangedAttackAction(uint32_t slot) {
 // OFFSET: 0x005A9E20
 int32_t CGActionBar::UpdateUsableAction(uint32_t slot, int32_t& noMana) {
     noMana = 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -356,7 +357,7 @@ int32_t CGActionBar::UpdateUsableAction(uint32_t slot, int32_t& noMana) {
         CGUnit_C* caster;
 
         if (petSpell) {
-            caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+            caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
         } else {
             caster = player;
         }
@@ -632,7 +633,7 @@ int32_t CGActionBar::HasAction(uint32_t slot) {
 // VERIFY: 08b2d00e manual
 // OFFSET: 0x005A84D0
 const char* CGActionBar::GetAttackTexture() {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return nullptr;
@@ -658,13 +659,13 @@ const char* CGActionBar::GetAttackTexture() {
 
     CGBag_C* bag = player->GetBag();
     WOWGUID guid = 15 < static_cast<uint32_t>(bag->m_numSlots) ? bag->m_slots[15] : WOWGUID();
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item) {
         return "Interface\\Buttons\\Spell-Reset";
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
 
     // STATIC: 0x00C1E5A8
     static char s_texture[260];
@@ -676,7 +677,7 @@ const char* CGActionBar::GetAttackTexture() {
 // VERIFY: 26633ab9 manual
 // OFFSET: 0x005A85E0
 const char* CGActionBar::GetRangedTexture() {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return nullptr;
@@ -688,13 +689,13 @@ const char* CGActionBar::GetRangedTexture() {
 
     CGBag_C* bag = player->GetBag();
     WOWGUID guid = 17 < static_cast<uint32_t>(bag->m_numSlots) ? bag->m_slots[17] : WOWGUID();
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item || item->GetSubtypeID() == 16) {
         return nullptr;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
 
     // STATIC: 0x00C1E6B0
     static char s_texture[260];
@@ -706,7 +707,7 @@ const char* CGActionBar::GetRangedTexture() {
 // VERIFY: 36690456 manual
 // OFFSET: 0x005A8A60
 int32_t CGActionBar::CalculateItemCount(int32_t itemId) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -790,7 +791,7 @@ const char* CGActionBar::GetTexture(int32_t slot) {
     }
 
     // STATIC: 0x00C1E8BC
-    static const char* s_iconPath = ClientDBStringLookup(3);
+    static const char* s_iconPath = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
 
     // STATIC: 0x00C1E7B8
     static char s_texture[260];
@@ -822,7 +823,7 @@ const char* CGActionBar::GetTexture(int32_t slot) {
         int32_t petSpell;
 
         if (g_spellDB.GetRecord(CGActionBar::GetSpell(slot, petSpell), &spell)) {
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petSpell ? CGPetInfo::GetPet(0) : ClntObjMgrGetActivePlayer(), TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petSpell ? CGPetInfo::GetPet(0) : ClntObjMgrGetActivePlayer(), TYPE_UNIT, __FILE__, __LINE__));
             SpellIconRec* icon = g_spellIconDB.GetRecord(Spell_C_IsActiveSpell(&spell, unit) && spell.m_activeIconID ? spell.m_activeIconID : spell.m_spellIconID);
 
             if (icon) {
@@ -868,7 +869,7 @@ const char* CGActionBar::GetTexture(int32_t slot) {
             SpellRec spell;
 
             if (g_spellDB.GetRecord(action->m_data & 0xFFFFFF, &spell)) {
-                CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+                CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
                 SpellIconRec* icon = g_spellIconDB.GetRecord(Spell_C_IsActiveSpell(&spell, unit) && spell.m_activeIconID ? spell.m_activeIconID : spell.m_spellIconID);
 
                 if (icon) {
@@ -1018,7 +1019,7 @@ void CGActionBar::SetAction(int32_t slot, uint32_t action, int32_t sendToServer,
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || player->m_actionButtonsPending) {
         return;
@@ -1081,7 +1082,7 @@ void CGActionBar::PutActionInSlot(int32_t slot) {
     int32_t cursorMacro = CGGameUI::m_cursorMacro;
 
     if (!itemId && CGGameUI::GetCursorItem()) {
-        item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGGameUI::GetCursorItem(), TYPEMASK_ITEM, __FILE__, __LINE__));
+        item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGGameUI::GetCursorItem(), TYPE_ITEM, __FILE__, __LINE__));
 
         if (item) {
             itemId = item->m_obj->m_entryID;
@@ -1397,7 +1398,7 @@ static int32_t FormHasActionBar(const SpellShapeshiftFormRec* form) {
 // OFFSET: 0x005A83C0
 void CGActionBar::UpdateBonusBar() {
     int32_t offset = 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         if (CGActionBar::m_tempPageActiveFlags) {
@@ -1493,7 +1494,7 @@ int32_t CGActionBar::IsEquippedAction(uint32_t slot) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -1752,7 +1753,7 @@ void CGActionBar::UpdateTemporaryActionBar(int32_t (*getSpell)(uint32_t index, c
 // VERIFY: c3611dc4 manual
 // OFFSET: 0x005A8D30
 void CGActionBar::UpdateUsablePower() {
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     SpellRec spell;
     int32_t changed = 0;
 
@@ -1766,7 +1767,7 @@ void CGActionBar::UpdateUsablePower() {
         int32_t spellId = CGActionBar::GetSpell(i, petSpell);
 
         if (spellId && g_spellDB.GetRecord(spellId, &spell)) {
-            CGUnit_C* caster = petSpell ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : player;
+            CGUnit_C* caster = petSpell ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__)) : player;
 
             if (caster) {
                 noMana = !Spell_C_HaveSpellPower(caster, &spell);
@@ -1799,7 +1800,7 @@ static int32_t GetFormPresetSpell(uint32_t index, const void* data) {
 // VERIFY: 82a1fae7 manual
 // OFFSET: 0x005ABAC0
 void CGActionBar::UpdateShapeShiftBar() {
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     SpellShapeshiftFormRec* form;
 
     if (player && (form = g_spellShapeshiftFormDB.GetRecord(player->GetShapeshiftForm())) && FormHasActionBar(form)) {
@@ -1845,7 +1846,7 @@ int32_t CGActionBar::HasValidTarget(uint32_t slot, WOWGUID target, int32_t* inRa
         }
     }
 
-    CGUnit_C* caster = petSpell ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
+    CGUnit_C* caster = petSpell ? static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__)) : ClntObjMgrGetActivePlayerObj();
     uint8_t result;
 
     if (caster && Spell_C_RangeCheckSelected(caster, &spell, target, &result, false, nullptr)) {
@@ -2103,7 +2104,7 @@ void CGActionBar::UpdateCritter(int32_t critter) {
         }
 
         for (uint32_t i = 0; i < 3; i++) {
-            if (spell.m_effect[i] == 28 && g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[0]) && spell.m_effectMiscValue[i] == critter) {
+            if (spell.m_effect[i] == SPELL_EFFECT_SUMMON && g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[0]) && spell.m_effectMiscValue[i] == critter) {
                 int32_t noMana;
                 CGActionBar::m_slotUsable[slot] = CGActionBar::UpdateUsableAction(slot, noMana);
                 CGActionBar::m_slotNoMana[slot] = noMana;

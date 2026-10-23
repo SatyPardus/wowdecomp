@@ -4,6 +4,10 @@
 #include <cstdint>
 #include "Engine/Source/Event/Types.h"
 
+static const float EVENT_PRIORITY_BELOW_NORMAL = -1.0f;
+static const float EVENT_PRIORITY_NORMAL = 0.0f;
+static const float EVENT_PRIORITY_ABOVE_NORMAL = 1.0f;
+
 HEVENTCONTEXT EventCreateContextEx(int32_t interactive, EVENTHANDLERFUNC initializeHandler, EVENTHANDLERFUNC destroyHandler, uint32_t idleTime, uint32_t debugFlags);
 void EventDestroy();
 void EventDoMessageLoop();

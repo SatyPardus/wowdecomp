@@ -39,7 +39,7 @@ int32_t CGQuestInfo::m_rewardFactionList[10];
 int32_t CGQuestInfo::m_rewardFactionAmounts[10];
 
 // STATIC: 0x00C0D658
-int32_t CGQuestInfo::m_state;
+QUEST_STATE CGQuestInfo::m_state;
 
 // STATIC: 0x00C0D65C
 int32_t CGQuestInfo::m_currentQuest;
@@ -159,7 +159,7 @@ void CGQuestInfo::QuestGiverFinished(int32_t keepOpen, uint32_t questId, int32_t
         return;
     }
 
-    if (notify && ClntObjMgrObjectPtr(CGQuestInfo::m_npc, TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (notify && ClntObjMgrObjectPtr(CGQuestInfo::m_npc, TYPE_PLAYER, __FILE__, __LINE__)) {
         CDataStore msg;
         msg.Put(static_cast<uint32_t>(MSG_QUEST_PUSH_RESULT));
         msg.Put(CGQuestInfo::m_npcInform ? CGQuestInfo::m_npcInform.m_guid : CGQuestInfo::m_npc.m_guid);
@@ -233,10 +233,10 @@ void CGQuestInfo::ClearQuestItems() {
 
 // VERIFY: 2ce3fb4d manual
 // OFFSET: 0x0058C5A0
-void CGQuestInfo::SetState(WOWGUID npc, WOWGUID inform, int32_t state, const char* text, int32_t questId, int32_t startCheat) {
-    CGObject_C* object = ClntObjMgrObjectPtr(npc, TYPEMASK_OBJECT, __FILE__, __LINE__);
+void CGQuestInfo::SetState(WOWGUID npc, WOWGUID inform, QUEST_STATE state, const char* text, int32_t questId, int32_t startCheat) {
+    CGObject_C* object = ClntObjMgrObjectPtr(npc, TYPE_OBJECT, __FILE__, __LINE__);
 
-    if (!object || !(object->m_obj->m_type & (TYPEMASK_ITEM | TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT))) {
+    if (!object || !(object->m_obj->m_type & (TYPE_ITEM | TYPE_UNIT | TYPE_GAMEOBJECT))) {
         return;
     }
 
@@ -253,19 +253,19 @@ void CGQuestInfo::SetState(WOWGUID npc, WOWGUID inform, int32_t state, const cha
     }
 
     switch (state) {
-        case 0:
+        case QUEST_GREETING:
             SStrCopy(CGQuestInfo::m_greetingText, buffer, sizeof(CGQuestInfo::m_greetingText));
             break;
 
-        case 1:
+        case QUEST_OFFER:
             SStrCopy(CGQuestInfo::m_questText, buffer, sizeof(CGQuestInfo::m_questText));
             break;
 
-        case 2:
+        case QUEST_ACCEPTED:
             SStrCopy(CGQuestInfo::m_progressText, buffer, sizeof(CGQuestInfo::m_progressText));
             break;
 
-        case 3:
+        case QUEST_REWARD:
             SStrCopy(CGQuestInfo::m_rewardText, buffer, sizeof(CGQuestInfo::m_rewardText));
             break;
 
@@ -277,7 +277,7 @@ void CGQuestInfo::SetState(WOWGUID npc, WOWGUID inform, int32_t state, const cha
     CGQuestInfo::m_currentQuest = questId;
     CGQuestInfo::m_startQuestCheat = startCheat;
 
-    if (!(object->m_obj->m_type & TYPEMASK_GAMEOBJECT) || npc != CGGameUI::m_interactTarget) {
+    if (!(object->m_obj->m_type & TYPE_GAMEOBJECT) || npc != CGGameUI::m_interactTarget) {
         CGGameUI::SetInteractTarget(npc);
     }
 
@@ -347,7 +347,7 @@ void CGQuestInfo::AddReward(const char* title, const uint32_t* choiceItems, cons
         CGQuestInfo::m_requiredMoney = 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && static_cast<int32_t>(player->m_unit->m_unitFieldLevel) < static_cast<int32_t>(player->m_player->m_playerFieldMaxLevel)) {
         CGQuestInfo::m_rewardXP = xp;
@@ -380,7 +380,7 @@ void CGQuestInfo::AddReward(const char* title, const uint32_t* choiceItems, cons
     CGQuestInfo::m_suggestedGroupNum = suggestedGroupNum;
     CGQuestInfo::m_questFlags = questFlags;
 
-    if (CGQuestInfo::m_state == 1) {
+    if (CGQuestInfo::m_state == QUEST_OFFER) {
         FrameScript_SignalEvent(SCRIPT_EVENT_QUEST_DETAIL, nullptr);
     } else {
         FrameScript_SignalEvent(SCRIPT_EVENT_QUEST_COMPLETE, nullptr);
@@ -663,7 +663,7 @@ int32_t CGQuestInfo::IsCompletable() {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -691,7 +691,7 @@ void CGQuestInfo::QueryQuest(uint32_t index) {
         return;
     }
 
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return;
     }
 
@@ -711,7 +711,7 @@ void CGQuestInfo::CompleteQuest(uint32_t index) {
         return;
     }
 
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return;
     }
 
@@ -723,11 +723,11 @@ void CGQuestInfo::CompleteQuest(uint32_t index) {
 // VERIFY: 900e22ab manual
 // OFFSET: 0x0058CD20
 void CGQuestInfo::AcceptQuest() {
-    if (CGQuestInfo::m_state != 1) {
+    if (CGQuestInfo::m_state != QUEST_OFFER) {
         return;
     }
 
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__) || CGQuestInfo::m_responseSent) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__) || CGQuestInfo::m_responseSent) {
         return;
     }
 
@@ -757,13 +757,13 @@ void CGQuestInfo::DeclineQuest() {
         return;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(CGQuestInfo::m_npc, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(CGQuestInfo::m_npc, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return;
     }
 
-    if ((object->m_obj->m_type & TYPEMASK_UNIT) && (static_cast<CGUnit_C*>(object)->m_unit->m_unitNpcFlags & 1) && ClntObjMgrGetActivePlayerObj()) {
+    if ((object->m_obj->m_type & TYPE_UNIT) && (static_cast<CGUnit_C*>(object)->m_unit->m_unitNpcFlags & 1) && ClntObjMgrGetActivePlayerObj()) {
         CGPlayer_C::TalkToGossip(CGQuestInfo::m_npc);
         CGQuestInfo::m_responseSent = 1;
         return;
@@ -771,12 +771,12 @@ void CGQuestInfo::DeclineQuest() {
 
     uint32_t type = object->m_obj->m_type;
 
-    if ((type & (TYPEMASK_ITEM | TYPEMASK_PLAYER)) || CGQuestInfo::m_autoLaunched) {
+    if ((type & (TYPE_ITEM | TYPE_PLAYER)) || CGQuestInfo::m_autoLaunched) {
         CGQuestInfo::QuestGiverFinished(0, CGQuestInfo::m_currentQuest, 1);
         return;
     }
 
-    if (type & TYPEMASK_GAMEOBJECT) {
+    if (type & TYPE_GAMEOBJECT) {
         object->OnRightClick();
     } else {
         CDataStore msg;
@@ -792,11 +792,11 @@ void CGQuestInfo::DeclineQuest() {
 // VERIFY: 84d8d008 manual
 // OFFSET: 0x0058CF40
 void CGQuestInfo::GiveQuestItems() {
-    if (CGQuestInfo::m_state != 2 || CGQuestInfo::m_responseSent) {
+    if (CGQuestInfo::m_state != QUEST_ACCEPTED || CGQuestInfo::m_responseSent) {
         return;
     }
 
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return;
     }
 
@@ -808,11 +808,11 @@ void CGQuestInfo::GiveQuestItems() {
 // VERIFY: 840a6082 manual
 // OFFSET: 0x0058CFA0
 int32_t CGQuestInfo::GetReward(int32_t choice) {
-    if (CGQuestInfo::m_state != 3) {
+    if (CGQuestInfo::m_state != QUEST_REWARD) {
         return 1;
     }
 
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__) || CGQuestInfo::m_responseSent) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__) || CGQuestInfo::m_responseSent) {
         return 1;
     }
 
@@ -871,11 +871,11 @@ int32_t CGQuestInfo::QuestItemInfo(const char* type, uint32_t index, char* name,
         *quality = stats->m_inventoryType ? stats->m_quality : -1;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(s_questItemTexture, sizeof(s_questItemTexture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(displayId));
     SStrCopy(texture, s_questItemTexture, textureSize);
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t error;
 
     if (player && stats && !player->CanUseItem(stats, error)) {
@@ -890,7 +890,7 @@ int32_t CGQuestInfo::QuestItemInfo(const char* type, uint32_t index, char* name,
 void CGQuestInfo::EnterWorld() {
     CGQuestInfo::m_npc = WOWGUID{ 0 };
     CGQuestInfo::m_npcInform = WOWGUID{ 0 };
-    CGQuestInfo::m_state = 0;
+    CGQuestInfo::m_state = QUEST_GREETING;
     CGQuestInfo::m_currentQuest = 0;
     CGQuestInfo::m_canComplete = 0;
     CGQuestInfo::m_autoLaunched = 0;

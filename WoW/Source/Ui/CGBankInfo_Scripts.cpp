@@ -39,7 +39,7 @@ static int32_t Script_BankButtonIDToInvSlotID(lua_State* L) {
 // VERIFY: 3ad30a07 manual
 // OFFSET: 0x0057BAB0
 static int32_t Script_GetNumBankSlots(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t slots = player ? player->m_player->m_playerBytes2[2] : 0;
     lua_pushnumber(L, slots);
 
@@ -55,7 +55,7 @@ static int32_t Script_GetNumBankSlots(lua_State* L) {
 // VERIFY: 93072092 manual
 // OFFSET: 0x0057BB30
 static int32_t Script_GetBankSlotCost(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     const BankBagSlotPricesRec* rec;
     int32_t cost;
 

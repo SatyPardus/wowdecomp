@@ -4,6 +4,81 @@
 #include <cstddef>
 #include <cstdint>
 
+enum ITEM_STATIC_FLAGS : uint32_t {
+    // Masks for ItemStats_C::m_flags[0]; m_flags[1] is a separate domain.
+    ITEM_FLAG_NO_PICKUP                               = 0x00000001u,
+    ITEM_FLAG_CONJURED                                = 0x00000002u,
+    ITEM_FLAG_HAS_LOOT                                = 0x00000004u,
+    ITEM_FLAG_HEROIC_TOOLTIP                          = 0x00000008u,
+    ITEM_FLAG_DEPRECATED                              = 0x00000010u,
+    ITEM_FLAG_NO_USER_DESTROY                         = 0x00000020u,
+    ITEM_FLAG_PLAYERCAST                              = 0x00000040u,
+    ITEM_FLAG_NO_EQUIP_COOLDOWN                       = 0x00000080u,
+    ITEM_FLAG_MULTI_LOOT_QUEST                        = 0x00000100u,
+    ITEM_FLAG_IS_WRAPPER                              = 0x00000200u,
+    ITEM_FLAG_USES_RESOURCES                          = 0x00000400u,
+    ITEM_FLAG_MULTI_DROP                              = 0x00000800u,
+    ITEM_FLAG_ITEM_PURCHASE_RECORD                    = 0x00001000u,
+    ITEM_FLAG_PETITION                                = 0x00002000u,
+    ITEM_FLAG_HAS_TEXT                                = 0x00004000u,
+    ITEM_FLAG_NO_DISENCHANT                           = 0x00008000u,
+    ITEM_FLAG_REAL_DURATION                           = 0x00010000u,
+    ITEM_FLAG_NO_CREATOR                              = 0x00020000u,
+    ITEM_FLAG_IS_PROSPECTABLE                         = 0x00040000u,
+    ITEM_FLAG_UNIQUE_EQUIPPABLE                       = 0x00080000u,
+    ITEM_FLAG_IGNORE_FOR_AURAS                        = 0x00100000u,
+    ITEM_FLAG_IGNORE_DEFAULT_ARENA_RESTRICTIONS       = 0x00200000u,
+    ITEM_FLAG_NO_DURABILITY_LOSS                      = 0x00400000u,
+    ITEM_FLAG_USE_WHEN_SHAPESHIFTED                   = 0x00800000u,
+    ITEM_FLAG_HAS_QUEST_GLOW                          = 0x01000000u,
+    ITEM_FLAG_HIDE_UNUSABLE_RECIPE                    = 0x02000000u,
+    ITEM_FLAG_NOT_USEABLE_IN_ARENA                    = 0x04000000u,
+    ITEM_FLAG_IS_BOUND_TO_ACCOUNT                     = 0x08000000u,
+    ITEM_FLAG_NO_REAGENT_COST                         = 0x10000000u,
+    ITEM_FLAG_IS_MILLABLE                             = 0x20000000u,
+    ITEM_FLAG_REPORT_TO_GUILD_CHAT                    = 0x40000000u,
+    ITEM_FLAG_NO_PROGRESSIVE_LOOT                     = 0x80000000u,
+};
+
+enum ITEM_STATIC_FLAGS2 : uint32_t {
+    // Masks for ItemStats_C::m_flags[1]; higher bits have no verified 3.3.5 meaning here.
+    ITEM_FLAG2_FACTION_HORDE                 = 0x00000001u,
+    ITEM_FLAG2_FACTION_ALLIANCE              = 0x00000002u,
+    ITEM_FLAG2_DONT_IGNORE_BUY_PRICE         = 0x00000004u,
+    ITEM_FLAG2_CLASSIFY_AS_CASTER            = 0x00000008u,
+    ITEM_FLAG2_CLASSIFY_AS_PHYSICAL          = 0x00000010u,
+    ITEM_FLAG2_EVERYONE_CAN_ROLL_NEED        = 0x00000020u,
+    ITEM_FLAG2_NO_TRADE_BIND_ON_ACQUIRE      = 0x00000040u,
+    ITEM_FLAG2_CAN_TRADE_BIND_ON_ACQUIRE     = 0x00000080u,
+    ITEM_FLAG2_CAN_ONLY_ROLL_GREED           = 0x00000100u,
+    ITEM_FLAG2_CASTER_WEAPON                 = 0x00000200u,
+    ITEM_FLAG2_DELETE_ON_LOGIN               = 0x00000400u,
+    ITEM_FLAG2_INTERNAL_ITEM                 = 0x00000800u,
+    ITEM_FLAG2_NO_VENDOR_VALUE               = 0x00001000u,
+    ITEM_FLAG2_SHOW_BEFORE_DISCOVERED        = 0x00002000u,
+    ITEM_FLAG2_OVERRIDE_GOLD_COST            = 0x00004000u,
+};
+
+enum ITEM_DYNAMIC_FLAGS : uint32_t {
+    ITEM_DFLAG_BOUND = 1,
+    ITEM_DFLAG_TRANSLATED = 2,
+    ITEM_DFLAG_UNLOCKED = 4,
+    ITEM_DFLAG_WRAPPED = 8,
+};
+
+enum DYNAMIC_OBJECT_TYPE : uint8_t {
+    // DYNAMIC_OBJECT_PORTAL = 0,
+    DYNAMIC_OBJECT_AREA_SPELL = 1,
+    DYNAMIC_OBJECT_FARSIGHT_FOCUS = 2,
+};
+
+enum VIRTUAL_MONSTER_SLOT : uint32_t {
+    VIRTUAL_MONSTER_SLOT_MAINHAND = 0,
+    VIRTUAL_MONSTER_SLOT_OFFHAND = 1,
+    VIRTUAL_MONSTER_SLOT_RANGED = 2,
+    NUM_VIRTUAL_MONSTER_SLOTS = 3,
+};
+
 enum POWER_TYPE : int32_t {
     POWER_TYPE_HEALTH = -2,
     POWER_TYPE_MANA = 0,
@@ -77,7 +152,32 @@ enum MoveEventId {
     MOVEEVENT_UNSET_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY = 57,
     MOVEEVENT_SET_COLLISION_HEIGHT = 58,
     NUM_MOVE_EVENTS = 59,
+
+    // PLAYER_MOVE_EVT names in the expanded current event domain.
+    PMOVE_MOVE_START_FWD = 0,
+    PMOVE_MOVE_START_BWD = 1,
+    PMOVE_MOVE_STOP = 2,
+    PMOVE_STRAFE_START_LFT = 3,
+    PMOVE_STRAFE_START_RGT = 4,
+    PMOVE_STRAFE_STOP = 5,
+    PMOVE_FALL = 9,
+    PMOVE_JUMP = 10,
+    PMOVE_TURN_START_LFT = 11,
+    PMOVE_TURN_START_RGT = 12,
+    PMOVE_TURN_STOP = 13,
+    PMOVE_PITCH_START_UP = 14,
+    PMOVE_PITCH_START_DOWN = 15,
+    PMOVE_PITCH_STOP = 16,
+    PMOVE_SET_RUN_MODE = 17,
+    PMOVE_SET_WALK_MODE = 18,
+    PMOVE_SET_FACING = 19,
+    PMOVE_SET_PITCH = 20,
+    PMOVE_MOVE_START_SWIM = 21,
+    PMOVE_MOVE_STOP_SWIM = 22,
+    NUM_PMOVE_EVTS = 59,
 };
+
+using PLAYER_MOVE_EVT = MoveEventId;
 
 enum OBJECT_FIELDS {
     OBJECT_FIELD_GUID = 0,
@@ -88,15 +188,28 @@ enum OBJECT_FIELDS {
     OBJECT_END = 6,
 };
 
-enum TypeMask {
-    TYPEMASK_OBJECT = 1,
-    TYPEMASK_ITEM = 2,
-    TYPEMASK_CONTAINER = 4,
-    TYPEMASK_UNIT = 8,
-    TYPEMASK_PLAYER = 16,
-    TYPEMASK_GAMEOBJECT = 32,
-    TYPEMASK_DYNAMICOBJECT = 64,
-    TYPEMASK_CORPSE = 128,
+enum OBJECT_TYPE {
+    TYPE_OBJECT = 0x1,
+    TYPE_ITEM = 0x2,
+    TYPE_CONTAINER = 0x4,
+    TYPE_UNIT = 0x8,
+    TYPE_PLAYER = 0x10,
+    TYPE_GAMEOBJECT = 0x20,
+    TYPE_DYNAMICOBJECT = 0x40,
+    TYPE_CORPSE = 0x80,
+    // TYPE_AIGROUP = 0x100,
+    // TYPE_AREATRIGGER = 0x200,
+    HEIR_TYPE_OBJECT = TYPE_OBJECT, // 0x1
+    HEIR_TYPE_ITEM = TYPE_OBJECT | TYPE_ITEM, // 0x3
+    HEIR_TYPE_CONTAINER = TYPE_OBJECT | TYPE_ITEM | TYPE_CONTAINER, //0x7
+    HEIR_TYPE_UNIT = TYPE_OBJECT | TYPE_UNIT ,// 0x9,
+    HEIR_TYPE_PLAYER = TYPE_OBJECT | TYPE_UNIT | TYPE_PLAYER, // 0x19,
+    HEIR_TYPE_GAMEOBJECT = TYPE_OBJECT | TYPE_GAMEOBJECT , // 0x21,
+    HEIR_TYPE_DYNAMICOBJECT = TYPE_OBJECT | TYPE_DYNAMICOBJECT, // 0x41,
+    HEIR_TYPE_CORPSE = TYPE_OBJECT | TYPE_CORPSE, // 0x81,
+    // HEIR_TYPE_AIGROUP = 0x101,
+    // HEIR_TYPE_AREATRIGGER = 0x201,
+
 };
 
 enum MovementFlags : uint32_t {

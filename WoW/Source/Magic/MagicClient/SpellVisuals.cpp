@@ -112,7 +112,7 @@ C3Vector LightningObject::GetImpactPosition(CGUnit_C* unit, uint32_t spellId) {
     }
 
     SpellVisualRec buffer;
-    const SpellVisualRec* visual = (unit->m_obj->m_type & TYPEMASK_UNIT) ? unit->GetAppropriateSpellVisual(&spell, buffer, 0, 0) : GetSpellVisual(&spell);
+    const SpellVisualRec* visual = (unit->m_obj->m_type & TYPE_UNIT) ? unit->GetAppropriateSpellVisual(&spell, buffer, 0, 0) : GetSpellVisual(&spell);
     int32_t raw = visual->m_flags & 0x200;
 
     if (model->IsLoaded(0, 0) && (model->m_fFlags & 0x8000) && unit->HasAttachmentForEffect(visual->m_missileDestinationAttachment, raw)) {
@@ -150,10 +150,10 @@ bool LightningObject::Tick(uint32_t time) {
             continue;
         }
 
-        CGObject_C* source = static_cast<CGObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_targets[bolt.m_source] }, TYPEMASK_OBJECT, __FILE__, __LINE__));
-        CGObject_C* target = static_cast<CGObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_targets[bolt.m_target] }, TYPEMASK_OBJECT, __FILE__, __LINE__));
-        CGUnit_C* sourceUnit = source && (source->m_obj->m_type & TYPEMASK_UNIT) ? static_cast<CGUnit_C*>(source) : nullptr;
-        CGUnit_C* targetUnit = target && (target->m_obj->m_type & TYPEMASK_UNIT) ? static_cast<CGUnit_C*>(target) : nullptr;
+        CGObject_C* source = static_cast<CGObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_targets[bolt.m_source] }, TYPE_OBJECT, __FILE__, __LINE__));
+        CGObject_C* target = static_cast<CGObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_targets[bolt.m_target] }, TYPE_OBJECT, __FILE__, __LINE__));
+        CGUnit_C* sourceUnit = source && (source->m_obj->m_type & TYPE_UNIT) ? static_cast<CGUnit_C*>(source) : nullptr;
+        CGUnit_C* targetUnit = target && (target->m_obj->m_type & TYPE_UNIT) ? static_cast<CGUnit_C*>(target) : nullptr;
 
         if ((this->m_flags & 0x1) || (time >= bolt.m_startTime && time < bolt.m_endTime)) {
             C3Vector sourcePos(0.0f, 0.0f, 0.0f);
@@ -381,7 +381,7 @@ void LightningObject::InitializeBolts(CGObject_C* caster, const WOWGUID* targets
             continue;
         }
 
-        CGObject_C* object = static_cast<CGObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_targets[i + 1] }, TYPEMASK_OBJECT, __FILE__, __LINE__));
+        CGObject_C* object = static_cast<CGObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_targets[i + 1] }, TYPE_OBJECT, __FILE__, __LINE__));
 
         if (!object) {
             continue;
@@ -422,7 +422,7 @@ void SpellVisualsBlizzardSetFrameOfReference(BlizzardObject* object, const C44Ma
 void SpellVisualsComputeMountTransitionJumpVec(const MountTransitionObject* transition, C3Vector* jump) {
     *jump = transition->m_jumpVector;
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transition->m_unitGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transition->m_unitGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit || !unit->m_mountTransitionEffect) {
         return;
@@ -980,7 +980,7 @@ bool BlizzardObject::Update() {
 // VERIFY: 4afc8cf8 auto
 // OFFSET: 0x007FA6A0
 int32_t MountTransitionObject::UpdateCharacterData() {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_unitGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_unitGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return 0;
@@ -1040,7 +1040,7 @@ bool MountTransitionObject::Tick() {
     uint32_t now = OsGetAsyncTimeMs();
     float elapsed = static_cast<float>(now - this->m_lastTime) * 0.001f;
     this->m_lastTime = now;
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_unitGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_unitGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return false;

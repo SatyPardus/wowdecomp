@@ -5,6 +5,8 @@
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/SoundInterface/SoundInterface2Internal.h"
 
+static const float FADEOUT_TIME = 3.0f;
+
 // STATIC: 0x00DCE8E8
 static char s_creditsMusicName[128];
 
@@ -45,7 +47,7 @@ void SI2::StartGlueAmbience(const char* name, float fadeInTime) {
         }
     }
 
-    SI2::StopSound(&s_glueAmbience, 0, 3.0f, 1);
+    SI2::StopSound(&s_glueAmbience, 0, FADEOUT_TIME, 1);
 
     if (!name) {
         return;
@@ -110,7 +112,7 @@ int32_t SI2::CreditsMusicUpdate(const void* data, void* param) {
 // OFFSET: 0x00986190
 void SI2::StopCreditsMusic() {
     EventUnregister(EVENT_ID_POLL, SI2::CreditsMusicUpdate);
-    SI2::StopSound(&s_creditsMusic, 0, 3.0f, 1);
+    SI2::StopSound(&s_creditsMusic, 0, FADEOUT_TIME, 1);
 }
 
 // VERIFY: b62c8d0a auto
@@ -126,7 +128,7 @@ void SI2::StartGlueMusic(const char* name) {
     }
 
     EventUnregister(EVENT_ID_POLL, SI2::CreditsMusicUpdate);
-    SI2::StopSound(&s_creditsMusic, 0, 3.0f, 1);
+    SI2::StopSound(&s_creditsMusic, 0, FADEOUT_TIME, 1);
 
     if (!name || !SStrCmpI(name, s_glueMusicName, 0x7FFFFFFF)) {
         return;
@@ -148,10 +150,10 @@ void SI2::StartGlueMusic(const char* name) {
 // OFFSET: 0x009862C0
 void SI2::StartCreditsMusic(const char* name) {
     EventUnregister(EVENT_ID_POLL, SI2::CreditsMusicUpdate);
-    SI2::StopSound(&s_creditsMusic, 0, 3.0f, 1);
+    SI2::StopSound(&s_creditsMusic, 0, FADEOUT_TIME, 1);
     EventUnregister(EVENT_ID_POLL, SI2::GlueMusicUpdate);
     s_glueMusicName[0] = '\0';
-    SI2::StopSound(&s_glueMusic, 0, 3.0f, 1);
+    SI2::StopSound(&s_glueMusic, 0, FADEOUT_TIME, 1);
 
     if (!name) {
         return;

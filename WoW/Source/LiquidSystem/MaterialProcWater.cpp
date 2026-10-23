@@ -1,9 +1,11 @@
 #include "Liquid.h"
+#include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Model2/M2Light.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // STATIC: 0x00D4505C
 CDataAllocator Liquid::s_procWaterFFPAllocator(sizeof(Liquid::CMaterialProcWaterFFP), 8);
@@ -29,7 +31,7 @@ Liquid::VSWaveConstants Liquid::s_vsWaveConstants;
 // VERIFY: 241af1fe manual
 // OFFSET: 0x008A3620
 void Liquid::SetDirectionalWave(uint32_t index, const C2Vector& direction, float a3, float a4, float a5, float speed) {
-    Liquid::s_vsWaveConstants.m_directionalPhase[index] = static_cast<float>(static_cast<uint32_t>(OsGetAsyncTimeMs() * speed) & 0x1FFF) / 1024.0f * 6.2831855f;
+    Liquid::s_vsWaveConstants.m_directionalPhase[index] = static_cast<float>(static_cast<uint32_t>(OsGetAsyncTimeMs() * speed) & 0x1FFF) / 1024.0f * TWO_PI;
 
     float clampedA3 = a3 < 0.001f ? 0.001f : a3;
     C4Vector& wave = Liquid::s_vsWaveConstants.m_directionalWaves[index];
@@ -44,7 +46,7 @@ void Liquid::SetDirectionalWave(uint32_t index, const C2Vector& direction, float
 // VERIFY: ffbfd269 manual
 // OFFSET: 0x008A3710
 void Liquid::SetCircularWave(uint32_t index, const C2Vector& a2, const C2Vector& a3, float a4, float a5, float a6, float speed) {
-    Liquid::s_vsWaveConstants.m_circularPhase[index] = static_cast<float>(static_cast<uint32_t>(OsGetAsyncTimeMs() * speed) & 0x1FFF) / 1024.0f * 6.2831855f;
+    Liquid::s_vsWaveConstants.m_circularPhase[index] = static_cast<float>(static_cast<uint32_t>(OsGetAsyncTimeMs() * speed) & 0x1FFF) / 1024.0f * TWO_PI;
 
     float invA4 = 1.0f / (a4 < 0.001f ? 0.001f : a4);
     Liquid::s_vsWaveConstants.unk_0060[index] = 1.0f / (a5 < 0.001f ? 0.001f : a5);
@@ -376,8 +378,8 @@ void Liquid::CMaterialProcWaterFFP::Render(Liquid::IEnvironment* environment, Li
     g_theGxDevicePtr->RsSet(GxRs_Texture1, texture1);
     g_theGxDevicePtr->RsSet(GxRs_TextureCoord1, 0);
     g_theGxDevicePtr->RsSet(GxRs_TextureShader1, 1);
-    g_theGxDevicePtr->RsSet(GxRs_ColorOp1, 2);
-    g_theGxDevicePtr->RsSet(GxRs_AlphaOp1, 3);
+    g_theGxDevicePtr->RsSet(GxRs_ColorOp1, GxTexOp_Add);
+    g_theGxDevicePtr->RsSet(GxRs_AlphaOp1, GxTexOp_PassThru);
 
     C44Matrix texMatrix1 = C44Matrix::RotationAroundZ(angle1);
     texMatrix1.Scale(scale1);

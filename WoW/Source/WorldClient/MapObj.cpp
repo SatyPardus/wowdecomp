@@ -1,4 +1,5 @@
 #include "MapObj.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 #include <cstdlib>
 #include <malloc.h>
 #include <new>
@@ -440,8 +441,8 @@ static void __stdcall WriteLiquidVertex(CMapObjGroup* group, const C44Matrix& ma
             local.z = vertex.z - group->m_liquidCorner.z;
 
             C2Vector uv(local * rotation);
-            (*texCoord0)->x = uv.x * 0.24f;
-            (*texCoord0)->y = 0.24f * uv.y;
+            (*texCoord0)->x = uv.x * OO_COORD_TO_SUBCHUNK;
+            (*texCoord0)->y = OO_COORD_TO_SUBCHUNK * uv.y;
         }
 
         *texCoord0 = reinterpret_cast<C2Vector*>(reinterpret_cast<uint8_t*>(*texCoord0) + stride);
@@ -503,8 +504,8 @@ uint16_t CMapObj::ClipGroupGeometry(CMapObjGroup* group, const C44Matrix& matrix
 
             for (uint32_t i = 0; i < 4; i++) {
                 SMOLiquidVert* liquidVert = &group->m_liquidVertexList[corners[i]];
-                points[i].x = (x + offsets[i][0]) * 4.1666665f + group->m_liquidCorner.x;
-                points[i].y = 4.1666665f * (y + offsets[i][1]) + group->m_liquidCorner.y;
+                points[i].x = (x + offsets[i][0]) * SMOLTILE_SIZE + group->m_liquidCorner.x;
+                points[i].y = SMOLTILE_SIZE * (y + offsets[i][1]) + group->m_liquidCorner.y;
                 points[i].z = liquidVert->m_waterVert.m_height;
                 clipper.AddVertex(points[i], liquidVert);
             }
@@ -515,7 +516,7 @@ uint16_t CMapObj::ClipGroupGeometry(CMapObjGroup* group, const C44Matrix& matrix
                 SMOPortalRef& ref = refs[p];
                 CMapObjGroup* other = this->GetGroup(ref.m_groupIndex, 0);
 
-                if (other && other->m_liquidCorner.x < points[2].x && other->m_liquidCorner.y < points[2].y && other->m_liquidTiles.x * 4.1666665f + other->m_liquidCorner.x > points[0].x && 4.1666665f * other->m_liquidTiles.y + other->m_liquidCorner.y > points[0].y) {
+                if (other && other->m_liquidCorner.x < points[2].x && other->m_liquidCorner.y < points[2].y && other->m_liquidTiles.x * SMOLTILE_SIZE + other->m_liquidCorner.x > points[0].x && SMOLTILE_SIZE * other->m_liquidTiles.y + other->m_liquidCorner.y > points[0].y) {
                     clipper.Clip(this->m_portalList[ref.m_portalIndex].m_plane, ref.m_side);
                 }
             }
@@ -2528,11 +2529,11 @@ uint16_t CMapObj::BuildLiquidVerts(CMapObjGroup* group, const C44Matrix& matrix,
                     WriteLiquidVertex(group, matrix, vertex, liquidVert, color, magma, texCoord1U, &unused, stride, position, normal, vertexColor, texCoord0, texCoord1);
                 }
 
-                x += 4.1666665f;
+                x += SMOLTILE_SIZE;
             }
         }
 
-        y += 4.1666665f;
+        y += SMOLTILE_SIZE;
     }
 
     return (group->m_liquidVerts.x + sharedVerts[0].m_count) * (sharedVerts[1].m_count + group->m_liquidVerts.y);

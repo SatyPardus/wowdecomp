@@ -718,7 +718,7 @@ static int32_t Script_CalculateAuctionDeposit(lua_State* L) {
     CGItem_C* item;
     ItemStats_C* stats;
 
-    if (!rec || !(sellItem = CGAuctionHouse::m_sellItem) || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPEMASK_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, false))) {
+    if (!rec || !(sellItem = CGAuctionHouse::m_sellItem) || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPE_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, false))) {
         lua_pushnumber(L, 0.0);
         return 1;
     }
@@ -745,7 +745,7 @@ static int32_t Script_ClickAuctionSellItemButton(lua_State* L) {
     uint32_t slot;
     CGGameUI::GetCursorItem(item, container, slot);
 
-    CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__));
 
     if (object && !CGAuctionHouse::IsSellItemValid(object, 1)) {
         return 0;
@@ -850,7 +850,7 @@ static int32_t Script_GetAuctionItemInfo(lua_State* L) {
     CGItem_C::BuildItemName(name, sizeof(name), auction->m_itemID, auction->m_randomPropertyID);
     lua_pushstring(L, name);
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
@@ -1030,7 +1030,7 @@ static int32_t Script_GetAuctionSellItemInfo(lua_State* L) {
     CGItem_C* item;
     ItemStats_C* stats;
 
-    if (!sellItem || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPEMASK_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, false))) {
+    if (!sellItem || !(item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPE_ITEM, __FILE__, __LINE__))) || !(stats = g_itemDBCache.GetRecord(item->m_obj->m_entryID, sellItem, AuctionSellItemQueryCallback, nullptr, false))) {
         lua_pushnil(L);
         lua_pushnil(L);
         lua_pushnumber(L, 1.0);
@@ -1047,7 +1047,7 @@ static int32_t Script_GetAuctionSellItemInfo(lua_State* L) {
     item->GetFullItemName(name, sizeof(name));
     lua_pushstring(L, name);
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
@@ -1086,7 +1086,7 @@ static int32_t Script_StartAuction(lua_State* L) {
         return 0;
     }
 
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGAuctionHouse::m_sellItem, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item) {
         return 0;

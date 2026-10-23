@@ -114,9 +114,9 @@ extern const char* g_macroTaint;
 
 struct UIErrorInfo {
     /* 0000 */ const char* m_token;
-    /* 0004 */ int32_t m_type;
+    /* 0004 */ ERROR_TEXT_PLACEMENT m_type;
     /* 0008 */ const char* m_sound;
-    /* 000C */ int32_t m_vocalError;
+    /* 000C */ VOCALUISOUNDS m_vocalError;
     /* 0010 */ int32_t m_chatType;
 };
 
@@ -244,7 +244,7 @@ class CGGameUI {
     static WOWGUID m_comboTarget;
     static uint16_t m_accountDataGeneration;
     static TotemInfo m_totems[4];
-    static MirrorTimerInfo m_mirrorTimerInfo[3];
+    static MirrorTimerInfo m_mirrorTimerInfo[NUM_UNIT_MIRROR_TIMERS];
     static MirrorTimerInfo* MirrorTimerGetInfo(uint32_t index);
     static uint32_t GetInstanceDifficulty();
 
@@ -377,7 +377,7 @@ class CGGameUI {
     static int32_t IsRaidMemberOrPet(const WOWGUID& guid);
     static void ClearInteractTarget(const WOWGUID& guid, int32_t a2);
     static void CloseLoot(bool a1, bool a2, bool a3);
-    static void OpenLoot(CGObject_C* object, int32_t coins, uint32_t lootType);
+    static void OpenLoot(CGObject_C* object, int32_t coins, LOOT_ACQUIRE lootAcquire);
     static void ClearLootSlot(uint8_t slot);
     static void LootSlotChanged(uint8_t slot);
     static void LockItem(WOWGUID guid);
@@ -459,7 +459,7 @@ class CTerrainClickEvent {
 };
 
 struct MirrorTimerInfo {
-    /* 0000 */ int32_t m_type;
+    /* 0000 */ UNIT_MIRROR_TIMER m_type;
     /* 0004 */ int32_t m_value;
     /* 0008 */ int32_t m_maxValue;
     /* 000C */ int32_t m_scale;
@@ -564,8 +564,8 @@ extern CVar* s_cvLfgSelectedRoles;
 extern CVar* s_cvLfdCollapsedHeaders;
 extern CVar* s_cvLfdSelectedDungeons;
 
-const char* MirrorTimerTypeToken(int32_t type);
-const char* GetMirrorTimerLabel(int32_t type, int32_t spellId);
+const char* MirrorTimerTypeToken(UNIT_MIRROR_TIMER type);
+const char* GetMirrorTimerLabel(UNIT_MIRROR_TIMER type, int32_t spellId);
 
 void BroadcastUIError(int32_t error, const char* name);
 

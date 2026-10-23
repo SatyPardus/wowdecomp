@@ -3,6 +3,7 @@
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Tempest/CRandom.h"
+#include "WoW/Common/ComponentCore/Types.h"
 #include "WoW/Source/DB/DBClient/CreatureStats_C.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/SpellVisualKitRec.h"
@@ -26,10 +27,10 @@ static uint32_t s_nextVictimImpactTime;
 // VERIFY: 64e4513d auto
 // OFFSET: 0x00754EF0
 const CGUnitVirtualItem* CGUnit_C::GetParryingItem(bool offhand) const {
-    const CGUnitVirtualItem* item = this->GetVirtualItem(0, false);
+    const CGUnitVirtualItem* item = this->GetVirtualItem(VIRTUAL_MONSTER_SLOT_MAINHAND, false);
 
     if (offhand || (item && item->m_classID != 2)) {
-        item = this->GetVirtualItem(1, false);
+        item = this->GetVirtualItem(VIRTUAL_MONSTER_SLOT_OFFHAND, false);
 
         if (item && item->m_classID != 2 && item->m_classID != 4) {
             return nullptr;
@@ -80,12 +81,12 @@ void CGUnit_C::HandleEnvironmentDamage(uint32_t type, int32_t damage, int32_t ab
 
 // VERIFY: 94a622f4 auto
 // OFFSET: 0x00755540
-const CGUnitVirtualItem* CGUnit_C::GetAttackingWeapon(int32_t hand, bool requireLoadedModel) const {
+const CGUnitVirtualItem* CGUnit_C::GetAttackingWeapon(COMBATHAND hand, bool requireLoadedModel) const {
     if (!this->m_sheatheState) {
         return nullptr;
     }
 
-    const CGUnitVirtualItem* item = this->GetVirtualItem(hand != 0, false);
+    const CGUnitVirtualItem* item = this->GetVirtualItem(static_cast<VIRTUAL_MONSTER_SLOT>(hand != 0), false);
 
     if (!item || item->m_classID != 2) {
         return nullptr;
@@ -144,7 +145,7 @@ void CGUnit_C::PlayVictimRound(const ATTACKROUNDINFO& info) {
     if (info.m_hitInfo & 0x2) {
         this->PlayWoundAnimKit(info.m_hitInfo & 0x200);
 
-        if ((info.m_damage || (info.m_hitInfo & 0x1000000)) && (info.m_victimState == 1 || info.m_victimState == 4)) {
+        if ((info.m_damage || (info.m_hitInfo & 0x1000000)) && (info.m_victimState == VS_WOUND || info.m_victimState == VS_INTERRUPT)) {
             WOWGUID attacker = info.m_attacker;
             this->ShowBloodSpurt(attacker, info.m_hitInfo & 0x8000);
         }
@@ -160,19 +161,19 @@ void CGUnit_C::PlayVictimRound(const ATTACKROUNDINFO& info) {
         s_nextVictimImpactTime = static_cast<uint32_t>((static_cast<uint64_t>(CRandom::uint32_(g_rndSeed)) * 2000) >> 32) + now + 3000;
     }
 
-    if (info.m_victimState == 3) {
+    if (info.m_victimState == VS_PARRY) {
         C3Vector position = this->GetPosition();
         this->SetImpactKitEffect(false, &info, &position);
     } else if (info.m_blocked) {
         C3Vector position = this->GetPosition();
         this->SetImpactKitEffect(true, &info, &position);
-    } else if (info.m_victimState == 8) {
+    } else if (info.m_victimState == VS_DEFLECT) {
         C3Vector position = this->GetPosition();
         position.z += 2.0f;
         SI2::PlaySoundKit("(DONOTRENAME)ShieldWoodImpact", &position, nullptr, nullptr);
     }
 
-    if ((info.m_hitInfo & 0xA0) || info.m_victimState == 7) {
+    if ((info.m_hitInfo & 0xA0) || info.m_victimState == VS_IMMUNE) {
         C3Vector position = this->GetPosition();
         position.z += 2.0f;
         SI2::PlaySoundKit("(DONOTRENAME)AbsorbGetHit", &position, nullptr, nullptr);
@@ -239,7 +240,7 @@ void CGUnit_C::OnDeathAnimate() {
 
     this->PlayDeathAnimation(0);
 
-    if (!(this->m_obj->m_type & TYPEMASK_PLAYER) || !(static_cast<CGPlayer_C*>(this)->m_player->m_playerFlags & 0x4000)) {
+    if (!(this->m_obj->m_type & TYPE_PLAYER) || !(static_cast<CGPlayer_C*>(this)->m_player->m_playerFlags & 0x4000)) {
         this->OnAiReaction(4);
     }
 
@@ -252,15 +253,15 @@ void CGUnit_C::OnDeathAnimate() {
 
 // VERIFY: 4078ec8f manual
 // OFFSET: 0x00755380
-void CGUnit_C::ShowBloodSpurt(const WOWGUID& attacker, int32_t a3) {
+void CGUnit_C::ShowBloodSpurt(const WOWGUID& attacker, int32_t large) {
     UnitBloodRec* blood = this->GetBloodRecord();
 
     if (!blood) {
         return;
     }
 
-    int32_t attachType = 15;
-    CGUnit_C* attackerUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+    GEOCOMPONENTLINKS attachType = ATTACH_TORSOBLOODFRONT;
+    CGUnit_C* attackerUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(attacker, TYPE_UNIT, __FILE__, __LINE__));
 
     if (attackerUnit) {
         C3Vector position = this->GetPosition();
@@ -272,11 +273,12 @@ void CGUnit_C::ShowBloodSpurt(const WOWGUID& attacker, int32_t a3) {
         float sinFacing = sinf(facing);
 
         if (dy * sinFacing + dx * cosFacing < 0.0f) {
-            attachType = 16;
+            attachType = ATTACH_TORSOBLOODBACK;
         }
     }
 
-    int32_t effectId = attachType == 15 ? blood->m_combatBloodSpurtFront[a3 != 0] : blood->m_combatBloodSpurtBack[a3 != 0];
+    const BLOODSPURTSIZES size = large ? BLOODSPURT_LARGE : BLOODSPURT_SMALL;
+    int32_t effectId = attachType == ATTACH_TORSOBLOODFRONT ? blood->m_combatBloodSpurtFront[size] : blood->m_combatBloodSpurtBack[size];
     SpellVisualEffectNameRec* effectName = g_spellVisualEffectNameDB.GetRecord(effectId);
 
     if (!effectName) {
@@ -335,7 +337,7 @@ void ATTACKROUNDINFO::Unpack(CDataStore& msg) {
 
     uint8_t victimState;
     msg.Get(victimState);
-    this->m_victimState = victimState;
+    this->m_victimState = static_cast<VICTIMSTATES>(victimState);
     msg.Get(this->unk_0058);
     msg.Get(this->m_meleeSpellId);
 
@@ -362,23 +364,23 @@ void ATTACKROUNDINFO::Unpack(CDataStore& msg) {
         msg.Get(this->unk_008C[0]);
     }
 
-    if (ClntObjMgrObjectPtr(this->m_target, TYPEMASK_UNIT, __FILE__, __LINE__) && !this->m_damage && this->m_blocked) {
-        this->m_victimState = 5;
+    if (ClntObjMgrObjectPtr(this->m_target, TYPE_UNIT, __FILE__, __LINE__) && !this->m_damage && this->m_blocked) {
+        this->m_victimState = VS_BLOCK;
     }
 }
 
 // VERIFY: 49638f19 manual
 // OFFSET: 0x00755850
 void CGUnit_C::PlayCombatSpellMissEffects(uint32_t reason, const WOWGUID& source) {
-    if ((this->m_unit->m_unitFieldFlags2 & 0x1) || this->GetClientStandState() == 7) {
+    if ((this->m_unit->m_unitFieldFlags2 & 0x1) || this->GetClientStandState() == UNIT_DEAD) {
         return;
     }
 
-    CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(source, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(source, TYPE_UNIT, __FILE__, __LINE__));
     const CGUnitVirtualItem* weapon = nullptr;
 
     if (attacker && attacker->m_sheatheState) {
-        const CGUnitVirtualItem* item = attacker->GetVirtualItem(0, false);
+        const CGUnitVirtualItem* item = attacker->GetVirtualItem(VIRTUAL_MONSTER_SLOT_MAINHAND, false);
         weapon = item && item->m_classID == 2 ? item : nullptr;
     }
 
@@ -398,8 +400,8 @@ void CGUnit_C::PlayCombatSpellMissEffects(uint32_t reason, const WOWGUID& source
 
         case 5: {
             this->PlayBaseAnimation(ANIM_SHIELD_BLOCK, 0);
-            this->GetVirtualItem(0, false);
-            const CGUnitVirtualItem* shield = this->GetVirtualItem(1, false);
+            this->GetVirtualItem(VIRTUAL_MONSTER_SLOT_MAINHAND, false);
+            const CGUnitVirtualItem* shield = this->GetVirtualItem(VIRTUAL_MONSTER_SLOT_OFFHAND, false);
 
             if (shield && shield->m_classID != 2 && shield->m_classID != 4) {
                 shield = nullptr;
@@ -420,39 +422,39 @@ void CGUnit_C::PlayCombatSpellMissEffects(uint32_t reason, const WOWGUID& source
 void CGUnit_C::PlayVictimWorldFeedback(const ATTACKROUNDINFO& info) {
     WOWGUID activePlayer = ClntObjMgrGetActivePlayer();
 
-    if (info.m_meleeSpellId && info.m_victimState != 1) {
+    if (info.m_meleeSpellId && info.m_victimState != VS_WOUND) {
         return;
     }
 
-    uint32_t victimState = info.m_victimState;
+    VICTIMSTATES victimState = info.m_victimState;
 
-    if (victimState == 8) {
+    if (victimState == VS_DEFLECT) {
         WOWGUID source = info.m_attacker;
-        this->AddWorldText(source, 9, nullptr, false);
+        this->AddWorldText(source, MISS_DEFLECTED, nullptr, false);
         CGGameUI::ShowCombatFeedbackAttackRoundInfo(&info);
         return;
     }
 
-    if (victimState == 3) {
+    if (victimState == VS_PARRY) {
         WOWGUID source = info.m_attacker;
-        this->AddWorldText(source, 4, nullptr, false);
+        this->AddWorldText(source, MISS_PARRIED, nullptr, false);
         CGGameUI::ShowCombatFeedbackAttackRoundInfo(&info);
         return;
     }
 
-    if (victimState == 6) {
+    if (victimState == VS_EVADE) {
         WOWGUID source = info.m_attacker;
-        this->AddWorldText(source, 6, nullptr, false);
+        this->AddWorldText(source, MISS_EVADED, nullptr, false);
         CGGameUI::ShowCombatFeedbackAttackRoundInfo(&info);
         return;
     }
 
-    if (victimState == 2) {
+    if (victimState == VS_DODGE) {
         if (info.m_attacker.m_guid) {
-            CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPE_UNIT, __FILE__, __LINE__));
 
             if (attacker) {
-                bool oneHand = !CGUnit_C::IsTwoHanded(attacker->GetVirtualItem(0, false));
+                bool oneHand = !CGUnit_C::IsTwoHanded(attacker->GetVirtualItem(VIRTUAL_MONSTER_SLOT_MAINHAND, false));
                 int32_t self = activePlayer == info.m_attacker || activePlayer == info.m_target;
                 C3Vector position = attacker->GetPosition();
                 SI2::PlayMissedSound(oneHand, &position, self);
@@ -460,21 +462,21 @@ void CGUnit_C::PlayVictimWorldFeedback(const ATTACKROUNDINFO& info) {
         }
 
         WOWGUID source = info.m_attacker;
-        this->AddWorldText(source, 3, nullptr, false);
+        this->AddWorldText(source, MISS_DODGED, nullptr, false);
         CGGameUI::ShowCombatFeedbackAttackRoundInfo(&info);
         return;
     }
 
-    if (victimState == 5) {
+    if (victimState == VS_BLOCK) {
         WOWGUID source = info.m_attacker;
-        this->AddWorldText(source, 5, nullptr, false);
+        this->AddWorldText(source, MISS_BLOCKED, nullptr, false);
         CGGameUI::ShowCombatFeedbackAttackRoundInfo(&info);
         return;
     }
 
-    if (victimState == 7) {
+    if (victimState == VS_IMMUNE) {
         WOWGUID source = info.m_attacker;
-        this->AddWorldText(source, 7, nullptr, false);
+        this->AddWorldText(source, MISS_IMMUNE, nullptr, false);
         CGGameUI::ShowCombatFeedbackAttackRoundInfo(&info);
         return;
     }
@@ -484,17 +486,17 @@ void CGUnit_C::PlayVictimWorldFeedback(const ATTACKROUNDINFO& info) {
         CGUnit_C* attacker = nullptr;
 
         if (info.m_attacker.m_guid) {
-            attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+            attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPE_UNIT, __FILE__, __LINE__));
         }
 
         if (info.m_target.m_guid) {
-            victim = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_target, TYPEMASK_UNIT, __FILE__, __LINE__));
+            victim = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_target, TYPE_UNIT, __FILE__, __LINE__));
         }
 
         if (attacker && victim) {
             int32_t self = activePlayer == info.m_attacker || activePlayer == info.m_target;
             C3Vector position = victim->GetPosition();
-            SI2::PlayHitSound(attacker->GetAttackingWeapon((info.m_hitInfo >> 2) & 1, true), victim->GetImpactType(), info.m_hitInfo & 0x200, &position, self);
+            SI2::PlayHitSound(attacker->GetAttackingWeapon(static_cast<COMBATHAND>((info.m_hitInfo >> 2) & 1), true), victim->GetImpactType(), info.m_hitInfo & 0x200, &position, self);
         }
 
         WOWGUID source = info.m_attacker;
@@ -504,12 +506,12 @@ void CGUnit_C::PlayVictimWorldFeedback(const ATTACKROUNDINFO& info) {
     }
 
     if (activePlayer != info.m_target && !(info.m_hitInfo & 0x4000)) {
-        int32_t reason;
+        MISS_REASON reason;
 
         if (info.m_hitInfo & 0x20) {
-            reason = 10;
+            reason = MISS_ABSORBED;
         } else {
-            reason = (info.m_hitInfo & 0x80) ? 2 : 1;
+            reason = (info.m_hitInfo & 0x80) ? MISS_RESIST : MISS_PHYSICAL;
         }
 
         WOWGUID source = info.m_attacker;
@@ -517,10 +519,10 @@ void CGUnit_C::PlayVictimWorldFeedback(const ATTACKROUNDINFO& info) {
     }
 
     if (info.m_attacker.m_guid) {
-        CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPE_UNIT, __FILE__, __LINE__));
 
         if (attacker) {
-            bool oneHand = !CGUnit_C::IsTwoHanded(attacker->GetVirtualItem(0, false));
+            bool oneHand = !CGUnit_C::IsTwoHanded(attacker->GetVirtualItem(VIRTUAL_MONSTER_SLOT_MAINHAND, false));
             int32_t self = activePlayer == info.m_attacker || activePlayer == info.m_target;
             C3Vector position = attacker->GetPosition();
             SI2::PlayMissedSound(oneHand, &position, self);
@@ -539,7 +541,7 @@ void CGUnit_C::ClearAttackRound() {
         return;
     }
 
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_lastAttackRound.m_target, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_lastAttackRound.m_target, TYPE_UNIT, __FILE__, __LINE__));
 
     if (target) {
         target->PlayVictimWorldFeedback(this->m_lastAttackRound);
@@ -555,11 +557,11 @@ void CGUnit_C::HandleCombatAnimEvent(uint32_t eventId, uint32_t data, const C3Ve
     CGUnit_C* target = nullptr;
 
     if (this->m_lastAttackRound.m_attacker) {
-        attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_lastAttackRound.m_attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+        attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_lastAttackRound.m_attacker, TYPE_UNIT, __FILE__, __LINE__));
     }
 
     if (this->m_lastAttackRound.m_target) {
-        target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_lastAttackRound.m_target, TYPEMASK_UNIT, __FILE__, __LINE__));
+        target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_lastAttackRound.m_target, TYPE_UNIT, __FILE__, __LINE__));
     }
 
     switch (eventId) {
@@ -595,13 +597,13 @@ void CGUnit_C::HandleCombatAnimEvent(uint32_t eventId, uint32_t data, const C3Ve
 
         case 0x48414324:
             if (attacker) {
-                uint32_t victimState = attacker->m_lastAttackRound.m_victimState;
+                VICTIMSTATES victimState = attacker->m_lastAttackRound.m_victimState;
 
-                if (!victimState || victimState == 2 || victimState == 6) {
+                if (!victimState || victimState == VS_DODGE || victimState == VS_EVADE) {
                     attacker->SetKeyBoneSequenceSpeed(attacker->m_worldModel, 0xFFFFFFFF, 0.5f, 0);
                 }
             } else if (!target) {
-                if (this->m_obj->m_type & TYPEMASK_PLAYER) {
+                if (this->m_obj->m_type & TYPE_PLAYER) {
                     static_cast<CGPlayer_C*>(this)->HandleSpellEventSound();
                 } else {
                     CreatureSoundDataRec* soundData = this->GetSoundData();
@@ -625,13 +627,13 @@ void CGUnit_C::HandleCombatAnimEvent(uint32_t eventId, uint32_t data, const C3Ve
                 return;
             }
 
-            uint32_t victimState = this->m_lastAttackRound.m_victimState;
+            VICTIMSTATES victimState = this->m_lastAttackRound.m_victimState;
 
-            if (!victimState || victimState == 2 || victimState == 6) {
+            if (!victimState || victimState == VS_DODGE || victimState == VS_EVADE) {
                 return;
             }
 
-            int32_t swingType = 0;
+            WEAPONSWING_SOUNDTYPES swingType = WEAPONSWING_LIGHT;
 
             if (this->GetWeaponSwingType(!(this->m_lastAttackRound.m_hitInfo & 4), &swingType) && this->m_lastAttackRound.m_victimState) {
                 int32_t self = CGUnit_C::s_activeMover == this->m_lastAttackRound.m_attacker || CGUnit_C::s_activeMover == this->m_lastAttackRound.m_target;
@@ -657,7 +659,7 @@ void CGUnit_C::HandleCombatAnimEvent(uint32_t eventId, uint32_t data, const C3Ve
             }
 
             this->PlayRangedItemPull();
-            const CGUnitVirtualItem* item = this->GetVirtualItem(2, false);
+            const CGUnitVirtualItem* item = this->GetVirtualItem(VIRTUAL_MONSTER_SLOT_RANGED, false);
 
             if (!item || item->m_classID != 2 || (item->m_subclassID != 3 && item->m_subclassID != 18)) {
                 if (this->m_ammoModel && !this->m_ammoModel->m_attachParent) {
@@ -676,19 +678,19 @@ void CGUnit_C::HandleCombatAnimEvent(uint32_t eventId, uint32_t data, const C3Ve
             return;
 
         case 0x50504324: {
-            if (!target || (target->m_unit->m_unitFieldFlags2 & 1) || target->GetClientStandState() == 7) {
+            if (!target || (target->m_unit->m_unitFieldFlags2 & 1) || target->GetClientStandState() == UNIT_DEAD) {
                 return;
             }
 
-            uint32_t victimState = this->m_lastAttackRound.m_victimState;
+            VICTIMSTATES victimState = this->m_lastAttackRound.m_victimState;
 
-            if (victimState == 3) {
+            if (victimState == VS_PARRY) {
                 if (!target->m_creatureCacheEntry || !(target->m_creatureCacheEntry->m_typeFlags & 0x200000)) {
                     target->PlayParryAnimation();
                 }
 
                 this->m_lastAttackRound.m_hitInfo &= ~2u;
-            } else if (victimState == 2 || victimState == 8) {
+            } else if (victimState == VS_DODGE || victimState == VS_DEFLECT) {
                 if (!target->m_creatureCacheEntry || !(target->m_creatureCacheEntry->m_typeFlags & 0x200000)) {
                     target->PlayBaseAnimation(ANIM_DODGE, 0);
                 }
@@ -722,7 +724,7 @@ void CGUnit_C::OnAttackStop(uint64_t target, int32_t faceTarget) {
         return;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ target }, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ target }, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         this->m_clientFlags |= 0x1;
@@ -741,7 +743,7 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
             WOWGUID victim;
             msg->Get(attacker.m_guid);
             msg->Get(victim.m_guid);
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(attacker, TYPE_UNIT, __FILE__, __LINE__));
 
             if (!unit) {
                 return 0;
@@ -766,7 +768,7 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
             *msg >> victim;
             uint32_t faceTarget;
             msg->Get(faceTarget);
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(attacker, TYPE_UNIT, __FILE__, __LINE__));
 
             if (unit) {
                 unit->OnAttackStop(victim.m_guid, faceTarget);
@@ -799,17 +801,17 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
         case SMSG_ATTACKER_STATE_UPDATE: {
             ATTACKROUNDINFO info;
             info.Unpack(*msg);
-            CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPE_UNIT, __FILE__, __LINE__));
 
             if (attacker) {
-                if (attacker->m_sheatheState != 1) {
-                    attacker->SetSheatheState(1, 1, 0);
+                if (attacker->m_sheatheState != WEAPONMODE_NORMALMODE) {
+                    attacker->SetSheatheState(WEAPONMODE_NORMALMODE, 1, 0);
                 }
 
                 attacker->m_combat.m_attackSent = 0;
                 attacker->ClearAttackRound();
                 attacker->m_lastAttackRound = info;
-                CGUnit_C* victim = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_target, TYPEMASK_UNIT, __FILE__, __LINE__));
+                CGUnit_C* victim = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_target, TYPE_UNIT, __FILE__, __LINE__));
 
                 if (attacker->IsActivePlayer() && victim) {
                     static_cast<CGPlayer_C*>(attacker)->UpdateAttackPosition(victim);
@@ -826,7 +828,7 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
                     attacker->ClearTrackingTarget(true, true);
                 }
             } else {
-                CGUnit_C* victim = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_target, TYPEMASK_UNIT, __FILE__, __LINE__));
+                CGUnit_C* victim = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_target, TYPE_UNIT, __FILE__, __LINE__));
 
                 if (victim) {
                     victim->PlayVictimRound(info);
@@ -847,7 +849,7 @@ int32_t Packet_Group_29(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
             msg->Get(absorbed);
             uint32_t resisted = 0;
             msg->Get(resisted);
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPE_UNIT, __FILE__, __LINE__));
 
             if (unit) {
                 unit->HandleEnvironmentDamage(type, damage, absorbed, resisted);

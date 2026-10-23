@@ -18,6 +18,8 @@
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 
+static const float CBSCALE = 64.0f;
+
 // STATIC: 0x00AEEF60
 TSExplicitList<CWorldOccluder, offsetof(CWorldOccluder, m_link)> s_occluderFreeList;
 
@@ -350,8 +352,8 @@ void CWorldOcclusion::UpdateBufferChunk(const C3Vector* verts, const float* heig
 
     if (holes) {
         for (int32_t i = 0; i < count - 1; i++) {
-            int32_t x0 = CMath::fint_(s_clipBufferVerts[i].x * 64.0f - 0.5f) + 192;
-            int32_t x1 = CMath::fint_(s_clipBufferVerts[i + 1].x * 64.0f - 0.5f) + 192;
+            int32_t x0 = CMath::fint_(s_clipBufferVerts[i].x * CBSCALE - 0.5f) + 192;
+            int32_t x1 = CMath::fint_(s_clipBufferVerts[i + 1].x * CBSCALE - 0.5f) + 192;
 
             if (x1 < x0) {
                 int32_t swap = x0;
@@ -386,8 +388,8 @@ void CWorldOcclusion::UpdateBufferChunk(const C3Vector* verts, const float* heig
         }
 
         float height = p1.y <= p0.y ? p1.y : p0.y;
-        int32_t x0 = CMath::fint_(p0.x * 64.0f - 0.5f) + 192;
-        int32_t x1 = CMath::fint_(p1.x * 64.0f - 0.5f) + 192;
+        int32_t x0 = CMath::fint_(p0.x * CBSCALE - 0.5f) + 192;
+        int32_t x1 = CMath::fint_(p1.x * CBSCALE - 0.5f) + 192;
 
         if (x1 < x0) {
             int32_t swap = x0;
@@ -443,8 +445,8 @@ void CWorldOcclusion::UpdateBuffer(const C3Vector* points, int32_t count, uint32
         }
 
         float height = p1.y <= p0.y ? p1.y : p0.y;
-        int32_t x0 = CMath::fint_(p0.x * 64.0f - 0.5f) + 192;
-        int32_t x1 = CMath::fint_(p1.x * 64.0f - 0.5f) + 192;
+        int32_t x0 = CMath::fint_(p0.x * CBSCALE - 0.5f) + 192;
+        int32_t x1 = CMath::fint_(p1.x * CBSCALE - 0.5f) + 192;
 
         if (x1 < x0) {
             int32_t swap = x0;
@@ -500,8 +502,8 @@ uint32_t CWorldOcclusion::QueryBuffer(const C3Vector& center, float radius, uint
     extent.y *= invZ;
     view.y = extent.x + invZ * view.y;
 
-    int32_t first = CMath::fint_((view.x - extent.y) * 64.0f - 0.5f) + 192;
-    int32_t last = CMath::fint_((extent.y + view.x) * 64.0f - 0.5f) + 193;
+    int32_t first = CMath::fint_((view.x - extent.y) * CBSCALE - 0.5f) + 192;
+    int32_t last = CMath::fint_((extent.y + view.x) * CBSCALE - 0.5f) + 193;
 
     if (first >= 384 || last < 0) {
         return 0;
@@ -561,8 +563,8 @@ uint32_t CWorldOcclusion::QueryBuffer(CAaBox* box, uint8_t flags) {
         }
     }
 
-    int32_t first = CMath::fint_(minX * 64.0f - 0.5f) + 192;
-    int32_t last = CMath::fint_(maxX * 64.0f - 0.5f) + 193;
+    int32_t first = CMath::fint_(minX * CBSCALE - 0.5f) + 192;
+    int32_t last = CMath::fint_(maxX * CBSCALE - 0.5f) + 193;
 
     if (first >= 384 || last < 0) {
         return 0;

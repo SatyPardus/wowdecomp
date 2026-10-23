@@ -1,4 +1,5 @@
 #include "MapEntity.h"
+#include "WoW/Source/WorldClient/WorldLightingConstants.h"
 #include "Engine/Source/Tempest/C3Segment.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/AreaTableRec.h"
@@ -16,6 +17,8 @@
 #include "WoW/Source/WorldClient/MapObjGroup.h"
 #include "WoW/Source/Ui/MinimapFrame.h"
 #include "WoW/Source/WorldClient/CWorldMath.h"
+
+static const float dirLightScaleRate = 3.3333333f;
 
 // STATIC: 0x00ADEEBC
 float CMapStaticEntity::s_characterAmbient = 1.0f;
@@ -165,7 +168,7 @@ CMapEntity::CMapEntity() {
     this->m_targetAmbientColor.r = 0x00;
     this->m_targetAmbientColor.a = 0x00;
     this->m_targetDiffuseLightScale = 0.0f;
-    this->m_type |= 0x20;
+    this->m_type |= CMapBaseObj::Type_Entity;
 }
 
 // VERIFY: 515c7062 manual
@@ -391,7 +394,7 @@ void CMapEntity::QueryLiquidSounds(TSGrowableArray<World::LiquidQueryResult>& re
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (!(ref->m_type & 0x10)) {
+        if (!(ref->m_type & CMapBaseObj::Type_MapObjDefGroup)) {
             continue;
         }
 
@@ -484,7 +487,7 @@ void CMapEntity::Tick() {
         this->m_targetAmbientColor = ambient;
     }
 
-    float rate = FrameTime::s_tickTimeSec * 3.3333333f;
+    float rate = FrameTime::s_tickTimeSec * dirLightScaleRate;
     float delta = this->m_diffuseLightScale - this->m_targetDiffuseLightScale;
 
     if (0.0f != delta) {
@@ -518,7 +521,7 @@ bool CMapStaticEntity::GetMapObjAndGroup(CMapObjDef** mapObjDef, CMapObj** mapOb
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (!(ref->m_type & 0x10)) {
+        if (!(ref->m_type & CMapBaseObj::Type_MapObjDefGroup)) {
             continue;
         }
 
@@ -600,8 +603,8 @@ bool CMapEntity::QueryInteriorLighting(CMapObjDef* mapObjDef, int32_t groupNum, 
     }
 
     CImVector limit;
-    *reinterpret_cast<uint32_t*>(&limit) = 0xA8;
-    this->AdjustLightmap(&color, &this->m_m2DiffuseColor, limit, &this->m_targetAmbientColor, 96);
+    *reinterpret_cast<uint32_t*>(&limit) = MIN_INTERIOR_DIRCOLOR;
+    this->AdjustLightmap(&color, &this->m_m2DiffuseColor, limit, &this->m_targetAmbientColor, MAX_AMBIENT);
 
     if (!flag) {
         this->m_staticFlags &= ~0x1000;
@@ -697,7 +700,7 @@ bool CMapEntity::QueryMapObjAreaTable(WMOAreaTableRec** groupRec, WMOAreaTableRe
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (ref->m_type & 0x4) {
+        if (ref->m_type & CMapBaseObj::Type_Chunk) {
             break;
         }
 
@@ -724,7 +727,7 @@ bool CMapEntity::QueryMapObjIDs(int32_t* wmoId, int32_t* wmoHash, int32_t* group
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (ref->m_type & 0x4) {
+        if (ref->m_type & CMapBaseObj::Type_Chunk) {
             break;
         }
 
@@ -750,7 +753,7 @@ int32_t CMapEntity::QueryInterior() {
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (ref->m_type & 0x4) {
+        if (ref->m_type & CMapBaseObj::Type_Chunk) {
             break;
         }
 
@@ -778,7 +781,7 @@ int32_t CMapEntity::QueryMapObjFileName(const char** fileName) {
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (ref->m_type & 0x4) {
+        if (ref->m_type & CMapBaseObj::Type_Chunk) {
             *fileName = nullptr;
             return 0;
         }
@@ -803,7 +806,7 @@ bool CMapEntity::QueryMapObjMinimap(CAaBox* box, TSStackArray<MINIMAPQUADINFO>* 
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (ref->m_type & 0x4) {
+        if (ref->m_type & CMapBaseObj::Type_Chunk) {
             return false;
         }
 
@@ -834,7 +837,7 @@ bool CMapEntity::QueryMapObjMatrix(C44Matrix* matrix, C44Matrix* invMatrix) {
     for (CMapBaseObjLink* link = this->m_parentLinkList.Head(); link; link = this->m_parentLinkList.Next(link)) {
         CMapBaseObj* ref = link->m_ref;
 
-        if (ref->m_type & 0x4) {
+        if (ref->m_type & CMapBaseObj::Type_Chunk) {
             return false;
         }
 

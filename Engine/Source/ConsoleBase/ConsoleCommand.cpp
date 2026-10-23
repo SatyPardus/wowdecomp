@@ -4,9 +4,10 @@
 #include "Engine/Source/Base/ConvertUTF.h"
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "GameVersion.h"
 
 // STATIC: 0x00ADBD48
-int32_t s_execState = 4;
+int32_t s_execState = EM_NOTACTIVE;
 
 // STATIC: 0x00CA1A28
 static char s_execBuffer[0x2000];
@@ -53,7 +54,7 @@ static int32_t ConsoleCommand_Quit(const char* command, const char* arguments) {
 // VERIFY: a074ad54 auto
 // OFFSET: 0x00768420
 static int32_t ConsoleCommand_Ver(const char* command, const char* arguments) {
-    ConsoleWrite("WoW [Release] Build 12340 (Jun 24 2010)", DEFAULT_COLOR);
+    ConsoleWrite("WoW [Release] Build " GAME_BUILD_STRING " (" GAME_BUILD_DATE ")", DEFAULT_COLOR);
 
     return 1;
 }
@@ -282,27 +283,27 @@ void ConsoleInitializeClientCommand() {
 // VERIFY: e5a78592 auto
 // OFFSET: 0x0076B2A0
 int32_t AddLineToExecFile(const char* line) {
-    if (!s_execState) {
+    if (s_execState == EM_PROMPTOVERWRITE) {
         if (*line == 'n') {
             ConsoleWrite("Canceled File Creation", ECHO_COLOR);
-            s_execState = 4;
+            s_execState = EM_NOTACTIVE;
             return 0;
         }
 
         if (*line == 'y') {
             ConsoleWrite("Begin Typing the commands", ECHO_COLOR);
-            s_execState = 1;
+            s_execState = EM_RECORDING;
             return 0;
         }
 
         ConsoleWrite("You must type 'y' to confirm overwrite. Process aborted!", ERROR_COLOR);
-        s_execState = 4;
+        s_execState = EM_NOTACTIVE;
         return 0;
     }
 
     if (!SStrCmpI(line, "end", STORM_MAX_STR)) {
-        if (s_execState != 2) {
-            s_execState = 3;
+        if (s_execState != EM_APPEND) {
+            s_execState = EM_WRITEFILE;
         }
 
         return 1;

@@ -175,7 +175,7 @@ class SI2 {
     static void DK_GetPlayerFilterName(CGUnit_C* unit, char* name, uint32_t size);
     static int32_t PlaySoundKit(int32_t soundKitId, const C3Vector* position, SE2SoundKitObject* object, SE2SoundKitProperties* properties, uint32_t advancedId, uint32_t* soundId, int32_t checkDistance, int32_t keepPlaying);
     static int32_t PlayUISound(int32_t soundKitId);
-    static int32_t PlayWeaponSwooshSound(int32_t type, int32_t crit, const C3Vector* position, int32_t quiet, int32_t self);
+    static int32_t PlayWeaponSwooshSound(WEAPONSWING_SOUNDTYPES type, int32_t crit, const C3Vector* position, int32_t quiet, int32_t self);
     static void RegisterCVars();
     static void RegisterDeviceChangeHandler();
     static void RegisterScriptFunctions();

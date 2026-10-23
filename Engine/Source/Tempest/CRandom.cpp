@@ -1,4 +1,5 @@
 #include <cmath>
+#include "Engine/Source/Tempest/CMath.h"
 #include <cstdint>
 #include <cstdlib>
 #include "Engine/Source/Tempest/CRandom.h"
@@ -98,7 +99,7 @@ uint32_t CRandom::dice_(uint32_t sides, CRndSeed& seed) {
 // VERIFY: de69b9b7 manual
 // OFFSET: 0x004C1620
 C2Vector CRandom::C2Vector_(CRndSeed& seed) {
-    float angle = CRandom::ufloat_(seed) * 6.2831855f;
+    float angle = CRandom::ufloat_(seed) * TWO_PI;
     float c = cos(angle);
     float s = sin(angle);
 
@@ -112,7 +113,7 @@ C2Vector CRandom::C2Vector_(CRndSeed& seed) {
 // OFFSET: 0x004C1680
 C3Vector CRandom::C3Vector_(CRndSeed& seed) {
     float z = CRandom::sfloat_(seed);
-    float angle = CRandom::ufloat_(seed) * 6.2831855f;
+    float angle = CRandom::ufloat_(seed) * TWO_PI;
     float r = sqrt(1.0f - z * z);
     float c = cos(angle);
     float s = sin(angle);

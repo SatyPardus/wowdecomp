@@ -10,6 +10,15 @@
 
 class CSimpleFontString;
 
+enum FONT_ATTRIBUTE_UPDATE_FLAGS : uint32_t {
+    FLAG_FONT_UPDATE = 1,
+    FLAG_STYLE_UPDATE = 2,
+    FLAG_COLOR_UPDATE = 4,
+    FLAG_SHADOW_UPDATE = 8,
+    FLAG_SPACING_UPDATE = 16,
+    FLAG_COMPLETE_UPDATE = 31,
+};
+
 class CSimpleFontStringAttributes {
     public:
     /* 0000 */ uint32_t m_flags;

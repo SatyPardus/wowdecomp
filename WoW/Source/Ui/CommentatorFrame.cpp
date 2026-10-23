@@ -20,7 +20,7 @@ CGCommentator CGCommentator::s_Commentator;
 // VERIFY: 892bcb14 manual
 // OFFSET: 0x0056B5C0
 void CGCommentator::UpdateCameraVelocity(uint32_t controlFlags, int32_t canControl) {
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__) || !CGWorldFrame::GetActiveCamera()) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__) || !CGWorldFrame::GetActiveCamera()) {
         return;
     }
 
@@ -155,7 +155,7 @@ void CGCommentator::SnapCameraToPlayer() {
         return;
     }
 
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
@@ -322,7 +322,7 @@ void CGCommentator::OnUpdate(float elapsed) {
     C33Matrix rotation(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
     rotation.FromEulerAnglesZYX(this->m_facing, this->m_pitch, 0.0f);
 
-    CGObject_C* follow = this->m_followTarget ? ClntObjMgrObjectPtr(this->m_followTarget, TYPEMASK_OBJECT, __FILE__, __LINE__) : nullptr;
+    CGObject_C* follow = this->m_followTarget ? ClntObjMgrObjectPtr(this->m_followTarget, TYPE_OBJECT, __FILE__, __LINE__) : nullptr;
 
     if (follow) {
         float distance = this->m_distance - this->m_moveSpeed * this->m_forwardVelocity * elapsed;
@@ -342,7 +342,7 @@ void CGCommentator::OnUpdate(float elapsed) {
 
         C3Vector target = follow->GetPosition();
 
-        if (follow->m_obj->m_type & TYPEMASK_PLAYER) {
+        if (follow->m_obj->m_type & TYPE_PLAYER) {
             target.z = static_cast<CGUnit_C*>(follow)->m_movementData.m_collisionHeight * 0.75f + this->m_targetHeightOffset + target.z;
         } else {
             target.z = this->m_targetHeightOffset + target.z + 1.5f;
@@ -366,7 +366,7 @@ void CGCommentator::OnUpdate(float elapsed) {
         camera->SetFacing(this->m_facing, this->m_pitch, 0.0f);
         camera->CommentatorSetViewAndPosition(this->m_position, this->m_facing, this->m_pitch);
     } else {
-        CGObject_C* lookAt = this->m_lookAtTarget ? ClntObjMgrObjectPtr(this->m_lookAtTarget, TYPEMASK_OBJECT, __FILE__, __LINE__) : nullptr;
+        CGObject_C* lookAt = this->m_lookAtTarget ? ClntObjMgrObjectPtr(this->m_lookAtTarget, TYPE_OBJECT, __FILE__, __LINE__) : nullptr;
 
         float forward = this->m_forwardVelocity;
         float strafe = this->m_strafeVelocity;
@@ -391,7 +391,7 @@ void CGCommentator::OnUpdate(float elapsed) {
             C3Vector target = lookAt->GetPosition();
             float z;
 
-            if (lookAt->m_obj->m_type & TYPEMASK_PLAYER) {
+            if (lookAt->m_obj->m_type & TYPE_PLAYER) {
                 z = static_cast<CGUnit_C*>(lookAt)->m_movementData.m_collisionHeight * 0.75f + this->m_targetHeightOffset + target.z;
             } else {
                 z = this->m_targetHeightOffset + target.z + 1.5f;

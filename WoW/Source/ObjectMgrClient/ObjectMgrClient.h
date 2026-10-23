@@ -78,7 +78,7 @@ int32_t ClntObjMgrIsValid(int32_t a1);
 void ClntObjMgrLinkInNewObject(CGObject_C* object);
 void ClntObjMgrLockObject(WOWGUID guid);
 void ClntObjMgrReenableObject(WOWGUID guid);
-CGObject_C* ClntObjMgrObjectPtr(WOWGUID guid, TypeMask mask, const char* fileName, int32_t lineNumber);
+CGObject_C* ClntObjMgrObjectPtr(WOWGUID guid, OBJECT_TYPE mask, const char* fileName, int32_t lineNumber);
 void ClntObjMgrSetMovementGlobals(CMovementGlobals* globals);
 void ClntObjMgrSetObjMirrorHandler(WOWGUID guid, OBJECT_TYPE_ID typeId, uint32_t fieldOffset, uint32_t fieldSize, MIRRORHANDLERFUNC function, void* param, HANDLER_PRIORITY priority, int32_t alwaysFire);
 void ClntObjMgrSetTypeMirrorHandler(OBJECT_TYPE_ID typeId, uint32_t fieldOffset, uint32_t fieldSize, MIRRORHANDLERFUNC function, void* param, HANDLER_PRIORITY priority, int32_t alwaysFire);

@@ -74,6 +74,8 @@ struct DNOverrideSky : public TSHashObject<DNOverrideSky, HASHKEY_STRI> {
     /* 001C */ uint32_t m_animLengthMs;
     /* 0020 */ uint32_t m_lastTimeOfDay;
     /* 0024 */ uint32_t m_flags;
+
+    DNOverrideSky();
 };
 }
 

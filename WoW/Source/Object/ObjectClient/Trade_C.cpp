@@ -166,9 +166,9 @@ void Trade_C_CancelTrade() {
 // VERIFY: 805652c0 manual
 // OFFSET: 0x007040B0
 bool Trade_C_AddItem(WOWGUID item, WOWGUID bag, uint8_t slot, uint8_t tradeSlot) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (!player || !ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__)) {
+    if (!player || !ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__)) {
         return false;
     }
 
@@ -262,23 +262,23 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
     uint8_t slot = 0;
 
     switch (status) {
-        case 0:
-        case 5:
-        case 6:
-        case 10:
-        case 11:
-        case 14:
-        case 15:
-        case 16:
-        case 17:
-        case 18:
-        case 19:
-        case 20:
-        case 21:
+        case TRADE_STATUS_PLAYER_BUSY:
+        case TRADE_STATUS_ALREADY_TRADING:
+        case TRADE_STATUS_PLAYER_NOT_FOUND:
+        case TRADE_STATUS_TOO_FAR_AWAY:
+        case TRADE_STATUS_WRONG_FACTION:
+        case TRADE_STATUS_PLAYER_IGNORED:
+        case TRADE_STATUS_PLAYER_STUNNED:
+        case TRADE_STATUS_TARGET_STUNNED:
+        case TRADE_STATUS_DEAD:
+        case TRADE_STATUS_TARGET_DEAD:
+        case TRADE_STATUS_LOGGING_OUT:
+        case TRADE_STATUS_TARGET_LOGGING_OUT:
+        case TRADE_STATUS_RESTRICTED_ACCOUNT:
             reset = 1;
             break;
 
-        case 1: {
+        case TRADE_STATUS_PROPOSED: {
             uint64_t guid;
             msg->Get(guid);
 
@@ -291,7 +291,7 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
             break;
         }
 
-        case 2:
+        case TRADE_STATUS_INITIATED:
             s_clientStateIndex = 1;
             CGTradeInfo::m_playerTrade.m_stateIndex[0] = 1;
             CGTradeInfo::m_playerTrade.m_stateIndex[1] = 1;
@@ -303,8 +303,8 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
             msg->Get(CGTradeInfo::m_playerTrade.m_tradeId);
             break;
 
-        case 3:
-        case 13:
+        case TRADE_STATUS_CANCELLED:
+        case TRADE_STATUS_UNKNOWN_13:
             reset = 1;
             memset(s_tradeItems, 0, sizeof(s_tradeItems));
             CGTradeInfo::m_playerTrade.m_money[0] = 0;
@@ -312,20 +312,20 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
             FrameScript_SignalEvent(SCRIPT_EVENT_PLAYER_MONEY, nullptr);
             break;
 
-        case 12:
+        case TRADE_STATUS_FAILED:
             msg->Get(bagResult);
             msg->Get(target);
             msg->Get(itemId);
 
-        case 8:
+        case TRADE_STATUS_COMPLETE:
             reset = 1;
             memset(s_tradeItems, 0, sizeof(s_tradeItems));
             CGTradeInfo::m_playerTrade.m_money[0] = 0;
             CGTradeInfo::m_playerTrade.m_money[1] = 0;
             break;
 
-        case 22:
-        case 23:
+        case TRADE_STATUS_WRONG_REALM:
+        case TRADE_STATUS_NOT_ON_TAPLIST:
             msg->Get(slot);
 
             if (slot == 0xFF) {
@@ -335,7 +335,7 @@ int32_t Packet_SMSG_TRADE_STATUS(void* param, NETMESSAGE msgId, uint32_t time, C
             break;
     }
 
-    CGTradeInfo::HandleTradeMessage(status, bagResult, target != 0, itemId, slot);
+    CGTradeInfo::HandleTradeMessage(static_cast<TRADE_STATUS>(status), bagResult, target != 0, itemId, slot);
 
     if (reset) {
         s_tradeRequested = 0;

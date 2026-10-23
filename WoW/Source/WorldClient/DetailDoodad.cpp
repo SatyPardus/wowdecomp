@@ -30,6 +30,7 @@
 #include "WoW/Source/WorldClient/MapObjGroup.h"
 #include "WoW/Source/WorldClient/Types.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // STATIC: 0x00D1C4C4
 static uint32_t s_indexBufferSize;
@@ -604,12 +605,12 @@ int32_t CDetailDoodad::InitializeRenderState() {
         return 1;
     }
 
-    GxRsSet(GxRs_ColorOp0, 0);
-    GxRsSet(GxRs_AlphaOp0, 0);
+    GxRsSet(GxRs_ColorOp0, GxTexOp_Mod);
+    GxRsSet(GxRs_AlphaOp0, GxTexOp_Mod);
     GxRsSet(GxRs_MatDiffuse, static_cast<int32_t>(0xFFFFFFFF));
     g_theGxDevicePtr->RsSet(GxRs_Texture1, CDetailDoodad::s_alphaRampTexture);
-    GxRsSet(GxRs_ColorOp1, 0);
-    GxRsSet(GxRs_AlphaOp1, 0);
+    GxRsSet(GxRs_ColorOp1, GxTexOp_Mod);
+    GxRsSet(GxRs_AlphaOp1, GxTexOp_Mod);
     GxRsSet(GxRs_TexGen1, 3);
     GxRsSet(GxRs_TextureShader1, 1);
 

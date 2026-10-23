@@ -81,6 +81,11 @@ class CParticleEmitter2 {
         PET_NUMS_PETS = 4,
     };
 
+    enum PARTICLE_TYPE : uint32_t {
+        PT_QUAD = 0,
+        PT_MODEL = 1,
+    };
+
     struct ParticleVertex {
         /* 0000 */ uint8_t* m_position;
         /* 0004 */ uint8_t* m_normal;

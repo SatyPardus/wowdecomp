@@ -258,7 +258,7 @@ void CGNamePlateFrame::OnLayerUpdate(float elapsedSec) {
         }
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit && (!CGGameUI::m_lockedTarget || CGGameUI::m_lockedTarget == unit->m_obj->m_guid)) {
         this->SetFrameAlpha(0xFF);
@@ -356,13 +356,13 @@ void CGNamePlateFrame::OnLayerUpdate(float elapsedSec) {
 // VERIFY: e2baa795 manual
 // OFFSET: 0x0098EE30
 void CGNamePlateFrame::UpdateColorDisplay(CGUnit_C* unit) {
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
-    if (g_ShowClassColorInNameplateCVar->m_intValue && (unit->m_obj->m_type & TYPEMASK_PLAYER) && unit->UnitReaction(player) <= UNIT_REACTION_HOSTILE) {
+    if (g_ShowClassColorInNameplateCVar->m_intValue && (unit->m_obj->m_type & TYPE_PLAYER) && unit->UnitReaction(player) <= UNIT_REACTION_HOSTILE) {
         this->m_healthBarColor = s_classColors[unit->m_unit->m_unitFieldBytes0[1]];
     } else if (unit->UnitReaction(player) <= UNIT_REACTION_HOSTILE) {
         this->m_healthBarColor = s_hostileColor;
-    } else if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
+    } else if (unit->m_obj->m_type & TYPE_PLAYER) {
         this->m_healthBarColor = s_friendlyPlayerColor;
     } else if (player && unit->IsFriendly(player)) {
         this->m_healthBarColor = s_friendlyColor;
@@ -376,7 +376,7 @@ void CGNamePlateFrame::UpdateColorDisplay(CGUnit_C* unit) {
 // VERIFY: 127be400 manual
 // OFFSET: 0x0098EF10
 void CGNamePlateFrame::UpdateLevelDisplay(CGUnit_C* unit) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;

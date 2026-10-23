@@ -6,6 +6,16 @@
 
 class SFileImpl;
 
+enum TGA_IMAGE_TYPE : uint8_t {
+    TGA_NO_IMAGE_DATA = 0,
+    TGA_COLOR_MAPPED = 1,
+    TGA_TRUE_COLOR = 2,
+    TGA_BLACK_N_WHITE = 3,
+    TGA_RLE_COLOR_MAPPED = 9,
+    TGA_RLE_TRUE_COLOR = 10,
+    TGA_RLE_BLACK_N_WHITE = 11,
+};
+
 struct TGA32Pixel {
     /* 0000 */ uint8_t m_b;
     /* 0001 */ uint8_t m_g;

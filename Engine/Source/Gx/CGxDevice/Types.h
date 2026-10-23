@@ -5,6 +5,13 @@
 #include <cstdint>
 #include "Engine/Source/Tempest/C2iVector.h"
 
+enum : uint32_t {
+    PrimMask_Vertex = 0x1,
+    PrimMask_TexCoord = 2,
+    PrimMask_Normal = 0x200,
+    PrimMask_Color = 0x400,
+};
+
 enum EGxVertexAttrib {
     GxVA_Position = 0,
     GxVA_BlendWeight = 1,

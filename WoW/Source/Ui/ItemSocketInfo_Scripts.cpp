@@ -58,7 +58,7 @@ static int32_t Script_CloseSocketInfo(lua_State* L) {
 // VERIFY: 8b10c08e manual
 // OFFSET: 0x005C49D0
 static int32_t Script_GetSocketItemInfo(lua_State* L) {
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPE_ITEM, __FILE__, __LINE__));
     ItemStats_C* stats = CGItemSocketInfo::m_socketItemStats;
 
     if (!item || !stats) {
@@ -71,7 +71,7 @@ static int32_t Script_GetSocketItemInfo(lua_State* L) {
     char name[256];
     item->GetFullItemName(name, sizeof(name));
     lua_pushstring(L, name);
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
@@ -83,7 +83,7 @@ static int32_t Script_GetSocketItemInfo(lua_State* L) {
 // OFFSET: 0x005C4AF0
 static int32_t Script_GetNumSockets(lua_State* L) {
     int32_t count = 0;
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPE_ITEM, __FILE__, __LINE__));
 
     if (item) {
         count = item->GetNumSockets();
@@ -104,7 +104,7 @@ static int32_t Script_GetNewSocketInfo(lua_State* L) {
     double number = lua_tonumber(L, 1);
     uint32_t index = static_cast<int32_t>(number) - 1;
     WOWGUID guid = index >= 3 ? WOWGUID() : CGItemSocketInfo::m_gemItems[index];
-    CGItem_C* gem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* gem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
     ItemStats_C* stats = nullptr;
 
     if (gem) {
@@ -122,7 +122,7 @@ static int32_t Script_GetNewSocketInfo(lua_State* L) {
     char name[256];
     CGItem_C::BuildItemName(name, sizeof(name), gem->m_obj->m_entryID, 0);
     lua_pushstring(L, name);
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
@@ -146,7 +146,7 @@ static int32_t Script_GetNewSocketLink(lua_State* L) {
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     WOWGUID guid = index >= 3 ? WOWGUID() : CGItemSocketInfo::m_gemItems[index];
-    CGItem_C* gem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* gem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!gem) {
         return 0;
@@ -206,7 +206,7 @@ static int32_t Script_GetExistingSocketInfo(lua_State* L) {
     }
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPE_ITEM, __FILE__, __LINE__));
     SpellItemEnchantmentRec* enchant;
     ItemStats_C* stats;
 
@@ -230,7 +230,7 @@ static int32_t Script_GetExistingSocketInfo(lua_State* L) {
     char name[256];
     CGItem_C::BuildItemName(name, sizeof(name), enchant->m_srcItemID, 0);
     lua_pushstring(L, name);
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
@@ -253,7 +253,7 @@ static int32_t Script_GetExistingSocketLink(lua_State* L) {
     }
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemSocketInfo::m_socketItem, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item || index >= 3) {
         return 0;

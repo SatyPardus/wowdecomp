@@ -7,6 +7,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Storm/Source/SThread.h"
+#include "WoW/Source/DB/Types.h"
 #include "WoW/Source/DB/WowClientDB.h"
 #include "WoW/Source/DB/Rec/Startup_StringsRec.h"
 #include "Engine/Source/Tempest/C3Vector.h"
@@ -50,7 +51,7 @@ extern CVar* g_accountNameVar;
 extern CVar* g_accountUsesTokenVar;
 extern CVar* g_checkAddonVersionVar;
 extern HEVENTCONTEXT g_clientEventContext;
-extern bool g_hasIsoLocale[12];
+extern bool g_hasIsoLocale[NUM_DB_LOCALES];
 extern CVar* g_lastCharacterIndexVar;
 extern CVar* g_readContestVar;
 extern CVar* g_readEULAVar;

@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/SoundInterface/Types.h"
 
 class SFileImpl;
 
@@ -14,9 +15,9 @@ class ZoneMusicRec {
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ const char* m_setName;
-    /* 0008 */ int32_t m_silenceIntervalMin [2];
-    /* 0010 */ int32_t m_silenceIntervalMax [2];
-    /* 0018 */ int32_t m_sounds [2];
+    /* 0008 */ int32_t m_silenceIntervalMin [NUM_AMBIENCES];
+    /* 0010 */ int32_t m_silenceIntervalMax [NUM_AMBIENCES];
+    /* 0018 */ int32_t m_sounds [NUM_AMBIENCES];
 
     ZoneMusicRec();
     ~ZoneMusicRec();

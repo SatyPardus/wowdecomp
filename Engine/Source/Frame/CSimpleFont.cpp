@@ -151,7 +151,7 @@ void CSimpleFont::UpdateObjects() {
         fontable->FontObjectUpdated(this->m_attributes);
     }
 
-    this->m_attributes.m_flags &= ~0x1Fu;
+    this->m_attributes.m_flags &= ~FLAG_COMPLETE_UPDATE;
 }
 
 // VERIFY: de3bab57 manual

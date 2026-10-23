@@ -167,7 +167,7 @@ int32_t CGUnit::IsJumping() const {
 // VERIFY: 4e64bda0 auto
 // OFFSET: 0x005FA9E0
 int32_t CGUnit::CanMove() const {
-    return this->m_unit->m_unitFieldHealth > 0 && !(this->m_movement->m_flags & 0x100A00) && this->m_unit->m_unitFieldBytes1[0] != 7;
+    return this->m_unit->m_unitFieldHealth > 0 && !(this->m_movement->m_flags & 0x100A00) && this->m_unit->m_unitFieldBytes1[0] != UNIT_DEAD;
 }
 
 // VERIFY: 68641d42 auto

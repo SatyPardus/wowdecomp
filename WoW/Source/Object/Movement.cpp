@@ -34,6 +34,10 @@
 #include "WoW/Source/WorldClient/World.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 
+static const float MAX_SHORT_RANGE_TELEPORT_SQUARED = 22500.0f;
+
+static const int32_t HEARTBEAT_INTERVAL_MS = 500;
+
 // STATIC: 0x00ADA370
 TSList<CPlayerMoveEvent, TSGetExplicitLink<CPlayerMoveEvent> > CPlayerMoveQueue::s_freeList;
 
@@ -479,7 +483,7 @@ int32_t CMovement_C::IsFacetWall(uint32_t facet) const {
 // OFFSET: 0x006EC3B0
 void CMovement_C::FixupQueuedSetFacingEvents(float delta) {
     for (CPlayerMoveEvent* event = this->m_moveQueue.Head(); event; event = event->m_link.Next()) {
-        if (event->m_eventId == MOVEEVENT_SET_FACING || event->unk_0050) {
+        if (event->m_eventId == PMOVE_SET_FACING || event->unk_0050) {
             event->m_facing = CMath::normalizeangle0to2pi_(delta + event->m_facing);
         }
     }
@@ -842,7 +846,7 @@ int32_t CMovement_C::UpdateTransportStatus(WOWGUID transport, uint8_t seat) {
         uint32_t high = static_cast<uint32_t>(this->m_transportGuid.m_guid >> 32);
 
         if ((high & 0xF0F00000) == 0xF0500000 || (!(high & 0xF0000000) && ((high & 0xF07FFFFF) | static_cast<uint32_t>(this->m_transportGuid.m_guid)))) {
-            CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (vehicle && vehicle->m_vehicle) {
                 vehicle->m_vehicle->UpdateFreeSeatMask();
@@ -916,7 +920,7 @@ void CMovement_C::SetUpdateInfo(uint32_t time, const CClientMoveUpdate* update, 
         this->FlushMoveQueue(0, 1);
         this->RemoveFromMoversList(0);
         this->m_spline->CopyFrom(update->m_moveSpline);
-        this->m_spline->m_spline.m_splineMode = (this->m_spline->m_flags & 0x42000) != 0;
+        this->m_spline->m_spline.splineMode = (this->m_spline->m_flags & 0x42000) != 0 ? MODE_CATMULLROM : MODE_LINEAR;
     } else {
         if (this->m_spline && (this->m_spline->m_flags & 0x800)) {
             this->m_unit->OnCollideFallLand(0, 1);
@@ -941,7 +945,7 @@ void CMovement_C::SetUpdateInfo(uint32_t time, const CClientMoveUpdate* update, 
     }
 
     if ((this->m_flags & 0xC0100F) && this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover) {
-        MovementGetGlobals()->m_timeCounterMaybe = time + 500;
+        MovementGetGlobals()->m_timeCounterMaybe = time + HEARTBEAT_INTERVAL_MS;
     }
 
     if (!(this->m_flags & 0xC010FF)) {
@@ -962,7 +966,7 @@ void CMovement_C::SetUpdateInfo(uint32_t time, const CClientMoveUpdate* update, 
 // VERIFY: efedeeb5 auto
 // OFFSET: 0x006ECCF0
 void CMovement_C::OnFallLocal(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_START_FALLING, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_FALL, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: f9f6ad58 auto
@@ -1054,7 +1058,7 @@ void CMovement_C::OnHoverLocal(uint32_t eventTime, uint32_t ackCounter, int32_t 
 // VERIFY: 814c2c88 auto
 // OFFSET: 0x006ECC20
 void CMovement_C::OnJumpLocal(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_JUMP, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_JUMP, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: 25983ce1 auto
@@ -1086,7 +1090,7 @@ void CMovement_C::OnMoveStartLocal(uint32_t eventTime, int32_t forward) {
 // VERIFY: be31074a auto
 // OFFSET: 0x006ECDE0
 void CMovement_C::OnMoveStopLocal(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_STOP, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_MOVE_STOP, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: 26308ea1 auto
@@ -1126,7 +1130,7 @@ void CMovement_C::OnPitchRateChangeLocal(uint32_t eventTime, uint32_t ackCounter
 // VERIFY: 85716caa auto
 // OFFSET: 0x006EECA0
 void CMovement_C::OnPitchStopLocal(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_STOP_PITCH, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_PITCH_STOP, true, 0, 0.0f, 0.0f, 0);
     this->m_moveQueue.UnlinkEventById(MOVEEVENT_STOP_PITCH_AT_ANGLE);
 }
 
@@ -1269,25 +1273,25 @@ void CMovement_C::OnSetPitchLocal(uint32_t eventTime, float pitch) {
         }
     }
 
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_SET_PITCH, true, 0, 0.0f, pitch, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_SET_PITCH, true, 0, 0.0f, pitch, 0);
 }
 
 // VERIFY: df4fb107 auto
 // OFFSET: 0x006ECF10
 void CMovement_C::OnSetRunModeLocal(uint32_t eventTime, int32_t run) {
-    this->AddPlayerMoveEvent(eventTime, run ? MOVEEVENT_SET_RUN_MODE : MOVEEVENT_SET_WALK_MODE, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, run ? PMOVE_SET_RUN_MODE : PMOVE_SET_WALK_MODE, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: 2facaa06 auto
 // OFFSET: 0x006ECBB0
 void CMovement_C::OnStrafeStartLocal(uint32_t eventTime, int32_t left) {
-    this->AddPlayerMoveEvent(eventTime, left ? MOVEEVENT_START_STRAFE_LEFT : MOVEEVENT_START_STRAFE_RIGHT, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, left ? PMOVE_STRAFE_START_LFT : PMOVE_STRAFE_START_RGT, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: 73637dde auto
 // OFFSET: 0x006ECE40
 void CMovement_C::OnStrafeStopLocal(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_STOP_STRAFE, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_STRAFE_STOP, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: 8ba9d836 auto
@@ -1361,13 +1365,13 @@ void CMovement_C::OnSwimSpeedChangeLocal(uint32_t eventTime, uint32_t ackCounter
 // VERIFY: 25306062 auto
 // OFFSET: 0x006EE9F0
 void CMovement_C::OnSwimStart(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_START_SWIM, false, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_MOVE_START_SWIM, false, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: e8806cc6 auto
 // OFFSET: 0x006EEB20
 void CMovement_C::OnSwimStop(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_STOP_SWIM, false, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_MOVE_STOP_SWIM, false, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: e8d0639d auto
@@ -1413,7 +1417,7 @@ void CMovement_C::OnTurnRateChangeLocal(uint32_t eventTime, uint32_t ackCounter,
 // VERIFY: 6df42ae1 auto
 // OFFSET: 0x006ECEA0
 void CMovement_C::OnTurnStopLocal(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_STOP_TURN, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_TURN_STOP, true, 0, 0.0f, 0.0f, 0);
     this->m_moveQueue.UnlinkEventById(MOVEEVENT_STOP_TURN_AT_ANGLE);
 }
 
@@ -1460,7 +1464,7 @@ void CMovement_C::OnWaterWalkLocal(uint32_t eventTime, uint32_t ackCounter, int3
 // VERIFY: 181a5182 auto
 // OFFSET: 0x006ECD50
 void CMovement_C::QueueFallEvent(uint32_t eventTime) {
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_START_FALLING, this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_FALL, this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: 193562a4 manual
@@ -1520,7 +1524,7 @@ uint32_t CMovement_C::GetFacetQueryFlags() const {
 
     CGUnit_C* unit = this->m_unit;
 
-    if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && (static_cast<CGPlayer_C*>(unit)->m_player->m_playerFlags & 0x10)) {
+    if ((unit->m_obj->m_type & TYPE_PLAYER) && (static_cast<CGPlayer_C*>(unit)->m_player->m_playerFlags & 0x10)) {
         flags |= 0x8000;
     }
 
@@ -1816,7 +1820,7 @@ int32_t CMovement_C::HandlePendingActions() {
     if (oldFlags & MOVEMENTFLAG_PENDING_STOP) {
         this->ForceStopMove(1);
 
-        if (this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover && !this->m_moveQueue.HasEventBetween(MOVEEVENT_START_FORWARD, MOVEEVENT_START_BACKWARD)) {
+        if (this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover && !this->m_moveQueue.HasEventBetween(PMOVE_MOVE_START_FWD, PMOVE_MOVE_START_BWD)) {
             CGInputControl::GetActive()->UpdateMoveStopped();
         }
     }
@@ -1897,7 +1901,7 @@ void CMovement_C::SplineToggleEnableFlying(int32_t enable) {
 // OFFSET: 0x006E9B70
 void CMovement_C::UpdateHeartbeatTimerA(uint32_t time) {
     if (this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover) {
-        MovementGetGlobals()->m_timeCounterMaybe = time + 500;
+        MovementGetGlobals()->m_timeCounterMaybe = time + HEARTBEAT_INTERVAL_MS;
     }
 }
 
@@ -1953,7 +1957,7 @@ void CMovement_C::OnSwimStartLocal(uint32_t eventTime) {
         return;
     }
 
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_START_SWIM, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_MOVE_START_SWIM, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: a91c7c3b manual
@@ -1976,7 +1980,7 @@ void CMovement_C::OnSwimStopLocal(uint32_t eventTime) {
         return;
     }
 
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_STOP_SWIM, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_MOVE_STOP_SWIM, true, 0, 0.0f, 0.0f, 0);
 }
 
 // VERIFY: 1011e33b auto
@@ -1990,7 +1994,7 @@ void CMovement_C::OnTurnStartLocal(uint32_t eventTime, int32_t left) {
         return;
     }
 
-    this->AddPlayerMoveEvent(eventTime, left ? MOVEEVENT_START_TURN_LEFT : MOVEEVENT_START_TURN_RIGHT, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, left ? PMOVE_TURN_START_LFT : PMOVE_TURN_START_RGT, true, 0, 0.0f, 0.0f, 0);
     this->m_moveQueue.UnlinkEventById(MOVEEVENT_STOP_TURN_AT_ANGLE);
     CGInputControl::GetActive()->OnTurnToAngleStop();
 }
@@ -2006,7 +2010,7 @@ void CMovement_C::OnPitchStartLocal(uint32_t eventTime, int32_t up) {
         return;
     }
 
-    this->AddPlayerMoveEvent(eventTime, up ? MOVEEVENT_START_PITCH_UP : MOVEEVENT_START_PITCH_DOWN, true, 0, 0.0f, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, up ? PMOVE_PITCH_START_UP : PMOVE_PITCH_START_DOWN, true, 0, 0.0f, 0.0f, 0);
     this->m_moveQueue.UnlinkEventById(MOVEEVENT_STOP_PITCH_AT_ANGLE);
     CGInputControl::GetActive()->OnPitchToAngleStop();
 }
@@ -4398,7 +4402,7 @@ void CMovement_C::CallMoveEventHandlers(uint32_t time, uint32_t remaining, uint3
         if (spline->m_flags & SPLINEFLAG_FINAL_ANGLE) {
             this->m_facing = spline->m_face.m_angle;
         } else if (spline->m_flags & SPLINEFLAG_FINAL_TARGET) {
-            CGObject_C* target = ClntObjMgrObjectPtr(spline->m_face.m_target, TYPEMASK_OBJECT, __FILE__, __LINE__);
+            CGObject_C* target = ClntObjMgrObjectPtr(spline->m_face.m_target, TYPE_OBJECT, __FILE__, __LINE__);
 
             if (target) {
                 C3Vector targetPosition = target->GetPosition();
@@ -4753,8 +4757,8 @@ int32_t CMovement_C::UpdatePlayerMovement(uint32_t time) {
         uint32_t flags = this->m_flags;
         this->m_moveStartDelay = 0;
         MoveEventId eventId = event->m_eventId;
-        bool movement = eventId <= MOVEEVENT_STOP_STRAFE || eventId == MOVEEVENT_START_FALLING || eventId == MOVEEVENT_JUMP || eventId == MOVEEVENT_SET_FLYING || eventId == MOVEEVENT_UNSET_FLYING;
-        bool swim = eventId >= MOVEEVENT_START_SWIM && eventId <= MOVEEVENT_STOP_SWIM;
+        bool movement = eventId <= PMOVE_STRAFE_STOP || eventId == PMOVE_FALL || eventId == PMOVE_JUMP || eventId == MOVEEVENT_SET_FLYING || eventId == MOVEEVENT_UNSET_FLYING;
+        bool swim = eventId >= PMOVE_MOVE_START_SWIM && eventId <= PMOVE_MOVE_STOP_SWIM;
 
         if ((flags & MOVEMENTFLAG_ONTRANSPORT) && (movement || swim || eventId == MOVEEVENT_KNOCK_BACK)) {
         } else if ((flags & MOVEMENTFLAG_ROOT) && (movement || swim)) {
@@ -4782,32 +4786,32 @@ int32_t CMovement_C::UpdatePlayerMovement(uint32_t time) {
             int32_t sent = 0;
 
             switch (event->m_eventId) {
-                case MOVEEVENT_START_FORWARD:
+                case PMOVE_MOVE_START_FWD:
                     this->StartMove(1, 0);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_FORWARD, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_START_BACKWARD:
+                case PMOVE_MOVE_START_BWD:
                     this->StartMove(0, 0);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_BACKWARD, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_STOP:
+                case PMOVE_MOVE_STOP:
                     this->StopMove();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_STOP, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_START_STRAFE_LEFT:
+                case PMOVE_STRAFE_START_LFT:
                     this->StartStrafe(1);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_STRAFE_LEFT, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_START_STRAFE_RIGHT:
+                case PMOVE_STRAFE_START_RGT:
                     this->StartStrafe(0);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_STRAFE_RIGHT, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_STOP_STRAFE:
+                case PMOVE_STRAFE_STOP:
                     this->StopStrafe();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_STOP_STRAFE, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
@@ -4833,7 +4837,7 @@ int32_t CMovement_C::UpdatePlayerMovement(uint32_t time) {
 
                     break;
 
-                case MOVEEVENT_START_FALLING:
+                case PMOVE_FALL:
                     if (!this->TryStartFalling()) {
                         break;
                     }
@@ -4848,75 +4852,75 @@ int32_t CMovement_C::UpdatePlayerMovement(uint32_t time) {
                     sent = 1;
                     break;
 
-                case MOVEEVENT_JUMP:
+                case PMOVE_JUMP:
                     if (this->Jump(1)) {
                         sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_JUMP, event->m_needAck, 0.0f, 0, 0, 255);
                     }
 
                     break;
 
-                case MOVEEVENT_START_TURN_LEFT:
+                case PMOVE_TURN_START_LFT:
                     this->StartTurn(1);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_TURN_LEFT, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_START_TURN_RIGHT:
+                case PMOVE_TURN_START_RGT:
                     this->StartTurn(0);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_TURN_RIGHT, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_STOP_TURN:
+                case PMOVE_TURN_STOP:
                 case MOVEEVENT_STOP_TURN_AT_ANGLE:
                     this->StopTurn();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_STOP_TURN, event->m_needAck, 0.0f, 0, 0, 255);
                     CGInputControl::GetActive()->OnTurnToAngleStop();
                     break;
 
-                case MOVEEVENT_START_PITCH_UP:
+                case PMOVE_PITCH_START_UP:
                     this->StartPitch(1);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_PITCH_UP, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_START_PITCH_DOWN:
+                case PMOVE_PITCH_START_DOWN:
                     this->StartPitch(0);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_PITCH_DOWN, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_STOP_PITCH:
+                case PMOVE_PITCH_STOP:
                 case MOVEEVENT_STOP_PITCH_AT_ANGLE:
                     this->StopPitch();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_STOP_PITCH, event->m_needAck, 0.0f, 0, 0, 255);
                     CGInputControl::GetActive()->OnPitchToAngleStop();
                     break;
 
-                case MOVEEVENT_SET_RUN_MODE:
+                case PMOVE_SET_RUN_MODE:
                     this->SetRunMode(1);
                     this->m_unit->UpdateObjectEffectMovementStates();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_SET_RUN_MODE, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_SET_WALK_MODE:
+                case PMOVE_SET_WALK_MODE:
                     this->SetRunMode(0);
                     this->m_unit->UpdateObjectEffectMovementStates();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_SET_WALK_MODE, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_SET_FACING:
+                case PMOVE_SET_FACING:
                     this->SetRawFacing(event->m_facing);
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_SET_FACING, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_SET_PITCH:
+                case PMOVE_SET_PITCH:
                     sent = this->UpdatePitch(time, event);
                     break;
 
-                case MOVEEVENT_START_SWIM:
+                case PMOVE_MOVE_START_SWIM:
                     this->StartSwim();
                     this->HandlePendingActions();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_START_SWIM, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
 
-                case MOVEEVENT_STOP_SWIM:
+                case PMOVE_MOVE_STOP_SWIM:
                     this->StopSwim();
                     sent = this->m_unit->ProcessLocalMoveEvent(time, MSG_MOVE_STOP_SWIM, event->m_needAck, 0.0f, 0, 0, 255);
                     break;
@@ -5429,7 +5433,7 @@ int32_t CMovement_C::ForceSetTransportInt(WOWGUID transport, uint8_t seat, int32
         return 0;
     }
 
-    if (this->m_transportGuid && !ClntObjMgrObjectPtr(this->m_transportGuid, TYPEMASK_OBJECT, __FILE__, __LINE__)) {
+    if (this->m_transportGuid && !ClntObjMgrObjectPtr(this->m_transportGuid, TYPE_OBJECT, __FILE__, __LINE__)) {
         DebugLog("CMovementData_C::ForceSetTransportInt() was called with an invalid m_transportGUID: (m_transportGUID: %016I64X) (guid: %016I64X)", this->m_transportGuid, transport);
         this->m_transportGuid = WOWGUID();
         return 0;
@@ -5467,7 +5471,7 @@ int32_t CMovement_C::ForceSetTransportInt(WOWGUID transport, uint8_t seat, int32
         uint32_t high = static_cast<uint32_t>(this->m_transportGuid.m_guid >> 32);
 
         if ((high & 0xF0F00000) == 0xF0500000 || (!(high & 0xF0000000) && ((high & 0xF07FFFFF) | static_cast<uint32_t>(this->m_transportGuid.m_guid)))) {
-            CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (vehicle && vehicle->m_vehicle) {
                 vehicle->m_vehicle->UpdateFreeSeatMask();
@@ -5535,7 +5539,7 @@ void CMovement_C::Teleport(WOWGUID transport, const C3Vector& position, float fa
     float dx = this->m_position.x - position.x;
     float dy = this->m_position.y - position.y;
     float dz = this->m_position.z - position.z;
-    int32_t preload = dz * dz + dy * dy + dx * dx > 22500.0f;
+    int32_t preload = dz * dz + dy * dy + dx * dx > MAX_SHORT_RANGE_TELEPORT_SQUARED;
 
     this->CMovementShared::Teleport(position, facing, removeSpline);
     this->RemoveFromMoversList(1);
@@ -5566,10 +5570,10 @@ int32_t CMovement_C::UpdateStatusInternal(uint32_t time, const CMovementStatus& 
         force = 1;
     }
 
-    if (!(this->m_flags & 0x80000000)) {
+    if (!(this->m_flags & MOVEMENTFLAG_STATUS_APPLIED)) {
         this->m_gameTime = status.m_gameTime;
         this->m_statusTimeMs = time;
-        this->m_flags |= 0x80000000;
+        this->m_flags |= MOVEMENTFLAG_STATUS_APPLIED;
     }
 
     CMovementGlobals* globals = MovementGetGlobals();
@@ -5686,10 +5690,10 @@ void CMovement_C::FlushMoveEvent(CPlayerMoveEvent* event, int32_t a3) {
     event->m_link.Unlink();
 
     switch (event->m_eventId) {
-        case MOVEEVENT_SET_RUN_MODE:
+        case PMOVE_SET_RUN_MODE:
             this->SetRunMode(1);
             break;
-        case MOVEEVENT_SET_WALK_MODE:
+        case PMOVE_SET_WALK_MODE:
             this->SetRunMode(0);
             break;
         case MOVEEVENT_SET_RUN_SPEED:
@@ -5901,7 +5905,7 @@ int32_t CMovement_C::UpdateFacingStatus(uint32_t time, const CMovementStatus& st
     int32_t timeOffset;
 
     if (!this->UpdateStatusInternal(time, status, timeOffset, 0, 0)) {
-        this->AddPlayerSpeedEvent(time + timeOffset, MOVEEVENT_SET_FACING, false, 0, 0.0f, &status);
+        this->AddPlayerSpeedEvent(time + timeOffset, PMOVE_SET_FACING, false, 0, 0.0f, &status);
         return 0;
     }
 
@@ -6032,7 +6036,7 @@ int32_t CMovement_C::OnSetFacing(uint32_t time, const CMovementStatus& status) {
 // VERIFY: 3c7304ba manual
 // OFFSET: 0x006EE590
 int32_t CMovement_C::OnSetPitch(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, MOVEEVENT_SET_PITCH, status.m_pitch)) {
+    if (!this->UpdateStatus(time, status, PMOVE_SET_PITCH, status.m_pitch)) {
         return 0;
     }
 
@@ -6100,7 +6104,7 @@ int32_t CMovement_C::OnSetCollisionHeightOther(uint32_t time, const CMovementSta
 // VERIFY: 17386a46 manual
 // OFFSET: 0x006EEB80
 int32_t CMovement_C::OnStartSwim(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, MOVEEVENT_START_SWIM, 0.0f)) {
+    if (!this->UpdateStatus(time, status, PMOVE_MOVE_START_SWIM, 0.0f)) {
         return 0;
     }
 
@@ -6113,7 +6117,7 @@ int32_t CMovement_C::OnStartSwim(uint32_t time, const CMovementStatus& status) {
 // VERIFY: f6d6b699 auto
 // OFFSET: 0x006EEBD0
 int32_t CMovement_C::OnStopSwim(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, MOVEEVENT_STOP_SWIM, 0.0f)) {
+    if (!this->UpdateStatus(time, status, PMOVE_MOVE_STOP_SWIM, 0.0f)) {
         return 0;
     }
 
@@ -6133,7 +6137,7 @@ int32_t CMovement_C::OnStopSwim(uint32_t time, const CMovementStatus& status) {
 // VERIFY: 5ee7b4e3 auto
 // OFFSET: 0x006EEC30
 int32_t CMovement_C::OnPitchStart(uint32_t time, const CMovementStatus& status, int32_t up) {
-    if (!this->UpdateStatus(time, status, up ? MOVEEVENT_START_PITCH_UP : MOVEEVENT_START_PITCH_DOWN, 0.0f)) {
+    if (!this->UpdateStatus(time, status, up ? PMOVE_PITCH_START_UP : PMOVE_PITCH_START_DOWN, 0.0f)) {
         return 0;
     }
 
@@ -6153,7 +6157,7 @@ int32_t CMovement_C::OnPitchStart(uint32_t time, const CMovementStatus& status, 
 // VERIFY: 4eecd34a manual
 // OFFSET: 0x006EED10
 int32_t CMovement_C::OnPitchStop(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, MOVEEVENT_STOP_PITCH, 0.0f)) {
+    if (!this->UpdateStatus(time, status, PMOVE_PITCH_STOP, 0.0f)) {
         return 0;
     }
 
@@ -6169,11 +6173,11 @@ int32_t CMovement_C::OnPitchStop(uint32_t time, const CMovementStatus& status) {
 // VERIFY: 6eafa297 auto
 // OFFSET: 0x006EEDE0
 int32_t CMovement_C::OnSetWaterWalk(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, (status.m_moveFlags & 0x10000000) ? MOVEEVENT_WATER_WALK : MOVEEVENT_LAND_WALK, 0.0f)) {
+    if (!this->UpdateStatus(time, status, (status.m_moveFlags & MOVEMENTFLAG_WATERWALKING) ? MOVEEVENT_WATER_WALK : MOVEEVENT_LAND_WALK, 0.0f)) {
         return 0;
     }
 
-    if (!(this->m_flags & 0x10000000) && this->TryStartFalling() && !this->m_globalUnitsLink.IsLinked()) {
+    if (!(this->m_flags & MOVEMENTFLAG_WATERWALKING) && this->TryStartFalling() && !this->m_globalUnitsLink.IsLinked()) {
         CMovementGlobals* globals = MovementGetGlobals();
 
         if (globals) {
@@ -6187,17 +6191,17 @@ int32_t CMovement_C::OnSetWaterWalk(uint32_t time, const CMovementStatus& status
 // VERIFY: 1cb0d9e1 auto
 // OFFSET: 0x006EEEC0
 int32_t CMovement_C::OnSetFeatherFall(uint32_t time, const CMovementStatus& status) {
-    return this->UpdateStatus(time, status, (status.m_moveFlags & 0x20000000) ? MOVEEVENT_FEATHER_FALL : MOVEEVENT_NORMAL_FALL, 0.0f);
+    return this->UpdateStatus(time, status, (status.m_moveFlags & MOVEMENTFLAG_SAFE_FALL) ? MOVEEVENT_FEATHER_FALL : MOVEEVENT_NORMAL_FALL, 0.0f);
 }
 
 // VERIFY: eef93de1 auto
 // OFFSET: 0x006EEF60
 int32_t CMovement_C::OnMoveHover(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, (status.m_moveFlags & 0x40000000) ? MOVEEVENT_SET_HOVER : MOVEEVENT_UNSET_HOVER, 0.0f)) {
+    if (!this->UpdateStatus(time, status, (status.m_moveFlags & MOVEMENTFLAG_HOVER) ? MOVEEVENT_SET_HOVER : MOVEEVENT_UNSET_HOVER, 0.0f)) {
         return 0;
     }
 
-    uint32_t hover = this->m_flags & 0x40000000;
+    uint32_t hover = this->m_flags & MOVEMENTFLAG_HOVER;
 
     if (hover) {
         this->Jump(0);
@@ -6291,7 +6295,7 @@ int32_t CMovement_C::OnHeartBeat(uint32_t time, const CMovementStatus& status) {
 // VERIFY: fb49d8f7 auto
 // OFFSET: 0x006F0CF0
 int32_t CMovement_C::OnMoveStart(uint32_t time, const CMovementStatus& status, int32_t forward) {
-    if (!this->UpdateStatus(time, status, forward ? MOVEEVENT_START_FORWARD : MOVEEVENT_START_BACKWARD, 0.0f) || !this->StartMove(forward, 0)) {
+    if (!this->UpdateStatus(time, status, forward ? PMOVE_MOVE_START_FWD : PMOVE_MOVE_START_BWD, 0.0f) || !this->StartMove(forward, 0)) {
         return 0;
     }
 
@@ -6309,7 +6313,7 @@ int32_t CMovement_C::OnMoveStart(uint32_t time, const CMovementStatus& status, i
 // VERIFY: ed1ed978 auto
 // OFFSET: 0x006F0D60
 int32_t CMovement_C::OnStrafeStart(uint32_t time, const CMovementStatus& status, int32_t left) {
-    if (!this->UpdateStatus(time, status, left ? MOVEEVENT_START_STRAFE_LEFT : MOVEEVENT_START_STRAFE_RIGHT, 0.0f) || !this->StartStrafe(left)) {
+    if (!this->UpdateStatus(time, status, left ? PMOVE_STRAFE_START_LFT : PMOVE_STRAFE_START_RGT, 0.0f) || !this->StartStrafe(left)) {
         return 0;
     }
 
@@ -6327,7 +6331,7 @@ int32_t CMovement_C::OnStrafeStart(uint32_t time, const CMovementStatus& status,
 // VERIFY: dc4c0e32 auto
 // OFFSET: 0x006F0DD0
 int32_t CMovement_C::OnJump(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, MOVEEVENT_JUMP, 0.0f) || !this->Jump(1)) {
+    if (!this->UpdateStatus(time, status, PMOVE_JUMP, 0.0f) || !this->Jump(1)) {
         return 0;
     }
 
@@ -6347,7 +6351,7 @@ int32_t CMovement_C::OnJump(uint32_t time, const CMovementStatus& status) {
 int32_t CMovement_C::OnMoveStop(uint32_t time, const CMovementStatus& status) {
     uint32_t oldFlags = this->m_flags;
 
-    if (!this->UpdateStatus(time, status, MOVEEVENT_STOP, 0.0f) || !this->StopMove(oldFlags) || (this->m_flags & 0xC)) {
+    if (!this->UpdateStatus(time, status, PMOVE_MOVE_STOP, 0.0f) || !this->StopMove(oldFlags) || (this->m_flags & 0xC)) {
         return 0;
     }
 
@@ -6360,7 +6364,7 @@ int32_t CMovement_C::OnMoveStop(uint32_t time, const CMovementStatus& status) {
 int32_t CMovement_C::OnStrafeStop(uint32_t time, const CMovementStatus& status) {
     uint32_t oldFlags = this->m_flags;
 
-    if (!this->UpdateStatus(time, status, MOVEEVENT_STOP_STRAFE, 0.0f) || !this->StopStrafe(oldFlags) || (this->m_flags & 0xC0000F)) {
+    if (!this->UpdateStatus(time, status, PMOVE_STRAFE_STOP, 0.0f) || !this->StopStrafe(oldFlags) || (this->m_flags & 0xC0000F)) {
         return 0;
     }
 
@@ -6371,7 +6375,7 @@ int32_t CMovement_C::OnStrafeStop(uint32_t time, const CMovementStatus& status) 
 // VERIFY: 6d7dfd89 auto
 // OFFSET: 0x006F1010
 int32_t CMovement_C::OnTurnStart(uint32_t time, const CMovementStatus& status, int32_t left) {
-    if (!this->UpdateStatus(time, status, left ? MOVEEVENT_START_TURN_LEFT : MOVEEVENT_START_TURN_RIGHT, 0.0f)) {
+    if (!this->UpdateStatus(time, status, left ? PMOVE_TURN_START_LFT : PMOVE_TURN_START_RGT, 0.0f)) {
         return 0;
     }
 
@@ -6391,7 +6395,7 @@ int32_t CMovement_C::OnTurnStart(uint32_t time, const CMovementStatus& status, i
 // VERIFY: 0b0c6839 auto
 // OFFSET: 0x006F1080
 int32_t CMovement_C::OnTurnStop(uint32_t time, const CMovementStatus& status) {
-    if (!this->UpdateStatus(time, status, MOVEEVENT_STOP_TURN, 0.0f)) {
+    if (!this->UpdateStatus(time, status, PMOVE_TURN_STOP, 0.0f)) {
         return 0;
     }
 
@@ -6403,7 +6407,7 @@ int32_t CMovement_C::OnTurnStop(uint32_t time, const CMovementStatus& status) {
 // VERIFY: 1d65bf31 manual
 // OFFSET: 0x006F10D0
 int32_t CMovement_C::OnSetRunMode(uint32_t time, const CMovementStatus& status, int32_t run) {
-    if (!this->UpdateStatus(time, status, run ? MOVEEVENT_SET_RUN_MODE : MOVEEVENT_SET_WALK_MODE, 0.0f)) {
+    if (!this->UpdateStatus(time, status, run ? PMOVE_SET_RUN_MODE : PMOVE_SET_WALK_MODE, 0.0f)) {
         return 0;
     }
 
@@ -6800,7 +6804,7 @@ void CMovement_C::OnSetActiveMover() {
     CMovementGlobals* globals = MovementGetGlobals();
 
     if (this->m_transportGuid.m_guid) {
-        CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+        CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
         if (transport) {
             uint32_t transportTime = transport->m_typeData->GetTransportUpdateTime();
@@ -6885,7 +6889,7 @@ void CMovement_C::OnSetRawFacingLocal(uint32_t eventTime, float facing) {
         }
     }
 
-    this->AddPlayerMoveEvent(eventTime, MOVEEVENT_SET_FACING, true, 0, facing, 0.0f, 0);
+    this->AddPlayerMoveEvent(eventTime, PMOVE_SET_FACING, true, 0, facing, 0.0f, 0);
 }
 
 // VERIFY: 7d47e49c auto
@@ -6922,7 +6926,7 @@ void CMovement_C::CollideWithTransport(uint32_t time, uint32_t elapsed, float di
     uint32_t flags = this->m_unit->IsClientControlled() ? 0x111 : 0x2111;
     CGUnit_C* unit = this->m_unit;
 
-    if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && (static_cast<CGPlayer_C*>(unit)->m_player->m_playerFlags & 0x10)) {
+    if ((unit->m_obj->m_type & TYPE_PLAYER) && (static_cast<CGPlayer_C*>(unit)->m_player->m_playerFlags & 0x10)) {
         flags |= 0x8000;
     }
 
@@ -6950,7 +6954,7 @@ void CMovement_C::CollideWithTransport(uint32_t time, uint32_t elapsed, float di
         return;
     }
 
-    CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+    CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(this->m_transportGuid, TYPE_GAMEOBJECT, __FILE__, __LINE__));
     uint32_t eventTime = static_cast<uint32_t>(static_cast<int64_t>(moveDist / distance * static_cast<float>(elapsed) + 0.5f)) + transport->m_transportTimeOffset - elapsed + time;
     uint32_t transportTime = transport->m_typeData->GetSequenceTimeFromRealTime(eventTime);
     CMovementGlobals* globals = MovementGetGlobals();

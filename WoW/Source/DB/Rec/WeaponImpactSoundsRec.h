@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/SoundInterface/Types.h"
 
 class SFileImpl;
 
@@ -14,7 +15,7 @@ class WeaponImpactSoundsRec {
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_weaponSubClassID;
-    /* 0008 */ int32_t m_parrySoundType;
+    /* 0008 */ PARRYMATERIALS m_parrySoundType;
     /* 000C */ int32_t m_impactSoundID [10];
     /* 0034 */ int32_t m_critImpactSoundID [10];
 

@@ -115,7 +115,7 @@ class CGxDevice {
     /* 0F70 */ CBoundingBox m_viewport;
     /* 0F88 */ C44Matrix m_projection;
     /* 0FC8 */ C44Matrix m_projNative;
-    /* 1008 */ CGxMatrixStack m_xforms [11];
+    /* 1008 */ CGxMatrixStack m_xforms [GxXforms_Last];
     /* 1C10 */ CGxMatrixStack m_texGen [8];
     /* 24D0 */ uint32_t m_clipPlaneMask;
     /* 24D4 */ C4Plane m_clipPlane [6];

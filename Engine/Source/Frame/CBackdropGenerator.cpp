@@ -12,6 +12,8 @@
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/CRect.h"
 
+static const float DEFAULT_CORNER_SIZE = 0.025f;
+
 // VERIFY: 2d4ced50 auto
 // OFFSET: 0x004A25F0
 void CBackdropGenerator::SetVertexColor(const CImVector& color) {
@@ -285,7 +287,7 @@ CBackdropGenerator::CBackdropGenerator() {
     this->m_topRightTexture = nullptr;
     this->m_bottomLeftTexture = nullptr;
     this->m_bottomRightTexture = nullptr;
-    this->m_edgeSize = 0.025f;
+    this->m_edgeSize = DEFAULT_CORNER_SIZE;
     this->m_tileSize = 0.0f;
     this->m_pieces = BACKDROPONLY;
     this->m_insetTop = 0.0f;

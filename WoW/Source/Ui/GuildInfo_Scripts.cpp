@@ -113,7 +113,7 @@ static int32_t Script_GuildControlDelRank(lua_State* L) {
 // VERIFY: ca544327 manual
 // OFFSET: 0x005CC360
 static int32_t Script_CanEditGuildEvent(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x100000)) {
         lua_pushnumber(L, 1.0);
@@ -127,7 +127,7 @@ static int32_t Script_CanEditGuildEvent(lua_State* L) {
 // VERIFY: 468bb570 manual
 // OFFSET: 0x005CBCF0
 static int32_t Script_CanGuildPromote(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x80)) {
         lua_pushnumber(L, 1.0);
@@ -141,7 +141,7 @@ static int32_t Script_CanGuildPromote(lua_State* L) {
 // VERIFY: 29e69846 manual
 // OFFSET: 0x005CBD80
 static int32_t Script_CanGuildDemote(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x100)) {
         lua_pushnumber(L, 1.0);
@@ -155,7 +155,7 @@ static int32_t Script_CanGuildDemote(lua_State* L) {
 // VERIFY: 383050bb manual
 // OFFSET: 0x005CBE10
 static int32_t Script_CanGuildInvite(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x10)) {
         lua_pushnumber(L, 1.0);
@@ -169,7 +169,7 @@ static int32_t Script_CanGuildInvite(lua_State* L) {
 // VERIFY: 27f3ef3a manual
 // OFFSET: 0x005CBEA0
 static int32_t Script_CanGuildRemove(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x20)) {
         lua_pushnumber(L, 1.0);
@@ -183,7 +183,7 @@ static int32_t Script_CanGuildRemove(lua_State* L) {
 // VERIFY: 41636616 manual
 // OFFSET: 0x005CBF30
 static int32_t Script_CanEditMOTD(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x1000)) {
         lua_pushnumber(L, 1.0);
@@ -197,7 +197,7 @@ static int32_t Script_CanEditMOTD(lua_State* L) {
 // VERIFY: d8bb8cb1 manual
 // OFFSET: 0x005CBFC0
 static int32_t Script_CanEditPublicNote(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x2000)) {
         lua_pushnumber(L, 1.0);
@@ -211,7 +211,7 @@ static int32_t Script_CanEditPublicNote(lua_State* L) {
 // VERIFY: 43a3c0dd manual
 // OFFSET: 0x005CC050
 static int32_t Script_CanEditOfficerNote(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x8000)) {
         lua_pushnumber(L, 1.0);
@@ -225,7 +225,7 @@ static int32_t Script_CanEditOfficerNote(lua_State* L) {
 // VERIFY: dee3d37b manual
 // OFFSET: 0x005CC0E0
 static int32_t Script_CanViewOfficerNote(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x4000)) {
         lua_pushnumber(L, 1.0);
@@ -239,7 +239,7 @@ static int32_t Script_CanViewOfficerNote(lua_State* L) {
 // VERIFY: 1491f340 manual
 // OFFSET: 0x005CC170
 static int32_t Script_CanEditGuildInfo(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x10000)) {
         lua_pushnumber(L, 1.0);
@@ -253,7 +253,7 @@ static int32_t Script_CanEditGuildInfo(lua_State* L) {
 // VERIFY: d13b103b manual
 // OFFSET: 0x005CC200
 static int32_t Script_CanGuildBankRepair(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid && (CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_rights & 0x40000)) {
         lua_pushnumber(L, 1.0);
@@ -267,7 +267,7 @@ static int32_t Script_CanGuildBankRepair(lua_State* L) {
 // VERIFY: 9a060c1e manual
 // OFFSET: 0x005CC3E0
 static int32_t Script_GuildControlGetRankFlags(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     uint32_t rights = CGGuildInfo::m_rankInfo[s_guildControlRank].m_rights;
 
     for (uint32_t i = 0; i < 17; i++) {
@@ -334,7 +334,7 @@ static int32_t Script_SetGuildBankTabWithdraw(lua_State* L) {
 // VERIFY: 7598cb74 manual
 // OFFSET: 0x005CC470
 static int32_t Script_QueryGuildEventLog(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid) {
         CDataStore msg;
@@ -355,7 +355,7 @@ static int32_t Script_CanEditGuildTabInfo(lua_State* L) {
     }
 
     uint32_t tab = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && (tab < 6 ? CGGuildInfo::m_rankInfo[player->m_player->m_playerGuildrank].m_bankTabRights[tab] : 0) & 4) {
         lua_pushnumber(L, 1.0);
@@ -447,7 +447,7 @@ static int32_t Script_GetGuildRosterInfo(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     GuildStats_C* stats;
     GuildMemberInfo* member;
     uint32_t index;

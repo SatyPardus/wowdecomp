@@ -55,7 +55,7 @@ void CGItemText::DisplayText(const WOWGUID& guid, int32_t translate) {
         return;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return;
@@ -91,8 +91,8 @@ void CGItemText::DisplayText(const WOWGUID& guid, int32_t translate) {
     WOWGUID player = ClntObjMgrGetActivePlayer();
     QuestParserParseText(page->m_text, buffer, sizeof(buffer), player, nullptr, 0);
 
-    if (object->m_obj->m_type & TYPEMASK_ITEM) {
-        if (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & 2) {
+    if (object->m_obj->m_type & TYPE_ITEM) {
+        if (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & ITEM_DFLAG_TRANSLATED) {
             SStrCopy(CGItemText::m_text, buffer, sizeof(CGItemText::m_text));
         } else {
             WOWGUID none = WOWGUID();
@@ -109,7 +109,7 @@ void CGItemText::DisplayText(const WOWGUID& guid, int32_t translate) {
 
             CGChat::TranslateMessage(stats->m_languageId, skill, buffer, CGItemText::m_text, sizeof(CGItemText::m_text), 1, 1);
         }
-    } else if (object->m_obj->m_type & TYPEMASK_GAMEOBJECT) {
+    } else if (object->m_obj->m_type & TYPE_GAMEOBJECT) {
         int32_t language = static_cast<CGGameObject_C*>(object)->GetPageTextLanguage();
         uint32_t skill = 0;
 
@@ -149,7 +149,7 @@ void CGItemText::SetItem(const WOWGUID& guid, int32_t a2) {
         return;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         CGItemText::m_itemGUID = WOWGUID();
@@ -157,7 +157,7 @@ void CGItemText::SetItem(const WOWGUID& guid, int32_t a2) {
     }
 
     int32_t page = object->GetPageTextID(CGItemText::ItemTextCallback);
-    bool hasText = (object->m_obj->m_type & TYPEMASK_ITEM) && (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & 0x200);
+    bool hasText = (object->m_obj->m_type & TYPE_ITEM) && (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & 0x200);
     CGItemText::m_hasItemText = hasText;
 
     if (!page && !hasText) {
@@ -181,7 +181,7 @@ void CGItemText::SetItem(const WOWGUID& guid, int32_t a2) {
     CGGameUI::SetInteractTarget(guid);
     FrameScript_SignalEvent(SCRIPT_EVENT_ITEM_TEXT_BEGIN, nullptr);
 
-    if (!(object->m_obj->m_type & TYPEMASK_ITEM) || CGItemText::m_hasItemText || (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & 2)) {
+    if (!(object->m_obj->m_type & TYPE_ITEM) || CGItemText::m_hasItemText || (static_cast<CGItem_C*>(object)->m_item->m_itemFieldFlags & ITEM_DFLAG_TRANSLATED)) {
         CGItemText::DisplayText(guid, 1);
         return;
     }
@@ -192,7 +192,7 @@ void CGItemText::SetItem(const WOWGUID& guid, int32_t a2) {
         return;
     }
 
-    CGItem_C* container = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(static_cast<CGItem_C*>(object)->m_item->m_itemFieldContained, TYPEMASK_OBJECT, __FILE__, __LINE__));
+    CGItem_C* container = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(static_cast<CGItem_C*>(object)->m_item->m_itemFieldContained, TYPE_OBJECT, __FILE__, __LINE__));
 
     if (!container) {
         return;

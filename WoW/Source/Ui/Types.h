@@ -5,6 +5,36 @@
 #include <cstdint>
 #include "Engine/Source/BLPFile/Types.h"
 
+enum ERROR_TEXT_PLACEMENT : int32_t {
+    ERRORTEXT_CHAT = 0,
+    ERRORTEXT_UIINFO = 1,
+    ERRORTEXT_UIERROR = 2,
+    ERRORTEXT_CONSOLE = 3,
+};
+
+enum UNIT_MIRROR_TIMER : int32_t {
+    UNIT_MIRROR_TIMER_EXHAUSTION = 0,
+    UNIT_MIRROR_TIMER_BREATH = 1,
+    UNIT_MIRROR_TIMER_FEIGNDEATH = 2,
+    NUM_UNIT_MIRROR_TIMERS = 3,
+    UNIT_MIRROR_TIMER_INACTIVE = 3,
+};
+
+enum LOOT_ACQUIRE : uint32_t {
+    LOOT_ACQUIRE_FAILED = 0,
+    LOOT_ACQUIRE_UNKNOWN_1 = 1,
+    LOOT_ACQUIRE_UNKNOWN_2 = 2,
+    LOOT_ACQUIRE_FISHING = 3,
+    LOOT_ACQUIRE_UNKNOWN_4 = 4,
+    LOOT_ACQUIRE_UNKNOWN_6 = 6,
+    LOOT_ACQUIRE_UNKNOWN_7 = 7,
+    LOOT_ACQUIRE_UNKNOWN_8 = 8,
+
+    // Unused historical names; current meanings of 1/2 are unverified.
+    // LOOT_ACQUIRE_NORMAL = 1,
+    // LOOT_ACQUIRE_PICKPOCKET = 2,
+};
+
 enum UICURSORTYPE : int32_t {
     UICURSOR_EMPTY = 0,
     UICURSOR_ITEM = 1,

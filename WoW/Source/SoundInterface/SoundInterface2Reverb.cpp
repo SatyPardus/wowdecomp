@@ -44,7 +44,15 @@ static void GetReverbProperties(SoundProviderPreferencesRec* rec, FMOD_REVERB_PR
     properties->AirAbsorptionHF = rec->m_eax2AirAbsorption;
     properties->HFReference = rec->m_eax3Hfreference;
     properties->LFReference = rec->m_eax3Lfreference;
-    properties->Flags = 0x4FF;
+    properties->Flags = FMOD_REVERB_FLAGS_DECAYTIMESCALE |
+        FMOD_REVERB_FLAGS_REFLECTIONSSCALE |
+        FMOD_REVERB_FLAGS_REFLECTIONSDELAYSCALE |
+        FMOD_REVERB_FLAGS_REVERBSCALE |
+        FMOD_REVERB_FLAGS_REVERBDELAYSCALE |
+        FMOD_REVERB_FLAGS_DECAYHFLIMIT |
+        FMOD_REVERB_FLAGS_ECHOTIMESCALE |
+        FMOD_REVERB_FLAGS_MODULATIONTIMESCALE |
+        FMOD_REVERB_FLAGS_HIGHQUALITYREVERB;
     properties->RoomRolloffFactor = rec->m_eax2RoomRolloff;
     properties->Diffusion = 100.0f;
     properties->Density = 100.0f;

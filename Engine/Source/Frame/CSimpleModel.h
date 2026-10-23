@@ -21,6 +21,10 @@ class XMLNode;
 
 class CSimpleModel : public CSimpleFrame {
     public:
+    enum : uint32_t {
+        MODEL_FOGGED = 0x1,
+    };
+
     static CDataAllocator s_allocator;
     static int32_t s_metatable;
     static int32_t s_objectType;

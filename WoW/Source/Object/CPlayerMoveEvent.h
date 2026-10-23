@@ -14,7 +14,7 @@ class CPlayerMoveEvent {
     public:
     /* 0000 */ TSLink<CPlayerMoveEvent> m_link;
     /* 0008 */ uint32_t m_eventTime;
-    /* 000C */ MoveEventId m_eventId;
+    /* 000C */ PLAYER_MOVE_EVT m_eventId;
     /* 0010 */ C3Vector m_position;
     /* 001C */ float m_facing;
     /* 0020 */ float m_pitch;

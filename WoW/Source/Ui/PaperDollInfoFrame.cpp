@@ -70,7 +70,7 @@ int32_t CGCharacterInfo::m_honorRequestPending;
 // VERIFY: d0d1018f manual
 // OFFSET: 0x005E83E0
 int32_t PlayerEquipmentChangedHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSize, const void* oldValue, void* param) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         player->UpdateAmmoModel(player->GetEquippedAmmoDisplayId(), 24);
@@ -84,7 +84,7 @@ int32_t PlayerEquipmentChangedHandler(WOWGUID guid, uint32_t fieldOffset, uint32
 // VERIFY: eebb5365 manual
 // OFFSET: 0x005E8330
 int32_t PlayerCharacterPointsUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSize, const void* oldValue, void* param) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         const int32_t* oldPoints = static_cast<const int32_t*>(oldValue);
@@ -117,7 +117,7 @@ void CGCharacterInfo::RegisterMirrorHandlers(WOWGUID guid) {
 // VERIFY: 18a6a029 manual
 // OFFSET: 0x005E90D0
 void CGCharacterInfo::UpdateInventoryAlerts() {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
@@ -283,13 +283,13 @@ void CGCharacterInfo::SetInspectTarget(const WOWGUID& guid) {
 // VERIFY: dcb1d352 manual
 // OFFSET: 0x005E84C0
 void CGCharacterInfo::UpdateItem(WOWGUID guid) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
     }
 
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
     int32_t slot = player->m_bag.FindItemSlot(guid);
 
     if (slot == -1 && item && item->m_item->m_itemFieldContained != ClntObjMgrGetActivePlayer()) {
@@ -318,7 +318,7 @@ static void BuyItemInBag(WOWGUID merchant, const MerchantItem* item, uint32_t co
 // VERIFY: 0f75a387 manual
 // OFFSET: 0x005E85D0
 void CGCharacterInfo::PickupInventoryItem(int32_t slot) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || (!CGGameUI::m_hasControl && !(player->m_unit->m_unitFieldFlags & 0x100000))) {
         return;
@@ -338,7 +338,7 @@ void CGCharacterInfo::PickupInventoryItem(int32_t slot) {
 
     if (slot == -1) {
         if (cursorItem) {
-            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cursorItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cursorItem, TYPE_ITEM, __FILE__, __LINE__));
 
             if (item && item->GetClassID() == 6) {
                 CDataStore msg;
@@ -396,7 +396,7 @@ void CGCharacterInfo::PickupInventoryItem(int32_t slot) {
             return;
         }
 
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(itemGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(itemGuid, TYPE_ITEM, __FILE__, __LINE__));
 
         if (item && (item->m_itemFlags & 1)) {
             return;
@@ -434,7 +434,7 @@ void CGCharacterInfo::PickupInventoryItem(int32_t slot) {
         return;
     }
 
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(itemGuid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(itemGuid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (item && (item->m_itemFlags & 1)) {
         return;
@@ -445,7 +445,7 @@ void CGCharacterInfo::PickupInventoryItem(int32_t slot) {
         return;
     }
 
-    if (item && CursorGetResetMode() == 17 && CGMerchantInfo::CanRepair()) {
+    if (item && CursorGetResetMode() == REPAIR_CURSOR && CGMerchantInfo::CanRepair()) {
         uint32_t cost = CGMerchantInfo::GetRepairCost(item);
 
         if (cost > player->GetCoinage()) {
@@ -490,7 +490,7 @@ void CGCharacterInfo::UseItem(int32_t slot, WOWGUID* target) {
 
     if (Spell_C_IsTargeting()) {
         CGGameUI::CastItemSpell(item->m_obj->m_guid, 0);
-    } else if (CursorGetResetMode() == 17 && CGMerchantInfo::CanRepair()) {
+    } else if (CursorGetResetMode() == REPAIR_CURSOR && CGMerchantInfo::CanRepair()) {
         uint32_t cost = CGMerchantInfo::GetRepairCost(item);
 
         if (cost <= player->GetCoinage()) {
@@ -551,7 +551,7 @@ void CGCharacterInfo::PickupBag(uint32_t slot) {
         return;
     }
 
-    CGItem_C* container = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(bag, TYPEMASK_CONTAINER, __FILE__, __LINE__));
+    CGItem_C* container = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(bag, TYPE_CONTAINER, __FILE__, __LINE__));
 
     if (container && !(container->m_itemFlags & 0x1)) {
         CGGameUI::SetCursorItem(bag, player->m_obj->m_guid, slot, 1, 0, 1);
@@ -696,7 +696,7 @@ bool CGCharacterInfo::CanEquipItem(CGItem_C* item, uint32_t slot) {
 // VERIFY: a708b631 manual
 // OFFSET: 0x005E8D30
 int32_t CGCharacterInfo::PutItemInBackpack(uint32_t slot) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !CGGameUI::m_hasControl) {
         return 0;
@@ -731,7 +731,7 @@ int32_t CGCharacterInfo::PutItemInBackpack(uint32_t slot) {
         return 0;
     }
 
-    CGItem_C* bagItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(bag, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* bagItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(bag, TYPE_ITEM, __FILE__, __LINE__));
 
     if ((bagItem && (bagItem->m_itemFlags & 1)) || cursorItem == bag) {
         CGGameUI::ClearCursor(1, 1);
@@ -760,7 +760,7 @@ int32_t CGCharacterInfo::PutItemInBackpack(uint32_t slot) {
     if (slot != 0xFF) {
         CGItem_C* cursorObject;
 
-        if ((cursorContainer == player->m_obj->m_guid && cursorSlot - 19 <= 3) || ((cursorObject = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cursorItem, TYPEMASK_ITEM, __FILE__, __LINE__))) && (cursorObject->m_obj->m_type & TYPEMASK_CONTAINER))) {
+        if ((cursorContainer == player->m_obj->m_guid && cursorSlot - 19 <= 3) || ((cursorObject = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cursorItem, TYPE_ITEM, __FILE__, __LINE__))) && (cursorObject->m_obj->m_type & TYPE_CONTAINER))) {
             CGGameUI::LockItem(bag);
             player->SwapItems(cursorItem, cursorContainer, cursorSlot, player->m_obj->m_guid, slot, 0);
             return 1;
@@ -804,11 +804,11 @@ int32_t CGCharacterInfo::CalculateInventoryAlertStatus(CGPlayer_C* player, uint3
         return 2;
     }
 
-    if ((item->m_item->m_itemFieldFlags & 0x8) || !item->m_item->m_itemFieldMaxdurability) {
+    if ((item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) || !item->m_item->m_itemFieldMaxdurability) {
         return 0;
     }
 
-    if (!(item->m_item->m_itemFieldFlags & 0x8) && item->m_item->m_itemFieldDurability) {
+    if (!(item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) && item->m_item->m_itemFieldDurability) {
         if (item->GetDurability() > 5) {
             return 0;
         }

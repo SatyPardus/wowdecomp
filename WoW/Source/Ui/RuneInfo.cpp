@@ -83,7 +83,7 @@ int32_t CGRuneInfo::GetRuneTypeByIndex(int32_t index, bool base) {
 // VERIFY: e47d74df manual
 // OFFSET: 0x005EE1F0
 uint32_t CGRuneInfo::GetRuneRechargeTime(int32_t index) {
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__) || ((1 << index) & CGRuneInfo::m_predictedRunes)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__) || ((1 << index) & CGRuneInfo::m_predictedRunes)) {
         return 0;
     }
 
@@ -93,7 +93,7 @@ uint32_t CGRuneInfo::GetRuneRechargeTime(int32_t index) {
 // VERIFY: c02488c7 manual
 // OFFSET: 0x005EE3D0
 int32_t CGRuneInfo::CountPredictedRunesOfType(int32_t type) {
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return 0;
     }
 
@@ -111,7 +111,7 @@ int32_t CGRuneInfo::CountPredictedRunesOfType(int32_t type) {
 // VERIFY: e0b2be36 manual
 // OFFSET: 0x005EE5B0
 bool CGRuneInfo::HasRunesForSpell(int32_t spellId, int32_t* needed) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return false;
@@ -218,7 +218,7 @@ bool CGRuneInfo::HasRunesForSpell(int32_t spellId, int32_t* needed) {
 // VERIFY: f7ba20b6 manual
 // OFFSET: 0x005EE7E0
 bool CGRuneInfo::ComputeRuneSpellCooldown(const SpellRec* spell, uint32_t* cooldown) {
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return false;
     }
 
@@ -248,7 +248,7 @@ bool CGRuneInfo::ComputeRuneSpellCooldown(const SpellRec* spell, uint32_t* coold
     }
 
     for (int32_t i = 0; i < 8; i++) {
-        if (CGRuneInfo::m_runes[i] != 3 || !ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__) || ((1 << i) & CGRuneInfo::m_predictedRunes) || !CGRuneInfo::m_runeCooldowns[i]) {
+        if (CGRuneInfo::m_runes[i] != 3 || !ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__) || ((1 << i) & CGRuneInfo::m_predictedRunes) || !CGRuneInfo::m_runeCooldowns[i]) {
             continue;
         }
 

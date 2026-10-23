@@ -502,10 +502,10 @@ void AsyncFileReadInitialize(uint32_t threadSleep, uint32_t handlerTimeout) {
         s_handlerTimeout = 20;
     }
 
-    EventRegisterEx(EVENT_ID_POLL, AsyncFileReadPollHandler, nullptr, 0.0f);
+    EventRegisterEx(EVENT_ID_POLL, AsyncFileReadPollHandler, nullptr, EVENT_PRIORITY_NORMAL);
 
     if (SFile::IsStreamingMode()) {
-        EventRegisterEx(EVENT_ID_IDLE, NetQueuePromoteLocalFiles, nullptr, -1.0f);
+        EventRegisterEx(EVENT_ID_IDLE, NetQueuePromoteLocalFiles, nullptr, EVENT_PRIORITY_BELOW_NORMAL);
     }
 
     s_asyncWaitObject = nullptr;

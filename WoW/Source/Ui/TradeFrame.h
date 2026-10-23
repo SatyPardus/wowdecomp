@@ -4,6 +4,36 @@
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
 
+enum TRADE_STATUS : int32_t {
+    TRADE_STATUS_PLAYER_BUSY = 0,
+    TRADE_STATUS_PROPOSED = 1,
+    TRADE_STATUS_INITIATED = 2,
+    TRADE_STATUS_CANCELLED = 3,
+    TRADE_STATUS_ACCEPTED = 4,
+    TRADE_STATUS_ALREADY_TRADING = 5,
+    TRADE_STATUS_PLAYER_NOT_FOUND = 6,
+    TRADE_STATUS_STATE_CHANGED = 7,
+    TRADE_STATUS_COMPLETE = 8,
+    TRADE_STATUS_UNACCEPTED = 9,
+    TRADE_STATUS_TOO_FAR_AWAY = 10,
+    TRADE_STATUS_WRONG_FACTION = 11,
+    TRADE_STATUS_FAILED = 12,
+    TRADE_STATUS_UNKNOWN_13 = 13,
+    TRADE_STATUS_PLAYER_IGNORED = 14,
+    TRADE_STATUS_PLAYER_STUNNED = 15,
+    TRADE_STATUS_TARGET_STUNNED = 16,
+    TRADE_STATUS_DEAD = 17,
+    TRADE_STATUS_TARGET_DEAD = 18,
+    TRADE_STATUS_LOGGING_OUT = 19,
+    TRADE_STATUS_TARGET_LOGGING_OUT = 20,
+    TRADE_STATUS_RESTRICTED_ACCOUNT = 21,
+    TRADE_STATUS_WRONG_REALM = 22,
+    TRADE_STATUS_NOT_ON_TAPLIST = 23,
+
+    // Unused 0.5.3 name/value; current 14 means PLAYER_IGNORED.
+    // TRADE_STATUS_PETITION = 14,
+};
+
 class CGItem_C;
 
 struct lua_State;
@@ -84,7 +114,7 @@ class CGTradeInfo {
     static void PlayerAccept();
     static void RemovePlayerItem(WOWGUID item);
     static void OnTradeUpdated(const TRADE_ITEM* items);
-    static void HandleTradeMessage(int32_t status, int32_t bagResult, int32_t target, int32_t itemId, uint8_t slot);
+    static void HandleTradeMessage(TRADE_STATUS status, int32_t bagResult, int32_t target, int32_t itemId, uint8_t slot);
     static void LeaveWorld();
 };
 

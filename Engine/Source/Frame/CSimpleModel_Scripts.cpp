@@ -416,7 +416,7 @@ static int32_t Script_ReplaceIconTexture(lua_State* L) {
     CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
     if (lua_isstring(L, 2)) {
-        model->ReplaceTexture(14, lua_tolstring(L, 2, nullptr));
+        model->ReplaceTexture(M2TEX_ITEM_ICON, lua_tolstring(L, 2, nullptr));
         return 0;
     }
 
@@ -432,7 +432,7 @@ static int32_t Script_SetFogColor(lua_State* L) {
     CImVector color;
 
     FrameScript_GetColor(L, 2, color);
-    model->m_flags |= 0x1;
+    model->m_flags |= CSimpleModel::MODEL_FOGGED;
     model->m_fogColor = color;
 
     return 0;
@@ -505,7 +505,7 @@ static int32_t Script_GetFogFar(lua_State* L) {
 static int32_t Script_ClearFog(lua_State* L) {
     CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
 
-    model->m_flags &= ~0x1u;
+    model->m_flags &= ~CSimpleModel::MODEL_FOGGED;
     return 0;
 }
 

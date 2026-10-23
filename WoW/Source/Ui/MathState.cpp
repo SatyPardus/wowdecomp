@@ -474,7 +474,7 @@ void MathState::ExecuteOperator(uint32_t op, MathStack* stack) {
 // OFFSET: 0x005782D0
 void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* spell, int32_t spellLevel, int32_t scale, int32_t parseUnit, int32_t parsePet, int32_t noModifiers) {
     float value = 0.0f;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         switch (op) {
@@ -546,9 +546,9 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
                 CGUnit_C* unit;
 
                 if (parseUnit) {
-                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPE_UNIT, __FILE__, __LINE__));
                 } else if (parsePet) {
-                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
                 } else {
                     unit = player;
                 }
@@ -562,9 +562,9 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
                 CGUnit_C* unit;
 
                 if (parseUnit) {
-                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPE_UNIT, __FILE__, __LINE__));
                 } else if (parsePet) {
-                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+                    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
                 } else {
                     unit = player;
                 }
@@ -814,7 +814,7 @@ void MathState::GetVariableValue(uint32_t op, MathStack* stack, const SpellRec* 
 
             case MATHOP_HANDS:
             case MATHOP_HANDS_UPPER:
-                value = CGUnit_C::IsTwoHanded(player->GetVirtualItem(0, false)) ? 2.0f : 1.0f;
+                value = CGUnit_C::IsTwoHanded(player->GetVirtualItem(VIRTUAL_MONSTER_SLOT_MAINHAND, false)) ? 2.0f : 1.0f;
                 break;
 
             case MATHOP_SPELL_POWER:

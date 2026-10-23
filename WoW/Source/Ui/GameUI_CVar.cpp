@@ -617,9 +617,9 @@ void CGGameUI::RegisterGameCVars() {
     const char* militaryTime = "1";
 
     switch (LocaleNameToIndex(s_localeCode)) {
-        case 2:
-        case 5:
-        case 10: {
+        case DB_LOCALE_enUS:
+        case DB_LOCALE_koKR:
+        case DB_LOCALE_esMX: {
             militaryTime = "0";
             break;
         }

@@ -55,7 +55,7 @@ TSGrowableArray<M2ModelCallback> CM2Model::s_sequenceCallbacks;
 
 // INLINED
 CM2ModelCall::CM2ModelCall() {
-    this->m_type = 0xFFFFFFFF;
+    this->m_type = MODEL_COMMAND_NOT_QUEUED;
 }
 
 // VERIFY: 35d86a94 auto
@@ -245,7 +245,7 @@ void CM2Model::SetLightEnabled(uint32_t index, uint32_t enabled) {
     CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
     if (call) {
-        call->m_type = 10;
+        call->m_type = MODEL_SET_LIGHT_ENABLED;
         call->m_next = nullptr;
         call->m_time = this->m_scene->m_time;
         call->m_args[0] = index;
@@ -299,7 +299,7 @@ void CM2Model::SetRibbonsEnabled(uint32_t enabled) {
     CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
     if (call) {
-        call->m_type = 13;
+        call->m_type = MODEL_SET_RIBBONS_ENABLED;
         call->m_next = nullptr;
         call->m_time = this->m_scene->m_time;
         call->m_args[0] = enabled;
@@ -752,7 +752,7 @@ void CM2Model::ReplaceTexture(uint32_t type, CTexture* texture) {
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 0;
+            call->m_type = MODEL_REPLACE_TEXTURE;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = type;
@@ -817,7 +817,7 @@ void CM2Model::ReplaceParticleColor(uint32_t id, CImVector color0, CImVector col
     CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
     if (call) {
-        call->m_type = 11;
+        call->m_type = MODEL_REPLACE_PARTICLE_COLOR;
         call->m_next = nullptr;
         call->m_time = this->m_scene->m_time;
         call->m_args[0] = id;
@@ -1361,7 +1361,7 @@ void CM2Model::SetBoneFlags(uint32_t boneId, uint32_t flags, uint32_t mask) {
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 4;
+            call->m_type = MODEL_SET_BONE_FLAGS;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = boneId;
@@ -1704,7 +1704,7 @@ void CM2Model::SetBoneSequenceTime(uint32_t boneId, uint32_t time) {
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 7;
+            call->m_type = MODEL_SET_BONE_SEQUENCE_TIME;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = boneId;
@@ -1752,7 +1752,7 @@ void CM2Model::SetBoneSequenceSpeed(uint32_t boneId, float speed) {
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 8;
+            call->m_type = MODEL_SET_BONE_SEQUENCE_SPEED;
             call->m_next = nullptr;
             *reinterpret_cast<float*>(&call->m_args[1]) = speed;
             call->m_time = this->m_scene->m_time;
@@ -1804,7 +1804,7 @@ void CM2Model::LoadSequence(uint32_t id) {
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 14;
+            call->m_type = MODEL_LOAD_SEQUENCE;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = id;
@@ -1868,7 +1868,7 @@ void CM2Model::SetBoneProceduralTransform(uint32_t boneId, const C44Matrix& matr
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 9;
+            call->m_type = MODEL_SET_BONE_PROCEDURAL_TRANSFORM;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = boneId;
@@ -2148,7 +2148,7 @@ void CM2Model::SetEmittersEnabled(int32_t enabled) {
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 12;
+            call->m_type = MODEL_SET_EMITTERS_ENABLED;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = enabled;
@@ -2421,7 +2421,7 @@ void M2AnimateTrack<M2CompQuat, C4Quaternion>(CM2Model* model, M2ModelBone* bone
         float ratio;
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             M2CompQuat& key = keys[modelTrack.m_currentKey];
             modelTrack.m_currentValue.x = key.m_values[0] * 0.000030518044f - 1.0f;
             modelTrack.m_currentValue.y = key.m_values[1] * 0.000030518044f - 1.0f;
@@ -2446,7 +2446,7 @@ void M2AnimateTrack<M2CompQuat, C4Quaternion>(CM2Model* model, M2ModelBone* bone
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3259,7 +3259,7 @@ void M2AnimateTrack<C4Quaternion, C4Quaternion>(CM2Model* model, M2ModelBone* bo
         float ratio;
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey];
             return;
         }
@@ -3268,7 +3268,7 @@ void M2AnimateTrack<C4Quaternion, C4Quaternion>(CM2Model* model, M2ModelBone* bo
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3303,7 +3303,7 @@ void M2AnimateTrack<fixed16, float>(CM2Model* model, M2ModelBone* bone, const M2
         float ratio;
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey].m_value * 0.000030518509f;
             return;
         }
@@ -3313,7 +3313,7 @@ void M2AnimateTrack<fixed16, float>(CM2Model* model, M2ModelBone* bone, const M2
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3349,7 +3349,7 @@ void M2AnimateTrack<C3Vector, C3Vector>(CM2Model* model, M2ModelBone* bone, cons
         float ratio;
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey];
             return;
         }
@@ -3362,7 +3362,7 @@ void M2AnimateTrack<C3Vector, C3Vector>(CM2Model* model, M2ModelBone* bone, cons
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3404,7 +3404,7 @@ void M2AnimateTrack<uint8_t, uint8_t>(CM2Model* model, M2ModelBone* bone, const 
     if (keys.m_count) {
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey];
             return;
         }
@@ -3413,7 +3413,7 @@ void M2AnimateTrack<uint8_t, uint8_t>(CM2Model* model, M2ModelBone* bone, const 
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3439,7 +3439,7 @@ void M2AnimateTrack<float, float>(CM2Model* model, M2ModelBone* bone, const M2Tr
     if (keys.m_count) {
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey];
             return;
         }
@@ -3449,7 +3449,7 @@ void M2AnimateTrack<float, float>(CM2Model* model, M2ModelBone* bone, const M2Tr
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3483,7 +3483,7 @@ void M2AnimateSplineTrack<M2SplineKey<C3Vector>, C3Vector>(CM2Model* model, M2Mo
     if (keys.m_count) {
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey].m_value;
             return;
         }
@@ -3492,14 +3492,14 @@ void M2AnimateSplineTrack<M2SplineKey<C3Vector>, C3Vector>(CM2Model* model, M2Mo
         M2SplineKey<C3Vector>& k1 = keys[key1];
 
         switch (track.m_trackType) {
-            case 1: {
+            case M2TRACK_LINEAR: {
                 modelTrack.m_currentValue.x = (k1.m_value.x - k0.m_value.x) * ratio + k0.m_value.x;
                 modelTrack.m_currentValue.y = (k1.m_value.y - k0.m_value.y) * ratio + k0.m_value.y;
                 modelTrack.m_currentValue.z = ratio * (k1.m_value.z - k0.m_value.z) + k0.m_value.z;
                 break;
             }
 
-            case 2: {
+            case M2TRACK_BEZIER: {
                 float r2 = ratio * ratio;
                 float r3 = ratio * ratio * ratio;
                 float b0 = ratio * ratio * 3.0f - r3 - ratio * 3.0f + 1.0f;
@@ -3511,7 +3511,7 @@ void M2AnimateSplineTrack<M2SplineKey<C3Vector>, C3Vector>(CM2Model* model, M2Mo
                 break;
             }
 
-            case 3: {
+            case M2TRACK_HERMITE: {
                 float r2 = ratio * ratio;
                 float r2x3 = ratio * ratio * 3.0f;
                 float r3 = ratio * ratio * ratio;
@@ -3528,7 +3528,7 @@ void M2AnimateSplineTrack<M2SplineKey<C3Vector>, C3Vector>(CM2Model* model, M2Mo
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3543,7 +3543,7 @@ void M2AnimateSplineTrack<M2SplineKey<C3Vector>, C3Vector>(CM2Model* model, M2Mo
             M2SplineKey<C3Vector>& k0 = blendKeys[modelTrack.m_secondaryKey];
             M2SplineKey<C3Vector>& k1 = blendKeys[key1];
 
-            if (track.m_trackType == 2) {
+            if (track.m_trackType == M2TRACK_BEZIER) {
                 float r2 = ratio * ratio;
                 float r3 = ratio * ratio * ratio;
                 float b0 = ratio * ratio * 3.0f - r3 - ratio * 3.0f + 1.0f;
@@ -3552,7 +3552,7 @@ void M2AnimateSplineTrack<M2SplineKey<C3Vector>, C3Vector>(CM2Model* model, M2Mo
                 blend.x = k1.m_value.x * r3 + k0.m_value.x * b0 + b1 * k0.m_outTan.x + b2 * k1.m_inTan.x;
                 blend.y = k1.m_inTan.y * b2 + k0.m_outTan.y * b1 + k0.m_value.y * b0 + k1.m_value.y * r3;
                 blend.z = r3 * k1.m_value.z + (b0 * k0.m_value.z + b1 * k0.m_outTan.z + b2 * k1.m_inTan.z);
-            } else if (track.m_trackType == 3) {
+            } else if (track.m_trackType == M2TRACK_HERMITE) {
                 float r2 = ratio * ratio;
                 float r2x3 = ratio * ratio * 3.0f;
                 float r3 = ratio * ratio * ratio;
@@ -3591,7 +3591,7 @@ void M2AnimateSplineTrack<M2SplineKey<float>, float>(CM2Model* model, M2ModelBon
     if (keys.m_count) {
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey].m_value;
             return;
         }
@@ -3600,18 +3600,18 @@ void M2AnimateSplineTrack<M2SplineKey<float>, float>(CM2Model* model, M2ModelBon
         M2SplineKey<float>& k1 = keys[key1];
 
         switch (track.m_trackType) {
-            case 1: {
+            case M2TRACK_LINEAR: {
                 modelTrack.m_currentValue = k0.m_value + (k1.m_value - k0.m_value) * ratio;
                 break;
             }
 
-            case 2: {
+            case M2TRACK_BEZIER: {
                 float r3 = ratio * ratio * ratio;
                 modelTrack.m_currentValue = r3 * k1.m_value + (r3 * 3.0f - ratio * ratio * 6.0f + ratio * 3.0f) * k0.m_outTan + (3.0f * (ratio * ratio) - r3 * 3.0f) * k1.m_inTan + (3.0f * (ratio * ratio) - r3 - ratio * 3.0f + 1.0f) * k0.m_value;
                 break;
             }
 
-            case 3: {
+            case M2TRACK_HERMITE: {
                 float r3 = ratio * ratio * ratio;
                 modelTrack.m_currentValue = (ratio + r3 - 2.0f * (ratio * ratio)) * k0.m_outTan + (r3 - ratio * ratio) * k1.m_inTan + (r3 * 2.0f - ratio * ratio * 3.0f + 1.0f) * k0.m_value + (ratio * ratio * 3.0f - r3 * 2.0f) * k1.m_value;
                 break;
@@ -3620,7 +3620,7 @@ void M2AnimateSplineTrack<M2SplineKey<float>, float>(CM2Model* model, M2ModelBon
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -3635,10 +3635,10 @@ void M2AnimateSplineTrack<M2SplineKey<float>, float>(CM2Model* model, M2ModelBon
             M2SplineKey<float>& k0 = blendKeys[modelTrack.m_secondaryKey];
             M2SplineKey<float>& k1 = blendKeys[key1];
 
-            if (track.m_trackType == 2) {
+            if (track.m_trackType == M2TRACK_BEZIER) {
                 float r3 = ratio * ratio * ratio;
                 blend = r3 * k1.m_value + (r3 * 3.0f - ratio * ratio * 6.0f + ratio * 3.0f) * k0.m_outTan + (3.0f * (ratio * ratio) - r3 * 3.0f) * k1.m_inTan + (3.0f * (ratio * ratio) - r3 - ratio * 3.0f + 1.0f) * k0.m_value;
-            } else if (track.m_trackType == 3) {
+            } else if (track.m_trackType == M2TRACK_HERMITE) {
                 float r3 = ratio * ratio * ratio;
                 blend = (ratio + r3 - 2.0f * (ratio * ratio)) * k0.m_outTan + (r3 - ratio * ratio) * k1.m_inTan + (r3 * 2.0f - ratio * ratio * 3.0f + 1.0f) * k0.m_value + (ratio * ratio * 3.0f - r3 * 2.0f) * k1.m_value;
             } else {
@@ -3664,7 +3664,7 @@ void M2AnimateTrack<uint16_t, uint16_t>(CM2Model* model, M2ModelBone* bone, cons
     if (keys.m_count) {
         model->FindKey(&bone->m_sequence, track, modelTrack.m_currentKey, key1, ratio);
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             modelTrack.m_currentValue = keys[modelTrack.m_currentKey];
             return;
         }
@@ -3673,7 +3673,7 @@ void M2AnimateTrack<uint16_t, uint16_t>(CM2Model* model, M2ModelBone* bone, cons
     } else {
         modelTrack.m_currentValue = defaultValue;
 
-        if (!track.m_trackType) {
+        if (track.m_trackType == M2TRACK_NONE) {
             return;
         }
     }
@@ -4051,7 +4051,7 @@ void CM2Model::SetGeometryVisible(uint32_t first, uint32_t last, int32_t visible
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 1;
+            call->m_type = MODEL_SET_GEOMETRY_VISIBLE;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = first;
@@ -4088,7 +4088,7 @@ void CM2Model::SetGeosetVisibilityRange(uint32_t first, uint32_t last, int32_t v
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 2;
+            call->m_type = MODEL_SET_GEOSET_VISIBILITY_RANGE;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = first;
@@ -4107,7 +4107,7 @@ void CM2Model::OptimizeVisibleGeometry() {
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 3;
+            call->m_type = MODEL_OPTIMIZE_VISIBLE_GEOSETS;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             *this->m_modelCallTail = call;
@@ -6690,7 +6690,7 @@ void CM2Model::UnsetBoneSequence(uint32_t boneId, int32_t blend, int32_t primary
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 6;
+            call->m_type = MODEL_UNSET_BONE_SEQUENCE;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             call->m_args[0] = boneId;
@@ -6792,7 +6792,7 @@ void CM2Model::SetBoneSequence(uint32_t boneId, uint32_t sequenceId, uint32_t va
         CM2ModelCall* call = new (__FILE__, __LINE__) CM2ModelCall();
 
         if (call) {
-            call->m_type = 5;
+            call->m_type = MODEL_SET_BONE_SEQUENCE;
             call->m_next = nullptr;
             call->m_time = this->m_scene->m_time;
             *reinterpret_cast<float*>(&call->m_args[4]) = speed;
@@ -7389,41 +7389,41 @@ int32_t CM2Model::InitializeLoaded() {
 
             CParticleMat material;
             material.m_flags = 7;
-            material.m_blendMode = 0;
+            material.m_blendMode = GxBlend_Opaque;
 
             switch (particleData->m_blendMode) {
-                case 0:
-                    material.m_blendMode = 0;
+                case M2PARTICLEBLEND_OPAQUE:
+                    material.m_blendMode = GxBlend_Opaque;
                     material.m_flags |= 4;
                     break;
 
-                case 1:
-                    material.m_blendMode = 1;
+                case M2PARTICLEBLEND_ALPHA_KEY:
+                    material.m_blendMode = GxBlend_AlphaKey;
                     material.m_flags |= 4;
                     break;
 
-                case 2:
-                    material.m_blendMode = 2;
+                case M2PARTICLEBLEND_ALPHA:
+                    material.m_blendMode = GxBlend_Alpha;
                     material.m_flags &= ~4u;
                     break;
 
-                case 3:
-                    material.m_blendMode = 10;
+                case M2PARTICLEBLEND_NO_ALPHA_ADD:
+                    material.m_blendMode = GxBlend_NoAlphaAdd;
                     material.m_flags &= ~4u;
                     break;
 
-                case 4:
-                    material.m_blendMode = 3;
+                case M2PARTICLEBLEND_ADD:
+                    material.m_blendMode = GxBlend_Add;
                     material.m_flags &= ~4u;
                     break;
 
-                case 5:
-                    material.m_blendMode = 4;
+                case M2PARTICLEBLEND_MOD:
+                    material.m_blendMode = GxBlend_Mod;
                     material.m_flags &= ~4u;
                     break;
 
-                case 6:
-                    material.m_blendMode = 5;
+                case M2PARTICLEBLEND_MOD2X:
+                    material.m_blendMode = GxBlend_Mod2x;
                     material.m_flags &= ~4u;
                     break;
             }
@@ -7570,63 +7570,63 @@ int32_t CM2Model::InitializeLoaded() {
         this->m_scene->m_time = call->m_time;
 
         switch (call->m_type) {
-            case 0:
+            case MODEL_REPLACE_TEXTURE:
                 this->ReplaceTexture(call->m_args[0], reinterpret_cast<CTexture*>(call->m_args[1]));
                 break;
 
-            case 1:
+            case MODEL_SET_GEOMETRY_VISIBLE:
                 this->SetGeometryVisible(call->m_args[0], call->m_args[1], call->m_args[2]);
                 break;
 
-            case 2:
+            case MODEL_SET_GEOSET_VISIBILITY_RANGE:
                 this->SetGeosetVisibilityRange(call->m_args[0], call->m_args[1], call->m_args[2]);
                 break;
 
-            case 3:
+            case MODEL_OPTIMIZE_VISIBLE_GEOSETS:
                 this->OptimizeVisibleGeometry();
                 break;
 
-            case 4:
+            case MODEL_SET_BONE_FLAGS:
                 this->SetBoneFlags(call->m_args[0], call->m_args[1], call->m_args[2]);
                 break;
 
-            case 5:
+            case MODEL_SET_BONE_SEQUENCE:
                 this->SetBoneSequence(call->m_args[0], call->m_args[1], call->m_args[2], call->m_args[3], *reinterpret_cast<float*>(&call->m_args[4]), call->m_args[5], call->m_args[6]);
                 break;
 
-            case 6:
+            case MODEL_UNSET_BONE_SEQUENCE:
                 this->UnsetBoneSequence(call->m_args[0], call->m_args[1], call->m_args[2]);
                 break;
 
-            case 7:
+            case MODEL_SET_BONE_SEQUENCE_TIME:
                 this->SetBoneSequenceTime(call->m_args[0], call->m_args[1]);
                 break;
 
-            case 8:
+            case MODEL_SET_BONE_SEQUENCE_SPEED:
                 this->SetBoneSequenceSpeed(call->m_args[0], *reinterpret_cast<float*>(&call->m_args[1]));
                 break;
 
-            case 9:
+            case MODEL_SET_BONE_PROCEDURAL_TRANSFORM:
                 this->SetBoneProceduralTransform(call->m_args[0], *reinterpret_cast<C44Matrix*>(&call->m_args[1]));
                 break;
 
-            case 10:
+            case MODEL_SET_LIGHT_ENABLED:
                 this->SetLightEnabled(call->m_args[0], call->m_args[1]);
                 break;
 
-            case 11:
+            case MODEL_REPLACE_PARTICLE_COLOR:
                 this->ReplaceParticleColor(call->m_args[0], *reinterpret_cast<CImVector*>(&call->m_args[1]), *reinterpret_cast<CImVector*>(&call->m_args[2]), *reinterpret_cast<CImVector*>(&call->m_args[3]));
                 break;
 
-            case 12:
+            case MODEL_SET_EMITTERS_ENABLED:
                 this->SetEmittersEnabled(call->m_args[0]);
                 break;
 
-            case 13:
+            case MODEL_SET_RIBBONS_ENABLED:
                 this->SetRibbonsEnabled(call->m_args[0]);
                 break;
 
-            case 14:
+            case MODEL_LOAD_SEQUENCE:
                 this->LoadSequence(call->m_args[0]);
                 break;
         }
@@ -7730,7 +7730,7 @@ void CM2Model::GatherModelBatchesShadowMap(CModelBatchList& untextured, CModelBa
         M2Data* data = this->m_shared->m_data;
         M2Material* material = &data->m_materials[batch->m_materialIndex];
 
-        if ((material->m_flags & 0x40) || (!(material->m_flags & 0x80) && material->m_blendMode > 1)) {
+        if ((material->m_flags & 0x40) || (!(material->m_flags & 0x80) && material->m_blendMode > M2BLEND_ALPHA_KEY)) {
             continue;
         }
 

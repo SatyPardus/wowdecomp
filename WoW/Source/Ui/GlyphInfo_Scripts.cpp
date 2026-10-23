@@ -14,6 +14,7 @@
 #include "WoW/Source/DB/Rec/GlyphSlotRec.h"
 #include "WoW/Source/DB/Rec/SpellIconRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/Player.h"
 #include "WoW/Source/Ui/TalentInfo.h"
@@ -99,7 +100,7 @@ static int32_t Script_GlyphMatchesSocket(lua_State* L) {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell.m_effect[i] != 74) {
+        if (spell.m_effect[i] != SPELL_EFFECT_APPLY_GLYPH) {
             continue;
         }
 
@@ -154,7 +155,7 @@ static int32_t Script_RemoveGlyphFromSocket(lua_State* L) {
     }
 
     uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (index < 6 && player && player->m_player->m_playerFieldGlyphSlots1[index]) {
         CDataStore msg;

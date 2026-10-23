@@ -14,6 +14,7 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
+#include "GameVersion.h"
 
 class CHashKeyGUID;
 class CWardenKey;
@@ -189,7 +190,7 @@ void DBCache<T, TKey, THashKey>::Load() {
     uint32_t build;
     header.Get(build);
 
-    if (build != 12340) {
+    if (build != GAME_BUILD) {
         OsCloseFile(file);
         return;
     }
@@ -449,7 +450,7 @@ void DBCache<T, TKey, THashKey>::Save() {
 
     CDataStore header;
     header.Put(this->m_signature);
-    header.Put(static_cast<uint32_t>(12340));
+    header.Put(static_cast<uint32_t>(GAME_BUILD));
     header.Put(SFile::s_locale);
     header.Put(static_cast<uint32_t>(sizeof(T)));
     header.Put(T::s_cacheVersion);

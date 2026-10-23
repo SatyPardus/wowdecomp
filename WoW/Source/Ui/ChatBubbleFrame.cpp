@@ -111,7 +111,7 @@ static int32_t ComputeDuration(const char* text, bool self) {
 // VERIFY: 5706ad2a manual
 // OFFSET: 0x0056C340
 void CGChatBubbleFrame::Render(CGWorldFrame* worldFrame) {
-    if (!ClntObjMgrObjectPtr(this->m_unit, TYPEMASK_UNIT, __FILE__, __LINE__) || !this->m_positionValid) {
+    if (!ClntObjMgrObjectPtr(this->m_unit, TYPE_UNIT, __FILE__, __LINE__) || !this->m_positionValid) {
         return;
     }
 
@@ -376,7 +376,7 @@ void CGChatBubbleFrame::ClearAll() {
 
     for (CGChatBubbleFrame* bubble = s_chatBubbles.Head(); bubble; bubble = next) {
         next = s_chatBubbles.Next(bubble);
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(bubble->m_unit, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(bubble->m_unit, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             unit->ChatBubbleRemove();
@@ -403,12 +403,12 @@ void CGChatBubbleFrame::OnWorldLayerUpdate() {
     }
 
     TSList<CGChatBubbleFrame> moved;
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     CGChatBubbleFrame* next;
 
     for (CGChatBubbleFrame* bubble = s_chatBubbles.Head(); bubble; bubble = next) {
         next = s_chatBubbles.Next(bubble);
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(bubble->m_unit, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(bubble->m_unit, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             CGChatBubbleFrame::Remove(bubble);

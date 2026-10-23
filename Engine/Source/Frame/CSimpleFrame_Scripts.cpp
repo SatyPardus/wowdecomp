@@ -1594,9 +1594,9 @@ static int32_t Script_EnableJoystick(lua_State* L) {
     }
 
     if (StringToBOOL(L, 2, 1)) {
-        frame->EnableEvent(SIMPLE_EVENT_4, -1);
+        frame->EnableEvent(SIMPLE_EVENT_JOYSTICK, -1);
     } else {
-        frame->DisableEvent(SIMPLE_EVENT_4);
+        frame->DisableEvent(SIMPLE_EVENT_JOYSTICK);
     }
 
     return 0;
@@ -1607,7 +1607,7 @@ static int32_t Script_EnableJoystick(lua_State* L) {
 static int32_t Script_IsJoystickEnabled(lua_State* L) {
     CSimpleFrame* frame = static_cast<CSimpleFrame*>(FrameScript_GetObjectThis(L, CSimpleFrame::GetObjectType()));
 
-    if ((frame->m_enabledEventsBitmask >> SIMPLE_EVENT_4) & 1) {
+    if ((frame->m_enabledEventsBitmask >> SIMPLE_EVENT_JOYSTICK) & 1) {
         lua_pushnumber(L, 1.0);
     } else {
         lua_pushnil(L);

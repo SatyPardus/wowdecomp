@@ -128,7 +128,7 @@ void CGGuildBankInfo::SwapItems(uint8_t tab, uint32_t slot, WOWGUID item, WOWGUI
         return;
     }
 
-    CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!object) {
         return;
@@ -151,12 +151,12 @@ void CGGuildBankInfo::SwapItems(uint8_t tab, uint32_t slot, WOWGUID item, WOWGUI
         return;
     }
 
-    if ((object->GetItemStaticFlags(0) & 2) || ((object->GetItemStaticFlags(0) & 0x10000) && static_cast<int32_t>(stats->m_duration) > 0) || object->m_item->m_itemFieldDuration || object->IsZoneBound() || object->IsInstanceBound()) {
+    if ((object->GetItemStaticFlags(0) & ITEM_FLAG_CONJURED) || ((object->GetItemStaticFlags(0) & 0x10000) && static_cast<int32_t>(stats->m_duration) > 0) || object->m_item->m_itemFieldDuration || object->IsZoneBound() || object->IsInstanceBound()) {
         CGGameUI::DisplayError(ERR_GUILD_BANK_CONJURED_ITEM);
         return;
     }
 
-    if (object->m_item->m_itemFieldFlags & 8) {
+    if (object->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) {
         CGGameUI::DisplayError(ERR_GUILD_BANK_WRAPPED_ITEM);
         return;
     }
@@ -732,7 +732,7 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
         CGGameUI::GetCursorVirtualItem(cursorId, cursorSlot);
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;

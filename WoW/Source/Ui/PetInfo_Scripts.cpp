@@ -69,7 +69,7 @@ static int32_t Script_GetPetActionInfo(lua_State* L) {
             if (found) {
                 lua_pushstring(L, spell.m_name);
                 lua_pushstring(L, spell.m_nameSubtext);
-                CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+                CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
                 SpellIconRec* icon = g_spellIconDB.GetRecord(Spell_C_IsActiveSpell(&spell, pet) && spell.m_activeIconID ? spell.m_activeIconID : spell.m_spellIconID);
 
                 if (icon) {
@@ -176,7 +176,7 @@ static int32_t Script_GetPetTimeRemaining(lua_State* L) {
 // VERIFY: cab5e1fd manual
 // OFFSET: 0x005D3780
 static int32_t Script_PetCanBeAbandoned(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
     if (pet && pet->m_unit->m_unitFieldSummonedby == ClntObjMgrGetActivePlayer() && (pet->m_unit->m_unitFieldBytes2[2] & 2)) {
         lua_pushnumber(L, 1.0);
@@ -190,7 +190,7 @@ static int32_t Script_PetCanBeAbandoned(lua_State* L) {
 // VERIFY: 2e7b5ffe manual
 // OFFSET: 0x005D3820
 static int32_t Script_PetCanBeDismissed(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
     SummonPropertiesRec* properties;
 
     if (pet && pet->m_unit->m_unitFieldCreatedby == ClntObjMgrGetActivePlayer() && (properties = pet->GetSummonProperties()) && (properties->m_flags & 0x20)) {
@@ -205,7 +205,7 @@ static int32_t Script_PetCanBeDismissed(lua_State* L) {
 // VERIFY: a98e1721 manual
 // OFFSET: 0x005D38C0
 static int32_t Script_PetCanBeRenamed(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
     if (pet && pet->m_unit->m_unitFieldSummonedby == ClntObjMgrGetActivePlayer() && (pet->m_unit->m_unitFieldBytes2[2] & 1)) {
         lua_pushnumber(L, 1.0);
@@ -219,7 +219,7 @@ static int32_t Script_PetCanBeRenamed(lua_State* L) {
 // VERIFY: d37eccba manual
 // OFFSET: 0x005D3CE0
 static int32_t Script_GetPetIcon(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
     CreatureFamilyRec* family;
 
     if (pet && pet->CanGainXP() && (family = g_creatureFamilyDB.GetRecord(pet->GetCreatureFamily()))) {
@@ -234,9 +234,9 @@ static int32_t Script_GetPetIcon(lua_State* L) {
 // VERIFY: 80fd0a13 manual
 // OFFSET: 0x005D3960
 static int32_t Script_HasPetUI(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
-    if (pet && !(pet->m_obj->m_type & TYPEMASK_PLAYER) && pet->m_unit->m_unitFieldPetnumber) {
+    if (pet && !(pet->m_obj->m_type & TYPE_PLAYER) && pet->m_unit->m_unitFieldPetnumber) {
         lua_pushnumber(L, 1.0);
 
         if (pet->CanGainXP()) {
@@ -256,7 +256,7 @@ static int32_t Script_HasPetUI(lua_State* L) {
 // VERIFY: 4ac52271 manual
 // OFFSET: 0x005D3A20
 static int32_t Script_GetPetExperience(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
     if (pet && pet->CanGainXP()) {
         lua_pushnumber(L, pet->m_unit->m_unitFieldPetexperience);
@@ -329,7 +329,7 @@ static int32_t Script_GetPossessInfo(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && CGPetInfo::m_possessSpell) {
         int64_t index = static_cast<int64_t>(lua_tonumber(L, 1));
@@ -382,7 +382,7 @@ static int32_t Script_GetPossessInfo(lua_State* L) {
 // VERIFY: 2920ba20 manual
 // OFFSET: 0x005D3B00
 static int32_t Script_GetPetHappiness(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
     PetPersonalityRec* personality;
 
     if (pet && (personality = pet->GetPetPersonality())) {
@@ -401,7 +401,7 @@ static int32_t Script_GetPetHappiness(lua_State* L) {
 // OFFSET: 0x005D3BD0
 static int32_t Script_GetPetFoodTypes(lua_State* L) {
     int32_t count = 0;
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
     if (!pet || !pet->CanGainXP()) {
         return 0;
@@ -429,7 +429,7 @@ static int32_t Script_GetPetFoodTypes(lua_State* L) {
 // VERIFY: 05982c17 manual
 // OFFSET: 0x005D3D80
 static int32_t Script_GetPetTalentTree(lua_State* L) {
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
     CreatureFamilyRec* family;
 
     if (pet && pet->CanGainXP() && (family = g_creatureFamilyDB.GetRecord(pet->GetCreatureFamily())) && family->m_petTalentType >= 0) {
@@ -565,7 +565,7 @@ static int32_t Script_PetDismiss(lua_State* L) {
 // OFFSET: 0x005D5670
 static int32_t Script_PetRename(lua_State* L) {
     const char* name = lua_tolstring(L, 1, nullptr);
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
     if (!pet) {
         CGGameUI::DisplayError(ERR_NO_PET);
@@ -635,7 +635,7 @@ static int32_t Script_PickupPetAction(lua_State* L) {
         return 0;
     }
 
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
     if (!pet || (pet->m_unit->m_unitFieldFlags & 0x1000000)) {
         return 0;
@@ -704,7 +704,7 @@ static int32_t Script_CastPetAction(lua_State* L) {
         return 0;
     }
 
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
     if (pet && !(pet->m_unit->m_unitFieldFlags & 0x1000000)) {
         PetAction cursorAction = CGGameUI::m_cursorPetAction;

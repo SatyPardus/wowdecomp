@@ -93,7 +93,7 @@ int32_t CGxFont::UpdateDimensions() {
         this->m_cellHeight = pixelSize + 2;
     }
 
-    int32_t result = FT_Set_Pixel_Sizes(face, pixelSize, 0) == 0;
+    int32_t result = FT_Set_Pixel_Sizes(face, pixelSize, 0) == FT_Err_Ok;
 
     this->m_pixelsPerUnit = static_cast<float>(face->size->metrics.x_ppem) / static_cast<float>(face->units_per_EM);
 

@@ -4,6 +4,13 @@
 #include <cstddef>
 #include <cstdint>
 
+// Object-camera IDs accepted by simple models; M2 camera array counts are separate.
+enum : uint32_t {
+    CAMERA_PORTRAIT = 0,
+    CAMERA_PAPERDOLL = 1,
+    NUM_OBJECT_CAMERAS = 2,
+};
+
 class C2Vector;
 class C3Vector;
 class CCamera;

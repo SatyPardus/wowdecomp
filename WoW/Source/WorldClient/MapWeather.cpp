@@ -1,4 +1,5 @@
 #include "MapWeather.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 #include <cfloat>
 #include <new>
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -187,8 +188,8 @@ void WeatherGrid::GetCellSpacing(float* cellSize, float* cellsPerYard) {
 // VERIFY: 8e6d2779 auto
 // OFFSET: 0x00784BE0
 float WeatherGrid::GetHeight(const C3Vector* position) {
-    uint32_t x = static_cast<int32_t>(floor(position->x * 0.03f)) - this->m_minCellX;
-    uint32_t y = static_cast<int32_t>(floor(position->y * 0.03f)) - this->m_minCellY;
+    uint32_t x = static_cast<int32_t>(floor(position->x * OO_COORD_TO_CHUNK)) - this->m_minCellX;
+    uint32_t y = static_cast<int32_t>(floor(position->y * OO_COORD_TO_CHUNK)) - this->m_minCellY;
 
     if (x > 4 || y > 4) {
         return FLT_MAX;
@@ -293,8 +294,8 @@ bool WeatherGrid::Raycast(const C3Vector* start, const C3Vector* end, C3Vector* 
 // VERIFY: 32392fc5 auto
 // OFFSET: 0x00784F20
 void WeatherGrid::UpdateOriginCell(const C3Vector* position) {
-    int32_t x = static_cast<int32_t>(floor(position->x * 0.03f));
-    int32_t y = static_cast<int32_t>(floor(position->y * 0.03f));
+    int32_t x = static_cast<int32_t>(floor(position->x * OO_COORD_TO_CHUNK));
+    int32_t y = static_cast<int32_t>(floor(position->y * OO_COORD_TO_CHUNK));
 
     if (x == this->m_originX && y == this->m_originY) {
         return;
@@ -586,7 +587,7 @@ void Weather::Update() {
     WOWGUID activePlayer = ClntObjMgrGetActivePlayer();
 
     if (activePlayer) {
-        CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(activePlayer, TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(activePlayer, TYPE_PLAYER, __FILE__, __LINE__));
 
         if (player) {
             C3Vector delta(this->m_playerVelocityX, this->m_playerVelocityY, 0.0f);
@@ -819,14 +820,14 @@ void Weather::UpdatePosDeltas() {
     WOWGUID activePlayer = ClntObjMgrGetActivePlayer();
 
     if (activePlayer) {
-        CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(activePlayer, TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(activePlayer, TYPE_PLAYER, __FILE__, __LINE__));
 
         if (player) {
             playerPos = player->GetPosition();
             playerVelocity = player->m_movement->m_moveDir * player->m_movement->m_currentSpeed;
 
             if (player->GetTransportGUID()) {
-                CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPEMASK_OBJECT, __FILE__, __LINE__);
+                CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPE_OBJECT, __FILE__, __LINE__);
 
                 if (transport) {
                     transportPos = transport->GetPosition();

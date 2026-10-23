@@ -441,7 +441,7 @@ void CShaderEffect::SetTexMtx_TexGen(EGxTexGen texGen, const C44Matrix& matrix, 
     stack.m_flags[stack.m_level] &= ~CGxMatrixStack::F_Identity;
     stack.m_mtx[stack.m_level] = matrix;
 
-    GxRsSet(static_cast<EGxRenderState>(GxRs_TexGen0 + stage), 2);
+    GxRsSet(static_cast<EGxRenderState>(GxRs_TexGen0 + stage), GxTexGen_World);
 }
 
 // VERIFY: f365063d manual

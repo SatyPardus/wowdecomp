@@ -25,6 +25,7 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/Ui/QuestLog.h"
 #include "WoW/Source/Ui/WorldMap.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // STATIC: 0x00ACF17C
 const char* CGQuestPOIFrame::s_objectTypeName = "QuestPOIFrame";
@@ -244,7 +245,7 @@ void CGQuestPOIFrame::UpdateMouseOverPOI(float x, float y) {
                 continue;
             }
 
-            if (!NTempest::Intersect(point, data->m_fillVerts.m_data, data->m_fillVerts.Count() - 1, C3Vector::AXIS_Z)) {
+            if (!NTempest::Intersect(point, data->m_fillVerts.m_data, data->m_fillVerts.Count() - 1, C3Vector::C3AXIS_Z)) {
                 continue;
             }
 
@@ -311,7 +312,7 @@ void CGQuestPOIFrame::MergeBlobs(uint32_t index) {
             uint32_t inside = 0;
 
             for (uint32_t k = 0; k < smaller->m_fillVerts.Count() - 1; k++) {
-                if (NTempest::Intersect(smaller->m_fillVerts.m_data[k], larger->m_fillVerts.m_data, larger->m_fillVerts.Count() - 1, C3Vector::AXIS_Z)) {
+                if (NTempest::Intersect(smaller->m_fillVerts.m_data[k], larger->m_fillVerts.m_data, larger->m_fillVerts.Count() - 1, C3Vector::C3AXIS_Z)) {
                     inside++;
                 }
             }
@@ -690,8 +691,8 @@ void CGQuestPOIFrame::Render() {
     }
 
     g_theGxDevicePtr->RsPush();
-    GxRsSet(GxRs_ColorOp0, 0);
-    GxRsSet(GxRs_AlphaOp0, 0);
+    GxRsSet(GxRs_ColorOp0, GxTexOp_Mod);
+    GxRsSet(GxRs_AlphaOp0, GxTexOp_Mod);
     GxRsSet(GxRs_ColorWrite, 15);
     GxRsSet(GxRs_DepthWrite, 0);
     GxRsSet(GxRs_Lighting, 0);

@@ -24,15 +24,19 @@
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/C33Matrix.h"
+#include "Engine/Source/ShaderEffect/Types.h"
+
+static const int32_t FADETEX_WIDTH = 64;
+static const int32_t FADETEX_HEIGHT = 8;
 
 // STATIC: 0x00AF3E08
 int32_t s_shadowLOD = 1;
 
 // STATIC: 0x00AF3E20
-static uint32_t s_shadowTexelCount = 64 * 8;
+static uint32_t s_shadowTexelCount = FADETEX_WIDTH * FADETEX_HEIGHT;
 
 // STATIC: 0x00AF3E24
-static CImVector s_shadowTexels[64 * 8];
+static CImVector s_shadowTexels[FADETEX_WIDTH * FADETEX_HEIGHT];
 
 // STATIC: 0x00AF3E0C
 static int32_t s_queryFrame = -1;
@@ -206,8 +210,8 @@ void ShadowSetLOD(int32_t lod) {
     s_shadowLOD = lod;
 
     CiRect rect;
-    rect.maxY = 8;
-    rect.maxX = 64;
+    rect.maxY = FADETEX_HEIGHT;
+    rect.maxX = FADETEX_WIDTH;
 
     if (lod == 1) {
         TextureSetUserData(s_shadowAddTexture, ShadowAddCallback, nullptr);
@@ -223,8 +227,8 @@ void ShadowInit() {
     CStatus status;
 
     s_shadowBlobTexture = TextureCreate("Textures\\ShadowBlob.blp", CGxTexFlags(), &status, 1);
-    s_shadowAddTexture = TextureCreate(64, 8, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(), nullptr, ShadowAddCallback, "ShadowAdd", 0);
-    s_shadowModTexture = TextureCreate(64, 8, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(), nullptr, ShadowModCallback, "ShadowMod", 0);
+    s_shadowAddTexture = TextureCreate(FADETEX_WIDTH, FADETEX_HEIGHT, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(), nullptr, ShadowAddCallback, "ShadowAdd", 0);
+    s_shadowModTexture = TextureCreate(FADETEX_WIDTH, FADETEX_HEIGHT, GxTex_Argb8888, GxTex_Argb8888, CGxTexFlags(), nullptr, ShadowModCallback, "ShadowMod", 0);
     s_cvShadowLOD = CVar::Register("shadowLOD", "Unit shadow LOD", 1, "1", ShadowLODCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvExtShadowQuality = CVar::Lookup("extShadowQuality");
 }
@@ -313,12 +317,12 @@ void CWorldScene::RenderStreamingRequestDecal(CM2Model* model, const CAaBox* box
     GxRsSet(GxRs_DepthWrite, 0);
     g_theGxDevicePtr->RsSet(GxRs_Texture0, TextureGetGxTex(s_shadowBlobTexture, 1, nullptr));
     GxRsSet(GxRs_FogColor, static_cast<int32_t>(0xFFFFFFFF));
-    GxRsSet(GxRs_ColorOp0, 5);
-    GxRsSet(GxRs_AlphaOp0, 3);
+    GxRsSet(GxRs_ColorOp0, GxTexOp_Fade);
+    GxRsSet(GxRs_AlphaOp0, GxTexOp_PassThru);
     float alpha = 0.0f;
 
     if (0.0f == scale) {
-        GxRsSet(GxRs_DepthFunc, 1);
+        GxRsSet(GxRs_DepthFunc, GxCmp_Equal);
         alpha = 0.0f;
     }
 
@@ -620,12 +624,12 @@ static void ProjectTexRender2d(const CAaBox& box, const CImVector& color, uint32
 
     if (states[GxRs_BlendingMode].m_value.m_data.i[0] == GxBlend_Mod) {
         g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(s_shadowModTexture, 1, nullptr));
-        GxRsSet(GxRs_ColorOp1, 2);
-        GxRsSet(GxRs_AlphaOp1, 2);
+        GxRsSet(GxRs_ColorOp1, GxTexOp_Add);
+        GxRsSet(GxRs_AlphaOp1, GxTexOp_Add);
     } else if (!states[GxRs_Texture1].m_value.m_data.i[0]) {
         g_theGxDevicePtr->RsSet(GxRs_Texture1, TextureGetGxTex(s_shadowAddTexture, 1, nullptr));
-        GxRsSet(GxRs_ColorOp1, 0);
-        GxRsSet(GxRs_AlphaOp1, 0);
+        GxRsSet(GxRs_ColorOp1, GxTexOp_Mod);
+        GxRsSet(GxRs_AlphaOp1, GxTexOp_Mod);
     }
 
     if (polygonOffset != 0.0f) {

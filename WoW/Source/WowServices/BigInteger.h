@@ -6,18 +6,20 @@
 
 class BigData;
 
-void BigIntegerAdd(BigData* a, BigData* b, BigData* c);
-void BigIntegerAddInt(BigData* a, BigData* b, uint32_t value);
-uint32_t BigIntegerBitLen(BigData* a);
-int32_t BigIntegerCmp(BigData* a, BigData* b);
-int32_t BigIntegerCmpInt(BigData* a, uint32_t value);
-void BigIntegerFree(BigData* a);
-BigData* BigIntegerFromBytes(const void* data, uint32_t bytes);
-BigData* BigIntegerFromInt(uint32_t value);
-void BigIntegerMod(BigData* a, BigData* b, BigData* c);
-void BigIntegerModExp(BigData* a, BigData* b, BigData* c, BigData* d);
-void BigIntegerMul(BigData* a, BigData* b, BigData* c);
-void BigIntegerSub(BigData* a, BigData* b, BigData* c);
-uint32_t BigIntegerToBytes(BigData* a, uint8_t* data, uint32_t maxBytes);
+typedef BigData* BigInteger;
+
+void BigIntegerAdd(BigInteger a, BigInteger b, BigInteger c);
+void BigIntegerAddInt(BigInteger a, BigInteger b, uint32_t value);
+uint32_t BigIntegerBitLen(BigInteger a);
+int32_t BigIntegerCmp(BigInteger a, BigInteger b);
+int32_t BigIntegerCmpInt(BigInteger a, uint32_t value);
+void BigIntegerFree(BigInteger a);
+BigInteger BigIntegerFromBytes(const void* data, uint32_t bytes);
+BigInteger BigIntegerFromInt(uint32_t value);
+void BigIntegerMod(BigInteger a, BigInteger b, BigInteger c);
+void BigIntegerModExp(BigInteger a, BigInteger b, BigInteger c, BigInteger d);
+void BigIntegerMul(BigInteger a, BigInteger b, BigInteger c);
+void BigIntegerSub(BigInteger a, BigInteger b, BigInteger c);
+uint32_t BigIntegerToBytes(BigInteger a, uint8_t* data, uint32_t maxBytes);
 
 #endif

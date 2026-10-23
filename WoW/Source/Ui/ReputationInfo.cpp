@@ -348,14 +348,14 @@ void CGReputationInfo::SetWatchedFaction(int32_t faction) {
 static int32_t IsPlayerWatchingFaction(int32_t faction) {
     FactionRec* rec = g_factionDB.GetRecord(faction);
     int32_t index = rec ? rec->m_reputationIndex : -1;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     return player && player->m_player->m_playerFieldWatchedFactionIndex == index;
 }
 
 // VERIFY: b62e439f manual
 // OFFSET: 0x005D0CE0
 static bool FactionHasReputationForPlayer(const FactionRec* faction) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return false;
@@ -694,7 +694,7 @@ void CGReputationInfo::CollapseHeader(uint32_t index, int32_t collapse) {
 // VERIFY: 9ba3a424 manual
 // OFFSET: 0x005D2BC0
 void CGReputationInfo::EnterWorld() {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
@@ -812,7 +812,7 @@ int32_t Packet_SMSG_SET_FACTION_ATWAR(void* param, NETMESSAGE msgId, uint32_t ti
     CGReputationInfo::m_factionStandings[repListId].m_flags = (flags & 0x2) ? (current | 0x2) : (current & ~0x2);
     FrameScript_SignalEvent(SCRIPT_EVENT_UPDATE_FACTION, nullptr);
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         player->UpdateReaction(false);
@@ -838,7 +838,7 @@ int32_t Packet_SMSG_SET_FORCED_REACTIONS(void* param, NETMESSAGE msgId, uint32_t
         }
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         player->UpdateReaction(false);
@@ -970,7 +970,7 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
         CGReputationInfo::SortFactions();
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (updateQuests) {
         CGQuestLog::Update(0);
@@ -984,7 +984,7 @@ int32_t Packet_SMSG_SET_FACTION_STANDING(void* param, NETMESSAGE msgId, uint32_t
         void* memory = SMemAlloc(sizeof(CEffect), __FILE__, __LINE__, 0);
         CEffect* effect = memory ? new (memory) CEffect() : nullptr;
         WOWGUID guid = player->m_obj->m_guid;
-        effect->AddSpecialEffect(9, guid, CGObject_C::EffectOnceHandler);
+        effect->AddSpecialEffect(SPECIALEFFECT_REPUTATION, guid, CGObject_C::EffectOnceHandler);
         effect->m_flags |= 0x20;
         effect->Release();
     }

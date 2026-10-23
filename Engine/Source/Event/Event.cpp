@@ -310,7 +310,7 @@ void EventPostClose() {
 // VERIFY: 8763f0a0 auto
 // OFFSET: 0x0047D770
 void EventRegister(EVENTID id, EVENTHANDLERFUNC handler) {
-    EventRegisterEx(id, handler, nullptr, 0.0f);
+    EventRegisterEx(id, handler, nullptr, EVENT_PRIORITY_NORMAL);
 }
 
 // VERIFY: b58fec50 auto

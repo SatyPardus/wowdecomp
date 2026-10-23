@@ -166,7 +166,7 @@ int32_t CGCurrencyTypes::DisplayListSortCallback(const void* a, const void* b) {
 void CGCurrencyTypes::BuildDisplayList() {
     CGCurrencyTypes::m_listSize = 0;
     memset(CGCurrencyTypes::m_list, 0, sizeof(CGCurrencyTypes::m_list));
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
@@ -275,7 +275,7 @@ CurrencyTypesRec* CGCurrencyTypes::GetBackpackCurrencyInfo(int32_t index) {
         return nullptr;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return nullptr;

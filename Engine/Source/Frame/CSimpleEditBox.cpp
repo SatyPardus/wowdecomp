@@ -863,19 +863,19 @@ void CSimpleEditBox::UpdateLanguageIndicator() {
     int32_t language = this->m_inputLanguage;
 
     switch (OsIMEGetLanguageMode()) {
-        case 0:
+        case OS_IME_MODE_ROMAN:
             language = 0;
             break;
 
-        case 1:
+        case OS_IME_MODE_JAPANESE:
             language = 3;
             break;
 
-        case 2:
+        case OS_IME_MODE_KOREAN:
             language = 1;
             break;
 
-        case 3:
+        case OS_IME_MODE_CHINESE:
             language = 2;
             break;
     }
@@ -2403,16 +2403,16 @@ int32_t CSimpleEditBox::OnLayerIme(const CImeEvent& evt) {
     }
 
     switch (evt.m_data.m_action) {
-        case 0:
+        case OS_INPUT_IME_NOTIFYLANGUAGE:
             this->UpdateLanguageIndicator();
             return 1;
 
-        case 1:
+        case OS_INPUT_IME_STARTCOMPOSITION:
             this->m_highlightDrag = 0;
             this->m_imeComposition = 1;
             return 1;
 
-        case 2: {
+        case OS_INPUT_IME_COMPOSITION: {
             char buffer[512];
 
             if (evt.m_data.m_param & 0x4) {
@@ -2438,8 +2438,8 @@ int32_t CSimpleEditBox::OnLayerIme(const CImeEvent& evt) {
             return 1;
         }
 
-        case 3:
-        case 4:
+        case OS_INPUT_IME_OPENCANDIDATES:
+        case OS_INPUT_IME_CHANGECANDIDATES:
             if (this->PopulateCandidates(evt.m_data.m_param)) {
                 if (this->m_candidatesFrame) {
                     this->m_candidatesFrame->Show();
@@ -2450,8 +2450,8 @@ int32_t CSimpleEditBox::OnLayerIme(const CImeEvent& evt) {
 
             return 1;
 
-        case 5:
-        case 6:
+        case OS_INPUT_IME_CLOSECANDIDATES:
+        case OS_INPUT_IME_ENDCOMPOSITION:
             if (this->m_candidatesFrame) {
                 this->m_candidatesFrame->Hide();
             }

@@ -83,7 +83,7 @@ class CSimpleTop : public CLayoutFrame {
     /* 0080 */ CSimpleFrame* m_keydownCapture [787];
     /* 0CCC */ TSExplicitList<CSimpleFrame, offsetof(CSimpleFrame, m_framesLink)> m_frames;
     /* 0CD8 */ TSExplicitList<CSimpleFrame, offsetof(CSimpleFrame, m_destroyedLink)> m_destroyed;
-    /* 0CE4 */ CFrameStrata* m_strata [9];
+    /* 0CE4 */ CFrameStrata* m_strata [NUM_FRAME_STRATA];
     /* 0D08 */ int32_t m_moveResizeEnabled;
     /* 0D0C */ CSimpleFrame* m_moveResizeFrame;
     /* 0D10 */ MOVERESIZE_REASON m_moveResizeReason;

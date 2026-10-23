@@ -8,9 +8,17 @@
 struct lua_State;
 class SkillLineRec;
 
+enum TRADESKILL_CATEGORY : int32_t {
+    TRADESKILL_OPTIMAL = 0,
+    TRADESKILL_MEDIUM = 1,
+    TRADESKILL_EASY = 2,
+    TRADESKILL_TRIVIAL = 3,
+    NUM_TRADESKILL_CATEGORIES = 4,
+};
+
 struct TradeSkillInfo {
     /* 0000 */ int32_t m_spellId;
-    /* 0004 */ int32_t m_difficulty;
+    /* 0004 */ TRADESKILL_CATEGORY m_difficulty;
     /* 0008 */ int32_t m_itemClass;
     /* 000C */ int32_t m_itemSubClass;
     /* 0010 */ uint32_t m_invTypeMask;

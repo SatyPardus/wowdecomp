@@ -11,6 +11,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Storm/Source/MD5.h"
 #include "WoW/Source/WowServices/LoginResponse.h"
+#include "GameVersion.h"
 
 // INLINED
 GruntLogin::MATRIXINPUT::MATRIXINPUT() {
@@ -70,10 +71,10 @@ void GruntLogin::GetLogonMethod() {
 
     logon.m_processor = OsGetProcessorId();
     logon.m_os = OsGetOsId();
-    logon.m_versionMajor = 3;
-    logon.m_versionMinor = 3;
-    logon.m_versionPatch = 5;
-    logon.m_build = 12340;
+    logon.m_versionMajor = GAME_VERSION_MAJOR;
+    logon.m_versionMinor = GAME_VERSION_MINOR;
+    logon.m_versionPatch = GAME_VERSION_PATCH;
+    logon.m_build = GAME_BUILD;
     logon.m_locale = SFile::s_locale;
     logon.m_timeZone = OsGetTimeZone();
 

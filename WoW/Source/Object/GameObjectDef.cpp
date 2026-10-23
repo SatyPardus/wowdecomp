@@ -62,7 +62,7 @@ static const int32_t s_props34[1] = { 85 };
 static const int32_t s_props35[3] = { 93, 1, 3 };
 
 // STATIC: 0x00A36F30
-const CGameObjectDef::TypeInfo CGameObjectDef::s_typeInfo[36] = {
+const CGameObjectDef::TypeInfo CGameObjectDef::s_typeInfo[NUM_GAMEOBJECT_TYPE] = {
     { "door", 8, s_props0, nullptr },
     { "button", 10, s_props1, nullptr },
     { "questgiver", 11, s_props2, nullptr },
@@ -104,7 +104,7 @@ const CGameObjectDef::TypeInfo CGameObjectDef::s_typeInfo[36] = {
 // VERIFY: 65bb1e58 auto
 // OFFSET: 0x00746190
 int32_t CGameObjectDef::GetPropNum(int32_t typeId, int32_t prop) {
-    if (typeId >= 36 || prop >= 129) {
+    if (typeId >= NUM_GAMEOBJECT_TYPE || prop >= 129) {
         return -1;
     }
 

@@ -31,8 +31,10 @@
 #include "WoW/Source/DB/Rec/SpellMechanicRec.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/DB/Rec/SpellDurationRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
+#include "WoW/Source/Game/GameClient/WorldText.h"
 #include "WoW/Source/Game/ValidateName.h"
 #include "Engine/Source/Base/ConvertUTF.h"
 #include "WoW/Source/Object/CreatureStats.h"
@@ -541,7 +543,7 @@ const char* CombatLogEntry::ResolveName(PendingCombatLogData* data, const char**
                 break;
             }
 
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(data->m_guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(data->m_guid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (unit ? record->m_timestamp == unit->m_unit->m_unitFieldPetNameTimestamp : !pending) {
                 name = record->m_name;
@@ -608,7 +610,7 @@ const char* CombatLogEntry::GetObjectName(const WOWGUID& guid, uint32_t mask, co
         uint32_t type = high & 0xF0F00000;
 
         if (type == 0xF0300000 || type == 0xF0500000) {
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (!unit) {
                 data->m_type = 3;
@@ -683,24 +685,24 @@ uint32_t GetCombatLogFlags(const WOWGUID& guid) {
     bool inRaid = CGRaidInfo::m_numMembers != 0;
     bool inGroup = inRaid || CGPartyInfo::GetNumPartyMembers();
     WOWGUID owner = guid;
-    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__);
     CGUnit_C* unit = nullptr;
 
     if (object) {
-        if (object->m_obj->m_type & TYPEMASK_UNIT) {
+        if (object->m_obj->m_type & TYPE_UNIT) {
             unit = static_cast<CGUnit_C*>(object);
 
             if (unit->GetCharmerOrCreatorGuid()->m_guid) {
                 owner = *unit->GetCharmerOrCreatorGuid();
             }
-        } else if (object->m_obj->m_type & TYPEMASK_GAMEOBJECT) {
+        } else if (object->m_obj->m_type & TYPE_GAMEOBJECT) {
             owner = static_cast<CGGameObject_C*>(object)->m_gameObject->m_createdBy;
         }
 
         uint32_t ownerHigh = static_cast<uint32_t>(owner.m_guid >> 32);
 
         if (owner != guid && ((ownerHigh & 0xF0000000) || !((ownerHigh & 0xF07FFFFF) | static_cast<uint32_t>(owner.m_guid)))) {
-            CGUnit_C* ownerUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(owner, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* ownerUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(owner, TYPE_UNIT, __FILE__, __LINE__));
 
             if (ownerUnit && ownerUnit->GetCharmerOrCreatorGuid()->m_guid) {
                 owner = *ownerUnit->GetCharmerOrCreatorGuid();
@@ -929,14 +931,14 @@ void QueueCombatLogEntry(CombatLogEntry* entry, uint32_t timeOffset) {
 // VERIFY: ebb52f1a auto
 // OFFSET: 0x00754FD0
 bool ShouldShowFeedback(const ATTACKROUNDINFO& info) {
-    return !info.m_meleeSpellId || info.m_victimState == 1;
+    return !info.m_meleeSpellId || info.m_victimState == VS_WOUND;
 }
 
 // VERIFY: 9b0ab217 manual
 // OFFSET: 0x007512B0
 void UnitCombatLog(const ATTACKROUNDINFO& info) {
     if (info.m_hitInfo & 0x800000) {
-        CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* attacker = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(info.m_attacker, TYPE_UNIT, __FILE__, __LINE__));
 
         if (attacker) {
             attacker->ModifyPredictedPower(POWER_TYPE_RAGE, info.m_rageGained);
@@ -947,9 +949,9 @@ void UnitCombatLog(const ATTACKROUNDINFO& info) {
         return;
     }
 
-    uint32_t victimState = info.m_victimState;
+    VICTIMSTATES victimState = info.m_victimState;
 
-    if ((victimState == 1 || victimState == 5) && info.m_damage) {
+    if ((victimState == VS_WOUND || victimState == VS_BLOCK) && info.m_damage) {
         int32_t damage = info.m_damage;
         int32_t resisted = 0;
         int32_t absorbed = 0;
@@ -1035,27 +1037,27 @@ void UnitCombatLog(const ATTACKROUNDINFO& info) {
         int32_t textType;
 
         switch (victimState) {
-            case 2:
+            case VS_DODGE:
                 missType = 3;
                 textType = 4;
                 break;
-            case 3:
+            case VS_PARRY:
                 missType = 4;
                 textType = 5;
                 break;
-            case 5:
+            case VS_BLOCK:
                 missType = 5;
                 textType = 11;
                 break;
-            case 6:
+            case VS_EVADE:
                 missType = 6;
                 textType = 6;
                 break;
-            case 7:
+            case VS_IMMUNE:
                 missType = 7;
                 textType = 7;
                 break;
-            case 8:
+            case VS_DEFLECT:
                 missType = 9;
                 textType = 8;
                 break;
@@ -1182,7 +1184,7 @@ void UnitCombatLogDamageShield(const WOWGUID& victimGuid, const WOWGUID& casterG
     SpellRec spell;
 
     if (g_spellDB.GetRecord(spellId, &spell) && !(spell.m_attributes & 0x180) && *spell.m_name) {
-        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(casterGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (caster) {
             caster->ModifyPredictedHealth(-damage);
@@ -1811,7 +1813,7 @@ void UnitCombatLogHeal(const WOWGUID& casterGuid, const WOWGUID& targetGuid, int
         return;
     }
 
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (target) {
         target->ModifyPredictedHealth(amount);
@@ -1831,7 +1833,7 @@ void UnitCombatLogEnergize(const WOWGUID& casterGuid, const WOWGUID& targetGuid,
         return;
     }
 
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (target) {
         target->ModifyPredictedPower(static_cast<POWER_TYPE>(powerType), amount);
@@ -1913,10 +1915,10 @@ int32_t CombatLog::HandleSpellLogMiss(CDataStore* msg, int32_t timeOffset) {
         } else if (found && !(spell.m_attributes & 0x100)) {
             CGGameUI::ShowSpellMissFeedback(target, missType);
             UnitCombatLogSpellMissed(caster, target, spellId, missType, true, false, timeOffset);
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPE_UNIT, __FILE__, __LINE__));
 
             if (unit) {
-                unit->AddWorldText(caster, missType, &spell, false);
+                unit->AddWorldText(caster, static_cast<MISS_REASON>(missType), &spell, false);
             }
         }
     }
@@ -1952,11 +1954,11 @@ int32_t CombatLog::HandleSpellHealLog(CDataStore* msg, int32_t timeOffset) {
     }
 
     if (!(spell.m_attributes & 0x100)) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit && !amount && absorbed) {
             WOWGUID source = caster;
-            unit->AddWorldText(source, 10, &spell, true);
+            unit->AddWorldText(source, MISS_ABSORBED, &spell, true);
         }
 
         WOWGUID dest = target;
@@ -2030,7 +2032,7 @@ void SendHealEvent(int32_t event, const WOWGUID& source, const WOWGUID& dest, co
             SendToCombatText(crit ? 37 : 38, GetObjectNameFromGuid(source), amount);
         }
     } else {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(dest, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(dest, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             unit->AddWorldHealingText(source, amount, spell, crit, 0);
@@ -2087,7 +2089,7 @@ void UnitCombatLogPowerDrain(const WOWGUID& casterGuid, const WOWGUID& targetGui
         return;
     }
 
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (target) {
         target->ModifyPredictedPower(static_cast<POWER_TYPE>(powerType), -static_cast<int32_t>(amount));
@@ -2106,7 +2108,7 @@ void UnitCombatLogPowerDrain(const WOWGUID& casterGuid, const WOWGUID& targetGui
 // OFFSET: 0x0074D3D0
 bool SpellHasOpenLockEffect(const SpellRec* spell) {
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell->m_effect[i] == 33) {
+        if (spell->m_effect[i] == SPELL_EFFECT_OPEN_LOCK) {
             return true;
         }
     }
@@ -2122,7 +2124,7 @@ bool SpellIsHiddenInCombatLog(const SpellRec* spell) {
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell->m_effect[i] == 36) {
+        if (spell->m_effect[i] == SPELL_EFFECT_LEARN_SPELL) {
             return true;
         }
     }
@@ -2172,7 +2174,7 @@ void DisplayMechanicEffect(const WOWGUID* unitGuid, const WOWGUID* sourceGuid, c
     wide[0] = ToUpper(wide[0]);
     SUniConvertUTF16to8(state, 64, wide, STORM_MAX_STR, nullptr, nullptr);
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unitGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unitGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (s_combatTextActiveUnit == *sourceGuid) {
         SStrCopy(text, state, STORM_MAX_STR);
@@ -2181,7 +2183,7 @@ void DisplayMechanicEffect(const WOWGUID* unitGuid, const WOWGUID* sourceGuid, c
     }
 
     if (unit) {
-        PlayerNameCreateText(unit->m_nameDesc, 0, text, reinterpret_cast<const CImVector*>(&s_mechanicTextColor), nullptr);
+        PlayerNameCreateText(unit->m_nameDesc, WT_DAMAGE, text, reinterpret_cast<const CImVector*>(&s_mechanicTextColor), nullptr);
     }
 }
 
@@ -2193,7 +2195,7 @@ void UnitCombatLogSpellMechanic(const WOWGUID& guid, const AuraData* aura, const
     }
 
     for (uint32_t i = 0; i < 3; i++) {
-        if (spell->m_effect[i] == 33) {
+        if (spell->m_effect[i] == SPELL_EFFECT_OPEN_LOCK) {
             return;
         }
     }
@@ -2250,7 +2252,7 @@ void UnitCombatLogSpellMechanic(const WOWGUID& guid, const AuraData* aura, const
 // VERIFY: ecea9cd0 manual
 // OFFSET: 0x00751920
 void UnitCombatLogCastStart(const WOWGUID& caster, const WOWGUID& target, int32_t spellId) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return;
@@ -2268,7 +2270,7 @@ void UnitCombatLogCastStart(const WOWGUID& caster, const WOWGUID& target, int32_
 // VERIFY: d9765cf5 manual
 // OFFSET: 0x007519E0
 void UnitCombatLogCastGo(const WOWGUID& caster, const WOWGUID& target, int32_t spellId) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(caster, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return;
@@ -2370,7 +2372,7 @@ void UnitCombatLogAuraRefreshed(CGUnit_C* unit, const AuraData* aura, int32_t sp
 // OFFSET: 0x00750660
 void SendDamageEvent(int32_t event, const WOWGUID& source, const WOWGUID& dest, const SpellRec* spell, int32_t damage, int32_t overkill, uint32_t school, int32_t resisted, int32_t blocked, int32_t absorbed, bool crit, bool a11, bool a12, uint32_t timeOffset) {
     if (event != 1) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(dest, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(dest, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             unit->ModifyPredictedHealth(-damage);
@@ -2417,7 +2419,7 @@ void UnitCombatLogSpellDamage(const WOWGUID& source, const WOWGUID& dest, int32_
     }
 
     if (damage) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(dest, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(dest, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             unit->TriggerDamageFeedback();
@@ -2577,17 +2579,17 @@ int32_t CombatLog::HandleSpellNonMeleeDamageLog(CDataStore* msg, int32_t timeOff
 
     if (found && !(spell.m_attributes & 0x100)) {
         CGGameUI::ShowCombatFeedback(target, damage, school, flags);
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             if (damage) {
                 unit->AddWorldDamageText(caster, damage, &spell, crit, false, false);
             } else if (absorbed) {
-                unit->AddWorldText(caster, 10, &spell, false);
+                unit->AddWorldText(caster, MISS_ABSORBED, &spell, false);
             } else if (blocked) {
-                unit->AddWorldText(caster, 5, &spell, false);
+                unit->AddWorldText(caster, MISS_BLOCKED, &spell, false);
             } else if (resisted) {
-                unit->AddWorldText(caster, 2, &spell, false);
+                unit->AddWorldText(caster, MISS_RESIST, &spell, false);
             }
         }
     }
@@ -2635,7 +2637,7 @@ int32_t CombatLog::HandlePeriodicAuraLog(CDataStore* msg, int32_t timeOffset) {
     SpellRec spell;
     CGUnit_C* unit;
 
-    if (!g_spellDB.GetRecord(spellId, &spell) || !(unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__)))) {
+    if (!g_spellDB.GetRecord(spellId, &spell) || !(unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPE_UNIT, __FILE__, __LINE__)))) {
         msg->m_read = msg->m_size;
         return 1;
     }
@@ -2665,9 +2667,9 @@ int32_t CombatLog::HandlePeriodicAuraLog(CDataStore* msg, int32_t timeOffset) {
                     if (damage) {
                         unit->AddWorldDamageText(caster, damage, &spell, crit != 0, true, false);
                     } else if (absorbed) {
-                        unit->AddWorldText(caster, 10, &spell, true);
+                        unit->AddWorldText(caster, MISS_ABSORBED, &spell, true);
                     } else if (resisted) {
-                        unit->AddWorldText(caster, 2, &spell, true);
+                        unit->AddWorldText(caster, MISS_RESIST, &spell, true);
                     }
 
                     uint32_t flags = 0;
@@ -2705,7 +2707,7 @@ int32_t CombatLog::HandlePeriodicAuraLog(CDataStore* msg, int32_t timeOffset) {
 
                 if (!(spell.m_attributes & 0x100)) {
                     if (!amount && absorbed) {
-                        unit->AddWorldText(caster, 10, &spell, true);
+                        unit->AddWorldText(caster, MISS_ABSORBED, &spell, true);
                     }
 
                     CGGameUI::ShowHealingFeedback(target, amount, crit != 0);
@@ -2768,7 +2770,7 @@ void UnitCombatLogUnitDead(CGUnit_C* unit) {
     } else {
         SpellRec spell;
 
-        if (!g_spellDB.GetRecord(unit->m_unit->m_unitCreatedBySpell, &spell) && spell.m_effect[0] == 28) {
+        if (!g_spellDB.GetRecord(unit->m_unit->m_unitCreatedBySpell, &spell) && spell.m_effect[0] == SPELL_EFFECT_SUMMON) {
             SummonPropertiesRec* summon = g_summonPropertiesDB.GetRecord(spell.m_effectMiscValueB[0]);
 
             if (summon && static_cast<uint32_t>(summon->m_slot - 1) <= 3) {
@@ -3147,7 +3149,7 @@ void CombatLogEntry::PackEvent(char* buffer, uint32_t size) {
 // VERIFY: 8242155b manual
 // OFFSET: 0x00751150
 void UnitCombatLog(const WOWGUID& guid, uint32_t type, int32_t damage, int32_t absorbed, int32_t resisted) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         unit->ModifyPredictedHealth(-damage);
@@ -3201,7 +3203,7 @@ void UnitCombatLogBuildingDamage(const WOWGUID& caster, const WOWGUID& owner, co
     QueueCombatLogEntry(entry, 0);
 
     if (owner == ClntObjMgrGetActivePlayer()) {
-        CGGameObject_C* object = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(building, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+        CGGameObject_C* object = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(building, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
         if (object) {
             object->AddWorldDamageText(damage);
@@ -3227,7 +3229,7 @@ void UnitCombatLogBuildingHeal(const WOWGUID& caster, const WOWGUID& owner, cons
     QueueCombatLogEntry(entry, 0);
 
     if (owner == ClntObjMgrGetActivePlayer()) {
-        CGGameObject_C* object = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(building, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+        CGGameObject_C* object = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(building, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
         if (object) {
             object->AddWorldHealingText(amount, &spell);

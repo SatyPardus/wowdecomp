@@ -94,7 +94,7 @@ int32_t SI2::IsTooCloseToExistingSoundKit(int32_t soundKitId, const C3Vector* po
 // VERIFY: 4d8f58a6 manual
 // OFFSET: 0x004D0020
 int32_t SndInterfacePlayItemSound(ITEMSOUNDTYPE type, CGItem_C* item) {
-    if (item->m_item->m_itemFieldFlags & 0x8) {
+    if (item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) {
         if (type == ITEMSOUND_DROP) {
             return SI2::PlaySoundKit("(DONOTRENAME)WrappedItemDrop", nullptr, nullptr, nullptr);
         }
@@ -137,7 +137,7 @@ void SI2::UpdateTaxiSounds(float elapsed) {
         return;
     }
 
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !(player->m_unit->m_unitFieldFlags & 0x100000)) {
         return;

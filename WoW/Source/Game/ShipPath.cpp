@@ -327,7 +327,7 @@ void ShipPath::BuildLeg(ShipPathArray<C3Vector>* points, ShipPathArray<ShipPathP
     }
 
     this->m_events.SetCount(eventCount);
-    float length = this->m_legs.m_data[legIndex].m_spline.m_length;
+    float length = this->m_legs.m_data[legIndex].m_spline.cachedLength;
     float distance = length - prevDistance;
     uint32_t lastTime;
 
@@ -489,7 +489,7 @@ void ShipPath::GetRollAndPitch(uint32_t time, float speed, float turn, C3Vector*
 
     if (fabsf(physics->m_waveTimeScale) >= 0.00000023841858f) {
         uint32_t period = static_cast<uint32_t>(6283.1855f / physics->m_waveTimeScale);
-        position->z = sinf(static_cast<float>(time % period) * 6.2831855f / static_cast<float>(period)) * physics->m_waveAmp * damp + position->z;
+        position->z = sinf(static_cast<float>(time % period) * TWO_PI / static_cast<float>(period)) * physics->m_waveAmp * damp + position->z;
     }
 
     float bankTurn;
@@ -506,14 +506,14 @@ void ShipPath::GetRollAndPitch(uint32_t time, float speed, float turn, C3Vector*
         *roll = 0.0f;
     } else {
         uint32_t period = static_cast<uint32_t>(6283.1855f / physics->m_rollTimeScale);
-        *roll = (bank + sinf(static_cast<float>(time % period) * 6.2831855f / static_cast<float>(period) + 0.5f) * physics->m_rollAmp) * damp;
+        *roll = (bank + sinf(static_cast<float>(time % period) * TWO_PI / static_cast<float>(period) + 0.5f) * physics->m_rollAmp) * damp;
     }
 
     if (fabsf(physics->m_pitchTimeScale) < 0.00000023841858f) {
         *pitch = 0.0f;
     } else {
         uint32_t period = static_cast<uint32_t>(6283.1855f / physics->m_pitchTimeScale);
-        *pitch = damp * (sinf(6.2831855f * static_cast<float>(time % period) / static_cast<float>(period) + 0.2f) * physics->m_pitchAmp);
+        *pitch = damp * (sinf(TWO_PI * static_cast<float>(time % period) / static_cast<float>(period) + 0.2f) * physics->m_pitchAmp);
     }
 }
 
@@ -541,7 +541,7 @@ void ShipPath::ComputeRollAndPitch(float speed, float facing, float distance, ui
             }
 
             ShipPathLeg* pathLeg = &this->m_legs.m_data[leg];
-            float u = ahead / pathLeg->m_spline.m_length;
+            float u = ahead / pathLeg->m_spline.cachedLength;
 
             if (u < 0.0f) {
                 u = 0.0f;
@@ -562,10 +562,10 @@ void ShipPath::ComputeRollAndPitch(float speed, float facing, float distance, ui
             float heading = atan2f(-vel.y, -vel.x);
             float delta = facing - heading;
 
-            if (delta > 3.1415927f) {
-                delta -= 6.2831855f;
-            } else if (delta < -3.1415927f) {
-                delta += 6.2831855f;
+            if (delta > PI) {
+                delta -= TWO_PI;
+            } else if (delta < -PI) {
+                delta += TWO_PI;
             }
 
             turn = delta * 2.2222223f + turn;
@@ -668,7 +668,7 @@ void ShipPath::GetPosition(uint32_t time, uint32_t elapsed, int32_t* mapId, uint
 
 frame:
     pathLeg = &this->m_legs.m_data[*leg];
-    float u = distance / pathLeg->m_spline.m_length;
+    float u = distance / pathLeg->m_spline.cachedLength;
 
     if (u < 0.0f) {
         u = 0.0f;

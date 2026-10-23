@@ -8,6 +8,7 @@
 #include "WoW/Common/ComponentCore/Types.h"
 
 class CACHEENTRY;
+typedef CACHEENTRY* HTEXTURECACHE;
 class CAsyncObject;
 
 class CACHEENTRY : public TSHashObject<CACHEENTRY, HASHKEY_NONE> {
@@ -27,15 +28,15 @@ class CACHEENTRY : public TSHashObject<CACHEENTRY, HASHKEY_NONE> {
     int32_t LoadTexture();
 };
 
-void TextureCacheComputeLoadProgress(void* handle, int64_t& local, int64_t& total);
-void* TextureCacheCopyTexture(void* handle);
-void* TextureCacheCreateTexture(const char* fileName);
+void TextureCacheComputeLoadProgress(HTEXTURECACHE handle, int64_t& local, int64_t& total);
+HTEXTURECACHE TextureCacheCopyTexture(HTEXTURECACHE handle);
+HTEXTURECACHE TextureCacheCreateTexture(const char* fileName);
 void TextureCacheDestroy();
-void TextureCacheDestroyTexture(void* handle);
-int32_t TextureCacheGetInfo(void* handle, TCTEXTUREINFO& info, int32_t wait);
-void* TextureCacheGetMip(void* handle, uint32_t mipLevel);
-BlpPalPixel* TextureCacheGetPal(void* handle);
-int32_t TextureCacheHasMips(void* handle);
+void TextureCacheDestroyTexture(HTEXTURECACHE handle);
+int32_t TextureCacheGetInfo(HTEXTURECACHE handle, TCTEXTUREINFO& info, int32_t wait);
+void* TextureCacheGetMip(HTEXTURECACHE handle, uint32_t mipLevel);
+BlpPalPixel* TextureCacheGetPal(HTEXTURECACHE handle);
+int32_t TextureCacheHasMips(HTEXTURECACHE handle);
 void TextureCacheResetLoadCount();
 
 #endif

@@ -7,7 +7,7 @@
 // VERIFY: e0dd73d2 auto
 // OFFSET: 0x00983990
 void CFrustum::Extents(CAaBox& box) {
-    box = CAaBox::Bounding(this->corners, 8);
+    box = CAaBox::Bounding(this->corners, NUM_CORNERS);
 }
 
 // VERIFY: 835d8937 auto
@@ -15,7 +15,7 @@ void CFrustum::Extents(CAaBox& box) {
 WorldCullStatus CFrustum::Cull(const CAaBox& box) {
     const C3Vector* extremes[2] = { &box.t, &box.b };
 
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         const C4Plane& plane = this->planes[i];
         const C3Vector* x = extremes[*reinterpret_cast<const uint32_t*>(&plane.n.x) >> 31];
         const C3Vector* y = extremes[*reinterpret_cast<const uint32_t*>(&plane.n.y) >> 31];
@@ -34,7 +34,7 @@ WorldCullStatus CFrustum::Cull(const CAaBox& box) {
 WorldCullStatus CFrustum::CullInv(const CAaBox& box) {
     const C3Vector* extremes[2] = { &box.t, &box.b };
 
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         const C4Plane& plane = this->planes[i];
         const C3Vector* x = extremes[*reinterpret_cast<const uint32_t*>(&plane.n.x) >> 31];
         const C3Vector* y = extremes[*reinterpret_cast<const uint32_t*>(&plane.n.y) >> 31];
@@ -51,11 +51,11 @@ WorldCullStatus CFrustum::CullInv(const CAaBox& box) {
 // VERIFY: 2f6339ef manual
 // OFFSET: 0x00983AE0
 void CFrustum::Translate(const C3Vector& v) {
-    for (uint32_t i = 0; i < 8; i++) {
+    for (uint32_t i = 0; i < NUM_CORNERS; i++) {
         this->corners[i] += v;
     }
 
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         this->planes[i].d = this->planes[i].d - (this->planes[i].n.z * v.z + this->planes[i].n.y * v.y + v.x * this->planes[i].n.x);
     }
 
@@ -68,7 +68,7 @@ void CFrustum::Translate(const C3Vector& v) {
 WorldCullStatus CFrustum::Cull(const CAaSphere& sphere) {
     float limit = -sphere.r;
 
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         const C4Plane& plane = this->planes[i];
 
         if (plane.n.x * sphere.c.x + plane.n.z * sphere.c.z + plane.n.y * sphere.c.y + plane.d < limit) {
@@ -84,7 +84,7 @@ WorldCullStatus CFrustum::Cull(const CAaSphere& sphere) {
 void CFrustum::Cull(const C3Vector& point, uint8_t& outside) const {
     outside = 0;
 
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         const C4Plane& plane = this->planes[i];
 
         if (plane.n.z * point.z + plane.n.y * point.y + point.x * plane.n.x + plane.d < -0.019444443f) {
@@ -96,22 +96,22 @@ void CFrustum::Cull(const C3Vector& point, uint8_t& outside) const {
 // VERIFY: ccfad69b manual
 // OFFSET: 0x00983E70
 void CFrustum::CalcPlanesFromCorners() {
-    this->planes[0].From3Pos(this->corners[1], this->corners[5], this->corners[6]);
-    this->planes[1].From3Pos(this->corners[0], this->corners[7], this->corners[4]);
-    this->planes[2].From3Pos(this->corners[0], this->corners[4], this->corners[5]);
-    this->planes[3].From3Pos(this->corners[3], this->corners[6], this->corners[7]);
-    this->planes[4].From3Pos(this->corners[5], this->corners[4], this->corners[6]);
+    this->planes[P_TOP].From3Pos(this->corners[NEAR_UL], this->corners[FAR_UL], this->corners[FAR_UR]);
+    this->planes[P_BOTTOM].From3Pos(this->corners[NEAR_LL], this->corners[FAR_LR], this->corners[FAR_LL]);
+    this->planes[P_LEFT].From3Pos(this->corners[NEAR_LL], this->corners[FAR_LL], this->corners[FAR_UL]);
+    this->planes[P_RIGHT].From3Pos(this->corners[NEAR_LR], this->corners[FAR_UR], this->corners[FAR_LR]);
+    this->planes[P_FAR].From3Pos(this->corners[FAR_UL], this->corners[FAR_LL], this->corners[FAR_UR]);
 
-    this->planes[5].n.x = -this->planes[4].n.x;
-    this->planes[5].n.y = -this->planes[4].n.y;
-    this->planes[5].n.z = -this->planes[4].n.z;
-    this->planes[5].d = -(this->planes[5].n.z * this->corners[2].z + this->planes[5].n.y * this->corners[2].y + this->planes[5].n.x * this->corners[2].x);
+    this->planes[P_NEAR].n.x = -this->planes[P_FAR].n.x;
+    this->planes[P_NEAR].n.y = -this->planes[P_FAR].n.y;
+    this->planes[P_NEAR].n.z = -this->planes[P_FAR].n.z;
+    this->planes[P_NEAR].d = -(this->planes[P_NEAR].n.z * this->corners[NEAR_UR].z + this->planes[P_NEAR].n.y * this->corners[NEAR_UR].y + this->planes[P_NEAR].n.x * this->corners[NEAR_UR].x);
 }
 
 // VERIFY: 88718e38 auto
 // OFFSET: 0x00983F40
 void CFrustum::Transform(const C44Matrix& m) {
-    for (uint32_t i = 0; i < 8; i++) {
+    for (uint32_t i = 0; i < NUM_CORNERS; i++) {
         this->corners[i] *= m;
     }
 
@@ -133,14 +133,14 @@ WorldCullStatus CFrustum::Cull(const C3Vector& center, float radius) {
 // VERIFY: 0ece7724 manual
 // OFFSET: 0x00601650
 CFrustum::CFrustum() {
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         this->planes[i].n.x = 0.0f;
         this->planes[i].n.y = 0.0f;
         this->planes[i].d = 0.0f;
         this->planes[i].n.z = 1.0f;
     }
 
-    for (uint32_t i = 0; i < 8; i++) {
+    for (uint32_t i = 0; i < NUM_CORNERS; i++) {
         this->corners[i].x = 0.0f;
         this->corners[i].y = 0.0f;
         this->corners[i].z = 0.0f;
@@ -160,14 +160,14 @@ CFrustum::CFrustum() {
 // VERIFY: 6f48db85 manual
 // OFFSET: 0x00983FE0
 CFrustum::CFrustum(const C3Vector* corners) {
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         this->planes[i].n.x = 0.0f;
         this->planes[i].n.y = 0.0f;
         this->planes[i].n.z = 1.0f;
         this->planes[i].d = 0.0f;
     }
 
-    for (uint32_t i = 0; i < 8; i++) {
+    for (uint32_t i = 0; i < NUM_CORNERS; i++) {
         this->corners[i] = corners[i];
     }
 
@@ -177,7 +177,7 @@ CFrustum::CFrustum(const C3Vector* corners) {
 // VERIFY: 6d9a59ac manual
 // OFFSET: 0x00984240
 void CFrustum::CalcPlanesFromCorners(const C3Vector* corners) {
-    for (uint32_t i = 0; i < 8; i++) {
+    for (uint32_t i = 0; i < NUM_CORNERS; i++) {
         this->corners[i] = corners[i];
     }
 
@@ -188,11 +188,11 @@ void CFrustum::CalcPlanesFromCorners(const C3Vector* corners) {
 // OFFSET: 0x00790020
 CFrustum& CFrustum::operator=(const CFrustum& source) {
     if (this != &source) {
-        for (uint32_t i = 0; i < 6; i++) {
+        for (uint32_t i = 0; i < NUM_PLANES; i++) {
             this->planes[i] = source.planes[i];
         }
 
-        for (uint32_t i = 0; i < 8; i++) {
+        for (uint32_t i = 0; i < NUM_CORNERS; i++) {
             this->corners[i] = source.corners[i];
         }
 
@@ -211,7 +211,7 @@ CFrustum& CFrustum::operator=(const CFrustum& source) {
 // VERIFY: cc1bdc3a manual
 // OFFSET: 0x007BA960
 void CFrustum::InvertPlanes() {
-    for (uint32_t i = 0; i < 6; i++) {
+    for (uint32_t i = 0; i < NUM_PLANES; i++) {
         this->planes[i].n.x = -this->planes[i].n.x;
         this->planes[i].n.y = -this->planes[i].n.y;
         this->planes[i].n.z = -this->planes[i].n.z;
@@ -222,19 +222,19 @@ void CFrustum::InvertPlanes() {
 // VERIFY: aa9403a2 auto
 // OFFSET: 0x007BAAA0
 void CFrustum::SwapCorners() {
-    C3Vector corner = this->corners[0];
-    this->corners[0] = this->corners[3];
-    this->corners[3] = corner;
+    C3Vector corner = this->corners[NEAR_LL];
+    this->corners[NEAR_LL] = this->corners[NEAR_LR];
+    this->corners[NEAR_LR] = corner;
 
-    corner = this->corners[1];
-    this->corners[1] = this->corners[2];
-    this->corners[2] = corner;
+    corner = this->corners[NEAR_UL];
+    this->corners[NEAR_UL] = this->corners[NEAR_UR];
+    this->corners[NEAR_UR] = corner;
 
-    corner = this->corners[4];
-    this->corners[4] = this->corners[7];
-    this->corners[7] = corner;
+    corner = this->corners[FAR_LL];
+    this->corners[FAR_LL] = this->corners[FAR_LR];
+    this->corners[FAR_LR] = corner;
 
-    corner = this->corners[5];
-    this->corners[5] = this->corners[6];
-    this->corners[6] = corner;
+    corner = this->corners[FAR_UL];
+    this->corners[FAR_UL] = this->corners[FAR_UR];
+    this->corners[FAR_UR] = corner;
 }

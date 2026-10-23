@@ -8,12 +8,14 @@ enum EGxFontHJusts {
     GxHJ_Left = 0,
     GxHJ_Center = 1,
     GxHJ_Right = 2,
+    GxHJ_Last = 3,
 };
 
 enum EGxFontVJusts {
     GxVJ_Top = 0,
     GxVJ_Middle = 1,
     GxVJ_Bottom = 2,
+    GxVJ_Last = 3,
 };
 
 enum QUOTEDCODE {

@@ -74,7 +74,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
             break;
 
         case 'TWE$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPE_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(2, 1, 0);
@@ -87,7 +87,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
         }
 
         case 'CAE$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPE_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(3, 1, 0);
@@ -100,7 +100,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
         }
 
         case 'VME$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPE_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(4, 1, 0);
@@ -113,7 +113,7 @@ void CMapStaticEntity::ModelEventCallback(CM2Model* model, uint32_t boneId, uint
         }
 
         case 'CDE$': {
-            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__);
+            CGObject_C* object = ClntObjMgrObjectPtr(doodadDef->m_collisionGuid, TYPE_GAMEOBJECT, __FILE__, __LINE__);
 
             if (object && object->IsTransport() && object->m_effectManager) {
                 object->m_effectManager->EnterState(5, 1, 0);

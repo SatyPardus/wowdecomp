@@ -28,6 +28,7 @@
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
+#include "GameVersion.h"
 
 // STATIC: 0x00D31AA0
 COMSATDATA s_comsatData[32];
@@ -1249,7 +1250,7 @@ void Comsat::VoicePlateStart(uint64_t sessionId, uint64_t guid) {
 // VERIFY: 66f4735b auto
 // OFFSET: 0x007DBAC0
 static int32_t AcquireSingleInstanceMutex() {
-    s_comsatClientMutex.Create(1, "WOWCOMSATCLIENT12340");
+    s_comsatClientMutex.Create(1, "WOWCOMSATCLIENT" GAME_BUILD_STRING);
 
     if (s_comsatClientMutex.Valid()) {
         if (!s_comsatClientMutex.Wait(0)) {

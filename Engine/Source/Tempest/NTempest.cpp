@@ -552,15 +552,15 @@ void RGBtoHSV(const C3Vector& rgb, C3Vector& hsv) {
     float delta = c[major] - c[minor];
 
     switch (major) {
-        case C3Vector::AXIS_X:
+        case C3Vector::C3AXIS_X:
             hsv.x = (rgb.y - rgb.z) / delta;
             break;
 
-        case C3Vector::AXIS_Y:
+        case C3Vector::C3AXIS_Y:
             hsv.x = (rgb.z - rgb.x) / delta + 2.0f;
             break;
 
-        case C3Vector::AXIS_Z:
+        case C3Vector::C3AXIS_Z:
             hsv.x = (rgb.x - rgb.y) / delta + 4.0f;
             break;
     }

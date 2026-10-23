@@ -31,7 +31,7 @@ void InitializeMacroOptions() {
 // VERIFY: a046a90a auto
 // OFFSET: 0x005EED70
 int32_t EvaluateExists(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
-    CGObject_C* object = ClntObjMgrObjectPtr(*unit, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(*unit, TYPE_OBJECT, __FILE__, __LINE__);
     int32_t exists = (object && object->CanBeTargetted()) || CGGameUI::IsRaidMemberOrPet(*unit);
 
     if (args->m_count) {
@@ -68,7 +68,7 @@ int32_t EvaluateRaid(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>*
 // VERIFY: efb4b366 manual
 // OFFSET: 0x005EEE70
 int32_t EvaluateFlyable(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(*unit, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(*unit, TYPE_UNIT, __FILE__, __LINE__));
     bool flyable = player ? player->IsInFlyableZone(1) : IsInFlyableArea() != 0;
 
     if (args->m_count) {
@@ -219,7 +219,7 @@ int32_t EvaluateSpec(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>*
 // VERIFY: c6220e35 auto
 // OFFSET: 0x005EF360
 static VehicleSeatRec* GetVehicleSeatRec(const WOWGUID* guid) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         if (!unit->HasVehicleTransport()) {
@@ -233,7 +233,7 @@ static VehicleSeatRec* GetVehicleSeatRec(const WOWGUID* guid) {
             return nullptr;
         }
 
-        CGUnit_C* transport = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transportGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* transport = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(transportGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!transport || !transport->m_vehicle) {
             return nullptr;
@@ -354,7 +354,7 @@ int32_t EvaluateCombat(const WOWGUID* unit, const TSGrowableArray<MacroSubstring
     if (player && (player->m_unit->m_unitFieldFlags & 0x80000)) {
         combat = 1;
     } else {
-        CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
         combat = pet && (pet->m_unit->m_unitFieldFlags & 0x80000);
     }
 
@@ -369,7 +369,7 @@ int32_t EvaluateCombat(const WOWGUID* unit, const TSGrowableArray<MacroSubstring
 // OFFSET: 0x005EF7B0
 int32_t EvaluateHelp(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unit, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unit, TYPE_UNIT, __FILE__, __LINE__));
     int32_t help = player && target && player->CanAssist(target, false);
 
     if (args->m_count) {
@@ -383,7 +383,7 @@ int32_t EvaluateHelp(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>*
 // OFFSET: 0x005EF830
 int32_t EvaluateHarm(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unit, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unit, TYPE_UNIT, __FILE__, __LINE__));
     int32_t harm = player && target && player->CanAttack(target);
 
     if (args->m_count) {
@@ -396,7 +396,7 @@ int32_t EvaluateHarm(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>*
 // VERIFY: 6e6f1e87 manual
 // OFFSET: 0x005EF8B0
 int32_t EvaluateDead(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* args) {
-    CGUnit_C* object = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unit, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* object = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*unit, TYPE_UNIT, __FILE__, __LINE__));
     int32_t dead;
 
     if (object) {
@@ -404,7 +404,7 @@ int32_t EvaluateDead(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>*
             dead = 1;
         } else if ((object->m_unit->m_unitDynamicFlags & 0x20) && !CGGameUI::IsRaidMemberOrPet(object->m_obj->m_guid)) {
             dead = 1;
-        } else if ((object->m_obj->m_type & TYPEMASK_PLAYER) && (static_cast<CGPlayer_C*>(object)->m_player->m_playerFlags & 0x10)) {
+        } else if ((object->m_obj->m_type & TYPE_PLAYER) && (static_cast<CGPlayer_C*>(object)->m_player->m_playerFlags & 0x10)) {
             dead = 1;
         } else {
             dead = 0;
@@ -509,7 +509,7 @@ int32_t EvaluatePet(const WOWGUID* unit, const TSGrowableArray<MacroSubstring>* 
     }
 
     const WOWGUID* petGuid = player->m_unit->m_unitFieldCharm.m_guid ? &player->m_unit->m_unitFieldCharm : &player->m_unit->m_unitFieldSummon;
-    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*petGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!pet) {
         return 0;

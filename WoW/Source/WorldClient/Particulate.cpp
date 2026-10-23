@@ -18,6 +18,8 @@
 #include "WoW/Source/WorldClient/FrameTime.h"
 #include "WoW/Source/WorldClient/World.h"
 
+static const float PTSIZE = 0.19921875f;
+
 // STATIC: 0x00A3F970
 static const int32_t s_texSlots[5][8] = {
     { 0, 1, 2, 3, 4, 5, 6, 7 },
@@ -37,29 +39,29 @@ static C3Vector s_corners[4] = {
 
 // STATIC: 0x00ADF838
 static C2Vector s_texCoords[25][4] = {
-    { C2Vector(0.0f, 0.0f), C2Vector(0.0f, 0.19921875f), C2Vector(0.19921875f, 0.0f), C2Vector(0.19921875f, 0.19921875f) },
-    { C2Vector(0.19921875f, 0.0f), C2Vector(0.19921875f, 0.19921875f), C2Vector(0.3984375f, 0.0f), C2Vector(0.3984375f, 0.19921875f) },
-    { C2Vector(0.3984375f, 0.0f), C2Vector(0.3984375f, 0.19921875f), C2Vector(0.59765625f, 0.0f), C2Vector(0.59765625f, 0.19921875f) },
-    { C2Vector(0.59765625f, 0.0f), C2Vector(0.59765625f, 0.19921875f), C2Vector(0.796875f, 0.0f), C2Vector(0.796875f, 0.19921875f) },
-    { C2Vector(0.0f, 0.19921875f), C2Vector(0.0f, 0.3984375f), C2Vector(0.19921875f, 0.19921875f), C2Vector(0.19921875f, 0.3984375f) },
-    { C2Vector(0.19921875f, 0.19921875f), C2Vector(0.19921875f, 0.3984375f), C2Vector(0.3984375f, 0.19921875f), C2Vector(0.3984375f, 0.3984375f) },
-    { C2Vector(0.3984375f, 0.19921875f), C2Vector(0.3984375f, 0.3984375f), C2Vector(0.59765625f, 0.19921875f), C2Vector(0.59765625f, 0.3984375f) },
-    { C2Vector(0.59765625f, 0.19921875f), C2Vector(0.59765625f, 0.3984375f), C2Vector(0.796875f, 0.19921875f), C2Vector(0.796875f, 0.3984375f) },
-    { C2Vector(0.0f, 0.3984375f), C2Vector(0.0f, 0.59765625f), C2Vector(0.19921875f, 0.3984375f), C2Vector(0.19921875f, 0.59765625f) },
-    { C2Vector(0.19921875f, 0.3984375f), C2Vector(0.19921875f, 0.59765625f), C2Vector(0.3984375f, 0.3984375f), C2Vector(0.3984375f, 0.59765625f) },
+    { C2Vector(0.0f, 0.0f), C2Vector(0.0f, PTSIZE), C2Vector(PTSIZE, 0.0f), C2Vector(PTSIZE, PTSIZE) },
+    { C2Vector(PTSIZE, 0.0f), C2Vector(PTSIZE, PTSIZE), C2Vector(0.3984375f, 0.0f), C2Vector(0.3984375f, PTSIZE) },
+    { C2Vector(0.3984375f, 0.0f), C2Vector(0.3984375f, PTSIZE), C2Vector(0.59765625f, 0.0f), C2Vector(0.59765625f, PTSIZE) },
+    { C2Vector(0.59765625f, 0.0f), C2Vector(0.59765625f, PTSIZE), C2Vector(0.796875f, 0.0f), C2Vector(0.796875f, PTSIZE) },
+    { C2Vector(0.0f, PTSIZE), C2Vector(0.0f, 0.3984375f), C2Vector(PTSIZE, PTSIZE), C2Vector(PTSIZE, 0.3984375f) },
+    { C2Vector(PTSIZE, PTSIZE), C2Vector(PTSIZE, 0.3984375f), C2Vector(0.3984375f, PTSIZE), C2Vector(0.3984375f, 0.3984375f) },
+    { C2Vector(0.3984375f, PTSIZE), C2Vector(0.3984375f, 0.3984375f), C2Vector(0.59765625f, PTSIZE), C2Vector(0.59765625f, 0.3984375f) },
+    { C2Vector(0.59765625f, PTSIZE), C2Vector(0.59765625f, 0.3984375f), C2Vector(0.796875f, PTSIZE), C2Vector(0.796875f, 0.3984375f) },
+    { C2Vector(0.0f, 0.3984375f), C2Vector(0.0f, 0.59765625f), C2Vector(PTSIZE, 0.3984375f), C2Vector(PTSIZE, 0.59765625f) },
+    { C2Vector(PTSIZE, 0.3984375f), C2Vector(PTSIZE, 0.59765625f), C2Vector(0.3984375f, 0.3984375f), C2Vector(0.3984375f, 0.59765625f) },
     { C2Vector(0.3984375f, 0.3984375f), C2Vector(0.3984375f, 0.59765625f), C2Vector(0.59765625f, 0.3984375f), C2Vector(0.59765625f, 0.59765625f) },
     { C2Vector(0.59765625f, 0.3984375f), C2Vector(0.59765625f, 0.59765625f), C2Vector(0.796875f, 0.3984375f), C2Vector(0.796875f, 0.59765625f) },
-    { C2Vector(0.796875f, 0.0f), C2Vector(0.796875f, 0.19921875f), C2Vector(0.99609375f, 0.0f), C2Vector(0.99609375f, 0.19921875f) },
-    { C2Vector(0.796875f, 0.19921875f), C2Vector(0.796875f, 0.3984375f), C2Vector(0.99609375f, 0.19921875f), C2Vector(0.99609375f, 0.3984375f) },
+    { C2Vector(0.796875f, 0.0f), C2Vector(0.796875f, PTSIZE), C2Vector(0.99609375f, 0.0f), C2Vector(0.99609375f, PTSIZE) },
+    { C2Vector(0.796875f, PTSIZE), C2Vector(0.796875f, 0.3984375f), C2Vector(0.99609375f, PTSIZE), C2Vector(0.99609375f, 0.3984375f) },
     { C2Vector(0.796875f, 0.3984375f), C2Vector(0.796875f, 0.59765625f), C2Vector(0.99609375f, 0.3984375f), C2Vector(0.99609375f, 0.59765625f) },
     { C2Vector(0.796875f, 0.59765625f), C2Vector(0.796875f, 0.796875f), C2Vector(0.99609375f, 0.59765625f), C2Vector(0.99609375f, 0.796875f) },
     { C2Vector(0.796875f, 0.796875f), C2Vector(0.796875f, 0.99609375f), C2Vector(0.99609375f, 0.796875f), C2Vector(0.99609375f, 0.99609375f) },
-    { C2Vector(0.0f, 0.59765625f), C2Vector(0.0f, 0.796875f), C2Vector(0.19921875f, 0.59765625f), C2Vector(0.19921875f, 0.796875f) },
-    { C2Vector(0.19921875f, 0.59765625f), C2Vector(0.19921875f, 0.796875f), C2Vector(0.3984375f, 0.59765625f), C2Vector(0.3984375f, 0.796875f) },
+    { C2Vector(0.0f, 0.59765625f), C2Vector(0.0f, 0.796875f), C2Vector(PTSIZE, 0.59765625f), C2Vector(PTSIZE, 0.796875f) },
+    { C2Vector(PTSIZE, 0.59765625f), C2Vector(PTSIZE, 0.796875f), C2Vector(0.3984375f, 0.59765625f), C2Vector(0.3984375f, 0.796875f) },
     { C2Vector(0.3984375f, 0.59765625f), C2Vector(0.3984375f, 0.796875f), C2Vector(0.59765625f, 0.59765625f), C2Vector(0.59765625f, 0.796875f) },
     { C2Vector(0.59765625f, 0.59765625f), C2Vector(0.59765625f, 0.796875f), C2Vector(0.796875f, 0.59765625f), C2Vector(0.796875f, 0.796875f) },
-    { C2Vector(0.0f, 0.796875f), C2Vector(0.0f, 0.99609375f), C2Vector(0.19921875f, 0.796875f), C2Vector(0.19921875f, 0.99609375f) },
-    { C2Vector(0.19921875f, 0.796875f), C2Vector(0.19921875f, 0.99609375f), C2Vector(0.3984375f, 0.796875f), C2Vector(0.3984375f, 0.99609375f) },
+    { C2Vector(0.0f, 0.796875f), C2Vector(0.0f, 0.99609375f), C2Vector(PTSIZE, 0.796875f), C2Vector(PTSIZE, 0.99609375f) },
+    { C2Vector(PTSIZE, 0.796875f), C2Vector(PTSIZE, 0.99609375f), C2Vector(0.3984375f, 0.796875f), C2Vector(0.3984375f, 0.99609375f) },
     { C2Vector(0.3984375f, 0.796875f), C2Vector(0.3984375f, 0.99609375f), C2Vector(0.59765625f, 0.796875f), C2Vector(0.59765625f, 0.99609375f) },
     { C2Vector(0.59765625f, 0.796875f), C2Vector(0.59765625f, 0.99609375f), C2Vector(0.796875f, 0.796875f), C2Vector(0.796875f, 0.99609375f) },
 };

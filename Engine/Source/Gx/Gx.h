@@ -9,6 +9,8 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "Engine/Source/Tempest/C2iVector.h"
 
+static const float oo255 = (1.0f / 255.0f);
+
 class C2Vector;
 class C3Vector;
 class C44Matrix;

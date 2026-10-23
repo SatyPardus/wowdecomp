@@ -204,7 +204,7 @@ static int32_t Script_GetEquipmentSetLocations(lua_State* L) {
     }
 
     for (uint32_t bagIndex = 0; bagIndex < 4; bagIndex++) {
-        CGObject_C* container = ClntObjMgrObjectPtr(GetBagAtIndex(bagIndex), TYPEMASK_CONTAINER, __FILE__, __LINE__);
+        CGObject_C* container = ClntObjMgrObjectPtr(GetBagAtIndex(bagIndex), TYPE_CONTAINER, __FILE__, __LINE__);
 
         if (!container) {
             continue;
@@ -268,7 +268,7 @@ static int32_t Script_GetEquipmentSetLocations(lua_State* L) {
         }
 
         for (uint32_t bagIndex = 4; bagIndex < 11; bagIndex++) {
-            CGObject_C* container = ClntObjMgrObjectPtr(GetBagAtIndex(bagIndex), TYPEMASK_CONTAINER, __FILE__, __LINE__);
+            CGObject_C* container = ClntObjMgrObjectPtr(GetBagAtIndex(bagIndex), TYPE_CONTAINER, __FILE__, __LINE__);
 
             if (!container) {
                 continue;
@@ -345,7 +345,7 @@ static int32_t Script_GetEquipmentSetItemIDs(lua_State* L) {
             lua_pushnumber(L, slot + 1);
             value = static_cast<int32_t>(guid.m_guid);
         } else {
-            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
             lua_checkstack(L, 2);
             lua_pushnumber(L, slot + 1);
             value = item ? static_cast<int32_t>(item->m_obj->m_entryID) : -1.0;

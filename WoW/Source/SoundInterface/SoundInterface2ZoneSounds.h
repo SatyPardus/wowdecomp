@@ -9,10 +9,10 @@
 class SE2SoundKitProperties;
 
 struct SI2ZoneSoundInfo {
-    /* 0000 */ int32_t m_music[2];
-    /* 0008 */ int32_t m_silenceMin[2];
-    /* 0010 */ int32_t m_silenceMax[2];
-    /* 0018 */ int32_t m_ambience[2];
+    /* 0000 */ int32_t m_music[NUM_AMBIENCES];
+    /* 0008 */ int32_t m_silenceMin[NUM_AMBIENCES];
+    /* 0010 */ int32_t m_silenceMax[NUM_AMBIENCES];
+    /* 0018 */ int32_t m_ambience[NUM_AMBIENCES];
     /* 0020 */ int32_t m_reverb;
 
     SI2ZoneSoundInfo();

@@ -7,6 +7,8 @@
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 
+static const float MaximumFoostepDistance = 20.0f;
+
 // STATIC: 0x00B4AE04
 static HASHKEY_NONE s_footstepKey;
 
@@ -73,14 +75,14 @@ void SI2::PlayFootstepSound(int32_t footstepId, const C3Vector* position, int32_
 
     SE2SoundKitProperties properties;
 
-    if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && unit->IsActivePlayer() && s_listenerAtCharacter->m_intValue) {
+    if ((unit->m_obj->m_type & TYPE_PLAYER) && unit->IsActivePlayer() && s_listenerAtCharacter->m_intValue) {
         properties.ResetToDefaults();
-        properties.m_maxDistance = loud ? 50.0f : 20.0f;
+        properties.m_maxDistance = loud ? 50.0f : MaximumFoostepDistance;
         properties.m_volumeScale = 0.65f;
         properties.m_group = 17;
         properties.m_priority = 115;
         SI2::PlaySoundKit(soundKitId, nullptr, nullptr, &properties, 0, nullptr, 1, 0);
-    } else if ((unit->m_obj->m_type & TYPEMASK_PLAYER) && unit->IsActivePlayer()) {
+    } else if ((unit->m_obj->m_type & TYPE_PLAYER) && unit->IsActivePlayer()) {
         properties.ResetToDefaults();
         properties.m_group = 17;
         properties.m_priority = 115;

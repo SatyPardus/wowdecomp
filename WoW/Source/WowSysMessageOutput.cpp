@@ -74,7 +74,7 @@ void WowSysMessageOutput::Hide() {
 
 // VERIFY: 7f09a063 manual
 // OFFSET: 0x0040B420
-void WowSysMessageOutput::Output(const char* text, STATUS_TYPE severity) {
+void WowSysMessageOutput::Output(const char* text, SYSMSG_TYPE severity) {
     if (!s_enabled) {
         return;
     }
@@ -96,7 +96,7 @@ void WowSysMessageOutput::Output(const char* text, STATUS_TYPE severity) {
 
     s_first = (s_first + 1) % (sizeof(s_messages) / sizeof(s_messages[0]));
 
-    ConsoleWrite(text, severity < STATUS_ERROR ? WARNING_COLOR : ERROR_COLOR);
+    ConsoleWrite(text, severity < SYSMSG_ERROR ? WARNING_COLOR : ERROR_COLOR);
 }
 
 // VERIFY: 087848d6 manual

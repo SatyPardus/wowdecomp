@@ -30,6 +30,7 @@
 #include "WoW/Source/Ui/PartyFrame.h"
 #include <cstring>
 #include "Engine/Source/Base/Coordinate.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // STATIC: 0x00C5CDF0
 static CTexture* s_portraitMaskTexture;
@@ -170,7 +171,7 @@ void UpdatePendingPortraits() {
     for (PORTRAITREQUEST* request = s_pendingPortraits.Head(); !s_pendingPortraits.IsEnd(request); request = next) {
         next = s_pendingPortraits.RawNext(request);
         WOWGUID guid = request->m_guid;
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             s_freePortraits.LinkToTail(request);
@@ -220,6 +221,10 @@ void UpdateModelForUI(const WOWGUID& guid, uint32_t flags) {
 
 // STATIC: 0x00AD6628
 const char* s_sexNames[3] = { "Male", "Female", "NOSEX" };
+
+// INLINED
+PORTRAITCACHE::PORTRAITCACHE() : m_dirty(1), m_texture(nullptr), m_prev(nullptr), m_next(nullptr) {
+}
 
 // VERIFY: 3458775d auto
 // OFFSET: 0x00616950
@@ -518,7 +523,7 @@ void RenderPortraitTexture(CSimpleTexture* texture, CGUnit_C* unit) {
         return;
     }
 
-    if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
+    if (unit->m_obj->m_type & TYPE_PLAYER) {
         WOWGUID guid = unit->m_obj->m_guid;
         PLAYERPORTRAIT* portrait = s_playerPortraits.Ptr(static_cast<uint32_t>(guid.m_guid), CHashKeyGUID(guid.m_guid));
 
@@ -558,8 +563,8 @@ void RenderPortraitTexture(CSimpleTexture* texture, CGUnit_C* unit) {
     CCamera* createdCamera = nullptr;
     CCamera* camera;
 
-    if (model->HasCamera(0)) {
-        camera = model->GetCameraById(0);
+    if (model->HasCamera(CAMERA_PORTRAIT)) {
+        camera = model->GetCameraById(CAMERA_PORTRAIT);
     } else {
         camera = CameraCreate();
         createdCamera = camera;
@@ -643,7 +648,7 @@ void RenderPortraitTexture(CSimpleTexture* texture, CGUnit_C* unit) {
 
     PORTRAITCACHE* cache;
 
-    if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
+    if (unit->m_obj->m_type & TYPE_PLAYER) {
         WOWGUID guid = unit->m_obj->m_guid;
         PLAYERPORTRAIT* portrait = s_playerPortraits.Ptr(static_cast<uint32_t>(guid.m_guid), CHashKeyGUID(guid.m_guid));
 
@@ -747,8 +752,8 @@ void RenderPortraitTexture(CSimpleTexture* texture, CGUnit_C* unit) {
         GxXformSetProjection(ortho);
         g_theGxDevicePtr->RsPush();
         GxRsSet(GxRs_Texture0, s_portraitMaskGxTex);
-        GxRsSet(GxRs_ColorOp0, 0);
-        GxRsSet(GxRs_AlphaOp0, 0);
+        GxRsSet(GxRs_ColorOp0, GxTexOp_Mod);
+        GxRsSet(GxRs_AlphaOp0, GxTexOp_Mod);
         GxRsSet(GxRs_ColorWrite, 8);
         GxRsSet(GxRs_BlendingMode, 0);
         GxRsSet(GxRs_Lighting, 0);
@@ -808,7 +813,7 @@ void RenderPortraitTexture(CSimpleTexture* texture, CGUnit_C* unit) {
     model->Release();
     scene->Release();
 
-    if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
+    if (unit->m_obj->m_type & TYPE_PLAYER) {
         PortraitCachePurge(&s_playerPortraitCache, 40, 0);
     } else {
         PortraitCachePurge(&s_unitPortraitCache, 8, 0);

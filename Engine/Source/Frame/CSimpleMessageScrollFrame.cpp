@@ -1,3 +1,4 @@
+#include "Engine/Source/Frame/MessageFrameConstants.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -582,8 +583,8 @@ CSimpleMessageScrollFrame::CSimpleMessageScrollFrame(CSimpleFrame* parent, int32
     this->m_atTop = 0;
     this->m_textMaxSize = 0;
     this->m_font = new (SMemAlloc(sizeof(CSimpleFontedFrameFont), __FILE__, __LINE__, 0)) CSimpleFontedFrameFont(this);
-    this->m_timeVisible = 10.0f;
-    this->m_fadeDuration = 3.0f;
+    this->m_timeVisible = DEFAULT_TIME_VISIBLE;
+    this->m_fadeDuration = DEFAULT_FADE_DURATION;
     this->m_fading = 1;
     this->m_lines.SetCount(this->m_maxMessages);
     this->m_currentScroll = 0;

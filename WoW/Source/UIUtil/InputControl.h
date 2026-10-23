@@ -49,7 +49,7 @@ class CGInputControl {
     /* 000C */ float m_dragAccumY;
     /* 0010 */ uint32_t m_lastMouseMoveFrame;
     /* 0014 */ uint32_t m_lookStartTime;
-    /* 0018 */ PENDING_DEFAULT_ACTION m_pendingDefaultAction;
+    /* 0018 */ CGInputReleaseAction m_pendingDefaultAction;
     /* 001C */ TSHashTable<MOUSELOOKBINDING, HASHKEY_STRI> m_mouseLookBindings;
     /* 0044 */ uint32_t m_facingOverrideActive;
     /* 0048 */ float m_facingOverride;

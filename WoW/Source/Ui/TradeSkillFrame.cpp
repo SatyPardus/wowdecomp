@@ -10,6 +10,7 @@
 #include "WoW/Source/DB/Rec/SkillLineAbilityRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/Game/GameClient/NameCache.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/SpellTable.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
@@ -283,7 +284,7 @@ void CGTradeSkillInfo::SetInvTypeFilter(int32_t a1) {
             }
         }
 
-        if (!(CGTradeSkillInfo::m_invTypeFilter & info->m_invTypeMask) || (CGTradeSkillInfo::m_showOnlyMakeable && !info->m_numAvailable) || (CGTradeSkillInfo::m_showOnlySkillUps && info->m_difficulty > 2)) {
+        if (!(CGTradeSkillInfo::m_invTypeFilter & info->m_invTypeMask) || (CGTradeSkillInfo::m_showOnlyMakeable && !info->m_numAvailable) || (CGTradeSkillInfo::m_showOnlySkillUps && info->m_difficulty > TRADESKILL_EASY)) {
             info->m_visible = 0;
             CGTradeSkillInfo::m_filteredSkills--;
             continue;
@@ -366,7 +367,7 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     WOWGUID none = WOWGUID();
     NameCache* name = g_nameDBCache.GetRecord(CGTradeSkillInfo::m_playerGuid.m_guid, none, nullptr, nullptr, false);
 
@@ -431,7 +432,7 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
 
     CGTradeSkillInfo::m_numDisplayEntries = count;
 
-    CGPlayer_C* activePlayer = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* activePlayer = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t skillRank;
 
     if (activePlayer && CGTradeSkillInfo::m_playerGuid == activePlayer->m_obj->m_guid) {
@@ -454,7 +455,7 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
 
         TradeSkillInfo* info = CGTradeSkillInfo::m_displayList.m_data[i];
         info->m_spellId = spellId;
-        info->m_difficulty = 0;
+        info->m_difficulty = TRADESKILL_OPTIMAL;
         info->m_skillLineRank = ability->m_trivialSkillLineRankHigh;
 
         int32_t high = ability->m_trivialSkillLineRankHigh;
@@ -465,13 +466,13 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
         }
 
         if (skillRank < low) {
-            info->m_difficulty = 0;
+            info->m_difficulty = TRADESKILL_OPTIMAL;
         } else if (skillRank < (high + low) / 2) {
-            info->m_difficulty = 1;
+            info->m_difficulty = TRADESKILL_MEDIUM;
         } else if (skillRank < high) {
-            info->m_difficulty = 2;
+            info->m_difficulty = TRADESKILL_EASY;
         } else {
-            info->m_difficulty = 3;
+            info->m_difficulty = TRADESKILL_TRIVIAL;
         }
 
         int32_t numAvailable = -1;
@@ -490,7 +491,7 @@ void CGTradeSkillInfo::RefreshList(int32_t full) {
                 }
             }
 
-            if ((spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) && spell.m_effectItemType[0]) {
+            if ((spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && spell.m_effectItemType[0]) {
                 WOWGUID requester;
                 requester.m_guid = static_cast<uint32_t>(spellId) | 0x1FE0000000000000ULL;
                 ItemStats_C* stats = g_itemDBCache.GetRecord(spell.m_effectItemType[0], requester, TradeSkillListItemCallback, nullptr, false);
@@ -949,7 +950,7 @@ bool CGTradeSkillInfo::GetTradeSkillListLink(int32_t spellId, char* buffer, uint
 
     SpellRec spell;
 
-    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] != 47) {
+    if (!g_spellDB.GetRecord(spellId, &spell) || spell.m_effect[0] != SPELL_EFFECT_TRADE_SKILL) {
         return false;
     }
 

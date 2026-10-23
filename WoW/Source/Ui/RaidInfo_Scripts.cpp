@@ -107,7 +107,7 @@ static int32_t Script_GetReadyCheckTimeLeft(lua_State* L) {
 // OFFSET: 0x00574A00
 static int32_t Script_ConvertToRaid(lua_State* L) {
     if (CGPartyInfo::m_members[0] && CGPartyInfo::m_leader == ClntObjMgrGetActivePlayer()) {
-        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
         if (player && static_cast<int32_t>(player->m_unit->m_unitFieldLevel) >= 10) {
             CDataStore msg;
@@ -298,7 +298,7 @@ static int32_t Script_GetRaidRosterInfo(lua_State* L) {
     lua_pushstring(L, name->FullName(fullName, 305));
     lua_pushnumber(L, member->m_rank);
     lua_pushnumber(L, member->m_subgroup + 1);
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(member->m_guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(member->m_guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         lua_pushnumber(L, static_cast<int32_t>(unit->m_unit->m_unitFieldLevel));
@@ -473,7 +473,7 @@ static int32_t Script_PromoteToLeader(lua_State* L) {
     }
 
     int32_t exact = StringToBOOL(L, 2, 0);
-    WOWGUID guid = CGGameUI::ClosestObjectMatch(lua_tolstring(L, 1, nullptr), TYPEMASK_PLAYER, 6, exact, 3.4028235e38f, 0);
+    WOWGUID guid = CGGameUI::ClosestObjectMatch(lua_tolstring(L, 1, nullptr), TYPE_PLAYER, 6, exact, 3.4028235e38f, 0);
 
     if (guid) {
         CDataStore msg;
@@ -495,7 +495,7 @@ static int32_t Script_PromoteToAssistant(lua_State* L) {
     }
 
     int32_t exact = StringToBOOL(L, 2, 0);
-    WOWGUID guid = CGGameUI::ClosestObjectMatch(lua_tolstring(L, 1, nullptr), TYPEMASK_PLAYER, 6, exact, 3.4028235e38f, 0);
+    WOWGUID guid = CGGameUI::ClosestObjectMatch(lua_tolstring(L, 1, nullptr), TYPE_PLAYER, 6, exact, 3.4028235e38f, 0);
 
     if (guid) {
         CDataStore msg;
@@ -518,7 +518,7 @@ static int32_t Script_DemoteAssistant(lua_State* L) {
     }
 
     int32_t exact = StringToBOOL(L, 2, 0);
-    WOWGUID guid = CGGameUI::ClosestObjectMatch(lua_tolstring(L, 1, nullptr), TYPEMASK_PLAYER, 6, exact, 3.4028235e38f, 0);
+    WOWGUID guid = CGGameUI::ClosestObjectMatch(lua_tolstring(L, 1, nullptr), TYPE_PLAYER, 6, exact, 3.4028235e38f, 0);
 
     if (guid) {
         CDataStore msg;
@@ -557,7 +557,7 @@ static int32_t Script_SetRaidTarget(lua_State* L) {
 
     if (index < 8) {
         if (guid && !CGRaidInfo::IsPlayerOrPetInRaid(guid) && !CGPartyInfo::IsPlayerOrPetInParty(guid)) {
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (!unit) {
                 CGGameUI::DisplayError(ERR_GENERIC_NO_TARGET);
@@ -566,7 +566,7 @@ static int32_t Script_SetRaidTarget(lua_State* L) {
 
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-            if (player && unit != player && (unit->m_obj->m_type & TYPEMASK_PLAYER) && !player->CanCooperate(unit)) {
+            if (player && unit != player && (unit->m_obj->m_type & TYPE_PLAYER) && !player->CanCooperate(unit)) {
                 CGGameUI::DisplayError(ERR_INVALID_RAID_TARGET);
                 return 0;
             }

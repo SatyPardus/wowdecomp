@@ -13,7 +13,10 @@ class C3Vector {
     enum EAxis {
         AXIS_X = 0,
         AXIS_Y = 1,
-        AXIS_Z = 2
+        AXIS_Z = 2,
+        C3AXIS_X = 0,
+        C3AXIS_Y = 1,
+        C3AXIS_Z = 2
     };
 
     static C3Vector Cross(const C3Vector& a, const C3Vector& b);

@@ -609,7 +609,7 @@ void CGWorldMap::SetMap(uint32_t continent, uint32_t zone, int32_t dungeonMap) {
         CGWorldMap::m_currentDungeonMap = dungeonMap;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     CGWorldMap::m_numLandmarks = 0;
 
     for (int32_t i = 0; i < g_areaPOIDB.m_numRecords; i++) {
@@ -710,7 +710,7 @@ void CGWorldMap::SetMap(uint32_t continent, uint32_t zone, int32_t dungeonMap) {
 // VERIFY: 6566cbff manual
 // OFFSET: 0x00547170
 void CGWorldMap::SetMapToCurrentZone(int32_t debug) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         CGWorldMap::SetMap(-1, -1, -1);
@@ -944,7 +944,7 @@ void CGWorldMap::UpdateArrowFrames() {
         CenterArrowModel(CGWorldMap::m_playerMiniArrowEffectFrame);
     }
 
-    CGObject_C* target = ClntObjMgrObjectPtr(CGWorldFrame::GetActiveCamera()->m_targetGUID, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* target = ClntObjMgrObjectPtr(CGWorldFrame::GetActiveCamera()->m_targetGUID, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!target) {
         return;
@@ -1093,7 +1093,7 @@ bool CGWorldMap::GetPlayerPosition(WOWGUID guid, float* x, float* y) {
     *y = 0.0f;
     bool outland = false;
     bool result;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         C3Vector position = player->GetPosition();

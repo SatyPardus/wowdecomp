@@ -11,6 +11,7 @@
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/CRandom.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // STATIC: 0x00DCEC98
 static C3Vector s_beamAxisX;
@@ -77,7 +78,7 @@ void CLightning::Reset() {
     if (this->m_chainEffects->m_flags & 0x400) {
         this->m_wavePhase = this->m_chainEffects->m_wavePhase;
     } else {
-        this->m_wavePhase = CRandom::ufloat_(s_rndSeed) * 6.2831855f;
+        this->m_wavePhase = CRandom::ufloat_(s_rndSeed) * TWO_PI;
     }
 
     this->m_arcAngle = (this->m_chainEffects->m_maxArcAngle - this->m_chainEffects->m_minArcAngle) * CRandom::ufloat_(s_rndSeed) + this->m_chainEffects->m_minArcAngle;
@@ -941,8 +942,8 @@ void CLightningManager::Render(const C3Vector& cameraPos) {
     g_theGxDevicePtr->RsSet(GxRs_MatDiffuse, static_cast<int32_t>(0xFF000000));
     g_theGxDevicePtr->RsSet(GxRs_Culling, 0);
     g_theGxDevicePtr->RsSet(GxRs_Fog, 0);
-    g_theGxDevicePtr->RsSet(GxRs_ColorOp0, 0);
-    g_theGxDevicePtr->RsSet(GxRs_AlphaOp0, 0);
+    g_theGxDevicePtr->RsSet(GxRs_ColorOp0, GxTexOp_Mod);
+    g_theGxDevicePtr->RsSet(GxRs_AlphaOp0, GxTexOp_Mod);
     g_theGxDevicePtr->RsSet(GxRs_ColorWrite, 15);
 
     for (int32_t layer = 0; layer < 4; layer++) {

@@ -7,6 +7,36 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CiRect.h"
 
+enum : int32_t {
+    OSGUI_MESSAGE_STYLE_OK = 0,
+    OSGUI_MESSAGE_STYLE_OKCANCEL = 1,
+    OSGUI_MESSAGE_STYLE_YESNO = 2,
+    OSGUI_MESSAGE_STYLE_YESNOCANCEL = 3,
+};
+
+enum : int32_t {
+    OSGUI_MESSAGE_RESULT_YESOK = 0,
+    OSGUI_MESSAGE_RESULT_NO = 1,
+    OSGUI_MESSAGE_RESULT_CANCEL = 2,
+};
+
+enum : int32_t {
+    OSGUI_KEY_CONTROL = 0,
+    OSGUI_KEY_SHIFT = 1,
+    OSGUI_KEY_ALT = 2,
+    OSGUI_NUM_MOD_KEYS = 3,
+};
+
+enum : int32_t {
+    OSGUI_WINDOW_TYPE_GX = 0,
+    OSGUI_WINDOW_TYPE_ACTIVE = 1,
+    OSGUI_WINDOW_TYPE_FRONT = 2,
+    NUM_OSGUI_WINDOW_TYPES = 3,
+};
+
+typedef void* OsGuiHandle;
+typedef void* OsGuiTreeItem;
+
 class COsDialog;
 class COsMenu;
 class COsTreeView;
@@ -23,8 +53,8 @@ typedef void (*OsGuiCallback)(const OsGuiCallbackParams& params);
 struct OsGuiTVDDInfo {
     /* 0000 */ COsTreeView* treeView;
     /* 0004 */ int32_t action;
-    /* 0008 */ void* dragItem;
-    /* 000C */ void* targItem;
+    /* 0008 */ OsGuiTreeItem dragItem;
+    /* 000C */ OsGuiTreeItem targItem;
     /* 0010 */ int32_t targX;
     /* 0014 */ int32_t targY;
 };
@@ -41,7 +71,7 @@ class COsControl {
     /* 0008 */ COsDialog* m_dialog;
     /* 000C */ int16_t m_id;
     /* 0010 */ int32_t m_type;
-    /* 0014 */ void* m_handle;
+    /* 0014 */ OsGuiHandle m_handle;
     /* 0018 */ OsGuiCallback m_callback;
     /* 001C */ void* m_callbackParam;
     /* 0020 */ COsMenu* m_contextMenu;
@@ -65,7 +95,7 @@ class COsControl {
     virtual int32_t OnScroll(int32_t code);
     virtual int32_t OnMouseWheel(int32_t delta);
     virtual int32_t OnContextMenu(int32_t x, int32_t y);
-    virtual int32_t IsHandleFromControl(void* handle);
+    virtual int32_t IsHandleFromControl(OsGuiHandle handle);
     virtual int32_t CanDoClipboardAction(int32_t action);
     virtual int32_t DoClipboardAction(int32_t action);
     virtual void SetValue(int32_t value);
@@ -92,16 +122,16 @@ class COsTreeView : public COsControl {
     /* 005C */ void* m_dragImage;
     /* 0060 */ int32_t (*m_dragHandler)(const OsGuiTVDDInfo& info, void* param);
     /* 0064 */ void* m_dragHandlerParam;
-    /* 0068 */ int32_t (*m_canEditFunc)(void* item, void* param);
+    /* 0068 */ int32_t (*m_canEditFunc)(OsGuiTreeItem item, void* param);
     /* 006C */ void* m_canEditParam;
-    /* 0070 */ void (*m_expandFunc)(void* item, void* param);
+    /* 0070 */ void (*m_expandFunc)(OsGuiTreeItem item, void* param);
     /* 0074 */ void* m_expandParam;
     /* 0078 */ int32_t m_textLimit;
     /* 007C */ int32_t m_filtersEnabled;
     /* 0080 */ uint32_t m_filters;
     /* 0084 */ TSGrowableArray<OsGuiTreeItemParams> m_itemParams;
 
-    void* GetEditControl();
+    OsGuiHandle GetEditControl();
     int32_t IsCharacterAllowed(char c);
 };
 
@@ -113,7 +143,7 @@ class COsTabControl : public COsControl {
 
 class COsDialog {
     public:
-    /* 0004 */ void* m_handle;
+    /* 0004 */ OsGuiHandle m_handle;
     /* 0008 */ void* m_tooltips;
     /* 000C */ OsGuiCallback m_callback;
     /* 0010 */ void* m_callbackParam;
@@ -126,13 +156,13 @@ class COsDialog {
     /* 0038 */ int32_t m_contextMenuEnabled;
     /* 003C */ COsMenu* m_contextMenu;
     /* 0040 */ uint32_t m_flags;
-    /* 0044 */ TSGrowableArray<void*> m_disabledWindows;
+    /* 0044 */ TSGrowableArray<OsGuiHandle> m_disabledWindows;
     /* 0054 */ C2iVector m_minSize;
 
     virtual void SetSize(int32_t width, int32_t height);
 
-    COsControl* FindControl(void* handle);
-    void* GetParentWindow();
+    COsControl* FindControl(OsGuiHandle handle);
+    OsGuiHandle GetParentWindow();
     int32_t HasFlag(uint32_t flag);
     int32_t IsInFront();
     int32_t OnCancel();
@@ -144,17 +174,17 @@ class COsDialog {
 class COsMenuBar {
     public:
     /* 0000 */ TSGrowableArray<COsMenu*> m_menus;
-    /* 0010 */ void* m_windowHandle;
+    /* 0010 */ OsGuiHandle m_windowHandle;
     /* 0014 */ void* m_menuBarHandle;
     /* 0018 */ void* m_accelerators;
 };
 
 void OsGuiBeep();
-void* OsGuiGetWindow(int32_t type);
+OsGuiHandle OsGuiGetWindow(int32_t type);
 int32_t OsGuiIsModifierKeyDown(int32_t key);
 int32_t OsGuiProcessMessage(void* message);
-void OsGuiSetGxWindow(void* window);
-int32_t OsGuiMessageBox(void* parentWindow, int32_t style, const char* message, const char* title);
-void OsGuiSetWindowTitle(void* window, const char* title);
+void OsGuiSetGxWindow(OsGuiHandle window);
+int32_t OsGuiMessageBox(OsGuiHandle parentWindow, int32_t style, const char* message, const char* title);
+void OsGuiSetWindowTitle(OsGuiHandle window, const char* title);
 
 #endif

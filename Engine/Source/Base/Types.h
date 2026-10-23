@@ -48,12 +48,19 @@ enum PROPERTY {
 };
 
 enum STATUS_TYPE {
+    SYSMSG_INFO = 0,
+    SYSMSG_WARNING = 1,
+    SYSMSG_ERROR = 2,
+    SYSMSG_FATAL = 3,
+    SYSMSG_NUMTYPES = 4,
     STATUS_INFO = 0,
     STATUS_WARNING = 1,
     STATUS_ERROR = 2,
     STATUS_FATAL = 3,
     STATUS_NUMTYPES = 4,
 };
+
+using SYSMSG_TYPE = STATUS_TYPE;
 
 struct HOBJECT__ {
     /* 0000 */ int32_t m_unused;

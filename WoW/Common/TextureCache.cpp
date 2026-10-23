@@ -80,8 +80,8 @@ int32_t CACHEENTRY::LoadTexture() {
 
 // VERIFY: 70cae207 manual
 // OFFSET: 0x004F2CE0
-void* TextureCacheCopyTexture(void* handle) {
-    CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
+HTEXTURECACHE TextureCacheCopyTexture(HTEXTURECACHE handle) {
+    CACHEENTRY* entry = handle;
 
     if (entry) {
         entry->m_refCount++;
@@ -92,8 +92,8 @@ void* TextureCacheCopyTexture(void* handle) {
 
 // VERIFY: 7bec2c4f manual
 // OFFSET: 0x004F2D00
-void* TextureCacheGetMip(void* handle, uint32_t mipLevel) {
-    CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
+void* TextureCacheGetMip(HTEXTURECACHE handle, uint32_t mipLevel) {
+    CACHEENTRY* entry = handle;
 
     if (!entry || entry->m_loadFailed || !entry->m_data || mipLevel >= entry->m_info.m_mipCount) {
         return nullptr;
@@ -104,10 +104,10 @@ void* TextureCacheGetMip(void* handle, uint32_t mipLevel) {
 
 // VERIFY: 0bb1b277 manual
 // OFFSET: 0x004F2D40
-BlpPalPixel* TextureCacheGetPal(void* handle) {
-    CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
+BlpPalPixel* TextureCacheGetPal(HTEXTURECACHE handle) {
+    CACHEENTRY* entry = handle;
 
-    if (!entry || entry->m_loadFailed || !entry->m_data || entry->m_data->m_colorEncoding != 1) {
+    if (!entry || entry->m_loadFailed || !entry->m_data || entry->m_data->m_colorEncoding != COLOR_PAL) {
         return nullptr;
     }
 
@@ -116,8 +116,8 @@ BlpPalPixel* TextureCacheGetPal(void* handle) {
 
 // VERIFY: 8b89ff06 manual
 // OFFSET: 0x004F2D80
-int32_t TextureCacheHasMips(void* handle) {
-    CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
+int32_t TextureCacheHasMips(HTEXTURECACHE handle) {
+    CACHEENTRY* entry = handle;
 
     return entry && entry->m_data && !entry->m_loadFailed;
 }
@@ -130,8 +130,8 @@ void TextureCacheResetLoadCount() {
 
 // VERIFY: c060d573 auto
 // OFFSET: 0x004F2DC0
-void TextureCacheComputeLoadProgress(void* handle, int64_t& local, int64_t& total) {
-    CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
+void TextureCacheComputeLoadProgress(HTEXTURECACHE handle, int64_t& local, int64_t& total) {
+    CACHEENTRY* entry = handle;
 
     if (!entry) {
         return;
@@ -158,8 +158,8 @@ void TextureCacheDestroy() {
 
 // VERIFY: 65c3dd55 auto
 // OFFSET: 0x004F2E50
-int32_t TextureCacheGetInfo(void* handle, TCTEXTUREINFO& info, int32_t wait) {
-    CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
+int32_t TextureCacheGetInfo(HTEXTURECACHE handle, TCTEXTUREINFO& info, int32_t wait) {
+    CACHEENTRY* entry = handle;
 
     if (!entry) {
         return 0;
@@ -253,8 +253,8 @@ static CACHEENTRY* TextureCacheAllocEntry() {
 
 // VERIFY: 52f7899b auto
 // OFFSET: 0x004F31A0
-void TextureCacheDestroyTexture(void* handle) {
-    CACHEENTRY* entry = static_cast<CACHEENTRY*>(handle);
+void TextureCacheDestroyTexture(HTEXTURECACHE handle) {
+    CACHEENTRY* entry = handle;
 
     if (!entry) {
         return;
@@ -270,7 +270,7 @@ void TextureCacheDestroyTexture(void* handle) {
 
 // VERIFY: 1e1d17fd auto
 // OFFSET: 0x004F3930
-void* TextureCacheCreateTexture(const char* fileName) {
+HTEXTURECACHE TextureCacheCreateTexture(const char* fileName) {
     uint32_t hashval = SStrHash(fileName, 0, 0);
     CACHEENTRY* entry = s_cacheTable.Ptr(hashval, s_cacheKey);
 

@@ -179,14 +179,14 @@ int32_t TalentInfoIsSpellKnown(int32_t spellId, int32_t isInspect, int32_t isPet
         return isPet == 0;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!unit) {
         return 0;
     }
 
     if (isPet) {
-        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             return 0;
@@ -742,6 +742,10 @@ TalentGroupItem_C* TalentInfoGetTalentItem(uint32_t group, int32_t talentId, int
     return talentGroup->GetTalentItem(talentId);
 }
 
+// INLINED
+TalentGroupItem_C::TalentGroupItem_C() : m_talentId(0), m_rank(-1), m_previewRank(-1) {
+}
+
 // VERIFY: ebac1df8 auto
 // OFFSET: 0x005C8DE0
 TalentGroupTier_C::TalentGroupTier_C() : m_tier(-1) {
@@ -1196,7 +1200,7 @@ void CGTalentInfo_Inspect::ShutdownGame() {
 // OFFSET: 0x005C9F70
 void CGTalentInfo_Inspect::SetInspectTarget(const WOWGUID& guid) {
     CGTalentInfo_Inspect::ResetTabInfo();
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         BuildTabInfo(player, &CGTalentInfo_Inspect::m_tabs, 0);

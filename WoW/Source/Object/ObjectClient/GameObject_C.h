@@ -17,6 +17,13 @@
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/WorldClient/Map.h"
 
+static const float MAX_SHOP_DISTANCE = 5.5555553f;
+static const float MAX_BIND_DISTANCE = 10.0f;
+static const float MAX_LOOT_DISTANCE = 5.0f;
+static const float MAX_OBJ_INTEREST_RADIUS = 100.0f;
+static const float MAX_SITCHAIRUSE_DISTANCE = 3.0f;
+static const float MAX_SITCHAIR_DISTANCE_SQUARED = 0.16666667f;
+
 class SpellRec;
 class CMapBaseObj;
 class CDataStore;
@@ -84,10 +91,28 @@ class CGGameObject_C_TypeBase {
     CGGameObject_C_TypeBase(CGGameObject_C* owner);
 };
 
+enum : int32_t {
+    ANIMSTATE_SPAWN = 0,
+    ANIMSTATE_CLOSED = 1,
+    ANIMSTATE_OPENING = 2,
+    ANIMSTATE_OPEN = 3,
+    ANIMSTATE_CLOSING = 4,
+    ANIMSTATE_DESTROYING = 5,
+    ANIMSTATE_DESTROYED = 6,
+    ANIMSTATE_REBUILDING = 7,
+    ANIMSTATE_FIRSTCUSTOM = 8,
+    ANIMSTATE_CUSTOM0 = 8,
+    ANIMSTATE_CUSTOM1 = 9,
+    ANIMSTATE_CUSTOM2 = 10,
+    ANIMSTATE_CUSTOM3 = 11,
+    ANIMSTATE_DESPAWN = 12,
+    NUM_GAMEOBJ_ANIMSTATES = 13,
+};
+
 class CGGameObject_C_TypeAnimated : public CGGameObject_C_TypeBase {
     public:
-    static uint32_t s_animSequenceIds[13];
-    static const char* s_animStateNames[13];
+    static uint32_t s_animSequenceIds[NUM_GAMEOBJ_ANIMSTATES];
+    static const char* s_animStateNames[NUM_GAMEOBJ_ANIMSTATES];
 
     /* 0010 */ int32_t m_animState;
     /* 0014 */ int32_t m_pendingAnimState;

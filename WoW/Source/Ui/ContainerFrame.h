@@ -2,6 +2,7 @@
 #define WOW_SOURCE_UI_CONTAINERFRAME_H
 
 #include <cstdint>
+#include "WoW/Common/ComponentCore/Types.h"
 #include "WoW/Source/Object/WGUID.h"
 
 struct lua_State;
@@ -10,7 +11,7 @@ class CGBag_C;
 
 class CGContainerInfo {
     public:
-    static WOWGUID m_containers[11];
+    static WOWGUID m_containers[TOTAL_BAG_SLOTS];
     static void UpdateContainers();
     static void OpenContainer(WOWGUID guid);
     static void EnterWorld();

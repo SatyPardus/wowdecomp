@@ -6,7 +6,7 @@ CWOWClientStatus::CWOWClientStatus(const char* logFileName) {
     this->m_log = nullptr;
 
     if (!SLogCreate(logFileName, 0, &this->m_log)) {
-        SysMsgPrintf(STATUS_WARNING, "Cannot create WOWClient log file \"%s\"!", logFileName);
+        SysMsgPrintf(SYSMSG_WARNING, "Cannot create WOWClient log file \"%s\"!", logFileName);
     }
 }
 
@@ -16,7 +16,7 @@ CWOWClientStatus::CWOWClientStatus(const char* logFileName, int32_t append) {
     this->m_log = nullptr;
 
     if (logFileName && *logFileName && !SLogCreate(logFileName, append ? 4 : 0, &this->m_log)) {
-        SysMsgPrintf(STATUS_WARNING, "Cannot create WOWClient log file \"%s\"!", logFileName);
+        SysMsgPrintf(SYSMSG_WARNING, "Cannot create WOWClient log file \"%s\"!", logFileName);
     }
 }
 

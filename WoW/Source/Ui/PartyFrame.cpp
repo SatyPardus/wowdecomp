@@ -151,7 +151,7 @@ WOWGUID GetPartyPetGUID(uint32_t index) {
         return WOWGUID();
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[index], TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[index], TYPE_PLAYER, __FILE__, __LINE__));
 
     if (unit) {
         const WOWGUID& pet = unit->m_unit->m_unitFieldCharm ? unit->m_unit->m_unitFieldCharm : unit->m_unit->m_unitFieldSummon;
@@ -407,7 +407,7 @@ int32_t CGPartyInfo::GetPartyAssignments(lua_State* L, int32_t assignment) {
 
     if (lua_isstring(L, 2)) {
         const char* name = lua_tolstring(L, 2, nullptr);
-        WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPEMASK_PLAYER, 5, StringToBOOL(L, 3, 0), 3.4028235e38f, 0);
+        WOWGUID guid = CGGameUI::ClosestObjectMatch(name, TYPE_PLAYER, 5, StringToBOOL(L, 3, 0), 3.4028235e38f, 0);
 
         if (!guid) {
             CGGameUI::DisplayError(ERR_TARGET_NOT_IN_GROUP_S, name);
@@ -498,7 +498,7 @@ int32_t CGPartyInfo::IsMemberPet(const WOWGUID& guid, int32_t* index) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         const WOWGUID& pet = player->m_unit->m_unitFieldCharm ? player->m_unit->m_unitFieldCharm : player->m_unit->m_unitFieldSummon;
@@ -517,7 +517,7 @@ int32_t CGPartyInfo::IsMemberPet(const WOWGUID& guid, int32_t* index) {
             continue;
         }
 
-        CGPlayer_C* member = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[i], TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGPlayer_C* member = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[i], TYPE_PLAYER, __FILE__, __LINE__));
         bool match;
 
         if (member) {
@@ -609,7 +609,7 @@ int32_t CGPartyInfo::IsPlayerOrPetInParty(const WOWGUID& guid) {
             return 1;
         }
 
-        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(i < 4 ? CGPartyInfo::m_members[i] : WOWGUID(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(i < 4 ? CGPartyInfo::m_members[i] : WOWGUID(), TYPE_PLAYER, __FILE__, __LINE__));
 
         if (player) {
             CGUnitData* unit = player->m_unit;
@@ -637,7 +637,7 @@ int32_t CGPartyInfo::IsMemberOrPet(const WOWGUID& guid) {
         return 1;
     }
 
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         const WOWGUID& pet = player->m_unit->m_unitFieldCharm ? player->m_unit->m_unitFieldCharm : player->m_unit->m_unitFieldSummon;
@@ -656,7 +656,7 @@ int32_t CGPartyInfo::IsMemberOrPet(const WOWGUID& guid) {
             return 1;
         }
 
-        CGUnit_C* member = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[i], TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGUnit_C* member = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[i], TYPE_PLAYER, __FILE__, __LINE__));
 
         if (member) {
             const WOWGUID& pet = member->m_unit->m_unitFieldCharm ? member->m_unit->m_unitFieldCharm : member->m_unit->m_unitFieldSummon;
@@ -724,12 +724,12 @@ void CGPartyInfo::AddMember(WOWGUID guid, int32_t online, const CGPartyMemberSta
         CGAutoCompleteName::RemoveFlags(guid, 32);
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (unit) {
         unit->RegisterScript(16);
         const WOWGUID& petGuid = unit->m_unit->m_unitFieldCharm.m_guid ? unit->m_unit->m_unitFieldCharm : unit->m_unit->m_unitFieldSummon;
-        CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (pet) {
             pet->RegisterScript(32);
@@ -745,7 +745,7 @@ void CGPartyInfo::AddMember(WOWGUID guid, int32_t online, const CGPartyMemberSta
     }
 
     if (!CGPartyInfo::m_realNumMembers) {
-        CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
         if (player) {
             player->UpdateReaction(true);
@@ -790,13 +790,13 @@ void CGPartyInfo::RemoveAll(int32_t a1) {
             continue;
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[i], TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPartyInfo::m_members[i], TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             const WOWGUID& petGuid = unit->m_unit->m_unitFieldCharm.m_guid ? unit->m_unit->m_unitFieldCharm : unit->m_unit->m_unitFieldSummon;
 
             if (petGuid) {
-                CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+                CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
                 if (pet) {
                     pet->UnregisterScript(32);
@@ -816,7 +816,7 @@ void CGPartyInfo::RemoveAll(int32_t a1) {
         CGPartyInfo::m_memberRoles[i] = 0;
     }
 
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         player->UpdateReaction(true);

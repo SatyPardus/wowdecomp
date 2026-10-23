@@ -121,8 +121,8 @@ void CGGossipInfo::SetGossipText(int32_t textId) {
     }
 
     CGGossipInfo::m_textPending = 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    CGObject_C* object = ClntObjMgrObjectPtr(CGGossipInfo::m_gossip, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
+    CGObject_C* object = ClntObjMgrObjectPtr(CGGossipInfo::m_gossip, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!player || !object) {
         return;
@@ -130,8 +130,8 @@ void CGGossipInfo::SetGossipText(int32_t textId) {
 
     int32_t female;
 
-    if (object->m_obj->m_type & TYPEMASK_UNIT) {
-        female = static_cast<CGUnit_C*>(object)->m_unit->m_unitFieldBytes0[2] == 1;
+    if (object->m_obj->m_type & TYPE_UNIT) {
+        female = static_cast<CGUnit_C*>(object)->m_unit->m_unitFieldBytes0[2] == UNITSEX_FEMALE;
     } else {
         female = text->m_text[0][0] == nullptr;
     }
@@ -182,7 +182,7 @@ void CGGossipInfo::SetGossipText(int32_t textId) {
             emotes.m_nodes[i].m_delay = text->m_emoteDelay[index][i];
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGGossipInfo::m_gossip, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGGossipInfo::m_gossip, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             unit->PlayEmotes(emotes);
@@ -356,9 +356,9 @@ int32_t CGQuestInfo::IsLowLevel(int32_t level) {
         return 0;
     }
 
-    uint32_t band = static_cast<int32_t>(static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__))->m_unit->m_unitFieldLevel) / 5;
+    uint32_t band = static_cast<int32_t>(static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__))->m_unit->m_unitFieldLevel) / 5;
     int32_t range = band < 20 ? s_questGreenRange[band] : 8;
-    return level + range < static_cast<int32_t>(static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__))->m_unit->m_unitFieldLevel);
+    return level + range < static_cast<int32_t>(static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__))->m_unit->m_unitFieldLevel);
 }
 
 // VERIFY: fd70ce48 manual
@@ -423,7 +423,7 @@ void CGGossipInfo::SelectGossipAvailableQuest(int32_t index) {
             continue;
         }
 
-        if (found == index && ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+        if (found == index && ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
             WOWGUID gossip = CGGossipInfo::m_gossip;
 
             if (quest.m_icon) {
@@ -453,7 +453,7 @@ void CGGossipInfo::SelectGossipActiveQuest(int32_t index) {
             continue;
         }
 
-        if (found == index && ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+        if (found == index && ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
             WOWGUID gossip = CGGossipInfo::m_gossip;
             CGPlayer_C::CompleteQuest(gossip, quest.m_questID);
         }

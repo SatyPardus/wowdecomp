@@ -231,10 +231,10 @@ int32_t CVehicle_C::GetVirtualSeatCount() const {
     }
 
     for (CPassenger* passenger = const_cast<CVehicle_C*>(this)->m_passengers.Head(); passenger; passenger = const_cast<CVehicle_C*>(this)->m_passengers.Next(passenger)) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
         CVehicle_C* vehicle = unit->m_vehicle;
 
-        if (vehicle && vehicle->m_vehicleRec && !(unit->m_obj->m_type & TYPEMASK_PLAYER)) {
+        if (vehicle && vehicle->m_vehicleRec && !(unit->m_obj->m_type & TYPE_PLAYER)) {
             count += vehicle->GetVirtualSeatCount() - 1;
         }
     }
@@ -252,10 +252,10 @@ int32_t CVehicle_C::GetVehicleAndSeatFromVirtualSeatsRemaining(int32_t& remainin
     CGUnit_C* seatUnits[8] = {};
 
     for (CPassenger* passenger = const_cast<CVehicle_C*>(this)->m_passengers.Head(); passenger; passenger = const_cast<CVehicle_C*>(this)->m_passengers.Next(passenger)) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
         CVehicle_C* unitVehicle = unit->m_vehicle;
 
-        if (unitVehicle && unitVehicle->m_vehicleRec && !(unit->m_obj->m_type & TYPEMASK_PLAYER)) {
+        if (unitVehicle && unitVehicle->m_vehicleRec && !(unit->m_obj->m_type & TYPE_PLAYER)) {
             seatUnits[static_cast<uint8_t>(unit->m_movementData.m_transportSeat)] = unit;
         }
     }
@@ -283,7 +283,7 @@ int32_t CVehicle_C::GetVehicleAndSeatFromVirtualSeatsRemaining(int32_t& remainin
 // OFFSET: 0x00757680
 CGUnit_C* CVehicle_C::FindPassengerUnit(uint8_t seat) {
     for (CPassenger* passenger = this->m_passengers.Head(); passenger; passenger = this->m_passengers.Next(passenger)) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (static_cast<uint8_t>(unit->m_movementData.m_transportSeat) == seat) {
             return unit;
@@ -370,7 +370,7 @@ void CVehicle_C::BuildWorldMatrix(const C44Matrix* parent) {
         uint32_t high = static_cast<uint32_t>(guid.m_guid >> 32);
 
         if ((high & 0xF0F00000) == 0xF0500000 || (!(high & 0xF0000000) && ((high & 0xF07FFFFF) | static_cast<uint32_t>(guid.m_guid)))) {
-            CVehicle_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__))->m_vehicle;
+            CVehicle_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__))->m_vehicle;
 
             if (vehicle && vehicle->m_vehicleRec) {
                 vehicle->BuildWorldMatrix(matrix);
@@ -389,7 +389,7 @@ void CVehicle_C::UpdateLargestPassengerBoundsRadius() {
         vehicle->m_largestPassengerBoundsRadius = 0.0f;
 
         for (CPassenger* passenger = vehicle->m_passengers.Head(); passenger; passenger = vehicle->m_passengers.Next(passenger)) {
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
             CM2Model* model = unit->GetObjectModel();
 
             if (model && model->IsLoaded(0, 0)) {
@@ -417,7 +417,7 @@ void CVehicle_C::UpdateLargestPassengerBoundsRadius() {
             break;
         }
 
-        CGUnit_C* transport = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ unit->GetTransportGUID() }, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* transport = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ unit->GetTransportGUID() }, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!transport) {
             break;
@@ -445,7 +445,7 @@ void CVehicle_C::UpdateFreeSeatMask() {
     uint8_t occupied = 0;
 
     for (CPassenger* passenger = this->m_passengers.Head(); passenger; passenger = this->m_passengers.Next(passenger)) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             occupied |= 1 << static_cast<uint8_t>(unit->m_movementData.m_transportSeat);
@@ -558,7 +558,7 @@ void CVehicle_C::UpdateWorldMatrix() {
         return;
     }
 
-    CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ this->m_unit->GetTransportGUID() }, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ this->m_unit->GetTransportGUID() }, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (transport) {
         C44Matrix transportMatrix = transport->GetMatrix();
@@ -579,7 +579,7 @@ CVehicle_C* CVehicle_C::FindVehicleToPlayBoneAnim() {
     CGUnit_C* unit = this->m_unit;
 
     while (unit->m_vehiclePassenger && unit->m_vehiclePassenger->OverridesModelAnimation()) {
-        CGUnit_C* vehicleUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(unit->m_vehiclePassenger->m_transitionVehicleGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* vehicleUnit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(unit->m_vehiclePassenger->m_transitionVehicleGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!vehicleUnit) {
             break;
@@ -595,7 +595,7 @@ CVehicle_C* CVehicle_C::FindVehicleToPlayBoneAnim() {
 // OFFSET: 0x00757E70
 void CVehicle_C::StartMirroringAnimsToPassengers() {
     for (CPassenger* passenger = this->m_passengers.Head(); passenger; passenger = this->m_passengers.Next(passenger)) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit && unit->m_vehiclePassenger && unit->m_vehiclePassenger->OverridesModelAnimation()) {
             unit->m_vehiclePassenger->StartMirroringVehicleAnims();
@@ -643,7 +643,7 @@ void CVehicle_C::HandleBoneAnimGrabEvent(uint32_t boneId, uint32_t eventId) {
             continue;
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(listener.m_guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(listener.m_guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit && unit->m_vehiclePassenger && unit->m_vehiclePassenger->IsWaitingForVehicleTransitionAnimGrabEvent(eventId)) {
             unit->m_vehiclePassenger->StopWaitingForVehicleTransitionAnim();
@@ -666,7 +666,7 @@ void CVehicle_C::HandleBoneAnimThrowEvent(uint32_t boneId, uint32_t eventId) {
             continue;
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(listener.m_guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(listener.m_guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit && unit->m_vehiclePassenger && unit->m_vehiclePassenger->IsWaitingForVehicleTransitionAnimThrowEvent(eventId)) {
             unit->m_vehiclePassenger->StopWaitingForVehicleTransitionAnim();
@@ -679,7 +679,7 @@ void CVehicle_C::HandleBoneAnimThrowEvent(uint32_t boneId, uint32_t eventId) {
 // OFFSET: 0x00757180
 void CVehicle_C::EnterWorld() {
     CGUnit_C::UpdateVehicleUISliders(nullptr, nullptr);
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_vehicle && player->m_vehicle->m_vehicleRec) {
         player->SignalPlayerGainsVehicleDataEvent();
@@ -754,7 +754,7 @@ void CVehicle_C::BoneAnimEndHandler(CM2Model* model, uint32_t boneId, uint32_t s
             continue;
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(listener.m_guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(listener.m_guid, TYPE_UNIT, __FILE__, __LINE__));
         int32_t keep = 0;
 
         if (unit && listener.m_callback && (listener.m_callback(unit, keep, passengers), keep)) {
@@ -804,7 +804,7 @@ void CVehicle_C::RemoveAllPassengersLocally() {
             camera->MakeRelativeTo(WOWGUID{ 0 });
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(*passenger->m_ownerGuid, TYPE_UNIT, __FILE__, __LINE__));
         CMovement_C* movement = static_cast<CMovement_C*>(passenger);
 
         if (unit->m_obj->m_guid == CGUnit_C::s_activeMover) {

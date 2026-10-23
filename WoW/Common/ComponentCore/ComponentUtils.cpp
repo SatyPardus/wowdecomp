@@ -76,7 +76,7 @@ COMPONENT_CONTEXT GetContextFromSelection(COMPONENT_SELECTION selection) {
 
 // VERIFY: 28ddfb49 manual
 // OFFSET: 0x004F3AE0
-int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation) {
+int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation) {
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
     if (!list.m_variation) {
@@ -88,7 +88,7 @@ int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID
 
 // VERIFY: 725a4a25 auto
 // OFFSET: 0x004F3B10
-int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex) {
+int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation, int32_t variationIndex) {
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
     if (!list.m_variation || variationIndex >= list.m_numVariations || list.m_numVariations <= 0 || !list.m_variation[variationIndex].m_color) {
@@ -100,8 +100,8 @@ int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, CO
 
 // VERIFY: 387cd93c manual
 // OFFSET: 0x004F3B50
-bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex, int32_t colorIndex) {
-    if (static_cast<uint32_t>(variation) >= NUM_COMPONENT_VARIATIONS || variationIndex < 0) {
+bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation, int32_t variationIndex, int32_t colorIndex) {
+    if (static_cast<uint32_t>(variation) >= CHARTEXTUREVARIATIONS_NUM || variationIndex < 0) {
         return false;
     }
 
@@ -118,8 +118,8 @@ bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, COMPO
 
 // VERIFY: 04a6cba3 manual
 // OFFSET: 0x004F3BA0
-CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex, int32_t colorIndex, bool* found) {
-    if (static_cast<uint32_t>(variation) < NUM_COMPONENT_VARIATIONS && variationIndex >= 0) {
+CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int32_t sexID, CHARTEXTUREVARIATIONS variation, int32_t variationIndex, int32_t colorIndex, bool* found) {
+    if (static_cast<uint32_t>(variation) < CHARTEXTUREVARIATIONS_NUM && variationIndex >= 0) {
         CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
         if (variationIndex < list.m_numVariations && list.m_numVariations && colorIndex >= 0) {
@@ -145,7 +145,7 @@ CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int
 // VERIFY: e6e73c05 manual
 // OFFSET: 0x004F3C10
 bool ComponentValidateSkin(st_race* lookup, int32_t raceID, int32_t sexID, int32_t classID, int32_t colorIndex, COMPONENT_CONTEXT context) {
-    CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[VARIATION_SKIN];
+    CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[CHARTEXTUREVAR_SKIN];
 
     if (list.m_numVariations <= 0 || colorIndex < 0) {
         return false;
@@ -167,7 +167,7 @@ bool ComponentValidateHair(st_race* lookup, int32_t raceID, int32_t sexID, int32
         return false;
     }
 
-    CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[VARIATION_HAIR];
+    CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[CHARTEXTUREVAR_HAIR];
 
     if (variationIndex >= list.m_numVariations || !list.m_numVariations || colorIndex < 0) {
         return false;
@@ -189,7 +189,7 @@ bool ComponentValidateFace(st_race* lookup, int32_t raceID, int32_t sexID, int32
         return false;
     }
 
-    CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[VARIATION_FACE];
+    CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[CHARTEXTUREVAR_FACE];
 
     if (variationIndex >= list.m_numVariations || !list.m_numVariations || colorIndex < 0) {
         return false;
@@ -217,7 +217,7 @@ bool ComponentValidateFacialFeature(st_race* lookup, uint32_t* facialFeatures, i
         return false;
     }
 
-    CharVariationList& list = lookup[index].m_variation[VARIATION_FACIAL_HAIR];
+    CharVariationList& list = lookup[index].m_variation[CHARTEXTUREVAR_FACIALHAIR];
 
     if (variationIndex >= list.m_numVariations || !list.m_numVariations || colorIndex < 0) {
         return true;
@@ -254,7 +254,7 @@ int32_t BuildComponentArray(uint32_t count, st_race** lookupOut) {
     for (int32_t i = 0; i < g_charSectionsDB.m_numRecords; i++) {
         CharSectionsRec* rec = (i < 0 || i >= g_charSectionsDB.m_numRecords) ? nullptr : &g_charSectionsDB.m_records[i];
 
-        if (rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
+        if (rec->m_baseSection >= CHARTEXTUREVARIATIONS_NUM) {
             continue;
         }
 
@@ -294,7 +294,7 @@ int32_t BuildComponentArray(uint32_t count, st_race** lookupOut) {
     for (int32_t i = 0; i < g_charSectionsDB.m_numRecords; i++) {
         CharSectionsRec* rec = (i < 0 || i >= g_charSectionsDB.m_numRecords) ? nullptr : &g_charSectionsDB.m_records[i];
 
-        if (rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
+        if (rec->m_baseSection >= CHARTEXTUREVARIATIONS_NUM) {
             continue;
         }
 
@@ -337,7 +337,7 @@ int32_t BuildComponentArray(uint32_t count, st_race** lookupOut) {
     for (int32_t i = 0; i < g_charSectionsDB.m_numRecords; i++) {
         CharSectionsRec* rec = (i < 0 || i >= g_charSectionsDB.m_numRecords) ? nullptr : &g_charSectionsDB.m_records[i];
 
-        if (rec->m_baseSection >= NUM_COMPONENT_VARIATIONS) {
+        if (rec->m_baseSection >= CHARTEXTUREVARIATIONS_NUM) {
             continue;
         }
 

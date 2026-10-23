@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/SoundInterface/Types.h"
 
 class SFileImpl;
 
@@ -15,7 +16,7 @@ class SoundProviderPreferencesRec {
     /* 0000 */ int32_t m_id;
     /* 0004 */ const char* m_description;
     /* 0008 */ int32_t m_flags;
-    /* 000C */ int32_t m_eaxenvironmentSelection;
+    /* 000C */ SNDROOMTYPE m_eaxenvironmentSelection;
     /* 0010 */ float m_eaxdecayTime;
     /* 0014 */ float m_eax2EnvironmentSize;
     /* 0018 */ float m_eax2EnvironmentDiffusion;

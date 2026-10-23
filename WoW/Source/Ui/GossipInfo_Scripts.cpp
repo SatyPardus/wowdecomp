@@ -47,7 +47,7 @@ static int32_t Script_GetNumGossipOptions(lua_State* L) {
 // OFFSET: 0x0058AB50
 static int32_t Script_ForceGossip(lua_State* L) {
     bool force = false;
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGGossipInfo::m_gossip, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGGossipInfo::m_gossip, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         force = unit->IsForceGossip();

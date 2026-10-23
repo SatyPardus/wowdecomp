@@ -180,7 +180,7 @@ int32_t CTgaFile::SetTopDown(int32_t topDown) {
         return 1;
     }
 
-    if (this->m_header.m_bImageType >= 9 && this->m_header.m_bImageType <= 11) {
+    if (this->m_header.m_bImageType >= TGA_RLE_COLOR_MAPPED && this->m_header.m_bImageType <= TGA_RLE_BLACK_N_WHITE) {
         SErrSetLastError(0xF7200083);
         return 0;
     }
@@ -283,7 +283,7 @@ int32_t CTgaFile::SetImage(const void* bits, uint16_t width, uint16_t height, ui
     this->m_header.m_bPixelDepth = pixelDepth;
     this->m_header.m_wWidth = width;
     this->m_imageBytes = width * height * ((pixelDepth + 7) / 8);
-    this->m_header.m_bImageType = 2;
+    this->m_header.m_bImageType = TGA_TRUE_COLOR;
 
     if (this->m_image) {
         SMemFree(this->m_image, __FILE__, __LINE__, 0);
@@ -387,7 +387,7 @@ int32_t CTgaFile::Compress() {
         return 0;
     }
 
-    if (this->m_header.m_bImageType >= 9) {
+    if (this->m_header.m_bImageType >= TGA_RLE_COLOR_MAPPED) {
         SErrSetLastError(0xF7200083);
         return 0;
     }
@@ -557,7 +557,7 @@ void CTgaFile::ConvertColorMapped(uint32_t flags) {
     this->m_colorMap = nullptr;
     this->m_header.m_wColorMapEntries = 0;
     this->m_header.m_bColorMapType = 0;
-    this->m_header.m_bImageType = 2;
+    this->m_header.m_bImageType = TGA_TRUE_COLOR;
     this->m_header.m_bPixelDepth = pixelDepth;
     this->m_imageBytes = this->Width() * this->Height() * ((pixelDepth + 7) / 8);
 
@@ -618,7 +618,7 @@ int32_t CTgaFile::AddAlphaChannel(const void* alpha) {
         return 0;
     }
 
-    if (this->m_header.m_bImageType >= 9 && this->m_header.m_bImageType <= 11) {
+    if (this->m_header.m_bImageType >= TGA_RLE_COLOR_MAPPED && this->m_header.m_bImageType <= TGA_RLE_BLACK_N_WHITE) {
         SErrSetLastError(0xF7200083);
         return 0;
     }
@@ -648,7 +648,7 @@ int32_t CTgaFile::ReadColorMappedImage(uint32_t flags) {
         return 0;
     }
 
-    int32_t result = this->m_header.m_bImageType >= 9 ? this->ReadRleImage(0) : this->ReadRawImage(0);
+    int32_t result = this->m_header.m_bImageType >= TGA_RLE_COLOR_MAPPED ? this->ReadRleImage(0) : this->ReadRawImage(0);
 
     if (this->m_header.m_bColorMapType && (flags & 2)) {
         this->ConvertColorMapped(flags);
@@ -673,27 +673,27 @@ int32_t CTgaFile::LoadImageData(uint32_t flags) {
     this->m_imageBytes = this->Width() * this->Height() * this->BytesPerPixel();
 
     switch (this->m_header.m_bImageType) {
-        case 0:
+        case TGA_NO_IMAGE_DATA:
             SErrSetLastError(0xF7200078);
             return 0;
 
-        case 1:
-        case 9:
+        case TGA_COLOR_MAPPED:
+        case TGA_RLE_COLOR_MAPPED:
             return this->ReadColorMappedImage(flags);
 
-        case 2:
+        case TGA_TRUE_COLOR:
             if (!this->ValidateColorDepth()) {
                 return 0;
             }
 
             return this->ReadRawImage(flags);
 
-        case 3:
-        case 11:
+        case TGA_BLACK_N_WHITE:
+        case TGA_RLE_BLACK_N_WHITE:
             SErrSetLastError(0xF720007A);
             return 0;
 
-        case 10:
+        case TGA_RLE_TRUE_COLOR:
             if (!this->ValidateColorDepth()) {
                 return 0;
             }

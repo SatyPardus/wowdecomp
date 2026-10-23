@@ -315,7 +315,7 @@ void CGArenaTeamInfo::InitializeGame() {
 // VERIFY: 04a71da4 manual
 // OFFSET: 0x005A37B0
 bool CGArenaTeamInfo::CheckPersonalAndTeamRating(uint32_t rating, int32_t bracket) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return false;
@@ -426,7 +426,7 @@ int32_t CGArenaTeamInfo::GetSelectedMemberIndex(uint32_t team) {
 // VERIFY: 3cf409c5 manual
 // OFFSET: 0x005A3600
 void CGArenaTeamInfo::QueryRoster(uint32_t index) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || index >= 3) {
         return;
@@ -455,7 +455,7 @@ void CGArenaTeamInfo::QueryRoster(uint32_t index) {
 // VERIFY: 45de7426 manual
 // OFFSET: 0x005A3700
 void CGArenaTeamInfo::UpdateTeams(int32_t signal) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;

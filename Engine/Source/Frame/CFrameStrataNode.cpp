@@ -50,7 +50,7 @@ int32_t CFrameStrataNode::BuildBatches() {
         return 0;
     }
 
-    for (uint32_t layer = 0; layer < 5; layer++) {
+    for (uint32_t layer = 0; layer < NUM_SIMPLEFRAME_DRAWLAYERS; layer++) {
         CRenderBatch* batch = &this->m_batches[layer];
 
         if (this->m_renderList.IsLinked(batch)) {

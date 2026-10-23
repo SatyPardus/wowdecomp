@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "Engine/Source/Model2/Types.h"
 #include "Engine/Source/Tempest/C2Vector.h"
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Tempest/C4Quaternion.h"
@@ -52,7 +53,7 @@ class M2CompQuat {
 
 class M2TrackBase {
     public:
-    /* 0000 */ uint16_t m_trackType;
+    /* 0000 */ M2TRACKTYPE m_trackType;
     /* 0002 */ uint16_t m_loopIndex;
     /* 0004 */ M2Array<M2Array<uint32_t> > m_sequenceTimes;
 };
@@ -153,7 +154,7 @@ class M2TextureTransform {
 class M2Material {
     public:
     /* 0000 */ uint16_t m_flags;
-    /* 0002 */ uint16_t m_blendMode;
+    /* 0002 */ M2BLEND m_blendMode;
 };
 
 class M2Attachment {
@@ -234,7 +235,7 @@ class M2Particle {
     /* 0016 */ uint16_t m_textureIndex;
     /* 0018 */ M2Array<char> m_geometryMdl;
     /* 0020 */ M2Array<char> m_recursionMdl;
-    /* 0028 */ uint8_t m_blendMode;
+    /* 0028 */ M2PARTICLEBLENDMODE m_blendMode;
     /* 0029 */ uint8_t m_emitterType;
     /* 002A */ uint16_t m_colorIndex;
     /* 002C */ uint16_t unused_002C;

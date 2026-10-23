@@ -337,7 +337,7 @@ static int32_t Script_GetActionCount(lua_State* L) {
 // OFFSET: 0x005A8790
 static int32_t Script_GetActionBarToggles(lua_State* L) {
     uint8_t toggles = 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         toggles = player->m_player->m_playerFieldBytes[2];

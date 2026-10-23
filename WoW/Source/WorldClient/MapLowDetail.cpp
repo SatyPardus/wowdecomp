@@ -1,4 +1,5 @@
 #include "MapLowDetail.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 #include <cmath>
 #include <cstring>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -62,9 +63,9 @@ void CMapLowDetail::Purge() {
 // OFFSET: 0x007CC0B0
 void CMapLowDetail::CullHorizonAreas(const C3Vector* pos) {
     float y = -(pos->y - 17066.666f);
-    float x = -(pos->x - 17066.666f) * 0.029999999f;
+    float x = -(pos->x - 17066.666f) * OO_COORD_TO_CHUNK;
     int32_t row = CMath::fint_(x - 0.5f);
-    y = y * 0.029999999f;
+    y = y * OO_COORD_TO_CHUNK;
     int32_t col = CMath::fint_(y - 0.5f);
     int32_t radius = static_cast<int32_t>(static_cast<int64_t>(World::s_horizonFarClipScale * World::s_farClip * 0.030000001f));
 

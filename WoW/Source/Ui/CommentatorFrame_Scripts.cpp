@@ -20,7 +20,7 @@
 // OFFSET: 0x00569230
 static int32_t Script_CommentatorGetMode(lua_State* L) {
     int32_t mode = 0;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         uint32_t flags = player->m_player->m_playerFlags;
@@ -109,7 +109,7 @@ static int32_t Script_CommentatorGetMapInfo(lua_State* L) {
 // VERIFY: 003a522d manual
 // OFFSET: 0x0056AFC0
 static int32_t Script_CommentatorGetSkirmishQueuePlayerInfo(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !(player->m_player->m_playerFlags & 0x80000)) {
         return 0;
@@ -141,7 +141,7 @@ static int32_t Script_CommentatorGetSkirmishQueuePlayerInfo(lua_State* L) {
 // VERIFY: 8ce90f84 manual
 // OFFSET: 0x0056AF60
 static int32_t Script_CommentatorGetSkirmishQueueCount(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !(player->m_player->m_playerFlags & 0x80000)) {
         return 0;
@@ -154,7 +154,7 @@ static int32_t Script_CommentatorGetSkirmishQueueCount(lua_State* L) {
 // VERIFY: 9a2b78ca manual
 // OFFSET: 0x0056AF00
 static int32_t Script_CommentatorGetSkirmishMode(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !(player->m_player->m_playerFlags & 0x80000)) {
         return 0;
@@ -167,7 +167,7 @@ static int32_t Script_CommentatorGetSkirmishMode(lua_State* L) {
 // VERIFY: f387e25a auto
 // OFFSET: 0x0056A2A0
 static int32_t Script_CommentatorGetCamera(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !player->IsCommentatorUberOrInArena()) {
         return 0;
@@ -191,7 +191,7 @@ static int32_t Script_CommentatorGetCamera(lua_State* L) {
 // VERIFY: 0f4be0e6 manual
 // OFFSET: 0x0056AB70
 static int32_t Script_CommentatorSetCameraCollision(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && (player->m_player->m_playerFlags & 0x80000) && (player->m_player->m_playerFlags & 0x400000)) {
         if (!lua_isnumber(L, 1)) {
@@ -213,7 +213,7 @@ static int32_t Script_CommentatorSetCameraCollision(lua_State* L) {
 // VERIFY: a53f977c manual
 // OFFSET: 0x0056AC10
 static int32_t Script_CommentatorSetTargetHeightOffset(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && (player->m_player->m_playerFlags & 0x80000) && (player->m_player->m_playerFlags & 0x400000)) {
         if (!lua_isnumber(L, 1)) {
@@ -230,7 +230,7 @@ static int32_t Script_CommentatorSetTargetHeightOffset(lua_State* L) {
 // VERIFY: 49d3efa1 manual
 // OFFSET: 0x0056AA10
 static int32_t Script_CommentatorSetBattlemaster(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !(player->m_player->m_playerFlags & 0x80000)) {
         return 0;
@@ -243,9 +243,9 @@ static int32_t Script_CommentatorSetBattlemaster(lua_State* L) {
         return 0;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(target, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(target, TYPE_OBJECT, __FILE__, __LINE__);
 
-    if (!object || !(object->m_obj->m_type & TYPEMASK_UNIT)) {
+    if (!object || !(object->m_obj->m_type & TYPE_UNIT)) {
         luaL_error(L, "Targeted unit is not a Battlemaster.");
         return 0;
     }
@@ -804,9 +804,9 @@ static int32_t Script_CommentatorAddPlayer(lua_State* L) {
         return 0;
     }
 
-    CGObject_C* target = ClntObjMgrObjectPtr(player->m_unit->m_unitFieldTarget, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* target = ClntObjMgrObjectPtr(player->m_unit->m_unitFieldTarget, TYPE_OBJECT, __FILE__, __LINE__);
 
-    if (!target || !(target->m_obj->m_type & TYPEMASK_PLAYER)) {
+    if (!target || !(target->m_obj->m_type & TYPE_PLAYER)) {
         luaL_error(L, "Must target a player.");
         return 0;
     }

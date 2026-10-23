@@ -432,15 +432,15 @@ void IEvtDispatchInput(EvtContext* context, OSINPUT id, int32_t* param, int32_t*
             IEvtDispatchMouseEvent(context, static_cast<MOUSEBUTTON>(param[0]), param[1], param[2], 0, param[3]);
             break;
 
-        case OS_INPUT_14:
+        case OS_INPUT_JOYSTICK_STICK:
             IEvtDispatchJoystickStick(context, param[0], param[1], param[2], param[3]);
             break;
 
-        case OS_INPUT_15:
+        case OS_INPUT_JOYSTICK_AXIS:
             IEvtDispatchJoystickAxis(context, param[0], param[1], param[3]);
             break;
 
-        case OS_INPUT_16: {
+        case OS_INPUT_JOYSTICK_BUTTON_DOWN: {
             EVENT_DATA_JOYSTICK data;
             data.unused_0000 = 0;
             data.m_id = param[0];
@@ -451,7 +451,7 @@ void IEvtDispatchInput(EvtContext* context, OSINPUT id, int32_t* param, int32_t*
             break;
         }
 
-        case OS_INPUT_17: {
+        case OS_INPUT_JOYSTICK_BUTTON_UP: {
             EVENT_DATA_JOYSTICK data;
             data.unused_0000 = 0;
             data.m_id = param[0];
@@ -462,7 +462,7 @@ void IEvtDispatchInput(EvtContext* context, OSINPUT id, int32_t* param, int32_t*
             break;
         }
 
-        case OS_INPUT_18: {
+        case OS_INPUT_JOYSTICK_HAT: {
             EVENT_DATA_JOYSTICK data;
             data.unused_0000 = 0;
             data.m_id = param[0];

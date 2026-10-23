@@ -163,13 +163,13 @@ C3Vector::EAxis C3Vector::MajorAxis() const {
 
     if (x <= y) {
         if (y > z) {
-            return AXIS_Y;
+            return C3AXIS_Y;
         }
     } else if (x > z) {
-        return AXIS_X;
+        return C3AXIS_X;
     }
 
-    return AXIS_Z;
+    return C3AXIS_Z;
 }
 
 // VERIFY: 8564aa4a manual
@@ -181,17 +181,17 @@ C3Vector::EAxis C3Vector::MinorAxis() const {
 
     if (x >= y) {
         if (y <= z) {
-            return AXIS_Y;
+            return C3AXIS_Y;
         }
 
-        return AXIS_Z;
+        return C3AXIS_Z;
     }
 
     if (x >= z) {
-        return AXIS_Z;
+        return C3AXIS_Z;
     }
 
-    return AXIS_X;
+    return C3AXIS_X;
 }
 
 // INLINED

@@ -7,6 +7,11 @@
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Storm/H/stpl.h"
 
+enum CVAR_FLAGS : uint32_t {
+    CVAR_ARCHIVE = 1,
+    CVAR_LATCH = 2,
+};
+
 struct CVar;
 
 struct CVarLogBuffer {

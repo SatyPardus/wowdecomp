@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Ui/Types.h"
 
 struct lua_State;
 class CGObject_C;
@@ -37,7 +38,7 @@ struct LootSlot {
 class CGLootInfo {
     public:
     static uint32_t m_itemsPending;
-    static uint32_t m_lootType;
+    static LOOT_ACQUIRE m_lootAcquire;
     static LootSlot m_slots[18];
     static int32_t m_coins;
     static WOWGUID m_lootObj;
@@ -52,7 +53,7 @@ class CGLootInfo {
     static void ConfirmLootSlot(uint32_t slot);
     static void GiveMasterLoot(uint32_t slot, WOWGUID target);
     static void LootButtonItemStatsCallback(int32_t id, const WOWGUID& guid, void* param, bool success);
-    static void SetObject(CGObject_C* object, int32_t coins, uint32_t lootType);
+    static void SetObject(CGObject_C* object, int32_t coins, LOOT_ACQUIRE lootAcquire);
     static void ClearSlot(uint8_t slot);
     static void OnLootSlotChanged(uint8_t slot);
     static int32_t GetLootItem(uint32_t slot);
@@ -72,7 +73,7 @@ class CGLootWindow {
 
 class CGLootDisplay {
     public:
-    static uint32_t GetLootAcquireType();
+    static LOOT_ACQUIRE GetLootAcquireType();
 };
 
 void LootInfoRegisterScriptFunctions();

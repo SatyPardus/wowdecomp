@@ -335,7 +335,7 @@ void CSimpleRegion::AnimDeactivated(CSimpleAnimGroup* group, int32_t last) {
 CSimpleRegion::CSimpleRegion(CSimpleFrame* frame, uint32_t drawLayer, int32_t show) {
     this->m_alphaCount = 4;
     this->m_colorCount = 4;
-    this->m_drawLayer = 0;
+    this->m_drawLayer = DRAWLAYER_BACKGROUND;
     this->m_shown = 0;
     this->m_visible = 0;
     this->m_animating = 0;

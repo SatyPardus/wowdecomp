@@ -289,7 +289,7 @@ void CGSkillInfo::ExpandHeader(uint32_t index) {
 // VERIFY: c12af19b manual
 // OFFSET: 0x005CD9B0
 void PlayerSignalSkillStatChanges() {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;

@@ -4,6 +4,7 @@
 #include "WoW/Source/Ui/Types.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/Object/ItemStats.h"
+#include "WoW/Source/Object/Types.h"
 #include "WoW/Source/WowServices/WDataStore.h"
 #include "WoW/Source/WowSvcs/WowSvcsClient/ClientServices.h"
 #include "WoW/Source/Net/Types.h"
@@ -219,7 +220,8 @@ static void LootRollCalculateReasons(PendingLootRoll* roll, const ItemStats_C* s
     } else if (invalid) {
         roll->m_reasonNeed = 2;
     } else {
-        roll->m_reasonNeed = static_cast<uint8_t>(((stats->m_flags[1] >> 6) & 0x4) | 0x1);
+        // roll->m_reasonNeed = static_cast<uint8_t>(((stats->m_flags[1] >> 6) & (ITEM_FLAG2_CAN_ONLY_ROLL_GREED >> 6)) | 0x1);
+        roll->m_reasonNeed = (stats->m_flags[1] & ITEM_FLAG2_CAN_ONLY_ROLL_GREED) ? 5 : 1; // same but more humanly readable, original line is probably a compiler optimization
     }
 
     roll->m_reasonGreed = ~(mask >> 1) & 0x2;

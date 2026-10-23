@@ -100,7 +100,7 @@ Liquid::CMaterialSettings* Liquid::CSettingsBank::GetSettings(uint32_t liquidTyp
             break;
         }
 
-        SysMsgPrintf(STATUS_ERROR, 2, "Settings Bank: Liquid type [%d] not found, defaulting to water!", liquidType);
+        SysMsgPrintf(SYSMSG_ERROR, 2, "Settings Bank: Liquid type [%d] not found, defaulting to water!", liquidType);
         liquidType = 1;
     }
 

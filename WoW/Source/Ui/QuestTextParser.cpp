@@ -316,7 +316,7 @@ int32_t SpellItemEnchantmentParseText(const SpellItemEnchantmentRec* enchant, ch
 static bool SpellParserGetCondition(const char** cursor) {
     char type = **cursor;
     (*cursor)++;
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t count = 0;
 
     while ((*cursor)[count] >= '0' && (*cursor)[count] <= '9') {
@@ -728,9 +728,9 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
             CGUnit_C* unit;
 
             if (parseUnit) {
-                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPE_UNIT, __FILE__, __LINE__));
             } else if (parsePet) {
-                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
             } else {
                 unit = ClntObjMgrGetActivePlayerObj();
             }
@@ -939,9 +939,9 @@ static int32_t SpellParserReplaceText(const SpellRec* spell, char* buffer, uint3
             CGUnit_C* unit;
 
             if (parseUnit) {
-                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGCharacterInfo::m_inspectTarget, TYPE_UNIT, __FILE__, __LINE__));
             } else if (parsePet) {
-                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPEMASK_UNIT, __FILE__, __LINE__));
+                unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGPetInfo::GetPet(0), TYPE_UNIT, __FILE__, __LINE__));
             } else {
                 unit = ClntObjMgrGetActivePlayerObj();
             }
@@ -1126,7 +1126,7 @@ int32_t SpellParserParseText(const SpellRec* spell, char* buffer, uint32_t size,
 // OFFSET: 0x00579590
 int32_t QuestParserParseText(const char* text, char* buffer, uint32_t size, const WOWGUID& guid, const char* name, int32_t a6) {
     bool failed = false;
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
     NameCache* record;
 
     if (unit) {
@@ -1237,7 +1237,7 @@ bool QuestParserParseToken(char* buffer, uint32_t size, const NameCache* record,
                 return false;
             }
 
-            if (unit && !(unit->m_obj->m_type & TYPEMASK_PLAYER)) {
+            if (unit && !(unit->m_obj->m_type & TYPE_PLAYER)) {
                 SStrPack(buffer, className, size);
                 break;
             }
@@ -1327,7 +1327,7 @@ bool QuestParserParseToken(char* buffer, uint32_t size, const NameCache* record,
                 return false;
             }
 
-            if (unit && !(unit->m_obj->m_type & TYPEMASK_PLAYER)) {
+            if (unit && !(unit->m_obj->m_type & TYPE_PLAYER)) {
                 SStrPack(buffer, raceName, size);
                 break;
             }
@@ -1375,7 +1375,7 @@ bool QuestParserParseToken(char* buffer, uint32_t size, const NameCache* record,
             int32_t gender;
 
             if (unit) {
-                if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
+                if (unit->m_obj->m_type & TYPE_PLAYER) {
                     const CGPlayer_C* player = static_cast<const CGPlayer_C*>(unit);
                     uint8_t rank = player->m_player->m_playerFieldBytes[3];
                     SStrPrintf(label, sizeof(label), "PVP_RANK_%d_%d", rank, player->GetPVPFactionIndex());

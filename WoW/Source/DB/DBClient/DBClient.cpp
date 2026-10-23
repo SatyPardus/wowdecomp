@@ -9,7 +9,7 @@
 #include <map>
 
 // STATIC: 0x00AD3028
-const char* g_localeNames[12] = { "deDE", "enGB", "enUS", "esES", "frFR", "koKR", "zhCN", "zhTW", "enCN", "enTW", "esMX", "ruRU" };
+const char* g_localeNames[NUM_DB_LOCALES] = { "deDE", "enGB", "enUS", "esES", "frFR", "koKR", "zhCN", "zhTW", "enCN", "enTW", "esMX", "ruRU" };
 
 // STATIC: 0x00C5DEA0
 int32_t g_clientDbPerformCompress;
@@ -1196,19 +1196,19 @@ void ClientDBInitialize() {
 
 // VERIFY: 144a65d1 auto
 // OFFSET: 0x00635D90
-int32_t LocaleNameToIndex(const char* locale) {
-    for (int32_t i = 0; i < 12; i++) {
+DB_LOCALE_INDEX LocaleNameToIndex(const char* locale) {
+    for (int32_t i = 0; i < NUM_DB_LOCALES; i++) {
         if (!SStrCmpI(locale, g_localeNames[i], 4)) {
-            return i;
+            return static_cast<DB_LOCALE_INDEX>(i);
         }
     }
 
-    return 2;
+    return DB_LOCALE_enUS;
 }
 
 // VERIFY: d0d3fe1b auto
 // OFFSET: 0x00634910
-const char* ClientDBStringLookup(uint32_t lookup) {
+const char* ClientDBStringLookup(STRINGLOOKUP lookup) {
     StringLookupsRec* rec = g_stringLookupsDB.GetRecord(lookup);
     return rec ? rec->m_string : nullptr;
 }

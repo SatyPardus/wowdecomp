@@ -1204,7 +1204,7 @@ bool CGAuctionHouse::IsSellItemValid(CGItem_C* item, int32_t showError) {
         error = ERR_AUCTION_USED_CHARGES;
     } else if (item->IsBound()) {
         error = stats->m_bonding != 4 ? ERR_AUCTION_BOUND_ITEM : ERR_AUCTION_QUEST_ITEM;
-    } else if (item->GetItemStaticFlags(0) & 0x2) {
+    } else if (item->GetItemStaticFlags(0) & ITEM_FLAG_CONJURED) {
         error = ERR_AUCTION_CONJURED_ITEM;
     } else if (((item->GetItemStaticFlags(0) & 0x10000) && static_cast<int32_t>(stats->m_duration) > 0) || stats->m_holidayId) {
         error = ERR_AUCTION_LIMITED_DURATION_ITEM;
@@ -1215,11 +1215,11 @@ bool CGAuctionHouse::IsSellItemValid(CGItem_C* item, int32_t showError) {
     } else {
         const CGBag_C* bag;
 
-        if ((item->m_obj->m_type & TYPEMASK_CONTAINER) && (bag = static_cast<const CGItem_C*>(item)->GetBag()) && bag->GetNumItems()) {
+        if ((item->m_obj->m_type & TYPE_CONTAINER) && (bag = static_cast<const CGItem_C*>(item)->GetBag()) && bag->GetNumItems()) {
             error = ERR_AUCTION_BAG;
-        } else if (item->m_item->m_itemFieldFlags & 0x8) {
+        } else if (item->m_item->m_itemFieldFlags & ITEM_DFLAG_WRAPPED) {
             error = ERR_AUCTION_WRAPPED_ITEM;
-        } else if (item->GetItemStaticFlags(0) & 0x4) {
+        } else if (item->GetItemStaticFlags(0) & ITEM_FLAG_HAS_LOOT) {
             error = ERR_AUCTION_LOOT_ITEM;
         } else {
             return true;
@@ -1730,13 +1730,13 @@ static int32_t FindSellItemsCallback(const CGItem_C* item, void* param) {
 // VERIFY: 26ac0b42 manual
 // OFFSET: 0x0059F640
 int32_t FindItemForAuction(WOWGUID item, uint32_t count) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
     }
 
-    CGItem_C* sellItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* sellItem = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!sellItem) {
         return 0;
@@ -1757,7 +1757,7 @@ int32_t FindItemForAuction(WOWGUID item, uint32_t count) {
 // VERIFY: f69c4580 manual
 // OFFSET: 0x0059F6E0
 int32_t FindSellableItems(int32_t itemId) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -1798,7 +1798,7 @@ int32_t Packet_MSG_AUCTION_HELLO(void* param, NETMESSAGE msgId, uint32_t time, C
 // VERIFY: 7f72240d manual
 // OFFSET: 0x0059FFB0
 int32_t Packet_SMSG_AUCTION_COMMAND_RESULT(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {
-    uint32_t inventoryError = 40;
+    uint32_t inventoryError = BAG_INTERNAL_BAG_ERROR;
     uint32_t auctionID;
     uint32_t action;
     uint32_t result;

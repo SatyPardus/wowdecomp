@@ -116,7 +116,7 @@ class CGItem_C : public CGObject_C, public CGItem {
     int32_t GetEnchantmentSpell(int32_t a1);
     void GetSpellCooldownInfo(uint32_t& cooldown, uint32_t& categoryCooldown, uint32_t& category);
     bool IsBoundForTrade();
-    bool IsBoundToAccount();
+    bool IsPetition();
     bool IsInstanceBound() const;
     bool IsPermanentlyBoundForTrade();
     bool IsZoneBound() const;

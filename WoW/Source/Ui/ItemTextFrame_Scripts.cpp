@@ -25,7 +25,7 @@ static int32_t Script_ItemTextGetPage(lua_State* L) {
 // OFFSET: 0x00589C40
 static int32_t Script_ItemTextGetItem(lua_State* L) {
     const char* name = nullptr;
-    CGObject_C* object = ClntObjMgrObjectPtr(CGItemText::m_itemGUID, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(CGItemText::m_itemGUID, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (object) {
         name = object->GetObjectName();
@@ -57,7 +57,7 @@ static int32_t Script_ItemTextHasNextPage(lua_State* L) {
 // VERIFY: debaf905 manual
 // OFFSET: 0x0058A480
 static int32_t Script_ItemTextGetCreator(lua_State* L) {
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemText::m_itemGUID, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(CGItemText::m_itemGUID, TYPE_ITEM, __FILE__, __LINE__));
     NameCache* name;
 
     if (item && item->m_item->m_itemFieldCreator && (name = g_nameDBCache.GetRecord(item->m_item->m_itemFieldCreator.m_guid, item->m_obj->m_guid, CGItemText::ItemTextCallback, nullptr, false))) {
@@ -72,12 +72,12 @@ static int32_t Script_ItemTextGetCreator(lua_State* L) {
 // VERIFY: eebcc62e manual
 // OFFSET: 0x00589C90
 static int32_t Script_ItemTextGetMaterial(lua_State* L) {
-    CGObject_C* object = ClntObjMgrObjectPtr(CGItemText::m_itemGUID, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(CGItemText::m_itemGUID, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (object) {
         int32_t material;
 
-        if (object->m_obj->m_type & TYPEMASK_ITEM) {
+        if (object->m_obj->m_type & TYPE_ITEM) {
             WOWGUID none = WOWGUID();
             ItemStats_C* stats = g_itemDBCache.GetRecord(object->m_obj->m_entryID, none, nullptr, nullptr, false);
 
@@ -87,7 +87,7 @@ static int32_t Script_ItemTextGetMaterial(lua_State* L) {
             }
 
             material = stats->m_pageMaterial;
-        } else if (object->m_obj->m_type & TYPEMASK_GAMEOBJECT) {
+        } else if (object->m_obj->m_type & TYPE_GAMEOBJECT) {
             material = static_cast<CGGameObject_C*>(object)->GetPageTextMaterial();
         } else {
             lua_pushnil(L);

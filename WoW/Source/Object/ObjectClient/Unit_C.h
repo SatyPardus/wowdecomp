@@ -20,6 +20,10 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "WoW/Source/Game/GameClient/WTOBJECT.h"
 
+enum UNIT_FACING_CONSTANTS : uint32_t {
+    NUM_SAVED_FACING_DELTAS = 4,
+};
+
 class CGPlayer_C;
 class CGWorldFrame;
 class CGPartyPetState;
@@ -269,8 +273,8 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     /* 098C */ CM2Model* m_mountModel;
     /* 0990 */ float m_mountScale;
     /* 0994 */ uint8_t m_forceWorldModelAlpha;
-    /* 0998 */ uint32_t m_virtualItemDisplayId [3];
-    /* 09A4 */ CGUnitVirtualItem m_virtualItem [3];
+    /* 0998 */ uint32_t m_virtualItemDisplayId [NUM_VIRTUAL_MONSTER_SLOTS];
+    /* 09A4 */ CGUnitVirtualItem m_virtualItem [NUM_VIRTUAL_MONSTER_SLOTS];
     /* 09BC */ uint32_t m_nextBreathCheckTime;
     /* 09C0 */ int32_t m_mountDisplayId;
     /* 09C4 */ const MountTransitionObject* m_mountTransition;
@@ -284,7 +288,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     /* 09EC */ CMissile* m_missiles;
     /* 09F0 */ CMissile* m_pendingMissiles;
     /* 09F4 */ uint8_t m_shapeshiftSuppressed;
-    /* 09F8 */ uint32_t m_animStandState;
+    /* 09F8 */ UNITSTANDSTATE m_animStandState;
     /* 09FC */ QUESTGIVEREMOTENODE m_emoteQueue [4];
     /* 0A1C */ uint32_t m_nextBloodPoolTime;
     /* 0A20 */ CCombatClient m_combat;
@@ -317,7 +321,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     /* 0A98 */ float m_facingVelocity;
     /* 0A9C */ float m_facingBlend;
     /* 0AA0 */ CSmoothAngle m_smoothTarget;
-    /* 0AA8 */ float m_turnDelta [4];
+    /* 0AA8 */ float m_turnDelta [NUM_SAVED_FACING_DELTAS];
     /* 0AB8 */ float m_scriptedFacing;
     /* 0ABC */ uint32_t m_lastTurnTimeMs;
     /* 0AC0 */ uint32_t m_lootableTime;
@@ -347,8 +351,8 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     /* 0B48 */ uint32_t m_ammoDisplayId;
     /* 0B4C */ CCharacterComponent* m_characterComponent;
     /* 0B50 */ WTOBJECT* m_weaponTrails [2];
-    /* 0B58 */ uint32_t m_previousSheatheState;
-    /* 0B5C */ uint32_t m_sheatheState;
+    /* 0B58 */ WEAPONMODE m_previousSheatheState;
+    /* 0B5C */ WEAPONMODE m_sheatheState;
     /* 0B60 */ TSGrowableArray<WOWGUID> m_chainSpellTargets;
     /* 0B70 */ C3Vector m_chainSpellLocation;
     /* 0B7C */ int32_t m_mountAnimBehaviorId;
@@ -399,10 +403,10 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     virtual uint32_t GetImpactType() const;
     virtual const CGUnitVirtualItem* GetDefendingItem() const;
     virtual bool IsDeadOrGhost() const;
-    virtual const CGUnitVirtualItem* GetVirtualItem(uint32_t slot, bool ignoreDisarm) const;
-    virtual int32_t GetVirtualItemDisplayRec(uint32_t slot, ItemDisplayInfoRec& rec) const;
-    virtual uint32_t GetVirtualItemDisplayID(uint32_t slot) const;
-    virtual uint32_t GetClientStandState() const;
+    virtual const CGUnitVirtualItem* GetVirtualItem(VIRTUAL_MONSTER_SLOT slot, bool ignoreDisarm) const;
+    virtual int32_t GetVirtualItemDisplayRec(VIRTUAL_MONSTER_SLOT slot, ItemDisplayInfoRec& rec) const;
+    virtual uint32_t GetVirtualItemDisplayID(VIRTUAL_MONSTER_SLOT slot) const;
+    virtual UNITSTANDSTATE GetClientStandState() const;
     virtual int32_t GetSpellRank(const SpellRec* spell) const;
     virtual void GetDefenseSkillRank(int32_t& rank, int32_t& bonus) const;
     virtual void GetAttackSkillRank(int32_t hand, int32_t& rank, int32_t& bonus) const;
@@ -547,7 +551,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     int32_t IsSplashing(const C3Vector& position) const;
     int32_t HasBakedNpcTexture() const;
     uint32_t GetDisplayRace() const;
-    uint32_t GetDisplaySex() const;
+    UNIT_SEX GetDisplaySex() const;
     uint32_t GetShapeshiftForm() const;
     int32_t IsInMelee() const;
     int32_t IsInCombat() const;
@@ -594,7 +598,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     const char* GetFrameScriptText(const char* token, int32_t count) const;
     uint64_t GetAuraCaster(uint32_t index);
     void KillCreatureLoopSound();
-    bool GetWeaponSwingType(bool offhand, int32_t* swingType) const;
+    bool GetWeaponSwingType(bool offhand, WEAPONSWING_SOUNDTYPES* swingType) const;
     void PlayStandSound();
     int32_t GetNewNPCSoundCount(int32_t count, int32_t* soundKitId, int32_t* soundIndex) const;
     void PlayEmoteStateSound(const C3Vector* position);
@@ -606,7 +610,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     uint32_t IsVehicleCurrentlyUnstoppable() const;
     const CGUnitVirtualItem* GetParryingItem(bool offhand) const;
     int32_t GetUnitSize() const;
-    const CGUnitVirtualItem* GetAttackingWeapon(int32_t hand, bool requireLoadedModel) const;
+    const CGUnitVirtualItem* GetAttackingWeapon(COMBATHAND hand, bool requireLoadedModel) const;
     void StopAttack();
     bool IsInVehicle() const;
     float GetTorsoAnimProgress() const;
@@ -678,7 +682,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     void OnAscendDescendStartLocal(uint32_t eventTime, int32_t ascend);
     void OnAscendDescendStopLocal(uint32_t eventTime);
     void OnFallLocal(uint32_t eventTime);
-    void ChangeStandState(uint32_t standState);
+    void ChangeStandState(UNITSTANDSTATE standState);
     void TryJumpOrAscend(uint32_t eventTime);
     int32_t ProcessLocalMoveEvent(uint32_t eventTime, uint32_t msgId, bool send, float value, uint32_t index, uint64_t transport, uint8_t seat);
     int32_t SendMovementUpdate(uint32_t time, uint32_t msgId, float value, uint32_t index, uint64_t transport, uint8_t seat);
@@ -784,7 +788,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     void DoPowerRegen(POWER_TYPE powerType, uint32_t elapsed);
     void DoPowerRegen(uint32_t elapsed);
     char* GetUnitChosenTitle(char* buffer, uint32_t size, int32_t showTitle, int32_t* lines);
-    void RequestTalkEmote(int32_t index);
+    void RequestTalkEmote(TALKANIMATION index);
     void ChatBubbleShow(int32_t type, const char* text);
     void ChatBubbleRemove();
     void PlayTextEmoteSound(uint32_t emote, uint32_t emoteNum);
@@ -848,11 +852,11 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     void OnLife(bool a1);
     void OnMountDisplayChanged(int32_t displayId);
     void OnPvPFlagChanged(uint8_t oldFlags);
-    void OnVirtualItemChanged(uint32_t slot, int32_t oldItemId);
+    void OnVirtualItemChanged(VIRTUAL_MONSTER_SLOT slot, int32_t oldItemId);
     void OnVisFlagChanged(uint8_t oldFlags);
     void SetPredictedPower(POWER_TYPE powerType, int32_t value);
     void SetSheatheState(uint32_t showWeapons, int32_t a2, int32_t a3);
-    void UpdateClientStandState(uint32_t standState);
+    void UpdateClientStandState(UNITSTANDSTATE standState);
     void UpdateModelScale(const CreatureModelDataRec* modelRec);
     void UpdateScriptRegistration();
     void UpdateUnitNameColor();
@@ -986,10 +990,10 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     int32_t GetPrecastStartAnim();
     static void BowModelLoaded(CM2Model* model, void* arg);
     void PlayWoundAnimKit(int32_t crit);
-    void ShowBloodSpurt(const WOWGUID& attacker, int32_t a3);
+    void ShowBloodSpurt(const WOWGUID& attacker, int32_t large);
     UnitBloodRec* GetBloodRecord();
     void ModifyPredictedPower(POWER_TYPE powerType, int32_t delta);
-    void AddWorldText(const WOWGUID& source, int32_t reason, const SpellRec* spell, bool periodic);
+    void AddWorldText(const WOWGUID& source, MISS_REASON reason, const SpellRec* spell, bool periodic);
     void AddWorldHealingText(const WOWGUID& source, int32_t amount, const SpellRec* spell, bool crit, int32_t unused_a6);
     void AddWorldHonorGainText(int32_t honor, int32_t pvpRank, const char* victimName);
     void PlayCombatSpellMissEffects(uint32_t reason, const WOWGUID& source);

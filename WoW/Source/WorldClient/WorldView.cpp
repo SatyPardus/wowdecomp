@@ -1,4 +1,5 @@
 #include "WorldView.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/WorldClient/CWorldOcclusion.h"
 #include "WoW/Source/WorldClient/SortTable.h"
@@ -53,8 +54,8 @@ void CWorldView::AddOccluder(const C3Vector& a, const C3Vector& b) {
         return;
     }
 
-    int32_t bucketA = CMath::fint_(distA * 0.029999999f - 0.5f);
-    int32_t bucketB = CMath::fint_(distB * 0.029999999f - 0.5f);
+    int32_t bucketA = CMath::fint_(distA * CBDIVISOR - 0.5f);
+    int32_t bucketB = CMath::fint_(distB * CBDIVISOR - 0.5f);
 
     if (bucketA >= 64 && bucketB >= 64) {
         return;

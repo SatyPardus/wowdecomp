@@ -449,7 +449,7 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
                     message = rec ? rec->m_message : "World of Warcraft was unable to start up 3D acceleration.";
                 }
 
-                OsGuiMessageBox(nullptr, 0, message, caption);
+                OsGuiMessageBox(nullptr, OSGUI_MESSAGE_STYLE_OK, message, caption);
                 GxLogClose();
                 exit(0);
             }
@@ -524,7 +524,7 @@ void ConsoleDeviceInitialize(const char* title, bool unused_a2, bool unused_a3) 
     Startup_StringsRec* rec = g_startup_StringsDB.GetRecord(4);
     const char* message = rec ? rec->m_message : "Your 3D accelerator card is not supported by World of Warcraft. Please install a 3D accelerator card with dual-TMU support.";
 
-    OsGuiMessageBox(nullptr, 0, message, caption);
+    OsGuiMessageBox(nullptr, OSGUI_MESSAGE_STYLE_OK, message, caption);
     GxLogClose();
     exit(0);
 }

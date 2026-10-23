@@ -6,6 +6,37 @@
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/Net/Types.h"
 
+enum FRIEND_RESULT : uint8_t {
+    FRIEND_DB_ERROR = 0,
+    FRIEND_LIST_FULL = 1,
+    FRIEND_ONLINE = 2,
+    FRIEND_OFFLINE = 3,
+    FRIEND_NOT_FOUND = 4,
+    FRIEND_REMOVED = 5,
+    FRIEND_ADDED_ONLINE = 6,
+    FRIEND_ADDED_OFFLINE = 7,
+    FRIEND_ALREADY = 8,
+    FRIEND_SELF = 9,
+    FRIEND_ENEMY = 10,
+    FRIEND_IGNORE_FULL = 11,
+    FRIEND_IGNORE_SELF = 12,
+    FRIEND_IGNORE_NOT_FOUND = 13,
+    FRIEND_IGNORE_ALREADY = 14,
+    FRIEND_IGNORE_ADDED = 15,
+    FRIEND_IGNORE_REMOVED = 16,
+    FRIEND_IGNORE_AMBIGUOUS = 17,
+    FRIEND_VOICE_IGNORE_FULL = 18,
+    FRIEND_VOICE_IGNORE_SELF = 19,
+    FRIEND_VOICE_IGNORE_NOT_FOUND = 20,
+    FRIEND_VOICE_IGNORE_ALREADY = 21,
+    FRIEND_VOICE_IGNORE_ADDED = 22,
+    FRIEND_VOICE_IGNORE_REMOVED = 23,
+    FRIEND_VOICE_IGNORE_AMBIGUOUS = 24,
+    FRIEND_UNKNOWN_25 = 25,
+    FRIEND_FLAGS_UPDATED = 26,
+    FRIEND_AREA_UPDATED = 27,
+};
+
 class CDataStore;
 struct lua_State;
 
@@ -41,8 +72,19 @@ struct WhoResult {
     /* 00A0 */ int32_t m_zone;
 };
 
+enum WHO_SORT_TYPE : int32_t {
+    WHO_SORT_ZONE = 0,
+    WHO_SORT_LEVEL = 1,
+    WHO_SORT_CLASS = 2,
+    WHO_SORT_GROUP = 3,
+    WHO_SORT_NAME = 4,
+    WHO_SORT_RACE = 5,
+    WHO_SORT_GUILD = 6,
+    NUM_WHO_SORT_TYPES = 7,
+};
+
 struct WhoSortField {
-    /* 0000 */ int32_t m_field;
+    /* 0000 */ WHO_SORT_TYPE m_field;
     /* 0004 */ int32_t m_reverse;
 };
 
@@ -50,7 +92,7 @@ class FriendList {
     public:
     static void __stdcall AddFriend(const char* name, const char* note);
     static FriendList* s_friendList;
-    static WhoSortField s_whoSort[7];
+    static WhoSortField s_whoSort[NUM_WHO_SORT_TYPES];
     static uint32_t s_numWhoResults;
     static uint32_t s_totalWhoResults;
     static WhoResult s_whoResults[50];
@@ -125,7 +167,7 @@ class FriendList {
     void MuteRemoved(WOWGUID guid);
     void IgnoreAdded(WOWGUID guid, int32_t lookupName);
     void MuteAdded(WOWGUID guid, int32_t lookupName);
-    void HandleStatus(uint8_t status, WOWGUID guid, CDataStore* msg);
+    void HandleStatus(FRIEND_RESULT status, WOWGUID guid, CDataStore* msg);
     FriendInfo* GetFriendInfoByName(const char* name);
     int32_t GetFriendSelectionIndex();
     uint32_t GetNumMutes();

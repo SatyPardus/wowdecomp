@@ -69,7 +69,7 @@ class CGUnitData {
     /* 00A4 */ float m_unitFieldPowerRegenInterruptedFlatModifier [7];
     /* 00C0 */ uint32_t m_unitFieldLevel;
     /* 00C4 */ uint32_t m_unitFieldFactiontemplate;
-    /* 00C8 */ uint32_t m_unitVirtualItemSlotId [3];
+    /* 00C8 */ uint32_t m_unitVirtualItemSlotId [NUM_VIRTUAL_MONSTER_SLOTS];
     /* 00D4 */ uint32_t m_unitFieldFlags;
     /* 00D8 */ uint32_t m_unitFieldFlags2;
     /* 00DC */ uint32_t m_unitFieldAurastate;

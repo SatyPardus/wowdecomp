@@ -45,11 +45,11 @@ static const XMLENUMVALUE s_framePoints[] = {
 
 // STATIC: 0x00A43FC0
 static const XMLENUMVALUE s_drawLayers[] = {
-    { 0, "BACKGROUND" },
-    { 1, "BORDER" },
-    { 2, "ARTWORK" },
-    { 3, "OVERLAY" },
-    { 4, "HIGHLIGHT" },
+    { DRAWLAYER_BACKGROUND, "BACKGROUND" },
+    { DRAWLAYER_BACKGROUND_BORDER, "BORDER" },
+    { DRAWLAYER_ARTWORK, "ARTWORK" },
+    { DRAWLAYER_ARTWORK_OVERLAY, "OVERLAY" },
+    { DRAWLAYER_HIGHLIGHT, "HIGHLIGHT" },
 };
 
 // STATIC: 0x00A43FE8

@@ -1,4 +1,5 @@
 #include "MapChunkLiquid.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 #include <cmath>
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
@@ -83,10 +84,10 @@ void CChunkLiquid::CreateVertXY() {
     C3Vector* vert = this->m_verts;
     uint32_t index = 0;
 
-    float stepY = -(17066.666f - chunkX * 33.333332f - (17066.666f - (chunkX + 1) * 33.333332f)) * 0.125f;
+    float stepY = -(HALF_WORLD_SIZE - chunkX * 33.333332f - (HALF_WORLD_SIZE - (chunkX + 1) * 33.333332f)) * 0.125f;
 
     for (int32_t row = 0; row < rows; row++) {
-        float stepX = 0.125f * -(17066.666f - chunkY * 33.333332f - (17066.666f - (chunkY + 1) * 33.333332f));
+        float stepX = 0.125f * -(HALF_WORLD_SIZE - chunkY * 33.333332f - (HALF_WORLD_SIZE - (chunkY + 1) * 33.333332f));
         float x = (row + beginX) * stepX;
 
         for (int32_t col = 0; col < cols; col++) {
@@ -459,11 +460,11 @@ void CChunkLiquid::Batch() {
         CChunkLiquid* liquid = s_batch.m_data[i];
 
         C2Vector minXY = C2Vector(liquid->m_topLeftCoords);
-        minXY.x = minXY.x + liquid->m_tileBegin.y * 4.1666665f;
-        minXY.y = minXY.y + 4.1666665f * liquid->m_tileBegin.x;
+        minXY.x = minXY.x + liquid->m_tileBegin.y * SMOLTILE_SIZE;
+        minXY.y = minXY.y + SMOLTILE_SIZE * liquid->m_tileBegin.x;
         C2Vector maxXY = C2Vector(liquid->m_topLeftCoords);
-        maxXY.x = maxXY.x + liquid->m_tileEnd.y * 4.1666665f;
-        maxXY.y = maxXY.y + 4.1666665f * liquid->m_tileEnd.x;
+        maxXY.x = maxXY.x + liquid->m_tileEnd.y * SMOLTILE_SIZE;
+        maxXY.y = maxXY.y + SMOLTILE_SIZE * liquid->m_tileEnd.x;
 
         CAaBox box(C3Vector(minXY.x, minXY.y, liquid->m_height.x), C3Vector(maxXY.x, maxXY.y, liquid->m_height.y));
 

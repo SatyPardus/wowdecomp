@@ -26,7 +26,7 @@ void MovementAddTransport(CGGameObject_C* transport) {
 // VERIFY: 9a06aa21 manual
 // OFFSET: 0x0074B340
 int32_t MovementAddToTransport(CPassenger* passenger, WOWGUID transport, int32_t reason) {
-    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return 0;
@@ -50,7 +50,7 @@ void MovementSetGlobals(CMovementGlobals* globals) {
 // VERIFY: 49dca93b manual
 // OFFSET: 0x0074B590
 float MovementGetTransportFacing(WOWGUID transport) {
-    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         DebugLog("Failed to dereference transport! Provided GUID 0x%016I64X", transport);
@@ -63,7 +63,7 @@ float MovementGetTransportFacing(WOWGUID transport) {
 // VERIFY: 87477b93 manual
 // OFFSET: 0x0074B430
 int32_t MovementGetTransportMtxSafe(WOWGUID transport, C44Matrix* matrix) {
-    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (object) {
         *matrix = object->GetMatrix();
@@ -103,7 +103,7 @@ int32_t MovementGetTransportMtxX(WOWGUID transport, C44Matrix* matrix, WOWGUID o
 // VERIFY: 11a64fa7 manual
 // OFFSET: 0x0074B510
 void MovementGetTransportQuat(WOWGUID transport, C4Quaternion* quat) {
-    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (object) {
         *quat = object->GetRotation();
@@ -120,7 +120,7 @@ void MovementGetTransportQuat(WOWGUID transport, C4Quaternion* quat) {
 // VERIFY: 884e851b manual
 // OFFSET: 0x0074B5E0
 int32_t MovementInsideTransport(WOWGUID transport, const C3Vector& point) {
-    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return 0;
@@ -143,7 +143,7 @@ void MovementNotifyTransportUnitRemoved(WOWGUID passenger, WOWGUID transport, ui
     uint32_t high = (uint32_t)(transport.m_guid >> 32);
 
     if ((high & 0xF0F00000) == 0xF0500000 || (!(high & 0xF0000000) && ((high & 0xF07FFFFF) | (uint32_t)transport.m_guid))) {
-        CGUnit_C* unit = (CGUnit_C*)ClntObjMgrObjectPtr(transport, TYPEMASK_UNIT, __FILE__, __LINE__);
+        CGUnit_C* unit = (CGUnit_C*)ClntObjMgrObjectPtr(transport, TYPE_UNIT, __FILE__, __LINE__);
 
         if (unit && unit->m_vehicle) {
             unit->m_vehicle->UpdateFreeSeatMask();
@@ -159,7 +159,7 @@ void MovementNotifyZoneMgr(WOWGUID guid) {
 // VERIFY: a22f2752 manual
 // OFFSET: 0x0074B3F0
 int32_t MovementObjIsTransport(WOWGUID guid) {
-    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(guid, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return 0;
@@ -202,7 +202,7 @@ int32_t MovementIdleMoveUnits(const void* data, void* param) {
             CMovement_C::MoveUnits(now, globals->m_lastUpdateTime);
         }
 
-        CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
         if (mover) {
             mover->UpdateFloodsafeMoveEvents(now);

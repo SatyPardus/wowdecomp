@@ -68,7 +68,7 @@ uint64_t CVehicleCamera_C::GetRelativeTo() const {
     }
 
     while (true) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(target, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             return 0;
@@ -101,7 +101,7 @@ int32_t CVehicleCamera_C::WouldAddingNextCameraCreateLoop(const CVehicleCamera_C
         return 1;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit && unit->m_vehicleCamera && this->WouldAddingNextCameraCreateLoop(unit->m_vehicleCamera)) {
         return 1;
@@ -117,7 +117,7 @@ int32_t CVehicleCamera_C::ConvertFromRawOrOffsetToWorld(C3Vector& position, CGOb
         return 0;
     }
 
-    if (relativeTo->m_obj->m_type & TYPEMASK_UNIT) {
+    if (relativeTo->m_obj->m_type & TYPE_UNIT) {
         C3Vector origin = relativeTo->GetPosition();
         position.x = origin.x + position.x;
         position.y = origin.y + position.y;
@@ -136,7 +136,7 @@ int32_t CVehicleCamera_C::ConvertFromWorldToRawOrOffset(C3Vector& position, CGOb
         return 0;
     }
 
-    if (relativeTo->m_obj->m_type & TYPEMASK_UNIT) {
+    if (relativeTo->m_obj->m_type & TYPE_UNIT) {
         C3Vector origin = relativeTo->GetPosition();
         position.x = position.x - origin.x;
         position.y = position.y - origin.y;
@@ -155,8 +155,8 @@ int32_t CVehicleCamera_C::ConvertSmoothFacingFromRawToWorld(float& facing, CGObj
         return 0;
     }
 
-    if (relativeTo->m_obj->m_type & TYPEMASK_UNIT) {
-        CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ relativeTo->GetTransportGUID() }, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    if (relativeTo->m_obj->m_type & TYPE_UNIT) {
+        CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ relativeTo->GetTransportGUID() }, TYPE_OBJECT, __FILE__, __LINE__);
         float smoothFacing = static_cast<CGUnit_C*>(relativeTo)->m_smoothTarget.m_value;
         ConvertSmoothFacingFromRawToWorld(smoothFacing, transport);
         facing = smoothFacing + facing;
@@ -213,7 +213,7 @@ int32_t CVehicleCamera_C::IsHierarchyChasingFacing() const {
             }
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(camera->m_nextCameraGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(camera->m_nextCameraGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit || !unit->m_vehicleCamera) {
             return 0;
@@ -322,8 +322,8 @@ int32_t CVehicleCamera_C::ConvertSmoothFacingFromWorldToRaw(float& facing, CGObj
         return 0;
     }
 
-    if (relativeTo->m_obj->m_type & TYPEMASK_UNIT) {
-        CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ relativeTo->GetTransportGUID() }, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    if (relativeTo->m_obj->m_type & TYPE_UNIT) {
+        CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ relativeTo->GetTransportGUID() }, TYPE_OBJECT, __FILE__, __LINE__);
         float smoothFacing = static_cast<CGUnit_C*>(relativeTo)->m_smoothTarget.m_value;
         ConvertSmoothFacingFromRawToWorld(smoothFacing, transport);
         facing = facing - smoothFacing;
@@ -350,7 +350,7 @@ int32_t CVehicleCamera_C::AttachToHierarchy() {
     }
 
     while (camera->m_nextCameraGuid) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(camera->m_nextCameraGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(camera->m_nextCameraGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             return 0;
@@ -393,7 +393,7 @@ void CVehicleCamera_C::DetachFromHierarchy() {
             return;
         }
 
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(camera->m_nextCameraGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(camera->m_nextCameraGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             return;
@@ -465,7 +465,7 @@ C3Vector CVehicleCamera_C::ComputeEndWorldPosition(CGUnit_C* target) {
         CGUnit_C* next = nullptr;
 
         if (this->m_nextCameraGuid && unit->GetTransportGUID() == this->m_nextCameraGuid.m_guid) {
-            next = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_nextCameraGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            next = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_nextCameraGuid, TYPE_UNIT, __FILE__, __LINE__));
         }
 
         if (next && next->m_vehicleCamera) {
@@ -509,7 +509,7 @@ C3Vector CVehicleCamera_C::ComputeEndWorldPosition(CGUnit_C* target) {
 void CVehicleCamera_C::ComputeSafeCurWorldPos() {
     this->m_flags |= 0x40;
     this->m_safeCurWorldPos = this->m_curWorldPos;
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!target) {
         return;
@@ -591,7 +591,7 @@ void CVehicleCamera_C::UpdatePosition(CGUnit_C* target, uint32_t time, float pro
     this->m_collideFraction = (offset + velocity) * damping + 1.0f;
     this->m_collideVelocity = (this->m_collideVelocity - velocity * 2.5f) * damping;
     CGUnit_C* unit = target ? target : this->m_unit;
-    CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ unit->GetTransportGUID() }, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* transport = ClntObjMgrObjectPtr(WOWGUID{ unit->GetTransportGUID() }, TYPE_OBJECT, __FILE__, __LINE__);
     CVehicleCamera_C* next = nullptr;
 
     if (transport && unit->GetTransportGUID() == this->m_nextCameraGuid.m_guid) {
@@ -684,7 +684,7 @@ void CVehicleCamera_C::UpdateFacing(CGUnit_C* target, uint32_t time, float progr
 
     float oldTarget = this->m_targetFacing;
     this->m_targetFacing = targetFacing;
-    CGObject_C* object = ClntObjMgrObjectPtr(relative, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(relative, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (object && relative == this->m_nextCameraGuid && static_cast<CGUnit_C*>(object)->m_vehicleCamera) {
         this->m_targetFacing = static_cast<CGUnit_C*>(object)->m_vehicleCamera->m_worldFacing + this->m_targetFacing;
@@ -808,7 +808,7 @@ void CVehicleCamera_C::UpdateWorldCameraState(uint32_t time, uint32_t duration) 
     }
 
     WOWGUID vehicleGuid = player->m_vehiclePassenger ? player->m_vehiclePassenger->m_transitionVehicleGuid : WOWGUID();
-    CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(vehicleGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(vehicleGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!vehicle || player == this->m_unit || vehicle->FindRootVehicle(this->m_unit) != this->m_unit) {
         this->m_unit->VehiclePassengerUpdateWorldCameraState(this->m_vehicleRec, this->m_seatRec, time, time + duration);
@@ -836,7 +836,7 @@ void CVehicleCamera_C::SetTarget(WOWGUID target, WOWGUID next) {
     int32_t created = 0;
 
     if (chosen && chosen != self) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(chosen, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(chosen, TYPE_UNIT, __FILE__, __LINE__));
         int32_t valid = 0;
 
         if (unit && unit->m_vehiclePassenger && unit->m_vehiclePassenger->m_state) {
@@ -871,7 +871,7 @@ void CVehicleCamera_C::SetTarget(WOWGUID target, WOWGUID next) {
     }
 
     if (old) {
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(old, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(old, TYPE_UNIT, __FILE__, __LINE__));
 
         if (unit) {
             unit->OnVehicleCameraPossiblyUnneeded();
@@ -1024,7 +1024,7 @@ void CVehicleCamera_C::BeginTransition(uint32_t time) {
     this->m_endFacingChaser.m_value = this->m_worldFacing;
     this->m_startWorldPos = this->m_curWorldPos;
     this->m_startRawPos = this->m_curWorldPos;
-    CGObject_C* object = ClntObjMgrObjectPtr(relativeTo, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(relativeTo, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (object && relativeTo == this->m_nextCameraGuid && static_cast<CGUnit_C*>(object)->m_vehicleCamera) {
         this->m_startRawPos -= static_cast<CGUnit_C*>(object)->m_vehicleCamera->m_curWorldPos;
@@ -1033,7 +1033,7 @@ void CVehicleCamera_C::BeginTransition(uint32_t time) {
     }
 
     this->m_facing = this->m_worldFacing;
-    CVehicleCamera_C::ConvertSmoothFacingFromWorldToRaw(this->m_facing, ClntObjMgrObjectPtr(WOWGUID{ this->GetRelativeTo() }, TYPEMASK_OBJECT, __FILE__, __LINE__));
+    CVehicleCamera_C::ConvertSmoothFacingFromWorldToRaw(this->m_facing, ClntObjMgrObjectPtr(WOWGUID{ this->GetRelativeTo() }, TYPE_OBJECT, __FILE__, __LINE__));
     this->m_rawPosChaser.m_position = this->m_startRawPos;
     this->m_rawPosChaser.m_velocity = C3Vector(0.0f, 0.0f, 0.0f);
     this->m_rawFacingChaser.m_value = this->m_worldFacing;
@@ -1084,7 +1084,7 @@ void CVehicleCamera_C::Update(uint32_t time) {
         }
     }
 
-    CGUnit_C* next = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_nextCameraGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* next = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_nextCameraGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (next && next->m_vehicleCamera) {
         next->m_vehicleCamera->Update(time);
@@ -1125,8 +1125,8 @@ void CVehicleCamera_C::Update(uint32_t time) {
     }
 
     float progress = this->GetTransitionProgress(time);
-    CGObject_C* relativeTo = ClntObjMgrObjectPtr(WOWGUID{ this->GetRelativeTo() }, TYPEMASK_OBJECT, __FILE__, __LINE__);
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGObject_C* relativeTo = ClntObjMgrObjectPtr(WOWGUID{ this->GetRelativeTo() }, TYPE_OBJECT, __FILE__, __LINE__);
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (target) {
         this->UpdatePosition(target, time, progress);

@@ -680,7 +680,7 @@ int32_t Packet_SMSG_ACHIEVEMENT_EARNED(void* param, NETMESSAGE msgId, uint32_t t
         void* memory = SMemAlloc(sizeof(CEffect), __FILE__, __LINE__, 0);
         CEffect* effect = memory ? new (memory) CEffect() : nullptr;
         WOWGUID guid = player;
-        effect->AddSpecialEffect(11, guid, CGObject_C::EffectOnceHandler);
+        effect->AddSpecialEffect(SPECIALEFFECT_ACHIEVEMENTBASE, guid, CGObject_C::EffectOnceHandler);
         effect->m_flags |= 0x20;
         effect->Release();
     }

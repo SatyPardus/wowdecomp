@@ -207,7 +207,7 @@ void CGGuildInfo::EnterWorld() {
     CGGuildInfo::m_infoText[0] = '\0';
     CGGuildInfo::m_motd[0] = '\0';
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_player->m_playerGuildid) {
         CDataStore msg;

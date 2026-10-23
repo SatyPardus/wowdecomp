@@ -4,12 +4,137 @@
 #include <cstddef>
 #include <cstdint>
 
+enum BUFF_FILTER_FLAGS : uint32_t {
+    // Query filters, separate from AuraData::m_flags.
+    BUFF_FILTER_HELPFUL = 0x01,
+    BUFF_FILTER_HARMFUL = 0x02,
+    BUFF_FILTER_PLAYER = 0x04,
+    BUFF_FILTER_RAID = 0x08,
+    BUFF_FILTER_CANCELABLE = 0x10,
+    BUFF_FILTER_NOT_CANCELABLE = 0x20,
+};
+
+enum TRACKTYPE : int32_t {
+    TRACKTYPE_SPELLPRECAST = 0,
+    TRACKTYPE_SPELLCHANNEL = 1,
+    TRACKTYPE_FACE = 2,
+    TRACKTYPE_FOLLOW = 3,
+    TRACKTYPE_MOVE = 4,
+    TRACKTYPE_INTERACT = 5,
+    TRACKTYPE_LOOT = 6,
+    TRACKTYPE_USE_OBJECT = 7,
+    TRACKTYPE_MOVE_DIRECTION = 8,
+    TRACKTYPE_SKIN = 9,
+    TRACKTYPE_ATTACK = 10,
+    TRACKTYPE_RANGED_ATTACK = 11,
+    TRACKTYPE_NONE = 13,
+    // Value 12 has no verified role; NONE is not an action-table count.
+};
+
+enum UNIT_SEX : uint32_t {
+    UNITSEX_MALE = 0,
+    UNITSEX_FEMALE = 1,
+    UNITSEX_NONE = 2,
+    UNITSEX_LAST = 3,
+    // UNITSEX_BOTH = 3, // Historical alias, not a current unit-sex value.
+};
+
+enum WEAPONMODE : uint32_t {
+    WEAPONMODE_SHEATHEDMODE = 0,
+    WEAPONMODE_NORMALMODE = 1,
+    WEAPONMODE_RANGEDMODE = 2,
+    // WEAPONMODE_NUMMODES = 3,
+};
+
+enum UNITSTANDSTATE : uint32_t {
+    UNIT_STANDING = 0,
+    UNIT_SITTING = 1,
+    UNIT_SITTINGCHAIR = 2,
+    UNIT_SLEEPING = 3,
+    UNIT_SITTINGCHAIRLOW = 4,
+    UNIT_SITTINGCHAIRMEDIUM = 5,
+    UNIT_SITTINGCHAIRHIGH = 6,
+    UNIT_DEAD = 7,
+    UNIT_KNEEL = 8,
+    UNIT_SUBMERGED = 9,
+    UNIT_NUMSTANDSTATES = 10,
+    // UNIT_FIRSTCHAIRSIT = 4,
+    // UNIT_LASTCHAIRSIT = 6,
+    // UNIT_NUMCHAIRSTATES = 3,
+};
+
+enum BLOODSPURTSIZES : int32_t {
+    BLOODSPURT_SMALL = 0,
+    BLOODSPURT_LARGE = 1,
+    // NUM_BLOODSPURTSIZES = 2,
+};
+
+enum VICTIMSTATES : uint32_t {
+    VS_NONE = 0,
+    VS_WOUND = 1,
+    VS_DODGE = 2,
+    VS_PARRY = 3,
+    VS_INTERRUPT = 4,
+    VS_BLOCK = 5,
+    VS_EVADE = 6,
+    VS_IMMUNE = 7,
+    VS_DEFLECT = 8,
+    NUM_VICTIMSTATES = 9,
+};
+
+// Bitsets indexed by VICTIMSTATES, separate from the state IDs.
+enum VICTIMSTATE_MASK : uint32_t {
+    WOUNDSTATES = (1u << VS_WOUND) | (1u << VS_DODGE)
+        | (1u << VS_PARRY) | (1u << VS_BLOCK),
+    PREANIMSTATES = (1u << VS_DODGE) | (1u << VS_PARRY)
+        | (1u << VS_EVADE) | (1u << VS_DEFLECT),
+};
+
+enum MISS_REASON : int32_t {
+    MISS_NONE = 0,
+    MISS_PHYSICAL = 1,
+    MISS_RESIST = 2,
+    MISS_DODGED = 3,
+    MISS_PARRIED = 4,
+    MISS_BLOCKED = 5,
+    MISS_EVADED = 6,
+    MISS_IMMUNE = 7,
+    MISS_TEMPIMMUNE = 8,
+    MISS_DEFLECTED = 9,
+    MISS_ABSORBED = 10,
+    MISS_REFLECTED = 11,
+    MISS_NUMMISSTYPES = 12,
+};
+
+enum COMBATHAND : int32_t {
+    COMBAT_MAINHAND = 0,
+    COMBAT_OFFHAND = 1,
+    // NUMHANDS = 2, // Unused reference member.
+};
+
+enum TALKANIMATION : int32_t {
+    TALKANIM_TALK = 0,
+    TALKANIM_QUESTION = 1,
+    TALKANIM_EXCLAMATION = 2,
+    TALKANIM_SHOUT = 3,
+    TALKANIM_LAUGH = 4,
+    TALKANIM_NUMTALKANIMS = 5,
+};
+
 enum HIGHLIGHTTYPE : int32_t {
     HT_OBJSELECTION = 0,
     HT_MOUSEOVER = 1,
 
     // Unused 0.5.3 count; not a bound for the current three-bit highlight mask.
     // NUM_HIGHLIGHTTYPES = 2,
+};
+
+enum NPCSOUNDS : uint32_t {
+    NPCSOUND_HELLO = 0,
+    NPCSOUND_GOODBYE = 1,
+    NPCSOUND_PISSED = 2,
+    // NPCSOUND_ACK = 3,
+    // NUM_NPCSOUNDS = 4,
 };
 
 enum UNITSOUNDTYPE : uint32_t {
@@ -36,6 +161,55 @@ enum UNITSOUNDTYPE : uint32_t {
     // UNITSOUNDTYPE_AGGRO = 9,
 };
 
+enum PETITION_SIGN_RESULT : uint32_t {
+    PETITION_SIGN_SUCCESS = 0,
+    PETITION_SIGN_ALREADY_SIGNED = 1,
+    PETITION_SIGN_IN_GUILD = 2,
+    PETITION_SIGN_CREATOR = 3,
+    PETITION_SIGN_NOT_SAME_SERVER = 5,
+    PETITION_SIGN_FULL = 8,
+    PETITION_SIGN_ALREADY_SIGNED_OTHER = 10,
+    PETITION_SIGN_RESTRICTED_ACCOUNT = 11,
+
+    // Historical PETITION_ERROR member; signing still uses its default for 4.
+    // PETITION_NOT_ENOUGH_SIGNATURES = 4,
+};
+
+enum PETITION_TURNIN_RESULT : uint32_t {
+    PETITION_TURNIN_SUCCESS = 0,
+    PETITION_TURNIN_IN_GUILD = 2,
+    PETITION_TURNIN_NOT_ENOUGH_SIGNATURES = 4,
+    PETITION_TURNIN_GUILD_PERMISSIONS = 11,
+
+    // Unhandled historical PETITION_ERROR members; no new current cases.
+    // PETITION_ALREADY_SIGNED = 1,
+    // PETITION_CHARTER_CREATOR = 3,
+    // PETITION_UNKNOWN_ERROR = 5, // Signing 5 now means NOT_SAME_SERVER.
+};
+
+enum GUILD_EVENT : uint8_t {
+    GUILD_EVENT_PROMOTION = 0,
+    GUILD_EVENT_DEMOTION = 1,
+    GUILD_EVENT_MOTD = 2,
+    GUILD_EVENT_JOINED = 3,
+    GUILD_EVENT_LEFT = 4,
+    GUILD_EVENT_REMOVED = 5,
+    GUILD_EVENT_LEADER_IS = 6,
+    GUILD_EVENT_LEADER_CHANGED = 7,
+    GUILD_EVENT_DISBANDED = 8,
+    // GUILD_EVENT_TABARDCHANGE = 9, // Unhandled in this 3.3.5 client.
+    GUILD_EVENT_RANK_UPDATED = 10,
+    GUILD_EVENT_RANK_COUNT_UPDATED = 11,
+    GUILD_EVENT_SIGNED_ON = 12,
+    GUILD_EVENT_SIGNED_OFF = 13,
+    GUILD_EVENT_BANK_BAG_SLOTS_CHANGED = 14,
+    GUILD_EVENT_BANK_TAB_ADDED = 15,
+    GUILD_EVENT_BANK_TAB_UPDATED = 16,
+    GUILD_EVENT_BANK_MONEY_SET = 17,
+    GUILD_EVENT_BANK_REFRESH = 18,
+    GUILD_EVENT_BANK_TEXT_CHANGED = 19,
+};
+
 enum LOOT_METHOD : int32_t {
     LOOT_METHOD_FREEFORALL = 0,
     LOOT_METHOD_ROUNDROBIN = 1,
@@ -43,6 +217,14 @@ enum LOOT_METHOD : int32_t {
     LOOT_METHOD_GROUP = 3,
     LOOT_METHOD_NEEDBEFOREGREED = 4,
     LOOT_METHOD_MAX = 5,
+};
+
+enum AI_REACTION : uint32_t {
+    AI_REACT_ALERT = 0,
+    AI_REACT_HOSTILE = 2,
+    // AI_REACT_FRIENDLY = 1,
+    // AI_REACT_AFRAID = 3,
+    // NUM_AI_REACTIONS = 4,
 };
 
 enum UNIT_REACTION : int32_t {
@@ -584,6 +766,9 @@ enum OBJECT_TYPE_ID {
     ID_DYNAMICOBJECT = 6,
     ID_CORPSE = 7,
     NUM_CLIENT_OBJECT_TYPES = 8,
+    // ID_AIGROUP = 8,
+    // ID_AREATRIGGER = 9,
+    // NUM_OBJECT_TYPES = 10,
 };
 
 #endif

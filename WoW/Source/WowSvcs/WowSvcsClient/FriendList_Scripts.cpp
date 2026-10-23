@@ -415,34 +415,34 @@ static int32_t Script_SortWho(lua_State* L) {
         return 0;
     }
 
-    int32_t field = 4;
+    WHO_SORT_TYPE field = WHO_SORT_NAME;
     const char* type = lua_tolstring(L, 1, nullptr);
 
     if (!SStrCmpI(type, "name", STORM_MAX_STR)) {
-        field = 4;
+        field = WHO_SORT_NAME;
     } else if (!SStrCmpI(type, "level", STORM_MAX_STR)) {
-        field = 1;
+        field = WHO_SORT_LEVEL;
     } else if (!SStrCmpI(type, "class", STORM_MAX_STR)) {
-        field = 2;
+        field = WHO_SORT_CLASS;
     } else if (!SStrCmpI(type, "group", STORM_MAX_STR)) {
-        field = 3;
+        field = WHO_SORT_GROUP;
     } else if (!SStrCmpI(type, "race", STORM_MAX_STR)) {
-        field = 5;
+        field = WHO_SORT_RACE;
     } else if (!SStrCmpI(type, "zone", STORM_MAX_STR)) {
-        field = 0;
+        field = WHO_SORT_ZONE;
     } else if (!SStrCmpI(type, "guild", STORM_MAX_STR)) {
-        field = 6;
+        field = WHO_SORT_GUILD;
     }
 
     uint32_t i;
 
-    for (i = 0; i < 7; i++) {
+    for (i = 0; i < NUM_WHO_SORT_TYPES; i++) {
         if (FriendList::s_whoSort[i].m_field == field) {
             break;
         }
     }
 
-    if (i < 7) {
+    if (i < NUM_WHO_SORT_TYPES) {
         int32_t reverse = FriendList::s_whoSort[i].m_reverse;
 
         if (!i) {

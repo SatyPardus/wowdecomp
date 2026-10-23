@@ -195,4 +195,7 @@ enum SpellCastResult {
     SPELL_FAILED_UNKNOWN = 187,
 };
 
+// Reference name for the current spell failure domain.
+using SPELL_FAILED_REASON = SpellCastResult;
+
 #endif

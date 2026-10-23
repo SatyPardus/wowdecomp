@@ -29,18 +29,18 @@ int32_t SRP6_Client::BeginAuthentication(const char* accountName, const char* pa
 // VERIFY: 5d07ea4e auto
 // OFFSET: 0x009A83E0
 int32_t SRP6_Client::CalculateProof(const uint8_t* largeSafePrime, uint32_t largeSafePrimeLength, const uint8_t* generator, uint32_t generatorLength, const uint8_t* salt, uint32_t saltLength, const uint8_t* serverPublicKey, uint32_t serverPublicKeyLength, SRP6_Random& random) {
-    BigData* N = BigIntegerFromBytes(largeSafePrime, largeSafePrimeLength);
-    BigData* g = BigIntegerFromBytes(generator, generatorLength);
-    BigData* x = BigIntegerFromInt(0);
-    BigData* v = BigIntegerFromInt(0);
-    BigData* unused1 = BigIntegerFromInt(0);
-    BigData* unused2 = BigIntegerFromInt(0);
-    BigData* a = BigIntegerFromInt(0);
-    BigData* A = BigIntegerFromInt(0);
-    BigData* u = BigIntegerFromInt(0);
-    BigData* B = BigIntegerFromBytes(serverPublicKey, serverPublicKeyLength);
-    BigData* t = BigIntegerFromInt(0);
-    BigData* S = BigIntegerFromInt(0);
+    BigInteger N = BigIntegerFromBytes(largeSafePrime, largeSafePrimeLength);
+    BigInteger g = BigIntegerFromBytes(generator, generatorLength);
+    BigInteger x = BigIntegerFromInt(0);
+    BigInteger v = BigIntegerFromInt(0);
+    BigInteger unused1 = BigIntegerFromInt(0);
+    BigInteger unused2 = BigIntegerFromInt(0);
+    BigInteger a = BigIntegerFromInt(0);
+    BigInteger A = BigIntegerFromInt(0);
+    BigInteger u = BigIntegerFromInt(0);
+    BigInteger B = BigIntegerFromBytes(serverPublicKey, serverPublicKeyLength);
+    BigInteger t = BigIntegerFromInt(0);
+    BigInteger S = BigIntegerFromInt(0);
 
     int32_t result = -1;
 

@@ -11,6 +11,13 @@ class CRect;
 
 class CBaseManaged {
     public:
+    enum : uint8_t {
+        ALWAYSUPDATE = 0x1,
+        READONLY = 0x2,
+        REQUIRESUPDATE = 0x4,
+        UPDATED = 0x8,
+    };
+
     /* 0004 */ TSLink<CBaseManaged> m_link;
     /* 000C */ uint8_t m_dataTypeId;
     /* 000D */ uint8_t m_flags;

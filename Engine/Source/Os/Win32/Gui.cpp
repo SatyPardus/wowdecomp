@@ -96,7 +96,7 @@ static int32_t sIsCharacterAllowed(char c, uint32_t filters) {
 }
 
 // INLINED
-void* COsTreeView::GetEditControl() {
+OsGuiHandle COsTreeView::GetEditControl() {
     return reinterpret_cast<void*>(SendMessageA(static_cast<HWND>(this->m_handle), TVM_GETEDITCONTROL, 0, 0));
 }
 
@@ -116,7 +116,7 @@ int32_t COsTreeView::IsCharacterAllowed(char c) {
 
 // VERIFY: d132b7cd auto
 // OFFSET: 0x0086C650
-void OsGuiSetWindowTitle(void* window, const char* title) {
+void OsGuiSetWindowTitle(OsGuiHandle window, const char* title) {
     uint32_t length = SUniConvertUTF8to16Len(title, 0x7FFFFFFF, nullptr);
     uint16_t* wideTitle = static_cast<uint16_t*>(_alloca(length * sizeof(uint16_t)));
     SUniConvertUTF8to16(wideTitle, length, title, 0x7FFFFFFF, nullptr, nullptr);
@@ -126,15 +126,15 @@ void OsGuiSetWindowTitle(void* window, const char* title) {
 
 // VERIFY: 7fcab45a auto
 // OFFSET: 0x0086C6A0
-void* OsGuiGetWindow(int32_t type) {
+OsGuiHandle OsGuiGetWindow(int32_t type) {
     switch (type) {
-        case 0:
+        case OSGUI_WINDOW_TYPE_GX:
             return s_GxDevWindow;
 
-        case 1:
+        case OSGUI_WINDOW_TYPE_ACTIVE:
             return GetActiveWindow();
 
-        case 2:
+        case OSGUI_WINDOW_TYPE_FRONT:
             return GetForegroundWindow();
 
         default:
@@ -144,13 +144,13 @@ void* OsGuiGetWindow(int32_t type) {
 
 // VERIFY: 3cdad9fe auto
 // OFFSET: 0x0086C6D0
-void OsGuiSetGxWindow(void* window) {
+void OsGuiSetGxWindow(OsGuiHandle window) {
     s_GxDevWindow = static_cast<HWND>(window);
 }
 
 // VERIFY: 39d42e31 manual
 // OFFSET: 0x0086C6E0
-int32_t OsGuiMessageBox(void* parentWindow, int32_t style, const char* message, const char* title) {
+int32_t OsGuiMessageBox(OsGuiHandle parentWindow, int32_t style, const char* message, const char* title) {
     uint32_t messageLength = SUniConvertUTF8to16Len(message, 0x7FFFFFFF, nullptr);
     uint16_t* wideMessage = static_cast<uint16_t*>(_alloca(messageLength * sizeof(uint16_t)));
     SUniConvertUTF8to16(wideMessage, messageLength, message, 0x7FFFFFFF, nullptr, nullptr);
@@ -166,19 +166,19 @@ int32_t OsGuiMessageBox(void* parentWindow, int32_t style, const char* message, 
     UINT type = MB_OK;
 
     switch (style) {
-        case 0:
+        case OSGUI_MESSAGE_STYLE_OK:
             type = MB_OK;
             break;
 
-        case 1:
+        case OSGUI_MESSAGE_STYLE_OKCANCEL:
             type = MB_OKCANCEL;
             break;
 
-        case 2:
+        case OSGUI_MESSAGE_STYLE_YESNO:
             type = MB_YESNO;
             break;
 
-        case 3:
+        case OSGUI_MESSAGE_STYLE_YESNOCANCEL:
             type = MB_YESNOCANCEL;
             break;
 
@@ -189,13 +189,13 @@ int32_t OsGuiMessageBox(void* parentWindow, int32_t style, const char* message, 
     switch (MessageBoxW(static_cast<HWND>(parentWindow), reinterpret_cast<const wchar_t*>(wideMessage), reinterpret_cast<const wchar_t*>(wideTitle), type)) {
         case IDOK:
         case IDYES:
-            return 0;
+            return OSGUI_MESSAGE_RESULT_YESOK;
 
         case IDNO:
-            return 1;
+            return OSGUI_MESSAGE_RESULT_NO;
 
         default:
-            return 2;
+            return OSGUI_MESSAGE_RESULT_CANCEL;
     }
 }
 
@@ -203,13 +203,13 @@ int32_t OsGuiMessageBox(void* parentWindow, int32_t style, const char* message, 
 // OFFSET: 0x0086C7D0
 int32_t OsGuiIsModifierKeyDown(int32_t key) {
     switch (key) {
-        case 0:
+        case OSGUI_KEY_CONTROL:
             return (GetKeyState(VK_CONTROL) & 0xF000) != 0;
 
-        case 1:
+        case OSGUI_KEY_SHIFT:
             return (GetKeyState(VK_SHIFT) & 0xF000) != 0;
 
-        case 2:
+        case OSGUI_KEY_ALT:
             return (GetKeyState(VK_MENU) & 0xF000) != 0;
 
         default:
@@ -242,7 +242,7 @@ int32_t COsTabControl::GetNumItems() {
 }
 
 // INLINED
-void* COsDialog::GetParentWindow() {
+OsGuiHandle COsDialog::GetParentWindow() {
     return GetParent(static_cast<HWND>(this->m_handle));
 }
 
@@ -253,12 +253,12 @@ int32_t COsDialog::HasFlag(uint32_t flag) {
 
 // INLINED
 int32_t COsDialog::IsInFront() {
-    return this->m_handle == OsGuiGetWindow(2);
+    return this->m_handle == OsGuiGetWindow(OSGUI_WINDOW_TYPE_FRONT);
 }
 
 // VERIFY: 6ad9fe33 auto
 // OFFSET: 0x0086C840
-COsControl* COsDialog::FindControl(void* handle) {
+COsControl* COsDialog::FindControl(OsGuiHandle handle) {
     for (uint32_t i = 0; i < this->m_controls.Count(); i++) {
         if (this->m_controls[i]->IsHandleFromControl(handle)) {
             return this->m_controls[i];
@@ -281,7 +281,7 @@ int32_t COsDialog::OnCancel() {
 // VERIFY: f2de4205 manual
 // OFFSET: 0x0086C900
 int32_t COsTabControl::OnControlTab() {
-    int32_t shift = OsGuiIsModifierKeyDown(1);
+    int32_t shift = OsGuiIsModifierKeyDown(OSGUI_KEY_SHIFT);
     int32_t value = this->GetValue();
     int32_t count = this->GetNumItems();
 
@@ -354,7 +354,7 @@ int32_t COsDialog::ProcessMessage(void* message) {
         }
     }
 
-    if (this->IsInFront() && msg->wParam == VK_TAB && msg->message == WM_KEYDOWN && OsGuiIsModifierKeyDown(0) && this->OnControlTab()) {
+    if (this->IsInFront() && msg->wParam == VK_TAB && msg->message == WM_KEYDOWN && OsGuiIsModifierKeyDown(OSGUI_KEY_CONTROL) && this->OnControlTab()) {
         return 1;
     }
 
@@ -380,7 +380,7 @@ int32_t OsGuiProcessMessage(void* message) {
             }
 
             HWND window = static_cast<HWND>(s_menubars[i]->m_windowHandle);
-            void* activeWindow = OsGuiGetWindow(1);
+            void* activeWindow = OsGuiGetWindow(OSGUI_WINDOW_TYPE_ACTIVE);
 
             if (window != activeWindow) {
                 COsDialog* dialog = sGetOsGuiPointer(activeWindow);

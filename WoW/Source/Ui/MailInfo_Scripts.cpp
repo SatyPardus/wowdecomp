@@ -234,7 +234,7 @@ static int32_t Script_GetStationeryInfo(lua_State* L) {
     WOWGUID none = { 0 };
 
     if (index < CGMailInfo::m_stationeries.Count() && (stationery = CGMailInfo::m_stationeries.m_data[index]) && (stats = g_itemDBCache.GetRecord(stationery->m_itemID, none, nullptr, nullptr, false))) {
-        const char* path = ClientDBStringLookup(3);
+        const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
         SStrPrintf(s_stationeryTexture, sizeof(s_stationeryTexture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
         lua_pushstring(L, stats->m_name[0]);
         lua_pushstring(L, s_stationeryTexture);
@@ -279,7 +279,7 @@ static int32_t Script_GetPackageInfo(lua_State* L) {
     double cost;
 
     if (rec) {
-        const char* path = ClientDBStringLookup(3);
+        const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
         SStrPrintf(s_packageTexture, sizeof(s_packageTexture), "%s%s", path, *path ? "\\" : "");
         SStrPack(s_packageTexture, rec->m_icon, sizeof(s_packageTexture));
         lua_pushstring(L, rec->m_name);
@@ -389,7 +389,7 @@ static int32_t Script_GetSendMailItemLink(lua_State* L) {
         return 0;
     }
 
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item) {
         return 0;
@@ -434,7 +434,7 @@ static int32_t Script_GetInboxHeaderInfo(lua_State* L) {
 
     uint32_t numAttachments = GetNumAttachments(message);
     MailAttachmentInfo* attachment = numAttachments == 1 ? GetFirstAttachment(message) : nullptr;
-    const char* iconPath = ClientDBStringLookup(3);
+    const char* iconPath = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(s_headerTexture, sizeof(s_headerTexture), "%s%s", iconPath, *iconPath ? "\\" : "");
     PackageRec* package = message->m_package ? g_packageDB.GetRecord(message->m_package) : nullptr;
 
@@ -893,7 +893,7 @@ static int32_t Script_GetSendMailItem(lua_State* L) {
     }
 
     WOWGUID guid = CGMailInfo::m_sendItems[index].m_guid;
-    CGItem_C* item = guid ? static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__)) : nullptr;
+    CGItem_C* item = guid ? static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__)) : nullptr;
     ItemStats_C* stats = nullptr;
 
     if (item) {
@@ -912,7 +912,7 @@ static int32_t Script_GetSendMailItem(lua_State* L) {
     char name[256];
     item->GetFullItemName(name, sizeof(name));
     lua_pushstring(L, name);
-    const char* iconPath = ClientDBStringLookup(3);
+    const char* iconPath = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", iconPath, *iconPath ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
@@ -968,10 +968,10 @@ static int32_t Script_SendMail(lua_State* L) {
         }
 
         count++;
-        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+        CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
         if (!item || item->m_item->m_itemFieldOwner != ClntObjMgrGetActivePlayer()) {
-            CGGameUI::DisplayError(static_cast<UIErrors>(GetDisplayErrorByInventoryError(23)));
+            CGGameUI::DisplayError(static_cast<UIErrors>(GetDisplayErrorByInventoryError(BAG_ITEM_NOT_FOUND)));
             CGMailInfo::ClearSendItem(i);
             FrameScript_SignalEvent(SCRIPT_EVENT_MAIL_SEND_INFO_UPDATE, nullptr);
             return 0;
@@ -1142,7 +1142,7 @@ static int32_t Script_GetInboxItem(lua_State* L) {
 
     if (!stats) {
         lua_pushstring(L, FrameScript_GetText("UNKNOWNOBJECT", -1, GENDER_NOT_APPLICABLE));
-        const char* iconPath = ClientDBStringLookup(3);
+        const char* iconPath = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
         SStrPrintf(texture, sizeof(texture), "%s%s%s", iconPath, *iconPath ? "\\" : "", "INV_Misc_QuestionMark");
         lua_pushstring(L, texture);
         lua_pushnumber(L, 0.0);
@@ -1154,7 +1154,7 @@ static int32_t Script_GetInboxItem(lua_State* L) {
     char name[256];
     CGItem_C::BuildItemName(name, sizeof(name), attachment->m_itemID, attachment->m_randomPropertiesID);
     lua_pushstring(L, name);
-    const char* iconPath = ClientDBStringLookup(3);
+    const char* iconPath = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(texture, sizeof(texture), "%s%s%s", iconPath, *iconPath ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
     lua_pushnumber(L, static_cast<int32_t>(attachment->m_count));

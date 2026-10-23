@@ -1,4 +1,5 @@
 #include "MapObjGroup.h"
+#include "WoW/Source/WorldClient/WorldConstants.h"
 #include "WoW/Source/WorldClient/BspQuery_SegmentLink.h"
 #include "WoW/Source/WorldClient/Map.h"
 #include "Engine/Source/Tempest/CFacet.h"
@@ -269,7 +270,7 @@ void CMapObjGroup::QueryLiquidSounds(const C3Vector& pos, TSGrowableArray<World:
         }
 
         float ring = s_liquidSoundRings[i];
-        query.m_radiusSq = 4.1666665f * ring * (4.1666665f * ring);
+        query.m_radiusSq = SMOLTILE_SIZE * ring * (SMOLTILE_SIZE * ring);
         query.AddRing(tileX, tileY, static_cast<int32_t>(ring));
     }
 }
@@ -305,8 +306,8 @@ void LiquidSoundQuery::VisitSpan(int32_t x0, int32_t x1, int32_t y) {
         }
 
         result->m_liquidType = this->m_liquidType;
-        result->m_offset.x = x * 4.1666665f - this->m_position.x;
-        result->m_offset.y = y * 4.1666665f - this->m_position.y;
+        result->m_offset.x = x * SMOLTILE_SIZE - this->m_position.x;
+        result->m_offset.y = y * SMOLTILE_SIZE - this->m_position.y;
         result->m_offset.z = dz;
         this->m_found = 1;
     }
@@ -1227,8 +1228,8 @@ bool CMapObjGroup::QueryLiquid(const C3Vector& pos, int32_t* liquidType, float* 
         return true;
     }
 
-    float fx = (pos.x - this->m_liquidCorner.x) * 0.24f;
-    float fy = (pos.y - this->m_liquidCorner.y) * 0.24f;
+    float fx = (pos.x - this->m_liquidCorner.x) * OO_COORD_TO_SUBCHUNK;
+    float fy = (pos.y - this->m_liquidCorner.y) * OO_COORD_TO_SUBCHUNK;
 
     C2iVector tile;
     tile.x = static_cast<int32_t>(floor(fx));
@@ -1311,11 +1312,11 @@ void CMapObjGroup::GenLiquidVerts() {
             this->m_liquidMaxHeight = height < this->m_liquidMaxHeight ? this->m_liquidMaxHeight : height;
 
             vert++;
-            x += 4.1666665f;
+            x += SMOLTILE_SIZE;
         }
 
         x = this->m_liquidCorner.x;
-        y += 4.1666665f;
+        y += SMOLTILE_SIZE;
     }
 }
 
@@ -1821,9 +1822,9 @@ bool CMapObjGroup::VectorIntersectLiquidTiles(const C3Segment& seg, float* t, ui
 // VERIFY: 4c425802 auto
 // OFFSET: 0x007C9DD0
 bool CMapObjGroup::VectorIntersectLiquid(const C3Segment& seg, float* t, uint32_t flags, World::TriData* triData, CMapObjDef* mapObjDef) {
-    float sizeY = this->m_liquidTiles.y * 4.1666665f - 0.1f;
+    float sizeY = this->m_liquidTiles.y * SMOLTILE_SIZE - 0.1f;
     sizeY = sizeY > 0.0f ? sizeY : 0.0f;
-    float sizeX = 4.1666665f * this->m_liquidTiles.x - 0.1f;
+    float sizeX = SMOLTILE_SIZE * this->m_liquidTiles.x - 0.1f;
     sizeX = sizeX > 0.0f ? sizeX : 0.0f;
 
     CAaBox box;
@@ -1878,12 +1879,12 @@ bool CMapObjGroup::VectorIntersectLiquid(const C3Segment& seg, float* t, uint32_
     uint32_t tileCount = 0;
     uint8_t tiles[0x800];
 
-    start.x = (start.x - this->m_liquidCorner.x) * 0.24f;
-    start.y = (start.y - this->m_liquidCorner.y) * 0.24f;
-    start.z = start.z * 0.24f;
-    end.x = (end.x - this->m_liquidCorner.x) * 0.24f;
-    end.y = (end.y - this->m_liquidCorner.y) * 0.24f;
-    end.z = 0.24f * end.z;
+    start.x = (start.x - this->m_liquidCorner.x) * OO_COORD_TO_SUBCHUNK;
+    start.y = (start.y - this->m_liquidCorner.y) * OO_COORD_TO_SUBCHUNK;
+    start.z = start.z * OO_COORD_TO_SUBCHUNK;
+    end.x = (end.x - this->m_liquidCorner.x) * OO_COORD_TO_SUBCHUNK;
+    end.y = (end.y - this->m_liquidCorner.y) * OO_COORD_TO_SUBCHUNK;
+    end.z = OO_COORD_TO_SUBCHUNK * end.z;
 
     float deltaX = end.x - start.x;
     float deltaY = fabs(end.y - start.y);
@@ -1925,10 +1926,10 @@ bool CMapObjGroup::GetLiquidTris(const CAaBox& box, uint32_t flags, World::TriDa
     CAaBox bounds = CAaBox::Bounding(points, 2);
 
     CiRect rect;
-    rect.maxX = static_cast<int32_t>(floor(bounds.t.x * 0.24f));
-    rect.maxY = static_cast<int32_t>(floor(bounds.t.y * 0.24f));
-    rect.minY = static_cast<int32_t>(floor(bounds.b.y * 0.24f));
-    rect.minX = static_cast<int32_t>(floor(bounds.b.x * 0.24f));
+    rect.maxX = static_cast<int32_t>(floor(bounds.t.x * OO_COORD_TO_SUBCHUNK));
+    rect.maxY = static_cast<int32_t>(floor(bounds.t.y * OO_COORD_TO_SUBCHUNK));
+    rect.minY = static_cast<int32_t>(floor(bounds.b.y * OO_COORD_TO_SUBCHUNK));
+    rect.minX = static_cast<int32_t>(floor(bounds.b.x * OO_COORD_TO_SUBCHUNK));
 
     if (rect.maxX < 0 || rect.maxY < 0 || rect.minX >= this->m_liquidTiles.x || rect.minY >= this->m_liquidTiles.y) {
         return false;
@@ -2064,10 +2065,10 @@ bool CMapObjGroup::GetLiquidTris(const CFrustum& frustum, uint32_t flags, World:
     CAaBox bounds = CAaBox::Bounding(localFrustum.corners, 8);
 
     CiRect rect;
-    rect.maxX = static_cast<int32_t>(floor(bounds.t.x * 0.24f));
-    rect.maxY = static_cast<int32_t>(floor(bounds.t.y * 0.24f));
-    rect.minY = static_cast<int32_t>(floor(bounds.b.y * 0.24f));
-    rect.minX = static_cast<int32_t>(floor(bounds.b.x * 0.24f));
+    rect.maxX = static_cast<int32_t>(floor(bounds.t.x * OO_COORD_TO_SUBCHUNK));
+    rect.maxY = static_cast<int32_t>(floor(bounds.t.y * OO_COORD_TO_SUBCHUNK));
+    rect.minY = static_cast<int32_t>(floor(bounds.b.y * OO_COORD_TO_SUBCHUNK));
+    rect.minX = static_cast<int32_t>(floor(bounds.b.x * OO_COORD_TO_SUBCHUNK));
 
     if (rect.maxX < 0 || rect.maxY < 0 || rect.minX >= this->m_liquidTiles.x || rect.minY >= this->m_liquidTiles.y) {
         return false;

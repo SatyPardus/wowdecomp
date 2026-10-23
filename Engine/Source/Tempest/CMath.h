@@ -5,6 +5,9 @@
 #include <cstddef>
 #include <cstdint>
 
+static const float PI = 3.1415927f;
+static const float TWO_PI = 6.2831855f;
+
 class CMath {
     public:
     static float cos_(float x);

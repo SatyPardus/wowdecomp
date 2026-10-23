@@ -22,6 +22,11 @@
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/WorldClient/MapObjGroup.h"
 
+enum WaterRippleLimits : uint32_t {
+    NUM_PLAYER_RIPPLES = 32,
+    NUM_RIPPLES = 128,
+};
+
 // STATIC: 0x00ADF7F4
 static const char* s_rippleTextureNames[2] = {
     "XTextures\\splash\\splash.blp",
@@ -250,7 +255,7 @@ void CMap::RenderWaterRipples() {
 // OFFSET: 0x0079E1A0
 void WaterRipple::Initialize() {
     WaterRipple::s_nextPlayerRipple = 0;
-    WaterRipple::s_nextUnitRipple = 32;
+    WaterRipple::s_nextUnitRipple = NUM_PLAYER_RIPPLES;
 
     CGxTexFlags flags;
     CStatus status;
@@ -259,7 +264,7 @@ void WaterRipple::Initialize() {
         s_rippleTextures[i] = TextureCreate(s_rippleTextureNames[i], flags, &status, 1);
     }
 
-    s_ripplePool.SetCount(128);
+    s_ripplePool.SetCount(NUM_RIPPLES);
     s_ripplesInitialized = 0;
 
     g_theGxDevicePtr->ShaderCreate(&WaterRipple::s_vsWaterRipples, GxSh_Vertex, "Shaders\\Vertex", "WaterRipples", 1);
@@ -352,14 +357,14 @@ void WaterRipple::Create(const C3Vector& pos, float facing, float size, float al
     if (player) {
         index = WaterRipple::s_nextPlayerRipple++;
 
-        if (WaterRipple::s_nextPlayerRipple >= 32) {
+        if (WaterRipple::s_nextPlayerRipple >= NUM_PLAYER_RIPPLES) {
             WaterRipple::s_nextPlayerRipple = 0;
         }
     } else {
         index = WaterRipple::s_nextUnitRipple++;
 
-        if (WaterRipple::s_nextUnitRipple >= 128) {
-            WaterRipple::s_nextUnitRipple = 32;
+        if (WaterRipple::s_nextUnitRipple >= NUM_RIPPLES) {
+            WaterRipple::s_nextUnitRipple = NUM_PLAYER_RIPPLES;
         }
     }
 

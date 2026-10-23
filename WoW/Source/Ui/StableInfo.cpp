@@ -6,6 +6,7 @@
 #include "WoW/Source/Ui/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
@@ -87,7 +88,7 @@ int32_t Packet_SMSG_STABLE_RESULT(void* param, NETMESSAGE msgId, uint32_t time, 
         case 9: {
             CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
-            if (CGStableInfo::m_stableMaster || (player && player->HasAuraEffect(292))) {
+            if (CGStableInfo::m_stableMaster || (player && player->HasAuraEffect(SPELL_AURA_OPEN_STABLE))) {
                 CDataStore list;
                 list.Put(static_cast<uint32_t>(MSG_LIST_STABLED_PETS));
                 list.Put(CGStableInfo::m_stableMaster.m_guid);

@@ -522,13 +522,13 @@ static bool LoadSimpleBackgroundTexture() {
 // VERIFY: 91dabb04 manual
 // OFFSET: 0x00409800
 int32_t IsStillLoading() {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !player->GetTransportGUID()) {
         return 1;
     }
 
-    CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+    CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
     if (transport) {
         CMapBaseObj* object = transport->m_typeData->GetMapObjectTransportID();
@@ -1234,7 +1234,7 @@ static bool InitializeSpline(uint32_t path, int32_t leg) {
     C3Spline_CatmullRom spline;
     spline.SetPoints(points.m_data, count + 4);
 
-    int32_t segments = FloatToInt64(spline.m_length * 66.666672f);
+    int32_t segments = FloatToInt64(spline.cachedLength * 66.666672f);
 
     if (segments < 1) {
         segments = 1;
@@ -1254,7 +1254,7 @@ void LoadingScreenEnableShip(uint32_t transportEntry, int32_t transportMap, int3
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
-        CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+        CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
         if (transport && transport->m_obj->m_entryID == transportEntry) {
             uint32_t path = transport->GetPropertyValue(CGameObjectDef::GetPropNum(transport->m_gameObject->m_typeID, 35));
@@ -1279,7 +1279,7 @@ void LoadingScreenEnableShipLeg(int32_t entryId, uint32_t leg) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
     if (player) {
-        CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPEMASK_GAMEOBJECT, __FILE__, __LINE__));
+        CGGameObject_C* transport = static_cast<CGGameObject_C*>(ClntObjMgrObjectPtr(WOWGUID{ player->GetTransportGUID() }, TYPE_GAMEOBJECT, __FILE__, __LINE__));
 
         if (transport && transport->m_obj->m_entryID == entryId) {
             uint32_t path = transport->GetPropertyValue(CGameObjectDef::GetPropNum(transport->m_gameObject->m_typeID, 35));

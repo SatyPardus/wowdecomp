@@ -124,7 +124,7 @@ static int32_t Script_GetFactionInfoByID(lua_State* L) {
 // VERIFY: 941cdb0b manual
 // OFFSET: 0x005D1240
 static int32_t Script_GetWatchedFactionInfo(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     FactionRec* rec = nullptr;
     int32_t faction = 0;
 

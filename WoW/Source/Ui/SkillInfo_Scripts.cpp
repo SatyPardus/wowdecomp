@@ -59,7 +59,7 @@ static int32_t Script_GetSelectedSkill(lua_State* L) {
 // VERIFY: 7eaea3f3 manual
 // OFFSET: 0x005CE540
 static int32_t Script_GetAdjustedSkillPoints(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t points = 0;
 
     if (player) {
@@ -82,7 +82,7 @@ static int32_t Script_GetSkillLineInfo(lua_State* L) {
         return 0;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
     SkillLineInfo* line = index < CGSkillInfo::m_numLines ? CGSkillInfo::m_lines.m_data[index] : nullptr;
 

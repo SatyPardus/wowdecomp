@@ -18,6 +18,7 @@
 #include "WoW/Source/DB/Rec/SpellRec.h"
 #include "WoW/Source/DB/Rec/TotemCategoryRec.h"
 #include "WoW/Source/Game/GameClient/NameCache.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Magic/MagicClient/Spell_C.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/ObjectClient/Item_C.h"
@@ -99,7 +100,7 @@ static int32_t Script_GetTradeskillRepeatCount(lua_State* L) {
 }
 
 // STATIC: 0x00A1B788
-static const char s_difficultyNames[4][32] = { "optimal", "medium", "easy", "trivial" };
+static const char s_difficultyNames[NUM_TRADESKILL_CATEGORIES][32] = { "optimal", "medium", "easy", "trivial" };
 
 // VERIFY: 70374745 auto
 // OFFSET: 0x005DA1B0
@@ -358,7 +359,7 @@ static int32_t Script_GetTradeSkillInfo(lua_State* L) {
 
                 SkillLineRec* skillLine;
 
-                if (spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59 || !(skillLine = g_skillLineDB.GetRecord(CGTradeSkillInfo::m_skillLineID))) {
+                if (spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM || !(skillLine = g_skillLineDB.GetRecord(CGTradeSkillInfo::m_skillLineID))) {
                     lua_pushnil(L);
                 } else {
                     lua_pushstring(L, skillLine->m_alternateVerb);
@@ -392,11 +393,11 @@ static int32_t Script_GetTradeSkillIcon(lua_State* L) {
         SpellRec spell;
 
         if (g_spellDB.GetRecord(info->m_spellId, &spell)) {
-            if ((spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) && spell.m_effectItemType[0]) {
+            if ((spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) && spell.m_effectItemType[0]) {
                 ItemRec* item = g_itemDB.GetRecord(spell.m_effectItemType[0]);
 
                 if (item) {
-                    const char* path = ClientDBStringLookup(3);
+                    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
                     const char* separator = *path ? "\\" : "";
                     char texture[260];
                     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, separator, CGItem_C::GetInventoryArt(item->m_displayInfoID));
@@ -553,7 +554,7 @@ static int32_t Script_GetTradeSkillItemLink(lua_State* L) {
     char buffer[1024];
     ItemStats_C* stats;
 
-    if (spell.m_effect[0] == 24 || spell.m_effect[0] == 157 || spell.m_effect[0] == 59) {
+    if (spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM || spell.m_effect[0] == SPELL_EFFECT_CREATE_ITEM_2 || spell.m_effect[0] == SPELL_EFFECT_CREATE_RANDOM_ITEM) {
         int32_t itemId = spell.m_effectItemType[0];
         WOWGUID none = WOWGUID();
 
@@ -1009,7 +1010,7 @@ static int32_t Script_GetTradeSkillReagentInfo(lua_State* L) {
 
                 if (stats) {
                     lua_pushstring(L, stats->GetName(0));
-                    const char* path = ClientDBStringLookup(3);
+                    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
                     const char* separator = *path ? "\\" : "";
                     char texture[260];
                     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, separator, CGItem_C::GetInventoryArt(stats->m_displayId));

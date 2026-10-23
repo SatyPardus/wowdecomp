@@ -255,7 +255,7 @@ WOWGUID CGBattlefieldInfo::GetArenaOpponentPet(uint32_t index) {
         return WOWGUID();
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGBattlefieldInfo::m_arenaOpponents[index], TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGBattlefieldInfo::m_arenaOpponents[index], TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         CGUnitData* data = unit->m_unit;
@@ -382,7 +382,7 @@ void CGBattlefieldInfo::OnArenaUnitDestroyed(const WOWGUID& guid) {
         }
 
         if (opponent) {
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(opponent, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(opponent, TYPE_UNIT, __FILE__, __LINE__));
 
             if (unit) {
                 const WOWGUID& pet = unit->m_unit->m_unitFieldCharm.m_guid ? unit->m_unit->m_unitFieldCharm : unit->m_unit->m_unitFieldSummon;
@@ -1541,7 +1541,7 @@ void CGBattlefieldInfo::OnArenaUnitOutOfRange(const WOWGUID& guid) {
         }
 
         if (opponent) {
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(opponent, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(opponent, TYPE_UNIT, __FILE__, __LINE__));
 
             if (unit) {
                 CGUnitData* data = unit->m_unit;
@@ -1588,7 +1588,7 @@ const char* CGBattlefieldInfo::GetFlagToken(uint32_t index) {
     }
 
     uint32_t faction = index;
-    CGPlayer_C* carrier = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGBattlefieldInfo::m_flagCarriers[index], TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* carrier = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGBattlefieldInfo::m_flagCarriers[index], TYPE_PLAYER, __FILE__, __LINE__));
 
     if (carrier) {
         faction = carrier->GetPVPFactionIndex();
@@ -1791,7 +1791,7 @@ void CGBattlefieldInfo::ShutdownGame() {
 // VERIFY: 8e23bef8 manual
 // OFFSET: 0x0054E5B0
 void CGBattlefieldInfo::RequestBattlegroundInstanceInfo(uint32_t index) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || static_cast<int32_t>(index) < 0 || index >= CGBattlefieldInfo::m_battlegroundTypes.m_count) {
         return;
@@ -1892,7 +1892,7 @@ int32_t Packet_SMSG_BATTLEFIELD_LIST(void* param, NETMESSAGE msgId, uint32_t tim
 // VERIFY: 225ed4a9 manual
 // OFFSET: 0x0054B840
 void CGBattlefieldInfo::AddArenaOpponentToSlot(const WOWGUID& guid, int32_t slot) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (CGBattlefieldInfo::m_arenaOpponents[slot] != guid) {
         CGBattlefieldInfo::m_arenaOpponents[slot] = guid;
@@ -1915,7 +1915,7 @@ void CGBattlefieldInfo::AddArenaOpponentToSlot(const WOWGUID& guid, int32_t slot
 // VERIFY: c68ace60 manual
 // OFFSET: 0x0054B920
 void CGBattlefieldInfo::AddArenaOpponentPetToSlot(const WOWGUID& petGuid, const WOWGUID& ownerGuid, int32_t slot, int32_t registerNew) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(petGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (registerNew && CGBattlefieldInfo::m_arenaOpponentPets[slot][0] != petGuid && unit) {
         unit->RegisterScript(0x4000);
@@ -1938,7 +1938,7 @@ void CGBattlefieldInfo::AddArenaOpponentPetToSlot(const WOWGUID& petGuid, const 
 void CGBattlefieldInfo::AddArenaOpponent(const WOWGUID& guid) {
     for (uint32_t i = 0; i < 5; i++) {
         if (CGBattlefieldInfo::m_arenaOpponentPets[i][1] == guid) {
-            CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGBattlefieldInfo::m_arenaOpponentPets[i][0], TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* pet = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGBattlefieldInfo::m_arenaOpponentPets[i][0], TYPE_UNIT, __FILE__, __LINE__));
 
             if (pet) {
                 pet->UnregisterScript(0x4000);

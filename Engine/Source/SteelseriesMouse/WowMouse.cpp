@@ -10,7 +10,7 @@ SteelseriesMouse::~SteelseriesMouse() {
 // VERIFY: c632886d manual
 // OFFSET: 0x008C2F50
 WowMouse::WowMouse() {
-    void* window = OsGuiGetWindow(0);
+    void* window = OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX);
 
     if (window) {
         this->m_hidManager = HidManager::Create();

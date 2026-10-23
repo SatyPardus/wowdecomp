@@ -7,6 +7,15 @@
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/H/storm.h"
 
+enum PROFILE_PARSE_STATE : int32_t {
+    STATE_NEWLINE = 0,
+    STATE_COMMENT = 1,
+    STATE_SECTION = 2,
+    STATE_STRIP_TRAILING = 3,
+    STATE_KEY = 4,
+    STATE_VALUE = 5,
+};
+
 // VERIFY: c051543c auto
 // OFFSET: 0x004BBCB0
 static void StrTrimTrailingSpace(char* str) {
@@ -323,71 +332,71 @@ int32_t ProfileInternal::IReadBuffer(PROFILE* profile, const void* data, uint32_
     const char* lastSection = nullptr;
     char* key = nullptr;
     char* value = nullptr;
-    int32_t state = 0;
+    PROFILE_PARSE_STATE state = STATE_NEWLINE;
 
     for (char* ptr = text; *ptr; ptr++) {
         switch (state) {
-            case 0:
+            case STATE_NEWLINE:
                 if (SStrChr("\r\n", *ptr)) {
                     break;
                 }
 
                 if (!SStrCmp(ptr, "//", 2)) {
-                    state = 1;
+                    state = STATE_COMMENT;
                 } else if (*ptr == '[') {
                     section = ptr + 1;
-                    state = 2;
+                    state = STATE_SECTION;
                 } else {
                     key = ptr;
-                    state = 4;
+                    state = STATE_KEY;
                 }
 
                 break;
 
-            case 1:
-            case 3:
+            case STATE_COMMENT:
+            case STATE_STRIP_TRAILING:
                 if (SStrChr("\r\n", *ptr)) {
-                    state = 0;
+                    state = STATE_NEWLINE;
                 }
 
                 break;
 
-            case 2:
+            case STATE_SECTION:
                 if (SStrChr("\r\n", *ptr)) {
                     section = lastSection;
-                    state = 0;
+                    state = STATE_NEWLINE;
                 } else if (*ptr == ']') {
                     *ptr = '\0';
                     lastSection = section;
-                    state = 3;
+                    state = STATE_STRIP_TRAILING;
                 }
 
                 break;
 
-            case 4:
+            case STATE_KEY:
                 if (SStrChr("\r\n", *ptr)) {
-                    state = 0;
+                    state = STATE_NEWLINE;
                     key = nullptr;
                 } else if (*ptr == '=') {
                     *ptr = '\0';
                     value = ptr + 1;
-                    state = 5;
+                    state = STATE_VALUE;
                 }
 
                 break;
 
-            case 5:
+            case STATE_VALUE:
                 if (SStrChr("\r\n", *ptr)) {
                     *ptr = '\0';
                     TokenizeStringValues(profile, section, key, value);
-                    state = 0;
+                    state = STATE_NEWLINE;
                 }
 
                 break;
         }
     }
 
-    if (state == 5) {
+    if (state == STATE_VALUE) {
         TokenizeStringValues(profile, section, key, value);
     }
 

@@ -297,7 +297,7 @@ float CMath::normalizeangle0to2pi_(float angle) {
     double result = fmod(angle, 6.2831854820251465);
 
     if (result < 0.0) {
-        result = result + 6.2831855f;
+        result = result + TWO_PI;
     }
 
     return static_cast<float>(result);
@@ -308,12 +308,12 @@ float CMath::normalizeangle0to2pi_(float angle) {
 float CMath::normalizeAngleNegPiToPi_(float angle) {
     double result = fmod(angle, 6.2831854820251465);
 
-    if (result < -3.1415927f) {
-        return static_cast<float>(result + 6.2831855f);
+    if (result < -PI) {
+        return static_cast<float>(result + TWO_PI);
     }
 
-    if (result > 3.1415927f) {
-        result = result - 6.2831855f;
+    if (result > PI) {
+        result = result - TWO_PI;
     }
 
     return static_cast<float>(result);
@@ -432,12 +432,12 @@ bool CMath::fnotequal(float a, float b) {
 // VERIFY: cc462220 auto
 // OFFSET: 0x007156C0
 float CMath::normalizeAnglePi(float angle) {
-    if (angle > 3.1415927f) {
-        return static_cast<float>(fmod(static_cast<double>(angle + 3.1415927f), static_cast<double>(6.2831855f)) - 3.1415927f);
+    if (angle > PI) {
+        return static_cast<float>(fmod(static_cast<double>(angle + PI), static_cast<double>(TWO_PI)) - PI);
     }
 
-    if (angle < -3.1415927f) {
-        return static_cast<float>(fmod(static_cast<double>(angle - 3.1415927f), static_cast<double>(6.2831855f)) + 3.1415927f);
+    if (angle < -PI) {
+        return static_cast<float>(fmod(static_cast<double>(angle - PI), static_cast<double>(TWO_PI)) + PI);
     }
 
     return angle;
@@ -713,7 +713,7 @@ float CMath::sin_(float x) {
 // VERIFY: eea7f5f0 auto
 // OFFSET: 0x008CA080
 float OrganicSmooth(float from, float to, float t) {
-    return from + (to - from) * ((1.0f - cosf(t * 3.1415927f)) * 0.5f);
+    return from + (to - from) * ((1.0f - cosf(t * PI)) * 0.5f);
 }
 
 // VERIFY: 0fa97e20 auto

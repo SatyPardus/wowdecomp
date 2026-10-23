@@ -981,13 +981,13 @@ int32_t GxuFontCreateString(CGxFont* face, const char* text, float fontHeight, c
         return 0;
     }
 
-    if (vertJust >= 3) {
+    if (vertJust >= GxVJ_Last) {
         DebugValidate("vertJustification < GxVJ_Last");
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return 0;
     }
 
-    if (horzJust >= 3) {
+    if (horzJust >= GxHJ_Last) {
         DebugValidate("horzJustification < GxHJ_Last");
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return 0;

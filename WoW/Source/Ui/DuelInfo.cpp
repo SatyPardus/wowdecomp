@@ -121,7 +121,7 @@ int32_t Packet_SMSG_DUEL_REQUESTED(void* param, NETMESSAGE msgId, uint32_t time,
         return 1;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(requester, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(requester, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         FrameScript_SignalEvent(SCRIPT_EVENT_DUEL_REQUESTED, "%s", player->GetUnitName(nullptr, 1));

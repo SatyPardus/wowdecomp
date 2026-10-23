@@ -1137,7 +1137,7 @@ static void CALLBACK OsInputCallEventPollProc(HWND hwnd, UINT message, UINT_PTR 
 // OFFSET: 0x00869DB0
 static void CenterMouse() {
     // The offset-editor fix uses the saved cursor point as its relative anchor, keeping the pointer from jumping to screen center.
-    HWND hwnd = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND hwnd = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
     RECT clientRect;
     if (!hwnd || !GetClientRect(hwnd, &clientRect)) {
         return;
@@ -1172,14 +1172,14 @@ static void CenterMouse() {
 int32_t OsInputGet(OSINPUT* id, int32_t* param0, int32_t* param1, int32_t* param2, int32_t* param3) {
     *id = static_cast<OSINPUT>(-1);
 
-    if (s_windowSize && !IsIconic(static_cast<HWND>(OsGuiGetWindow(0)))) {
+    if (s_windowSize && !IsIconic(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)))) {
         s_windowSize = 0;
 
         RECT windowRect;
-        GetWindowRect(static_cast<HWND>(OsGuiGetWindow(0)), &windowRect);
+        GetWindowRect(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)), &windowRect);
 
         RECT adjust = { 0, 0, 0, 0 };
-        AdjustWindowRectEx(&adjust, GetWindowLongA(static_cast<HWND>(OsGuiGetWindow(0)), GWL_STYLE), FALSE, 0);
+        AdjustWindowRectEx(&adjust, GetWindowLongA(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)), GWL_STYLE), FALSE, 0);
 
         int32_t width = (windowRect.right - adjust.right) - (windowRect.left - adjust.left);
         int32_t height = (windowRect.bottom - adjust.bottom) - (windowRect.top - adjust.top);
@@ -1248,7 +1248,7 @@ void OsInputSetMouseMode(OS_MOUSE_MODE mode) {
     }
 
     if (mode == OS_MOUSE_MODE_RELATIVE) {
-        HWND hwnd = static_cast<HWND>(OsGuiGetWindow(0));
+        HWND hwnd = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
         POINT point;
         if (hwnd && GetCursorPos(&point) && ScreenToClient(hwnd, &point)) {
             SaveMouse(hwnd, point);
@@ -1274,7 +1274,7 @@ void OsInputSetMouseSpeed(float speed) {
 
 // OFFSET: 0x0086A0D0
 void OsInputGetMousePosition(int32_t* x, int32_t* y) {
-    HWND hwnd = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND hwnd = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
 
     POINT point;
     GetCursorPos(&point);
@@ -1292,7 +1292,7 @@ void OsInputGetMousePosition(int32_t* x, int32_t* y) {
 
 // OFFSET: 0x0086A130
 void OsInputSetMousePosition(int32_t x, int32_t y) {
-    HWND hwnd = static_cast<HWND>(OsGuiGetWindow(0));
+    HWND hwnd = static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX));
 
     POINT point;
     point.x = x;
@@ -1312,7 +1312,7 @@ int32_t OsGetDefaultWindowRect(tagRECT* rect) {
     }
 
     if (!s_defaultWindowRect.right || !s_defaultWindowRect.bottom) {
-        if (!GetClientRect(static_cast<HWND>(OsGuiGetWindow(0)), &s_defaultWindowRect)) {
+        if (!GetClientRect(static_cast<HWND>(OsGuiGetWindow(OSGUI_WINDOW_TYPE_GX)), &s_defaultWindowRect)) {
             return 0;
         }
     }
@@ -1359,7 +1359,7 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
             return 0;
 
         case WM_INPUTLANGCHANGE: {
-            OsQueuePut(OS_INPUT_IME, 0, 0, 0, 0);
+            OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_NOTIFYLANGUAGE, 0, 0, 0);
 
             CHARSETINFO charset;
             if (TranslateCharsetInfo(reinterpret_cast<DWORD*>(wparam), &charset, TCI_SRCCHARSET)) {
@@ -1369,11 +1369,11 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
         }
 
         case WM_IME_STARTCOMPOSITION:
-            OsQueuePut(OS_INPUT_IME, 1, 0, 0, 0);
+            OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_STARTCOMPOSITION, 0, 0, 0);
             return 1;
 
         case WM_IME_ENDCOMPOSITION:
-            OsQueuePut(OS_INPUT_IME, 6, 0, 0, 0);
+            OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_ENDCOMPOSITION, 0, 0, 0);
             return 1;
 
         case WM_IME_COMPOSITION: {
@@ -1388,7 +1388,7 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
                 flags |= 4;
             }
 
-            OsQueuePut(OS_INPUT_IME, 2, 0, flags, 0);
+            OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_COMPOSITION, 0, flags, 0);
             return 1;
         }
 
@@ -1469,7 +1469,7 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
 
             OsQueuePut(down ? OS_INPUT_KEY_DOWN : OS_INPUT_KEY_UP, key, LOWORD(lparam), 0, 0);
 
-            if (key == KEY_F4 && OsGuiIsModifierKeyDown(2)) {
+            if (key == KEY_F4 && OsGuiIsModifierKeyDown(OSGUI_KEY_ALT)) {
                 break;
             }
 
@@ -1598,32 +1598,32 @@ intptr_t OsWindowProc(void* window, uint32_t message, uintptr_t wparam, intptr_t
         }
 
         case WM_IME_SETCONTEXT:
-            OsQueuePut(OS_INPUT_IME, 0, 0, 0, 0);
+            OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_NOTIFYLANGUAGE, 0, 0, 0);
             lparam = 0;
             break;
 
         case WM_IME_NOTIFY:
             switch (wparam) {
                 case IMN_CHANGECANDIDATE:
-                    OsQueuePut(OS_INPUT_IME, 4, 0, static_cast<int32_t>(lparam), 0);
+                    OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_CHANGECANDIDATES, 0, static_cast<int32_t>(lparam), 0);
                     break;
 
                 case IMN_CLOSECANDIDATE:
-                    OsQueuePut(OS_INPUT_IME, 5, 0, 0, 0);
+                    OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_CLOSECANDIDATES, 0, 0, 0);
                     break;
 
                 case IMN_OPENCANDIDATE:
-                    OsQueuePut(OS_INPUT_IME, 3, 0, static_cast<int32_t>(lparam), 0);
+                    OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_OPENCANDIDATES, 0, static_cast<int32_t>(lparam), 0);
                     break;
 
                 case IMN_SETCONVERSIONMODE:
                     OsQueuePut(OS_INPUT_KEY_UP, KEY_LSHIFT, 0, 0, 0);
                     OsQueuePut(OS_INPUT_KEY_UP, KEY_RSHIFT, 0, 0, 0);
-                    OsQueuePut(OS_INPUT_IME, 0, 0, 0, 0);
+                    OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_NOTIFYLANGUAGE, 0, 0, 0);
                     break;
 
                 case IMN_SETOPENSTATUS:
-                    OsQueuePut(OS_INPUT_IME, 0, 0, 0, 0);
+                    OsQueuePut(OS_INPUT_IME, OS_INPUT_IME_NOTIFYLANGUAGE, 0, 0, 0);
                     break;
 
                 default:

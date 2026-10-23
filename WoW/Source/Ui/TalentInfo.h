@@ -24,6 +24,8 @@ struct TalentGroupItem_C : public TSHashObject<TalentGroupItem_C, HASHKEY_NONE> 
     /* 0018 */ int32_t m_talentId;
     /* 001C */ int32_t m_rank;
     /* 0020 */ int32_t m_previewRank;
+
+    TalentGroupItem_C();
 };
 
 struct TalentGroupTierItem_C : public TSHashObject<TalentGroupTierItem_C, HASHKEY_NONE> {

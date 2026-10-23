@@ -171,7 +171,7 @@ int32_t Packet_SMSG_ENABLE_BARBER_SHOP(void* param, NETMESSAGE msgId, uint32_t t
     VisibleItem_C* offhand = const_cast<VisibleItem_C*>(player->GetVisibleItem(INVSLOT_OFFHAND));
 
     if (offhand->GetDisplayID() && offhand->GetInventoryType() == INVTYPE_SHIELD) {
-        const CGUnitVirtualItem* ranged = player->GetVirtualItem(2, false);
+        const CGUnitVirtualItem* ranged = player->GetVirtualItem(VIRTUAL_MONSTER_SLOT_RANGED, false);
 
         if ((!ranged || (ranged->m_inventoryType != 26 && ranged->m_inventoryType != 25)) && player->m_unit->m_unitFieldBytes2[0] == 2) {
             CM2Model* attached = nullptr;
@@ -333,7 +333,7 @@ void CGBarberShop::EnterWorld() {
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t race = player->m_unit->m_unitFieldBytes0[0];
     int32_t sex = player->m_player->m_playerBytes3[0];
 
@@ -427,7 +427,7 @@ void CGBarberShop::DisableBarberShop() {
         return;
     }
 
-    player->ChangeStandState(0);
+    player->ChangeStandState(UNIT_STANDING);
     CCharacterComponent* component = player->m_characterComponent;
 
     if (!component || player->m_unit->m_unitFieldDisplayid != player->m_unit->m_unitFieldNativedisplayid) {

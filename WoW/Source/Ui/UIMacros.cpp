@@ -184,7 +184,7 @@ void CGUIMacros::GetFullIconPath(uint32_t id, char* buffer, uint32_t size) {
 
     if (!SStrCmp(macro->m_icon, "INV_Misc_QuestionMark", STORM_MAX_STR)) {
         if (macro->m_itemID) {
-            const char* path = ClientDBStringLookup(3);
+            const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
             WOWGUID none = WOWGUID();
             ItemStats_C* stats = g_itemDBCache.GetRecord(macro->m_itemID, none, nullptr, nullptr, false);
             int32_t displayId = stats ? stats->m_displayId : 0;
@@ -199,7 +199,7 @@ void CGUIMacros::GetFullIconPath(uint32_t id, char* buffer, uint32_t size) {
                 int32_t iconId = spell.m_spellIconID;
 
                 if (spell.m_activeIconID) {
-                    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(macro->m_spellFlags ? CGPetInfo::GetPet(0) : ClntObjMgrGetActivePlayer(), TYPEMASK_UNIT, __FILE__, __LINE__));
+                    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(macro->m_spellFlags ? CGPetInfo::GetPet(0) : ClntObjMgrGetActivePlayer(), TYPE_UNIT, __FILE__, __LINE__));
 
                     if (unit) {
                         uint32_t count = unit->GetAuraCount();
@@ -1003,7 +1003,7 @@ int32_t MACRONODE::FindSpellID() {
                 if (second.m_end == second.m_start) {
                     slot = first.ToNumber() - 1;
                     maxSlot = 22;
-                    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+                    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
                     if (player) {
                         bag = &player->m_bag;
@@ -1015,13 +1015,13 @@ int32_t MACRONODE::FindSpellID() {
                     if (bagIndex == -1) {
                         slot += 23;
                         maxSlot = 38;
-                        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+                        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
                         if (player) {
                             bag = &player->m_bag;
                         }
                     } else if (static_cast<uint32_t>(bagIndex) <= 3) {
-                        CGObject_C* container = ClntObjMgrObjectPtr(GetBagAtIndex(bagIndex), TYPEMASK_CONTAINER, __FILE__, __LINE__);
+                        CGObject_C* container = ClntObjMgrObjectPtr(GetBagAtIndex(bagIndex), TYPE_CONTAINER, __FILE__, __LINE__);
 
                         if (container) {
                             bag = container->GetBag();

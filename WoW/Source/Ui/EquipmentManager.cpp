@@ -380,7 +380,7 @@ int32_t CGEquipmentManager::SetContainsLockedItems(const EQUIPMENT_SET* set) {
 
     for (uint32_t i = 0; i <= 18; i++) {
         if (set->m_items[i].m_guid > 1) {
-            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(set->m_items[i], TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(set->m_items[i], TYPE_ITEM, __FILE__, __LINE__));
 
             if (item && (item->m_itemFlags & 0x1) && !CGMerchantInfo::IsBuybackItem(set->m_items[i])) {
                 return 1;
@@ -439,7 +439,7 @@ void CGEquipmentManager::GetFullIconPath(int32_t id, char* buffer, uint32_t size
         return;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     const char* icon = set->m_icon;
 
     if (!icon || !*icon) {
@@ -558,7 +558,7 @@ bool CGEquipmentManager::UseEquipmentSet(const EQUIPMENT_SET* set) {
         } else if (!guid) {
             itemGuid.m_guid = 0;
         } else {
-            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
             if (item) {
                 bagSlot = CGPlayer_C::FindItemSlot(ClntObjMgrGetActivePlayer(), item);

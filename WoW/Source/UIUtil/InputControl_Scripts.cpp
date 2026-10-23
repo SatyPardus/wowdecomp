@@ -21,7 +21,7 @@
 // VERIFY: 46af036c manual
 // OFFSET: 0x005FBF80
 static int32_t Script_JumpOrAscendStart(lua_State* L) {
-    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!mover) {
         return 0;
@@ -48,7 +48,7 @@ static int32_t Script_JumpOrAscendStart(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
 
     if (mover->GetClientStandState()) {
-        mover->ChangeStandState(0);
+        mover->ChangeStandState(UNIT_STANDING);
     }
 
     if (ClntObjMgrGetActivePlayerObj()) {
@@ -97,7 +97,7 @@ static int32_t Script_ToggleRun(lua_State* L) {
         return 0;
     }
 
-    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!mover) {
         return 0;
@@ -343,7 +343,7 @@ static int32_t Script_TurnOrActionStart(lua_State* L) {
         uint32_t time = CSimpleTop::s_eventTime;
 
         if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
-            input->m_pendingDefaultAction = PENDING_ACTION_RIGHT;
+            input->m_pendingDefaultAction = INPUT_RELEASE_ACTION;
             CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
         }
 
@@ -384,7 +384,7 @@ static int32_t Script_CameraOrSelectOrMoveStart(lua_State* L) {
         uint32_t time = CSimpleTop::s_eventTime;
 
         if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
-            input->m_pendingDefaultAction = PENDING_ACTION_LEFT;
+            input->m_pendingDefaultAction = INPUT_RELEASE_SELECT;
             CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
         }
 
@@ -421,7 +421,7 @@ static int32_t Script_CameraOrSelectOrMoveStop(lua_State* L) {
 static int32_t Script_MouselookStop(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
     uint32_t time = CSimpleTop::s_eventTime;
-    input->m_pendingDefaultAction = PENDING_ACTION_NONE;
+    input->m_pendingDefaultAction = INPUT_RELEASE_NONE;
 
     if (input->UnsetControlBit(INPUT_TURN_PLAYER, time, 0)) {
         input->UpdatePlayer(time, 1);
@@ -436,7 +436,7 @@ static int32_t Script_MouselookStop(lua_State* L) {
 static int32_t Script_MouselookStart(lua_State* L) {
     CGInputControl* input = CGInputControl::s_inputControl;
     uint32_t time = CSimpleTop::s_eventTime;
-    input->m_pendingDefaultAction = PENDING_ACTION_NONE;
+    input->m_pendingDefaultAction = INPUT_RELEASE_NONE;
 
     if (input->SetControlBit(INPUT_TURN_PLAYER, time)) {
         if ((input->m_flags & INPUT_TURN_PLAYER) && (input->m_flags & INPUT_TURN_CAMERA)) {
@@ -638,7 +638,7 @@ static int32_t Script_VehicleAimGetNormAngle(lua_State* L) {
 static int32_t Script_VehicleAimRequestAngle(lua_State* L) {
     CGInputControl* inputControl = CGInputControl::s_inputControl;
     uint32_t time = CSimpleTop::s_eventTime;
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         VehicleRec* rec = unit->m_vehicle ? unit->m_vehicle->m_vehicleRec : nullptr;
@@ -697,7 +697,7 @@ static int32_t Script_DetectWowMouse(lua_State* L) {
 // VERIFY: 67de4681 manual
 // OFFSET: 0x005FB660
 static int32_t Script_VehicleExit(lua_State* L) {
-    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!mover) {
         return 0;
@@ -715,7 +715,7 @@ static int32_t Script_VehicleExit(lua_State* L) {
 // VERIFY: aedf0962 manual
 // OFFSET: 0x005FB6D0
 static int32_t Script_VehiclePrevSeat(lua_State* L) {
-    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (mover && CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x4000000)) {
         mover->VehiclePrevSeat();
@@ -727,7 +727,7 @@ static int32_t Script_VehiclePrevSeat(lua_State* L) {
 // VERIFY: 5481f00f manual
 // OFFSET: 0x005FB720
 static int32_t Script_VehicleNextSeat(lua_State* L) {
-    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (mover && CGInputControl::s_inputControl->IsVehicleSeatFlagSet(0x4000000)) {
         mover->VehicleNextSeat();
@@ -773,7 +773,7 @@ static int32_t Script_MoveAndSteerStart(lua_State* L) {
     uint32_t time = CSimpleTop::s_eventTime;
 
     if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
-        input->m_pendingDefaultAction = PENDING_ACTION_LEFT;
+        input->m_pendingDefaultAction = INPUT_RELEASE_SELECT;
         CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
     }
 
@@ -786,7 +786,7 @@ static int32_t Script_MoveAndSteerStart(lua_State* L) {
     }
 
     if (!(input->m_flags & INPUT_MOUSE_LOOK_MASK)) {
-        input->m_pendingDefaultAction = PENDING_ACTION_RIGHT;
+        input->m_pendingDefaultAction = INPUT_RELEASE_ACTION;
         CGWorldFrame::s_currentWorldFrame->SetupDefaultAction();
     }
 

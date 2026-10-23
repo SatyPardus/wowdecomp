@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/SoundInterface/Types.h"
 
 class SFileImpl;
 
@@ -13,7 +14,7 @@ class SoundAmbienceRec {
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
-    /* 0004 */ int32_t m_ambienceID [2];
+    /* 0004 */ int32_t m_ambienceID [NUM_AMBIENCES];
 
     SoundAmbienceRec();
     ~SoundAmbienceRec();

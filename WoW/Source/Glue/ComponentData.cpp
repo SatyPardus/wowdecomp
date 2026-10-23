@@ -14,25 +14,25 @@ ComponentData::ComponentData() {
     this->m_preferences.m_hairStyleId = 0;
     this->m_npcSkinTexture[0] = 0;
     this->m_model = nullptr;
-    this->m_geosets[0] = 1;
-    this->m_geosets[1] = 101;
-    this->m_geosets[2] = 201;
-    this->m_geosets[3] = 301;
-    this->m_geosets[4] = 401;
-    this->m_geosets[5] = 501;
-    this->m_geosets[6] = 601;
-    this->m_geosets[7] = 702;
-    this->m_geosets[8] = 801;
-    this->m_geosets[9] = 901;
-    this->m_geosets[10] = 1001;
-    this->m_geosets[11] = 1101;
-    this->m_geosets[12] = 1201;
-    this->m_geosets[13] = 1301;
-    this->m_geosets[14] = 1401;
-    this->m_geosets[15] = 1501;
-    this->m_geosets[16] = 1601;
-    this->m_geosets[17] = 1701;
-    this->m_geosets[18] = 1801;
+    this->m_geosets[CHARGEOSET_HAIR] = 1;
+    this->m_geosets[CHARGEOSET_BEARD] = 101;
+    this->m_geosets[CHARGEOSET_SIDEBURN] = 201;
+    this->m_geosets[CHARGEOSET_MOUSTACHE] = 301;
+    this->m_geosets[CHARGEOSET_GLOVE] = 401;
+    this->m_geosets[CHARGEOSET_BOOT] = 501;
+    this->m_geosets[CHARGEOSET_SHIRT] = 601;
+    this->m_geosets[CHARGEOSET_EAR] = 702;
+    this->m_geosets[CHARGEOSET_SLEEVES] = 801;
+    this->m_geosets[CHARGEOSET_PANTS] = 901;
+    this->m_geosets[CHARGEOSET_DOUBLET] = 1001;
+    this->m_geosets[CHARGEOSET_PANTDOUBLET] = 1101;
+    this->m_geosets[CHARGEOSET_TABARD] = 1201;
+    this->m_geosets[CHARGEOSET_ROBE] = 1301;
+    this->m_geosets[CHARGEOSET_LOINCLOTH] = 1401;
+    this->m_geosets[CHARGEOSET_CAPE] = 1501;
+    this->m_geosets[CHARGEOSET_FACIALJEWELRY] = 1601;
+    this->m_geosets[CHARGEOSET_EYEEFFECTS] = 1701;
+    this->m_geosets[CHARGEOSET_BELT] = 1801;
 }
 
 // VERIFY: 5d26ed7d auto

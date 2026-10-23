@@ -13,6 +13,9 @@
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/WorldClient/World.h"
 
+static const float FADEINTIME = 1.0f;
+static const float FADEOUTTIME = 1.0f;
+
 // STATIC: 0x00B4AF5C
 static SI2WaterSound s_nearestWaterSounds[1];
 
@@ -108,7 +111,7 @@ int32_t SI2::HandleWaterSounds(const void* data, void* param) {
         return 1;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || !player->m_worldObject || !_OkToQueryLiquidSounds()) {
         return 1;
@@ -162,7 +165,7 @@ int32_t SI2::HandleWaterSounds(const void* data, void* param) {
 
     for (uint32_t i = 0; i < sizeof(s_waterSounds) / sizeof(s_waterSounds[0]); i++) {
         if (!s_waterSounds[i].m_valid) {
-            SI2::StopSound(&s_waterSounds[i].m_object, 0, 1.0f, 1);
+            SI2::StopSound(&s_waterSounds[i].m_object, 0, FADEOUTTIME, 1);
         }
     }
 
@@ -188,7 +191,7 @@ int32_t SI2::HandleWaterSounds(const void* data, void* param) {
         if (!SI2::IsPlaying(&sound.m_object)) {
             SE2SoundKitProperties properties;
             properties.ResetToDefaults();
-            properties.m_fadeInTime = 1.0f;
+            properties.m_fadeInTime = FADEINTIME;
             properties.m_group = 2;
             properties.m_loopMode = 1;
             SI2::PlaySoundKit(sound.m_soundKitId, &sound.m_position, &sound.m_object, &properties, 0, nullptr, 1, 0);

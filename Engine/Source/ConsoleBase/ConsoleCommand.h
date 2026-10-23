@@ -10,6 +10,14 @@ struct CONSOLECOMMAND;
 
 typedef int32_t (*COMMANDHANDLER)(const char* command, const char* arguments);
 
+enum EXECMODE : int32_t {
+    EM_PROMPTOVERWRITE = 0,
+    EM_RECORDING = 1,
+    EM_APPEND = 2,
+    EM_WRITEFILE = 3,
+    EM_NOTACTIVE = 4,
+};
+
 struct CATEGORYINFO {
     /* 0000 */ CATEGORY m_category;
     /* 0004 */ char m_name[20];

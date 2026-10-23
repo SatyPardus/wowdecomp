@@ -251,7 +251,7 @@ class CGxDeviceD3d9Ex : public CGxDevice {
     /* 3C34 */ TSExplicitList<CGxTex, offsetof(CGxTex, m_link)> m_texDestroyList;
     /* 3C40 */ uint32_t m_texCacheUsed;
     /* 3C44 */ uint32_t m_texCacheSize;
-    /* 3C48 */ uint32_t m_deviceStates [182];
+    /* 3C48 */ uint32_t m_deviceStates [DeviceStates_Last];
     /* 3F20 */ bool m_texEnabled [8];
 
     virtual void ITexMarkAsUpdated(CGxTex* texId);
@@ -318,11 +318,11 @@ class CGxDeviceD3d9Ex : public CGxDevice {
     static const D3DFORMAT s_GxFormatToD3dFormat[CGxFormat::Formats_Last];
     static const D3DFORMAT s_GxTexFmtToD3dFmt[GxTexFormats_Last];
     static EGxTexFormat s_GxTexFormatToUse[GxTexFormats_Last];
-    static const D3DCUBEMAP_FACES s_faceTypes[6];
+    static const D3DCUBEMAP_FACES s_faceTypes[GxTexCubeFaces_Last];
     static const D3DPRIMITIVETYPE s_primitiveConversion[GxPrims_Last];
     static const D3DBLEND s_srcBlend[12];
     static const D3DBLEND s_dstBlend[12];
-    static const D3DCMPFUNC s_cmpFunc[4];
+    static const D3DCMPFUNC s_cmpFunc[GxCmps_Last];
     static const D3DCULL s_cullMode[3];
     static D3DTEXTUREFILTERTYPE s_filterModes[GxTexFilters_Last][3];
     static const D3DTEXTUREADDRESS s_wrapModes[2];

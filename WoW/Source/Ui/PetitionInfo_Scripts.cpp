@@ -57,7 +57,7 @@ static int32_t Script_CanSignPetition(lua_State* L) {
 
     if (petition) {
         if (petition->m_staticType == 0 || petition->m_staticType == 1) {
-            CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+            CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
             if ((!petition->m_staticType && player && player->m_player->m_playerGuildid) || static_cast<int32_t>(CGPetitionInfo::m_numPetitionNames) >= static_cast<int32_t>(petition->m_maxSignatures)) {
                 canSign = 0;
@@ -179,14 +179,14 @@ static int32_t Script_OfferPetition(lua_State* L) {
         return 0;
     }
 
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGGameUI::m_lockedTarget, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGGameUI::m_lockedTarget, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!target) {
         CGGameUI::DisplayError(ERR_OUT_OF_RANGE);
         return 0;
     }
 
-    if (!(target->m_obj->m_type & TYPEMASK_PLAYER)) {
+    if (!(target->m_obj->m_type & TYPE_PLAYER)) {
         return 0;
     }
 

@@ -217,16 +217,16 @@ CSimpleFrame::CSimpleFrame(CSimpleFrame* parent) {
 
     this->SetParent(parent);
 
-    this->m_drawLayerEnabled[0] = 1;
-    this->m_drawLayerEnabled[1] = 1;
-    this->m_drawLayerEnabled[2] = 1;
-    this->m_drawLayerEnabled[3] = 1;
-    this->m_drawLayerEnabled[4] = 0;
-    this->m_renderBatch[0] = nullptr;
-    this->m_renderBatch[1] = nullptr;
-    this->m_renderBatch[2] = nullptr;
-    this->m_renderBatch[3] = nullptr;
-    this->m_renderBatch[4] = nullptr;
+    this->m_drawLayerEnabled[DRAWLAYER_BACKGROUND] = 1;
+    this->m_drawLayerEnabled[DRAWLAYER_BACKGROUND_BORDER] = 1;
+    this->m_drawLayerEnabled[DRAWLAYER_ARTWORK] = 1;
+    this->m_drawLayerEnabled[DRAWLAYER_ARTWORK_OVERLAY] = 1;
+    this->m_drawLayerEnabled[DRAWLAYER_HIGHLIGHT] = 0;
+    this->m_renderBatch[DRAWLAYER_BACKGROUND] = nullptr;
+    this->m_renderBatch[DRAWLAYER_BACKGROUND_BORDER] = nullptr;
+    this->m_renderBatch[DRAWLAYER_ARTWORK] = nullptr;
+    this->m_renderBatch[DRAWLAYER_ARTWORK_OVERLAY] = nullptr;
+    this->m_renderBatch[DRAWLAYER_HIGHLIGHT] = nullptr;
 
     this->Show();
 }
@@ -243,7 +243,7 @@ CSimpleFrame::~CSimpleFrame() {
         delete this->m_titleRegion;
     }
 
-    for (uint32_t i = 0; i < 5; i++) {
+    for (uint32_t i = 0; i < NUM_SIMPLEFRAME_DRAWLAYERS; i++) {
         this->m_drawLayers[i].UnlinkAll();
 
         if (this->m_renderBatch[i]) {
@@ -651,7 +651,7 @@ void CSimpleFrame::LoadXML_Layers(XMLNode* node, CStatus* status) {
             continue;
         }
 
-        uint32_t drawLayer = 2;
+        uint32_t drawLayer = DRAWLAYER_ARTWORK;
         const char* level = layerNode->GetAttributeByName("level");
 
         if (level && *level) {
@@ -1481,8 +1481,8 @@ void CSimpleFrame::OnLayerCursorEnter(int32_t motion) {
     }
 
     if (!this->m_highlightLocked) {
-        this->m_drawLayerEnabled[4] = 1;
-        this->NotifyDrawLayerChanged(4);
+        this->m_drawLayerEnabled[DRAWLAYER_HIGHLIGHT] = 1;
+        this->NotifyDrawLayerChanged(DRAWLAYER_HIGHLIGHT);
     }
 
     this->RunOnEnterScript(motion);
@@ -1496,8 +1496,8 @@ void CSimpleFrame::OnLayerCursorExit(int32_t motion, int32_t a3) {
     }
 
     if (!this->m_highlightLocked) {
-        this->m_drawLayerEnabled[4] = 0;
-        this->NotifyDrawLayerChanged(4);
+        this->m_drawLayerEnabled[DRAWLAYER_HIGHLIGHT] = 0;
+        this->NotifyDrawLayerChanged(DRAWLAYER_HIGHLIGHT);
     }
 
     if (a3) {
@@ -1518,11 +1518,11 @@ void CSimpleFrame::LockHighlight(int32_t lock) {
     this->m_highlightLocked = lock;
 
     if (lock) {
-        this->m_drawLayerEnabled[4] = 1;
-        this->NotifyDrawLayerChanged(4);
+        this->m_drawLayerEnabled[DRAWLAYER_HIGHLIGHT] = 1;
+        this->NotifyDrawLayerChanged(DRAWLAYER_HIGHLIGHT);
     } else if (this->m_simpleTop->m_mouseFocus != this) {
-        this->m_drawLayerEnabled[4] = 0;
-        this->NotifyDrawLayerChanged(4);
+        this->m_drawLayerEnabled[DRAWLAYER_HIGHLIGHT] = 0;
+        this->NotifyDrawLayerChanged(DRAWLAYER_HIGHLIGHT);
     }
 }
 
@@ -2028,7 +2028,7 @@ void CSimpleFrame::OnFrameRender() {
     this->m_batchDirty = 0;
 
     if (dirty) {
-        for (uint32_t layer = 0; layer < 5; layer++) {
+        for (uint32_t layer = 0; layer < NUM_SIMPLEFRAME_DRAWLAYERS; layer++) {
             if (!this->m_renderBatch[layer]) {
                 void* mem = SMemAlloc(sizeof(CRenderBatch), __FILE__, __LINE__, 0);
                 this->m_renderBatch[layer] = mem ? new (mem) CRenderBatch() : nullptr;
@@ -2052,13 +2052,13 @@ void CSimpleFrame::OnFrameRender() {
         }
 
         if (this->m_batchDirty & 0x20) {
-            for (uint32_t layer = 0; layer < 5; layer++) {
+            for (uint32_t layer = 0; layer < NUM_SIMPLEFRAME_DRAWLAYERS; layer++) {
                 this->m_batchDirty |= 1 << layer;
             }
         }
     }
 
-    for (uint32_t layer = 0; layer < 5; layer++) {
+    for (uint32_t layer = 0; layer < NUM_SIMPLEFRAME_DRAWLAYERS; layer++) {
         if (this->m_renderBatch[layer]) {
             CSimpleRender::DrawBatch(this->m_renderBatch[layer]);
         }

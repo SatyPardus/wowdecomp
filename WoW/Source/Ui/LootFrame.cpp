@@ -22,7 +22,7 @@
 uint32_t CGLootInfo::m_itemsPending;
 
 // STATIC: 0x00BFA68C
-uint32_t CGLootInfo::m_lootType;
+LOOT_ACQUIRE CGLootInfo::m_lootAcquire;
 
 // STATIC: 0x00BFA690
 LootSlot CGLootInfo::m_slots[18];
@@ -151,7 +151,7 @@ void GetCurrencyText(int32_t amount, char* buffer, uint32_t size, const char* se
 // VERIFY: b3b4c460 auto
 // OFFSET: 0x007E7CC0
 void GetCurrencyIcon(int32_t amount, char* buffer, uint32_t size) {
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(buffer, size, "%s%s", path, *path ? "\\" : "");
 
     if (amount < 10) {
@@ -336,7 +336,7 @@ const char* CGLootInfo::GetLootSlotTexture(uint32_t slot) {
         return nullptr;
     }
 
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     SStrPrintf(s_lootSlotTexture, sizeof(s_lootSlotTexture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(CGLootInfo::m_slots[slot].m_displayId));
     return s_lootSlotTexture;
 }
@@ -398,14 +398,14 @@ char* CGLootInfo::GetLootSlotLink(uint32_t slot, char* buffer, uint32_t size) {
 
 // VERIFY: d8364d91 auto
 // OFFSET: 0x00588530
-uint32_t CGLootDisplay::GetLootAcquireType() {
-    return CGLootInfo::m_lootType;
+LOOT_ACQUIRE CGLootDisplay::GetLootAcquireType() {
+    return CGLootInfo::m_lootAcquire;
 }
 
 // VERIFY: 500b1dce manual
 // OFFSET: 0x00588EB0
 int32_t CGLootInfo::HasLoot() {
-    if (!ClntObjMgrObjectPtr(CGLootInfo::m_lootObj, TYPEMASK_OBJECT, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(CGLootInfo::m_lootObj, TYPE_OBJECT, __FILE__, __LINE__)) {
         return 0;
     }
 
@@ -429,7 +429,7 @@ void CGLootInfo::DoAutoLoot(int32_t a1) {
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         FrameScript_SignalEvent(SCRIPT_EVENT_LOOT_OPENED, "%d", 1);
@@ -496,7 +496,7 @@ void CGPlayer_C::OnLootClearMoney() {
 // VERIFY: 0569898a manual
 // OFFSET: 0x00589140
 void CGLootInfo::LootSlot(uint32_t slot) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return;
@@ -563,7 +563,7 @@ void CGLootInfo::LootSlot(uint32_t slot) {
 // VERIFY: f307de88 manual
 // OFFSET: 0x00589300
 void CGLootInfo::ConfirmLootSlot(uint32_t slot) {
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return;
     }
 
@@ -632,7 +632,7 @@ void CGLootInfo::LootButtonItemStatsCallback(int32_t id, const WOWGUID& guid, vo
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_autoLoot) {
         CGLootInfo::DoAutoLoot(0);
@@ -643,18 +643,18 @@ void CGLootInfo::LootButtonItemStatsCallback(int32_t id, const WOWGUID& guid, vo
 
 // VERIFY: 98edc3f9 manual
 // OFFSET: 0x005896B0
-void CGLootInfo::SetObject(CGObject_C* object, int32_t coins, uint32_t lootType) {
+void CGLootInfo::SetObject(CGObject_C* object, int32_t coins, LOOT_ACQUIRE lootAcquire) {
     if (CGLootInfo::m_lootObj) {
-        CGObject_C* current = ClntObjMgrObjectPtr(CGLootInfo::m_lootObj, TYPEMASK_OBJECT, __FILE__, __LINE__);
+        CGObject_C* current = ClntObjMgrObjectPtr(CGLootInfo::m_lootObj, TYPE_OBJECT, __FILE__, __LINE__);
 
         if (current) {
-            if (current->m_obj->m_type & TYPEMASK_UNIT) {
+            if (current->m_obj->m_type & TYPE_UNIT) {
                 if (!CGLootInfo::HasLoot()) {
                     static_cast<CGUnit_C*>(current)->RemoveLootEffect();
                 }
-            } else if (current->m_obj->m_type & TYPEMASK_GAMEOBJECT) {
+            } else if (current->m_obj->m_type & TYPE_GAMEOBJECT) {
                 static_cast<CGGameObject_C*>(current)->SetDisplayState(1);
-            } else if (current->m_obj->m_type & TYPEMASK_ITEM) {
+            } else if (current->m_obj->m_type & TYPE_ITEM) {
                 CGGameUI::UnlockItem(CGLootInfo::m_lootObj);
             }
         }
@@ -683,7 +683,7 @@ void CGLootInfo::SetObject(CGObject_C* object, int32_t coins, uint32_t lootType)
     CGLootInfo::m_lootObj = object->m_obj->m_guid;
     CGLootInfo::m_coins = coins;
     CGLootInfo::m_itemsPending = 0;
-    CGLootInfo::m_lootType = lootType;
+    CGLootInfo::m_lootAcquire = lootAcquire;
     s_bindConfirmSlot = -1;
     uint32_t count = 0;
     memset(CGLootInfo::m_slots, 0, sizeof(CGLootInfo::m_slots));
@@ -718,7 +718,7 @@ void CGLootInfo::SetObject(CGObject_C* object, int32_t coins, uint32_t lootType)
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player && player->m_autoLoot) {
         CGLootInfo::DoAutoLoot(0);

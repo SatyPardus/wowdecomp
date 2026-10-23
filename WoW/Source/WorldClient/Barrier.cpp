@@ -18,6 +18,7 @@
 #include "Engine/Source/Model2/M2Shared.h"
 #include "Engine/Source/Model2/M2Data.h"
 #include "Engine/Source/Services/ParticleSystem2.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // STATIC: 0x00CD85F8
 CM2Model* CBarrier::s_sparkles[4];
@@ -405,8 +406,8 @@ void CBarrier::Render(const C3Vector& viewerPos, float elapsedSec) {
     g_theGxDevicePtr->XformPushAndSet(GxXform_Tex1, identity);
     GxRsSet(GxRs_TextureShader0, 1);
     GxRsSet(GxRs_TextureShader1, 1);
-    GxRsSet(GxRs_ColorOp1, 0);
-    GxRsSet(GxRs_AlphaOp1, 1);
+    GxRsSet(GxRs_ColorOp1, GxTexOp_Mod);
+    GxRsSet(GxRs_AlphaOp1, GxTexOp_Mod2x);
     uint32_t vertCount = this->m_verts.Count();
     uint32_t triangleCount = vertCount / 3;
     uint32_t bufferVertCount = 2 * vertCount;

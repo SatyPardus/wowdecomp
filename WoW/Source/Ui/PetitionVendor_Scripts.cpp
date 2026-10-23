@@ -67,7 +67,7 @@ static int32_t Script_GetPetitionItemInfo(lua_State* L) {
         char name[256];
         CGItem_C::BuildItemName(name, sizeof(name), petition->m_itemID, 0);
         lua_pushstring(L, name);
-        const char* path = ClientDBStringLookup(3);
+        const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
         char texture[260];
         SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(petition->m_displayID));
         lua_pushstring(L, texture);

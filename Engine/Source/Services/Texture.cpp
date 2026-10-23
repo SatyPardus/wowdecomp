@@ -396,14 +396,14 @@ TEXFILETYPE TextureDiscoverFileType(const char* fileName) {
     const char* extension = SStrChrR(const_cast<char*>(fileName), '.');
 
     if (!extension || SStrLen(extension) != 4) {
-        return TEXFILE_UNKNOWN;
+        return TEXFILETYPE_UNKNOWN;
     }
 
     if (!SStrCmpI(extension, ".TGA", STORM_MAX_STR)) {
-        return TEXFILE_TGA;
+        return TEXFILETYPE_TGA;
     }
 
-    return SStrCmpI(extension, ".BLP", STORM_MAX_STR) ? TEXFILE_UNKNOWN : TEXFILE_BLP;
+    return SStrCmpI(extension, ".BLP", STORM_MAX_STR) ? TEXFILETYPE_UNKNOWN : TEXFILETYPE_BLP;
 }
 
 // VERIFY: 813fa654 manual
@@ -414,7 +414,7 @@ TEXFILETYPE TexturePickAlternateFilename(const char* fileName, TEXFILETYPE type,
     }
 
     if (!type) {
-        return TEXFILE_UNKNOWN;
+        return TEXFILETYPE_UNKNOWN;
     }
 
     char* extension = SStrChrR(buffer, '.');
@@ -423,14 +423,14 @@ TEXFILETYPE TexturePickAlternateFilename(const char* fileName, TEXFILETYPE type,
         *extension = '\0';
     }
 
-    if (type == TEXFILE_TGA) {
+    if (type == TEXFILETYPE_TGA) {
         SStrPack(buffer, ".BLP", size);
-        return TEXFILE_BLP;
+        return TEXFILETYPE_BLP;
     }
 
-    if (type == TEXFILE_BLP) {
+    if (type == TEXFILETYPE_BLP) {
         SStrPack(buffer, ".TGA", size);
-        return TEXFILE_TGA;
+        return TEXFILETYPE_TGA;
     }
 
     return type;
@@ -516,7 +516,7 @@ void ResolveMipLevel(EGxTexCommand command, uint32_t width, uint32_t height, uin
     // STATIC: 0x00B4A1E8
     static uint32_t s_emptyTexel;
 
-    if (command == GxTex_3) {
+    if (command == GxTex_Recreate) {
         return;
     }
 
@@ -654,7 +654,7 @@ int32_t TextureLoadBlpMips(char* fileName, char* extension, int32_t flags, MipBi
     EGxTexFormat format = GxTex_Argb8888;
     PIXEL_FORMAT pixels = PIXEL_ARGB8888;
 
-    if (image.m_header.m_colorEncoding == 2) {
+    if (image.m_header.m_colorEncoding == COLOR_DXT) {
         pixels = static_cast<PIXEL_FORMAT>(image.m_header.m_preferredFormat);
 
         if (pixels == PIXEL_DXT1) {
@@ -1896,7 +1896,7 @@ void TextureInitialize() {
     s_currentTime = OsGetAsyncTimeMs();
     s_gxTexCacheSize = 0;
     s_gxTexCacheMaxSize = 0;
-    EventRegisterEx(EVENT_ID_POLL, TextureUpdate, nullptr, 0.0f);
+    EventRegisterEx(EVENT_ID_POLL, TextureUpdate, nullptr, EVENT_PRIORITY_NORMAL);
 }
 
 // VERIFY: 7711ba71 manual

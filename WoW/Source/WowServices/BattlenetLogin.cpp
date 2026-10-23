@@ -22,6 +22,7 @@
 #include "WoW/Source/Ui/BattlenetUI.h"
 #include "WoW/Source/Ui/GameUI.h"
 #include "WoW/Source/WowServices/LoginResponse.h"
+#include "GameVersion.h"
 
 // STATIC: 0x00B24B94
 BattlenetAllocator s_battlenetAllocator;
@@ -260,12 +261,12 @@ static void GetComponentVersion(const char* name, uint32_t& version, const char*
 // VERIFY: 13a1fff7 auto
 // OFFSET: 0x008C5C50
 static uint32_t GetWowDataVersion() {
-    uint32_t version = 12340;
+    uint32_t version = GAME_BUILD;
     void* data;
     uint32_t size;
 
     if (!SFileLoadFileEx(nullptr, "component.wow-data.txt", &data, &size, 0, 0, nullptr) || !data) {
-        return 12340;
+        return GAME_BUILD;
     }
 
     GetComponentVersion("wow-data", version, static_cast<const char*>(data), size);
@@ -280,7 +281,7 @@ static uint32_t GetWowLangVersion(const char* locale) {
     char path[256];
     char fileName[32];
     char componentName[32];
-    uint32_t version = 12340;
+    uint32_t version = GAME_BUILD;
     SArchive* archive = nullptr;
 
     if (SStrCmp(locale, s_localeCode, STORM_MAX_STR)) {
@@ -295,7 +296,7 @@ static uint32_t GetWowLangVersion(const char* locale) {
         }
 
         if (!SFile::OpenArchive(path, 0, 0x800, &archive)) {
-            return 12340;
+            return GAME_BUILD;
         }
     }
 
@@ -309,7 +310,7 @@ static uint32_t GetWowLangVersion(const char* locale) {
             SFile::CloseArchive(archive);
         }
 
-        return 12340;
+        return GAME_BUILD;
     }
 
     sprintf(componentName, "wow-%s", locale);
@@ -737,12 +738,12 @@ Battlenet::TumorManager* BattlenetLogin::CreateTumorManager() {
         Battlenet::Authentication::Component* component = settings.m_components.New();
         component->m_program = BSN::FourCC(program);
         component->m_platform = BSN::FourCC(BattlenetLogin::s_monolithicPlatform);
-        component->m_version = 12340;
+        component->m_version = GAME_BUILD;
     } else {
         Battlenet::Authentication::Component* component = settings.m_components.New();
         component->m_program = BSN::FourCC(program);
         component->m_platform = BSN::FourCC("Win");
-        component->m_version = 12340;
+        component->m_version = GAME_BUILD;
 
         component = settings.m_components.New();
         component->m_program = BSN::FourCC("WoW");
@@ -751,7 +752,7 @@ Battlenet::TumorManager* BattlenetLogin::CreateTumorManager() {
 
         uint32_t localeCount = 0;
 
-        for (int32_t i = 0; i < 12; i++) {
+        for (int32_t i = 0; i < NUM_DB_LOCALES; i++) {
             if (g_hasIsoLocale[i]) {
                 component = settings.m_components.New();
                 component->m_program = BSN::FourCC("WoW");

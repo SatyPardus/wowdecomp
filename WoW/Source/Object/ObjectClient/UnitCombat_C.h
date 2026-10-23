@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Source/Object/WGUID.h"
+#include "WoW/Source/Object/ObjectClient/Types.h"
 #include "WoW/Source/Net/Types.h"
 
 class CDataStore;
@@ -22,7 +23,7 @@ class ATTACKROUNDINFO {
     /* 003C */ uint32_t m_subDamageInt [2];
     /* 0044 */ uint32_t m_absorbed [2];
     /* 004C */ uint32_t m_resisted [2];
-    /* 0054 */ uint32_t m_victimState;
+    /* 0054 */ VICTIMSTATES m_victimState;
     /* 0058 */ uint32_t unk_0058;
     /* 005C */ uint32_t m_meleeSpellId;
     /* 0060 */ uint32_t m_blocked;

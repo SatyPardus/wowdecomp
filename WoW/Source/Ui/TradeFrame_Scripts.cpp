@@ -155,7 +155,7 @@ static int32_t Script_GetTradePlayerItemLink(lua_State* L) {
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     WOWGUID guid = index > 6 ? WOWGUID() : CGTradeInfo::m_playerItems[index];
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item) {
         return 0;
@@ -217,7 +217,7 @@ static int32_t Script_ClickTradeButton(lua_State* L) {
         if (item) {
             CGTradeInfo::SetPlayerItem(slot, WOWGUID(), WOWGUID(), 0);
             CGGameUI::UnlockItem(item);
-            CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__));
+            CGItem_C* object = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__));
 
             if (object) {
                 SndInterfacePlayItemSound(ITEMSOUND_DROP, object);
@@ -239,7 +239,7 @@ static int32_t Script_ClickTradeButton(lua_State* L) {
     WOWGUID cursorContainer;
     uint32_t cursorSlot;
     CGGameUI::GetCursorItem(cursorItem, cursorContainer, cursorSlot);
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cursorItem, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(cursorItem, TYPE_ITEM, __FILE__, __LINE__));
 
     if (slot < 6 && item) {
         if (item->IsPermanentlyBoundForTrade()) {
@@ -260,7 +260,7 @@ static int32_t Script_ClickTradeButton(lua_State* L) {
             return 0;
         }
 
-        if (item->m_obj->m_type & TYPEMASK_CONTAINER) {
+        if (item->m_obj->m_type & TYPE_CONTAINER) {
             CGBag_C* bag = item->GetBag();
 
             if (bag) {
@@ -319,7 +319,7 @@ static int32_t Script_GetTradeTargetItemInfo(lua_State* L) {
     char name[256];
     CGItem_C::BuildItemName(name, sizeof(name), itemId, CGTradeInfo::m_targetRandomPropertyID[index]);
     lua_pushstring(L, name);
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", CGItem_C::GetInventoryArt(stats->m_displayId));
     lua_pushstring(L, texture);
@@ -361,7 +361,7 @@ static int32_t Script_GetTradePlayerItemInfo(lua_State* L) {
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     WOWGUID guid = index > 6 ? WOWGUID() : CGTradeInfo::m_playerItems[index];
-    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(guid, TYPE_ITEM, __FILE__, __LINE__));
 
     if (!item) {
         lua_pushnil(L);
@@ -375,7 +375,7 @@ static int32_t Script_GetTradePlayerItemInfo(lua_State* L) {
     char name[256];
     item->GetFullItemName(name, sizeof(name));
     lua_pushstring(L, name);
-    const char* path = ClientDBStringLookup(3);
+    const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
     char texture[260];
     SStrPrintf(texture, sizeof(texture), "%s%s%s", path, *path ? "\\" : "", item->GetInventoryArt());
     lua_pushstring(L, texture);

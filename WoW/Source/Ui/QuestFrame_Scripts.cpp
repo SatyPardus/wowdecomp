@@ -20,6 +20,7 @@
 #include "WoW/Source/DB/Rec/PageTextMaterialRec.h"
 #include "WoW/Source/DB/Rec/SpellIconRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Magic/MagicClient/SpellEnums.h"
 #include "WoW/Source/Object/ItemStats.h"
 #include "WoW/Source/Object/Object.h"
 #include "WoW/Source/Object/ObjectClient/GameObject_C.h"
@@ -318,7 +319,7 @@ static int32_t Script_GetActiveLevel(lua_State* L) {
 // VERIFY: 14700cd7 manual
 // OFFSET: 0x0058DB30
 static int32_t Script_GetDailyQuestsCompleted(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     int32_t count = 0;
 
     if (player) {
@@ -372,13 +373,13 @@ static int32_t Script_GetQuestItemLink(lua_State* L) {
 // VERIFY: 7b95c5bb manual
 // OFFSET: 0x0058C990
 static int32_t Script_GetQuestBackgroundMaterial(lua_State* L) {
-    CGObject_C* object = ClntObjMgrObjectPtr(CGQuestInfo::m_npc, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(CGQuestInfo::m_npc, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (object) {
         int32_t material = 0;
         bool found = false;
 
-        if (object->m_obj->m_type & TYPEMASK_ITEM) {
+        if (object->m_obj->m_type & TYPE_ITEM) {
             WOWGUID none = { 0 };
             ItemStats_C* stats = g_itemDBCache.GetRecord(object->m_obj->m_entryID, none, nullptr, nullptr, false);
 
@@ -386,7 +387,7 @@ static int32_t Script_GetQuestBackgroundMaterial(lua_State* L) {
                 material = stats->m_pageMaterial;
                 found = true;
             }
-        } else if (object->m_obj->m_type & TYPEMASK_GAMEOBJECT) {
+        } else if (object->m_obj->m_type & TYPE_GAMEOBJECT) {
             material = static_cast<CGGameObject_C*>(object)->GetPageTextMaterial();
             found = true;
         }
@@ -559,7 +560,7 @@ static int32_t Script_GetRewardSpell(lua_State* L) {
 
                 if (g_spellDB.GetRecord(castId, &cast)) {
                     for (uint32_t i = 0; i < 3; i++) {
-                        if (cast.m_effect[i] == 36 || cast.m_effect[i] == 57) {
+                        if (cast.m_effect[i] == SPELL_EFFECT_LEARN_SPELL || cast.m_effect[i] == SPELL_EFFECT_LEARN_PET_SPELL) {
                             learns = true;
                             break;
                         }
@@ -588,7 +589,7 @@ static int32_t Script_GetRewardSpell(lua_State* L) {
 // OFFSET: 0x0058D810
 static int32_t Script_GetRewardTitle(lua_State* L) {
     int32_t titleId = CGQuestInfo::m_rewardTitle;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
     CharTitlesRec* title = g_charTitlesDB.GetRecord(titleId);
 
     if (!title) {

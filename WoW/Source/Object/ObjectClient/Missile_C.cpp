@@ -38,6 +38,8 @@
 #include "WoW/Source/WorldClient/Map.h"
 #include "WoW/Source/DB/Rec/SpellMissileMotionRec.h"
 
+static const float MISSILE_HEIGHT_SCAN_RANGE = 20.0f;
+
 // STATIC: 0x00CA0B58
 CMissile* CMissile::s_inFlightMissileList;
 
@@ -569,7 +571,7 @@ void CMissile::ClearTargetingEffects() {
         return;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetingUnit, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetingUnit, TYPE_UNIT, __FILE__, __LINE__));
 
     if (unit) {
         unit->ClearEffectKit(this->m_spellID, 7, this->m_targetingEffectTime, 1, 1);
@@ -587,7 +589,7 @@ void CMissile::SetReadyToFire(CMissile** list) {
 // VERIFY: fead66fc manual
 // OFFSET: 0x006FF6D0
 void CMissile::UpdateImpactPos() {
-    CGObject_C* target = ClntObjMgrObjectPtr(this->m_targetGuid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* target = ClntObjMgrObjectPtr(this->m_targetGuid, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!target) {
         return;
@@ -602,7 +604,7 @@ void CMissile::UpdateImpactPos() {
         position = this->m_attachOffset;
         position.z = target->m_height * target->m_scale * 0.75f + position.z;
 
-        if ((target->m_obj->m_type & TYPEMASK_UNIT) && static_cast<CGUnit_C*>(target)->m_vehiclePassenger && model && (model->m_fFlags & 0x8000)) {
+        if ((target->m_obj->m_type & TYPE_UNIT) && static_cast<CGUnit_C*>(target)->m_vehiclePassenger && model && (model->m_fFlags & 0x8000)) {
             position *= model->GetAnimatedWorldTransform();
         } else {
             position *= target->GetMatrix();
@@ -640,7 +642,7 @@ void CMissile::UpdateImpactPos() {
         return;
     }
 
-    if (target->m_obj->m_type & TYPEMASK_UNIT) {
+    if (target->m_obj->m_type & TYPE_UNIT) {
         CMovement_C* movement = static_cast<CGUnit_C*>(target)->m_movement;
         C3Vector toTarget(position.x - this->m_position.x, position.y - this->m_position.y, position.z - this->m_position.z);
         float speed = movement->m_currentSpeed;
@@ -729,13 +731,13 @@ void CMissile::ApplyTargetTransportOffset(CGObject_C* target, C3Vector* position
         return;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(transport, TYPE_OBJECT, __FILE__, __LINE__);
 
     if (!object) {
         return;
     }
 
-    C3Vector transportPos = (object->m_obj->m_type & TYPEMASK_UNIT) ? static_cast<CGUnit_C*>(object)->BuildSmoothPosition() : object->GetPosition();
+    C3Vector transportPos = (object->m_obj->m_type & TYPE_UNIT) ? static_cast<CGUnit_C*>(object)->BuildSmoothPosition() : object->GetPosition();
 
     if (this->m_flags & 0x4000000) {
         C3Vector delta(transportPos.x - this->m_lastTransportPos.x, transportPos.y - this->m_lastTransportPos.y, transportPos.z - this->m_lastTransportPos.z);
@@ -801,7 +803,7 @@ void CMissile::FollowGround(const C3Vector& direction, float distance) {
 
     if (steps == 4) {
         C3Vector start = this->m_position;
-        C3Vector down(this->m_position.x, this->m_position.y, this->m_position.z - (this->m_groundOffset + 20.0f));
+        C3Vector down(this->m_position.x, this->m_position.y, this->m_position.z - (this->m_groundOffset + MISSILE_HEIGHT_SCAN_RANGE));
         C3Vector hit(0.0f, 0.0f, 0.0f);
         float t = 1.0f;
 
@@ -869,8 +871,8 @@ void CMissile::BeginWaitingForModelFX(int32_t disableEffects) {
     }
 
     this->Link(&CMissile::s_missileDestroyList);
-    CGObject_C* object = ClntObjMgrObjectPtr(this->m_targetGuid, TYPEMASK_OBJECT, __FILE__, __LINE__);
-    CGUnit_C* target = object && (object->m_obj->m_type & TYPEMASK_UNIT) ? static_cast<CGUnit_C*>(object) : nullptr;
+    CGObject_C* object = ClntObjMgrObjectPtr(this->m_targetGuid, TYPE_OBJECT, __FILE__, __LINE__);
+    CGUnit_C* target = object && (object->m_obj->m_type & TYPE_UNIT) ? static_cast<CGUnit_C*>(object) : nullptr;
 
     if (this->m_model && this->m_model->IsLoaded(0, 0) && (this->m_model->m_fFlags & 0x8000)) {
         if (!this->m_fizzleTime) {
@@ -1133,7 +1135,7 @@ int32_t CMissile::WaitForModelFX() {
 // VERIFY: ae6a2e34 manual
 // OFFSET: 0x00703900
 void CMissile::UpdateAttachments(WOWGUID guid) {
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return;
@@ -1269,7 +1271,7 @@ void CMissile::InitializeTrajectory() {
     }
 
     if ((this->m_flags & 0x200000) && (missile->m_flags & 0x3C)) {
-        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPE_UNIT, __FILE__, __LINE__));
         this->m_missileCollision = CMissileCollision::Alloc();
         CGUnit_C* root = caster && caster->m_vehiclePassenger && caster->m_vehiclePassenger->m_transitionVehicleGuid ? caster->m_vehiclePassenger->GetStoredRootVehicleUnit() : caster;
         C3Vector end = this->TransformPositionByTransport();
@@ -1280,7 +1282,7 @@ void CMissile::InitializeTrajectory() {
 // VERIFY: 859a92cc manual
 // OFFSET: 0x00700E20
 void CMissile::HitTargetAreaEffect(const SpellRec* spell, const SpellVisualRec* visual) {
-    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPE_UNIT, __FILE__, __LINE__));
     SpellVisualKitRec* areaKit = g_spellVisualKitDB.GetRecord(visual->m_impactAreaKit);
 
     if (areaKit && !this->m_fizzleTime) {
@@ -1316,7 +1318,7 @@ void CMissile::HitTargetAreaEffect(const SpellRec* spell, const SpellVisualRec* 
     for (uint32_t i = 0; i < this->m_targets.m_count; i++) {
         WOWGUID targetGuid;
         targetGuid.m_guid = this->m_targets.m_data[i];
-        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(targetGuid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             continue;
@@ -1327,7 +1329,7 @@ void CMissile::HitTargetAreaEffect(const SpellRec* spell, const SpellVisualRec* 
 
             if (result && !(this->m_flags & 0x100) && !this->m_missileIndex) {
                 if (spell && !(spell->m_attributes & 0x100)) {
-                    unit->AddWorldText(this->m_casterGuid, result, spell, 0);
+                    unit->AddWorldText(this->m_casterGuid, static_cast<MISS_REASON>(result), spell, 0);
                     CGGameUI::ShowSpellMissFeedback(unit->m_obj->m_guid, result);
                 }
 
@@ -1524,7 +1526,7 @@ void CMissile::HitTarget(CGUnit_C* target, const SpellRec* spell, const SpellVis
     }
 
     if (spell && visual && !this->m_fizzleTime) {
-        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPE_UNIT, __FILE__, __LINE__));
         const SpellVisualKitRec* kit = Spell_C_GetAppropriateImpactKit(visual, target == caster);
         C3Vector position(0.0f, 0.0f, 0.0f);
         C3Vector* positionPtr = nullptr;
@@ -1641,11 +1643,11 @@ void CMissile::CalcPosition(int32_t advance) {
         return;
     }
 
-    CGObject_C* object = ClntObjMgrObjectPtr(this->m_targetGuid, TYPEMASK_OBJECT, __FILE__, __LINE__);
+    CGObject_C* object = ClntObjMgrObjectPtr(this->m_targetGuid, TYPE_OBJECT, __FILE__, __LINE__);
     CGUnit_C* target = static_cast<CGUnit_C*>(object);
     int32_t targetIsUnit;
 
-    if (object && (object->m_obj->m_type & TYPEMASK_UNIT)) {
+    if (object && (object->m_obj->m_type & TYPE_UNIT)) {
         targetIsUnit = 1;
 
         if (!(this->m_flags & 8)) {
@@ -1863,7 +1865,7 @@ void CMissile::MissedTarget(CGUnit_C* target, const C3Vector* direction) {
             SpellRec spell;
 
             if (g_spellDB.GetRecord(this->m_spellID, &spell) && !(spell.m_attributes & 0x100) && !this->m_missileIndex) {
-                target->AddWorldText(this->m_casterGuid, this->GetHitResult(), &spell, 0);
+                target->AddWorldText(this->m_casterGuid, static_cast<MISS_REASON>(this->GetHitResult()), &spell, 0);
                 CGGameUI::ShowSpellMissFeedback(target->m_obj->m_guid, this->GetHitResult());
                 UnitCombatLogSpellMissed(this->m_casterGuid, target->m_obj->m_guid, this->m_spellID, this->GetHitResult(), 0, 0, 0);
             }
@@ -1898,7 +1900,7 @@ void CMissile::MissedTarget(CGUnit_C* target, const C3Vector* direction) {
 
         if (flags & 0x20) {
             CEffect* effect = new (SMemAlloc(sizeof(CEffect), __FILE__, __LINE__, 0)) CEffect();
-            effect->AddSpecialByPosition(10, this->m_position, &target->m_obj->m_guid, 32, &CGObject_C::EffectOnceHandler);
+            effect->AddSpecialByPosition(SPECIALEFFECT_RESISTSPELL, this->m_position, &target->m_obj->m_guid, 32, &CGObject_C::EffectOnceHandler);
             effect->m_flags |= 0x8000;
             C44Matrix matrix = this->m_model ? this->m_model->m_worldTransform : this->GetPositionMatrix();
             effect->m_facing = atan2(matrix.b1, matrix.b0) - 1.5707964f;
@@ -1981,7 +1983,7 @@ void CMissile::FireMissiles(const C3Vector* position) {
         this->m_attachmentID = 0;
     }
 
-    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* target = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_targetGuid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (target && target->m_worldModel && target->m_worldModel->IsLoaded(0, 0)) {
         if (!target->m_worldModel->HasAttachment(this->m_attachmentID)) {
@@ -2048,7 +2050,7 @@ void CMissile::FireMissiles(const C3Vector* position) {
             distance = this->m_initialDistance;
         } else {
             float maxSpeed = this->m_speed + this->m_speed;
-            CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* caster = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (visual && visual->m_flags < 0) {
                 if (caster) {
@@ -2125,7 +2127,7 @@ void CMissile::FireMissiles(const C3Vector* position) {
         if (kit) {
             CGUnit_C* unit = target;
 
-            if (unit || (this->m_casterGuid && !this->m_missileIndex && (unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPEMASK_UNIT, __FILE__, __LINE__))))) {
+            if (unit || (this->m_casterGuid && !this->m_missileIndex && (unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_casterGuid, TYPE_UNIT, __FILE__, __LINE__))))) {
                 this->m_targetingEffectTime = OsGetAsyncTimeMs();
 
                 if (!target) {

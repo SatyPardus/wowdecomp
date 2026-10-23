@@ -412,7 +412,7 @@ static int32_t Script_GetBattlefieldInstanceInfo(lua_State* L) {
         return 0;
     }
 
-    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__)) {
+    if (!ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__)) {
         return 0;
     }
 
@@ -625,7 +625,7 @@ static int32_t Script_SortBGList(lua_State* L) {
 // VERIFY: 9f46881d manual
 // OFFSET: 0x0054D770
 static int32_t Script_GetBattlefieldInfo(lua_State* L) {
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player) {
         return 0;
@@ -686,7 +686,7 @@ static int32_t Script_GetBattlegroundInfo(lua_State* L) {
     }
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (!player || index < 0 || index >= static_cast<int32_t>(CGBattlefieldInfo::m_battlegroundTypes.m_count)) {
         return 0;
@@ -848,7 +848,7 @@ static int32_t Script_GetBattlefieldPosition(lua_State* L) {
     }
 
     C3Vector position(0.0f, 0.0f, 0.0f);
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
 
     if (player) {
         position = player->GetPosition();
@@ -889,7 +889,7 @@ static int32_t Script_GetBattlefieldVehicleInfo(lua_State* L) {
 
     uint32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     WOWGUID guid = index >= CGBattlefieldInfo::m_numVehicles ? WOWGUID() : CGBattlefieldInfo::m_vehicleGuids[index];
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return 0;

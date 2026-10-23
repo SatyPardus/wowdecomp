@@ -621,7 +621,7 @@ static int32_t Script_GetComparisonCategoryNumAchievements(lua_State* L) {
             continue;
         }
 
-        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGAchievementInfo::m_inspect, TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGAchievementInfo::m_inspect, TYPE_PLAYER, __FILE__, __LINE__));
 
         if (player && achievement->m_faction != -1 && achievement->m_faction != player->GetPVPFactionIndex()) {
             continue;
@@ -655,7 +655,7 @@ static int32_t Script_GetNumComparisonCompletedAchievements(lua_State* L) {
             continue;
         }
 
-        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGAchievementInfo::m_inspect, TYPEMASK_PLAYER, __FILE__, __LINE__));
+        CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(CGAchievementInfo::m_inspect, TYPE_PLAYER, __FILE__, __LINE__));
 
         if (player && achievement->m_faction != -1 && achievement->m_faction != player->GetPVPFactionIndex()) {
             continue;

@@ -32,7 +32,7 @@ CGUnit_C* CGUnit_C::FindRootVehicle(CGUnit_C* stop) {
     uint32_t high = static_cast<uint32_t>(guid.m_guid >> 32);
 
     if ((high & 0xF0F00000) == 0xF0500000 || (!(high & 0xF0000000) && ((high & 0xF07FFFFF) | static_cast<uint32_t>(guid.m_guid)))) {
-        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             return nullptr;
@@ -46,7 +46,7 @@ CGUnit_C* CGUnit_C::FindRootVehicle(CGUnit_C* stop) {
                 break;
             }
 
-            unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (!unit) {
                 return nullptr;
@@ -77,7 +77,7 @@ CGUnit_C* CGUnit_C::FindRootVehicleOfPassengerChain(CGUnit_C* stop) {
         return unit;
     }
 
-    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return nullptr;
@@ -90,7 +90,7 @@ CGUnit_C* CGUnit_C::FindRootVehicleOfPassengerChain(CGUnit_C* stop) {
             break;
         }
 
-        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!unit) {
             return nullptr;
@@ -110,7 +110,7 @@ bool CGUnit_C::IsVehiclePreventingTurning() const {
         return false;
     }
 
-    CGUnit_C* transport = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ static_cast<uint64_t>(high) << 32 | low }, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* transport = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(WOWGUID{ static_cast<uint64_t>(high) << 32 | low }, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!transport || !transport->m_vehicle) {
         return false;
@@ -137,7 +137,7 @@ bool CGUnit_C::IsAlteredFormTransitionPreventingMovement() const {
         return true;
     }
 
-    CGUnit_C* charmer = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_unit->m_unitFieldCharmedby, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* charmer = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_unit->m_unitFieldCharmedby, TYPE_UNIT, __FILE__, __LINE__));
 
     if (charmer) {
         CVehiclePassenger_C* charmerPassenger = charmer->m_vehiclePassenger;
@@ -160,7 +160,7 @@ bool CGUnit_C::IsAlteredFormTransitionPreventingMovement() const {
 // OFFSET: 0x0074C550
 void CGUnit_C::ConvertVehicleCameraRelativeFacingToTransportRelativeFacing(float& facing) {
     if (this->m_vehicleCamera) {
-        CGObject_C* relativeTo = ClntObjMgrObjectPtr(WOWGUID{ this->m_vehicleCamera->GetRelativeTo() }, TYPEMASK_OBJECT, __FILE__, __LINE__);
+        CGObject_C* relativeTo = ClntObjMgrObjectPtr(WOWGUID{ this->m_vehicleCamera->GetRelativeTo() }, TYPE_OBJECT, __FILE__, __LINE__);
         CVehicleCamera_C::ConvertFromRawToWorld(facing, relativeTo);
         facing = this->m_movement->GetRawFacing(facing);
     }
@@ -210,7 +210,7 @@ int32_t CGUnit_C::VehiclePassengerShouldWaitForVehicleTransitionAnim(uint64_t tr
         guid.m_guid = this->GetTransportGUID();
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return 0;
@@ -269,7 +269,7 @@ int32_t CGUnit_C::VehiclePassengerStartWaitingForVehicleTransitionAnim(uint64_t 
         guid.m_guid = this->GetTransportGUID();
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!unit) {
         return 0;
@@ -330,7 +330,7 @@ void CGUnit_C::DestroyVehicleCamera() {
         return;
     }
 
-    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_vehicleCamera->m_nextCameraGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(this->m_vehicleCamera->m_nextCameraGuid, TYPE_UNIT, __FILE__, __LINE__));
     CVehicleCamera_C* camera = this->m_vehicleCamera;
     camera->Destroy();
     this->m_vehicleCamera = nullptr;
@@ -403,7 +403,7 @@ void CGUnit_C::OnVehicleCameraPossiblyUnneeded() {
                 break;
             }
 
-            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(current->m_nextCameraGuid, TYPEMASK_UNIT, __FILE__, __LINE__));
+            CGUnit_C* unit = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(current->m_nextCameraGuid, TYPE_UNIT, __FILE__, __LINE__));
 
             if (!unit) {
                 break;
@@ -434,7 +434,7 @@ void CGUnit_C::VehiclePassengerOnUpdateTransport(WOWGUID transport, uint8_t seat
     CGUnit_C* vehicle;
 
     if ((high & 0xF0F00000) == 0xF0500000 || (!(high & 0xF0000000) && ((high & 0xF07FFFFF) | static_cast<uint32_t>(guid.m_guid)))) {
-        vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_UNIT, __FILE__, __LINE__));
+        vehicle = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(guid, TYPE_UNIT, __FILE__, __LINE__));
 
         if (!vehicle) {
             guid = WOWGUID{ 0 };
@@ -818,7 +818,7 @@ int32_t CGUnit_C::SwitchToVehicleSeat(CGUnit_C* vehicle, int32_t virtualSeat) {
         return 1;
     }
 
-    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPEMASK_UNIT, __FILE__, __LINE__));
+    CGUnit_C* mover = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(CGUnit_C::s_activeMover, TYPE_UNIT, __FILE__, __LINE__));
 
     if (!mover) {
         return 1;
@@ -886,7 +886,7 @@ void CGUnit_C::OnVehicleCameraPossiblyNeeded() {
     }
 
     CVehicleCamera_C* activeVehicleCamera = camera->m_vehicleCamera;
-    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPE_PLAYER, __FILE__, __LINE__));
 
     if (this->IsActivePlayer() || this->m_obj->m_guid == camera->m_targetGUID || (player && player->FindRootVehicleOfPassengerChain(this) == this) || (activeVehicleCamera && activeVehicleCamera->m_unit && activeVehicleCamera->m_unit != player && activeVehicleCamera->m_unit->FindRootVehicleOfPassengerChain(this) == this)) {
         this->CreateVehicleCamera();

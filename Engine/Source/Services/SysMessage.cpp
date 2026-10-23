@@ -5,13 +5,13 @@
 #include "Engine/Source/Storm/H/storm.h"
 
 // STATIC: 0x00AC3208
-static const SYSMSGSEVERITY s_severities[4] = { { 0xFF, 0xFF, 0xFF, 0, 10.0f }, { 0xFF, 0xFF, 0x7F, 0, 15.0f }, { 0xFF, 0x7F, 0x7F, 0, 15.0f }, { 0x7F, 0xFF, 0xFF, 0, 20.0f } };
+static const SYSMSGSEVERITY s_severities[SYSMSG_NUMTYPES] = { { 0xFF, 0xFF, 0xFF, 0, 10.0f }, { 0xFF, 0xFF, 0x7F, 0, 15.0f }, { 0xFF, 0x7F, 0x7F, 0, 15.0f }, { 0x7F, 0xFF, 0xFF, 0, 20.0f } };
 
 // STATIC: 0x00AC3228
 static int32_t s_enabled = 1;
 
 // STATIC: 0x00AC322C
-static int32_t s_maxSeverity = 3;
+static int32_t s_maxSeverity = SYSMSG_FATAL;
 
 // STATIC: 0x00AC3230
 static uint32_t s_categoryFilter = 0xFFFFFFFF;
@@ -21,7 +21,7 @@ static int32_t s_minSeverity;
 
 // VERIFY: 847a42a2 auto
 // OFFSET: 0x004B4EE0
-void SysMsgGetSeverityColor(STATUS_TYPE severity, float& red, float& green, float& blue) {
+void SysMsgGetSeverityColor(SYSMSG_TYPE severity, float& red, float& green, float& blue) {
     red = s_severities[severity].m_red * 0.0039215689f;
     green = s_severities[severity].m_green * 0.0039215689f;
     blue = s_severities[severity].m_blue * 0.0039215689f;
@@ -29,8 +29,8 @@ void SysMsgGetSeverityColor(STATUS_TYPE severity, float& red, float& green, floa
 
 // VERIFY: e98afe5a manual
 // OFFSET: 0x004B4F60
-int32_t SysMsgAdd(const char* text, STATUS_TYPE severity) {
-    if (!text || severity >= STATUS_NUMTYPES) {
+int32_t SysMsgAdd(const char* text, SYSMSG_TYPE severity) {
+    if (!text || severity >= SYSMSG_NUMTYPES) {
         SErrSetLastError(STORM_ERROR_INVALID_PARAMETER);
         return 0;
     }
@@ -54,12 +54,12 @@ int32_t SysMsgAdd(CStatus* status) {
 
 // VERIFY: 9315395b manual
 // OFFSET: 0x004B4FF0
-int32_t SysMsgVPrintf(STATUS_TYPE severity, uint32_t flags, const char* format, va_list args) {
+int32_t SysMsgVPrintf(SYSMSG_TYPE severity, uint32_t flags, const char* format, va_list args) {
     char buffer[256];
     _vsnprintf(buffer, sizeof(buffer), format, args);
     buffer[255] = '\0';
 
-    if (severity < STATUS_NUMTYPES) {
+    if (severity < SYSMSG_NUMTYPES) {
         return 1;
     }
 
@@ -70,7 +70,7 @@ int32_t SysMsgVPrintf(STATUS_TYPE severity, uint32_t flags, const char* format, 
 
 // VERIFY: 82062d21 manual
 // OFFSET: 0x004B5040
-int32_t SysMsgPrintf(STATUS_TYPE severity, uint32_t flags, const char* format, ...) {
+int32_t SysMsgPrintf(SYSMSG_TYPE severity, uint32_t flags, const char* format, ...) {
     va_list args;
     va_start(args, format);
 
@@ -79,7 +79,7 @@ int32_t SysMsgPrintf(STATUS_TYPE severity, uint32_t flags, const char* format, .
         _vsnprintf(buffer, sizeof(buffer), format, args);
         buffer[255] = '\0';
 
-        if (severity < STATUS_NUMTYPES) {
+        if (severity < SYSMSG_NUMTYPES) {
             return 1;
         }
     }
@@ -91,7 +91,7 @@ int32_t SysMsgPrintf(STATUS_TYPE severity, uint32_t flags, const char* format, .
 
 // VERIFY: fe511d8e auto
 // OFFSET: 0x004D8520
-int32_t SysMsgPrintf(STATUS_TYPE severity, const char* format, ...) {
+int32_t SysMsgPrintf(SYSMSG_TYPE severity, const char* format, ...) {
     va_list args;
     va_start(args, format);
     int32_t result = SysMsgVPrintf(severity, 1, format, args);
@@ -154,14 +154,14 @@ uint32_t SysMsgGetFilter() {
 // OFFSET: 0x004B4F30
 void SysMsgInitialize() {
     s_enabled = 1;
-    s_minSeverity = 0;
-    s_maxSeverity = 3;
+    s_minSeverity = SYSMSG_INFO;
+    s_maxSeverity = SYSMSG_FATAL;
     s_categoryFilter = 0xFFFFFFFF;
 }
 
 // VERIFY: f92a5b55 manual
 // OFFSET: 0x005EEB70
-void SysMsgSetCallback(void (*callback)(const char* text, STATUS_TYPE severity)) {
+void SysMsgSetCallback(void (*callback)(const char* text, SYSMSG_TYPE severity)) {
 }
 
 // OFFSET: 0x004B5090

@@ -31,7 +31,7 @@
 // OFFSET: 0x00705950
 static void GuildTabardCallback(int32_t guildID, const WOWGUID& guid, void* param, bool success) {
     WOWGUID* corpseGuid = static_cast<WOWGUID*>(param);
-    CGCorpse_C* corpse = static_cast<CGCorpse_C*>(ClntObjMgrObjectPtr(*corpseGuid, TYPEMASK_CORPSE, __FILE__, __LINE__));
+    CGCorpse_C* corpse = static_cast<CGCorpse_C*>(ClntObjMgrObjectPtr(*corpseGuid, TYPE_CORPSE, __FILE__, __LINE__));
 
     if (corpse) {
         corpse->ApplyGuildColor(0);
@@ -146,7 +146,7 @@ void CGCorpse_C::PostInit(uint32_t time, const CClientObjCreate& create, bool a3
             }
 
             if (slot == 15 || slot == 16) {
-                CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_corpse->m_corpseFieldItem[slot] }, TYPEMASK_ITEM, __FILE__, __LINE__));
+                CGItem_C* item = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(WOWGUID{ this->m_corpse->m_corpseFieldItem[slot] }, TYPE_ITEM, __FILE__, __LINE__));
 
                 if (item) {
                     CM2Model* worldModel = this->m_worldModel;
@@ -174,7 +174,7 @@ void CGCorpse_C::PostInit(uint32_t time, const CClientObjCreate& create, bool a3
     }
 
     if ((this->m_corpse->m_corpseFieldDynamicFlags & 0x1) && !this->m_lootEffect) {
-        const SpellVisualEffectNameRec* effect = GetSpecialSpellVisualEffectNameRec(4);
+        const SpellVisualEffectNameRec* effect = GetSpecialSpellVisualEffectNameRec(SPECIALEFFECT_LOOTART);
         this->m_lootEffect = this->m_worldModel->m_scene->CreateModel(effect->m_fileName, 0);
 
         if (this->m_lootEffect) {
@@ -280,7 +280,7 @@ void CGCorpse_C::ShowLootEffect() {
         return;
     }
 
-    const SpellVisualEffectNameRec* effect = GetSpecialSpellVisualEffectNameRec(4);
+    const SpellVisualEffectNameRec* effect = GetSpecialSpellVisualEffectNameRec(SPECIALEFFECT_LOOTART);
     this->m_lootEffect = this->m_worldModel->m_scene->CreateModel(effect->m_fileName, 0);
 
     if (this->m_lootEffect) {
@@ -353,7 +353,7 @@ void CGCorpse_C::OnDynamicFlagChanged(uint32_t oldFlags) {
 // VERIFY: bab5ab7f manual
 // OFFSET: 0x00706240
 int32_t CorpseFlagUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSize, const void* oldValue, void* param) {
-    CGCorpse_C* corpse = static_cast<CGCorpse_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_CORPSE, __FILE__, __LINE__));
+    CGCorpse_C* corpse = static_cast<CGCorpse_C*>(ClntObjMgrObjectPtr(guid, TYPE_CORPSE, __FILE__, __LINE__));
 
     if (corpse) {
         corpse->OnFlagChanged(*static_cast<const uint32_t*>(oldValue));
@@ -365,7 +365,7 @@ int32_t CorpseFlagUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fie
 // VERIFY: c5f353fa manual
 // OFFSET: 0x00706280
 int32_t CorpseDynamicFlagUpdateHandler(WOWGUID guid, uint32_t fieldOffset, uint32_t fieldSize, const void* oldValue, void* param) {
-    CGCorpse_C* corpse = static_cast<CGCorpse_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_CORPSE, __FILE__, __LINE__));
+    CGCorpse_C* corpse = static_cast<CGCorpse_C*>(ClntObjMgrObjectPtr(guid, TYPE_CORPSE, __FILE__, __LINE__));
 
     if (corpse) {
         corpse->OnDynamicFlagChanged(*static_cast<const uint32_t*>(oldValue));
@@ -422,14 +422,14 @@ int32_t CGCorpse_C::GetModelFileName(const char** name) const {
     CreatureDisplayInfoRec* display = g_creatureDisplayInfoDB.GetRecord(displayId);
 
     if (!display) {
-        SysMsgPrintf(STATUS_WARNING, 16, "INVALIDPLAYERDISPLAYID|%d|%d|%d", displayId, this->m_corpse->m_corpseFieldBytes1[1], this->m_corpse->m_corpseFieldBytes1[2]);
+        SysMsgPrintf(SYSMSG_WARNING, 16, "INVALIDPLAYERDISPLAYID|%d|%d|%d", displayId, this->m_corpse->m_corpseFieldBytes1[1], this->m_corpse->m_corpseFieldBytes1[2]);
         return 0;
     }
 
     CreatureModelDataRec* model = g_creatureModelDataDB.GetRecord(display->m_modelID);
 
     if (!model) {
-        SysMsgPrintf(STATUS_WARNING, 16, "INVALIDPLAYERMODELRECORD|%d|%d|%d", display->m_modelID, this->m_corpse->m_corpseFieldBytes1[1], this->m_corpse->m_corpseFieldBytes1[2]);
+        SysMsgPrintf(SYSMSG_WARNING, 16, "INVALIDPLAYERMODELRECORD|%d|%d|%d", display->m_modelID, this->m_corpse->m_corpseFieldBytes1[1], this->m_corpse->m_corpseFieldBytes1[2]);
         return 0;
     }
 
@@ -510,7 +510,7 @@ void CGCorpse_C::OnRightClick() {
                 return;
             }
 
-            player->ChangeStandState(0);
+            player->ChangeStandState(UNIT_STANDING);
         }
 
         player->SetAutoLoot(CGGameUI::IsAutoLooting());

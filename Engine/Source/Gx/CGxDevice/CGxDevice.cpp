@@ -15,6 +15,7 @@
 #include "Engine/Source/Os/OsFile.h"
 #include "Engine/Source/Os/Processor.h"
 #include "Engine/Source/Os/TimeManager.h"
+#include "Engine/Source/ShaderEffect/Types.h"
 
 // STATIC: 0x00A2DAF8
 const uint32_t CGxDevice::s_texFormatBitDepth[GxTexFormats_Last] = { 0, 32, 32, 16, 16, 16, 4, 8, 8, 16, 32, 32, 32 };
@@ -177,14 +178,14 @@ void CGxDevice::ScenePresent() {
 // OFFSET: 0x00682F70
 void CGxDevice::PrimNormal(const C3Vector& n) {
     this->m_primNormal = n;
-    this->m_primMask |= 0x200;
+    this->m_primMask |= PrimMask_Normal;
 }
 
 // VERIFY: c4ffca2f auto
 // OFFSET: 0x00682FA0
 void CGxDevice::PrimTexCoord(uint32_t tmu, const C2Vector& t) {
     this->m_primTexCoord[tmu] = t;
-    this->m_primMask |= 2 << tmu;
+    this->m_primMask |= PrimMask_TexCoord << tmu;
 }
 
 // VERIFY: c119ac3a manual
@@ -305,7 +306,7 @@ void CGxDevice::NotifyOnStereoChanged() {
 // OFFSET: 0x00684590
 void CGxDevice::PrimColor(const CImVector& c) {
     this->m_primColor = c;
-    this->m_primMask |= 0x400;
+    this->m_primMask |= PrimMask_Color;
 }
 
 // VERIFY: df433744 auto
@@ -401,7 +402,7 @@ void CGxDevice::PrimBegin(EGxPrim primType) {
 // OFFSET: 0x00685640
 void CGxDevice::PrimVertex(const C3Vector& v) {
     this->m_primVertex = v;
-    this->m_primMask |= 0x1;
+    this->m_primMask |= PrimMask_Vertex;
 
     uint16_t index = static_cast<uint16_t>(this->m_primVertexArray.Count());
     *this->m_primIndexArray.New() = index;
@@ -472,8 +473,8 @@ void CGxDevice::ICursorDraw() {
     GxRsSet(GxRs_ClipPlaneMask, 0);
     GxRsSet(GxRs_Texture0, this->m_cursorTexture);
     GxRsSet(GxRs_Texture1, nullptr);
-    GxRsSet(GxRs_ColorOp0, 0);
-    GxRsSet(GxRs_AlphaOp0, 0);
+    GxRsSet(GxRs_ColorOp0, GxTexOp_Mod);
+    GxRsSet(GxRs_AlphaOp0, GxTexOp_Mod);
     GxRsSet(GxRs_TexGen0, 0);
     GxRsSet(GxRs_TextureShader0, 0);
 
@@ -1276,27 +1277,27 @@ void CGxDevice::MasterEnableSet(EGxMasterEnables state, int32_t enable) {
     this->m_appMasterEnables = ((enable & 1) << state) | (this->m_appMasterEnables & ~(1 << state));
 
     switch (state) {
-        case 0:
+        case GxMasterEnable_Lighting:
             this->IRsForceUpdate(GxRs_Lighting);
             break;
 
-        case 1:
+        case GxMasterEnable_Fog:
             this->IRsForceUpdate(GxRs_Fog);
             break;
 
-        case 2:
+        case GxMasterEnable_DepthTest:
             this->IRsForceUpdate(GxRs_DepthTest);
             break;
 
-        case 3:
+        case GxMasterEnable_DepthWrite:
             this->IRsForceUpdate(GxRs_DepthWrite);
             break;
 
-        case 4:
+        case GxMasterEnable_ColorWrite:
             this->IRsForceUpdate(GxRs_ColorWrite);
             break;
 
-        case 5:
+        case GxMasterEnable_Culling:
             this->IRsForceUpdate(GxRs_Culling);
             break;
 
@@ -1373,7 +1374,7 @@ void CGxDevice::IRsInit() {
     this->m_appRenderStates[GxRs_Lighting].m_value.m_data.i[0] = 1;
     this->m_appRenderStates[GxRs_Fog].m_value.m_data.i[0] = 1;
     this->m_appRenderStates[GxRs_DepthTest].m_value.m_data.i[0] = 1;
-    this->m_appRenderStates[GxRs_DepthFunc].m_value.m_data.i[0] = 0;
+    this->m_appRenderStates[GxRs_DepthFunc].m_value.m_data.i[0] = GxCmp_LEqual;
     this->m_appRenderStates[GxRs_DepthWrite].m_value.m_data.i[0] = 1;
     this->m_appRenderStates[GxRs_ColorWrite].m_value.m_data.i[0] = 15;
     this->m_appRenderStates[GxRs_Culling].m_value.m_data.i[0] = 1;
@@ -1383,8 +1384,8 @@ void CGxDevice::IRsInit() {
 
     for (uint32_t i = 0; i < 8; i++) {
         this->m_appRenderStates[GxRs_Texture0 + i].m_value.m_data.i[0] = 0;
-        this->m_appRenderStates[GxRs_ColorOp0 + i].m_value.m_data.i[0] = 0;
-        this->m_appRenderStates[GxRs_AlphaOp0 + i].m_value.m_data.i[0] = 0;
+        this->m_appRenderStates[GxRs_ColorOp0 + i].m_value.m_data.i[0] = GxTexOp_Mod;
+        this->m_appRenderStates[GxRs_AlphaOp0 + i].m_value.m_data.i[0] = GxTexOp_Mod;
         this->m_appRenderStates[GxRs_TexGen0 + i].m_value.m_data.i[0] = 0;
         this->m_appRenderStates[GxRs_TextureShader0 + i].m_value.m_data.i[0] = 0;
         this->m_appRenderStates[GxRs_TextureCoord0 + i].m_value.m_data.i[0] = i;
@@ -1403,7 +1404,7 @@ void CGxDevice::IRsInit() {
     this->m_appRenderStates[GxRs_PointScaleMin].m_value.m_data.f[0] = 0.0f;
     this->m_appRenderStates[GxRs_PointScaleMax].m_value.m_data.f[0] = 1.0f;
     this->m_appRenderStates[GxRs_PointSprite].m_value.m_data.i[0] = 0;
-    this->m_appRenderStates[Unk84].m_value.m_data.f[0] = 0.0f;
+    this->m_appRenderStates[GxRs_BlendFactor].m_value.m_data.f[0] = 0.0f;
     this->m_appRenderStates[GxRs_ColorMaterial].m_value.m_data.i[0] = 0;
 }
 
@@ -1671,6 +1672,11 @@ void CGxDevice::DeviceCreatePools() {
 // VERIFY: 3ce50085 manual
 // OFFSET: 0x00684970
 void CGxDevice::IShaderLoad(CGxShader** shaders, EGxShTarget target, const char* path, const char* name, uint32_t permutations) {
+    enum : uint32_t {
+        Magic = 0x47585348, // 'GXSH'
+        Version = 0x10003,
+    };
+
     int32_t profile = this->m_caps.m_shaderTargets[target];
 
     if (profile <= 0) {
@@ -2012,7 +2018,7 @@ uint32_t CGxDevice::ITexBitsSize(CGxTex* texId, uint32_t width, uint32_t height)
     }
 
     if (texId->m_target == GxTex_CubeMap) {
-        return 6 * size;
+        return GxTexCubeFaces_Last * size;
     }
 
     return size;
@@ -2070,7 +2076,7 @@ void CGxDevice::RsInit() {
     this->RsSet(GxRs_Lighting, 1);
     this->RsSet(GxRs_Fog, 1);
     this->RsSet(GxRs_DepthTest, 1);
-    this->RsSet(GxRs_DepthFunc, 0);
+    this->RsSet(GxRs_DepthFunc, GxCmp_LEqual);
     this->RsSet(GxRs_Culling, 1);
     this->RsSet(GxRs_ClipPlaneMask, 0);
     this->RsSet(GxRs_ScissorTest, 0);
@@ -2079,8 +2085,8 @@ void CGxDevice::RsInit() {
 
     for (tmu = 0; tmu < 8; tmu++) {
         this->RsSet(static_cast<EGxRenderState>(GxRs_Texture0 + tmu), nullptr);
-        this->RsSet(static_cast<EGxRenderState>(GxRs_ColorOp0 + tmu), 0);
-        this->RsSet(static_cast<EGxRenderState>(GxRs_AlphaOp0 + tmu), 0);
+        this->RsSet(static_cast<EGxRenderState>(GxRs_ColorOp0 + tmu), GxTexOp_Mod);
+        this->RsSet(static_cast<EGxRenderState>(GxRs_AlphaOp0 + tmu), GxTexOp_Mod);
         this->RsSet(static_cast<EGxRenderState>(GxRs_TexGen0 + tmu), 0);
         this->RsSet(static_cast<EGxRenderState>(GxRs_TextureShader0 + tmu), 0);
         this->RsSet(static_cast<EGxRenderState>(GxRs_TextureCoord0 + tmu), static_cast<int32_t>(tmu));
@@ -2097,7 +2103,7 @@ void CGxDevice::RsInit() {
     this->RsSet(GxRs_PointScaleMin, 0.0f);
     this->RsSet(GxRs_PointScaleMax, 1.0f);
     this->RsSet(GxRs_PointSprite, 0);
-    this->RsSet(Unk84, 0.0f);
+    this->RsSet(GxRs_BlendFactor, 0.0f);
     this->RsSet(GxRs_ColorMaterial, 0);
 }
 

@@ -240,7 +240,7 @@ void Snow::UpdatePackets() {
         WOWGUID active = ClntObjMgrGetActivePlayer();
 
         if (active) {
-            CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(active, TYPEMASK_PLAYER, __FILE__, __LINE__));
+            CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(active, TYPE_PLAYER, __FILE__, __LINE__));
 
             if (player && player->m_movement->m_spline && !(player->m_movement->m_spline->m_flags & 0x400)) {
                 C3Spline_CatmullRom* spline = player->GetSpline();

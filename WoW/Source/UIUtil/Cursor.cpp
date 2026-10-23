@@ -12,8 +12,16 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/Ui/LootFrame.h"
 
+enum CURSORITEMTYPE : uint32_t {
+    CURSOR_EMPTY = 0,
+    CURSOR_ITEM = 1,
+    CURSOR_MONEY = 2,
+    CURSOR_SPELL = 3,
+    // NUM_CURSOR_ITEM_TYPES = 4,
+};
+
 // STATIC: 0x00AD2808
-static const char* s_cursorNames[54] = {
+static const char* s_cursorNames[NUM_CURSOR_IMAGES] = {
     nullptr,
     "Point",
     "Cast",
@@ -83,38 +91,38 @@ static uint32_t s_cursorItemMipsWidth;
 static MipBits* s_cursorItemMips;
 
 // STATIC: 0x00C25DE0
-static uint32_t s_cursorItemType;
+static CURSORITEMTYPE s_cursorItemType;
 
 // STATIC: 0x00C25DE4
-static uint32_t s_cursorResetMode;
+static CURSORMODE s_cursorResetMode;
 
 // STATIC: 0x00C25DE8
 static uint32_t s_cursorItem[1024];
 
 // STATIC: 0x00C26DE8
-static uint32_t s_cursorMode;
+static CURSORMODE s_cursorMode;
 
 // STATIC: 0x00C26DF0
-static uint32_t s_cursorImages[54][1024];
+static uint32_t s_cursorImages[NUM_CURSOR_IMAGES][1024];
 
 // VERIFY: dd7c01bd auto
 // OFFSET: 0x006167E0
 void CursorDropItem() {
     if (s_cursorItemType) {
-        s_cursorItemType = 0;
+        s_cursorItemType = CURSOR_EMPTY;
         UpdateCursor();
     }
 }
 
 // VERIFY: be139389 auto
 // OFFSET: 0x00616260
-uint32_t CursorGetResetMode() {
+CURSORMODE CursorGetResetMode() {
     return s_cursorResetMode;
 }
 
 // VERIFY: 2ca86d65 auto
 // OFFSET: 0x00616270
-void CursorSetResetMode(uint32_t mode) {
+void CursorSetResetMode(CURSORMODE mode) {
     s_cursorResetMode = mode;
 }
 
@@ -161,10 +169,10 @@ void UpdateCursor() {
 
     if (s_cursorItemType) {
         if (s_cursorItemMips) {
-            memcpy(pixels, s_cursorImages[19], 4096);
+            memcpy(pixels, s_cursorImages[ITEM_CURSOR], 4096);
         } else {
             for (uint32_t i = 0; i < 1024; i++) {
-                uint32_t pixel = s_cursorImages[19][i];
+                uint32_t pixel = s_cursorImages[ITEM_CURSOR][i];
 
                 if (!(pixel & 0xFF000000)) {
                     pixel = s_cursorItem[i];
@@ -183,14 +191,14 @@ void UpdateCursor() {
 // VERIFY: 448b2353 auto
 // OFFSET: 0x006163B0
 void CursorInitialize() {
-    s_cursorMode = 1;
-    s_cursorResetMode = 1;
-    s_cursorItemType = 0;
+    s_cursorMode = POINT_CURSOR;
+    s_cursorResetMode = POINT_CURSOR;
+    s_cursorItemType = CURSOR_EMPTY;
     s_cursorItemMips = nullptr;
     s_cursorItemMipsWidth = 0;
     s_cursorItemMipsHeight = 0;
 
-    for (uint32_t i = 0; i < 54; i++) {
+    for (uint32_t i = 0; i < NUM_CURSOR_IMAGES; i++) {
         MipBits* images = nullptr;
         uint32_t width;
         uint32_t height;
@@ -220,20 +228,20 @@ void CursorInitialize() {
 
 // VERIFY: 80dc5ddb auto
 // OFFSET: 0x00616280
-uint32_t CursorGetModeFromName(const char* name) {
-    for (uint32_t i = 1; i < 53; i++) {
+CURSORMODE CursorGetModeFromName(const char* name) {
+    for (uint32_t i = POINT_CURSOR; i < NUM_CURSOR_MODES; i++) {
         if (!SStrCmpI(name, s_cursorNames[i], STORM_MAX_STR)) {
-            return i;
+            return static_cast<CURSORMODE>(i);
         }
     }
 
-    return 0;
+    return NO_CURSOR;
 }
 
 // VERIFY: c3ebf462 auto
 // OFFSET: 0x00616800
-void CursorSetMode(uint32_t mode) {
-    if (mode != 53 && s_cursorMode != mode) {
+void CursorSetMode(CURSORMODE mode) {
+    if (mode != NUM_CURSOR_MODES && s_cursorMode != mode) {
         s_cursorMode = mode;
         UpdateCursor();
         FrameScript_SignalEvent(SCRIPT_EVENT_CURSOR_UPDATE, nullptr);
@@ -251,7 +259,7 @@ void CursorGrabVirtualItem(int32_t displayId) {
     }
 
     if (displayId) {
-        const char* path = ClientDBStringLookup(3);
+        const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
         const char* separator = "\\";
 
         if (!*path) {
@@ -264,7 +272,7 @@ void CursorGrabVirtualItem(int32_t displayId) {
         s_cursorItemMips = TextureLoadImage(fileName, &s_cursorItemMipsWidth, &s_cursorItemMipsHeight, &format, nullptr, nullptr, nullptr, 0);
     }
 
-    s_cursorItemType = 1;
+    s_cursorItemType = CURSOR_ITEM;
     CursorReleaseItemMips();
 }
 
@@ -272,7 +280,7 @@ void CursorGrabVirtualItem(int32_t displayId) {
 // OFFSET: 0x00616830
 int32_t CursorSetFromName(const char* name) {
     int32_t result = !SStrCmpI(s_cursorFile, name, STORM_MAX_STR);
-    int32_t changed = !result || s_cursorMode != 53;
+    int32_t changed = !result || s_cursorMode != NUM_CURSOR_MODES;
 
     if (!result) {
         uint32_t width = 0;
@@ -281,20 +289,20 @@ int32_t CursorSetFromName(const char* name) {
         MipBits* images = TextureLoadImage(name, &width, &height, &format, nullptr, nullptr, nullptr, 0);
 
         if (images) {
-            if (CopyCursorImage(s_cursorImages[53], images, width, height)) {
+            if (CopyCursorImage(s_cursorImages[NUM_CURSOR_MODES], images, width, height)) {
                 result = 1;
             }
 
             TextureFreeMippedImg(images, format, width, height);
         } else {
-            memset(s_cursorImages[53], 0, sizeof(s_cursorImages[53]));
+            memset(s_cursorImages[NUM_CURSOR_MODES], 0, sizeof(s_cursorImages[NUM_CURSOR_MODES]));
         }
 
         SStrCopy(s_cursorFile, name, sizeof(s_cursorFile));
     }
 
     if (changed) {
-        s_cursorMode = 53;
+        s_cursorMode = NUM_CURSOR_MODES;
         UpdateCursor();
         FrameScript_SignalEvent(SCRIPT_EVENT_CURSOR_UPDATE, nullptr);
     }
@@ -305,7 +313,7 @@ int32_t CursorSetFromName(const char* name) {
 // VERIFY: 0107efc6 auto
 // OFFSET: 0x00616920
 void CursorResetMode() {
-    if (s_cursorResetMode != 53 && s_cursorMode != s_cursorResetMode) {
+    if (s_cursorResetMode != NUM_CURSOR_MODES && s_cursorMode != s_cursorResetMode) {
         s_cursorMode = s_cursorResetMode;
         UpdateCursor();
         FrameScript_SignalEvent(SCRIPT_EVENT_CURSOR_UPDATE, nullptr);
@@ -344,10 +352,10 @@ void CursorSetHeldItem(WOWGUID item) {
         s_cursorItemMipsHeight = 0;
     }
 
-    CGItem_C* itemObject = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPEMASK_ITEM, __FILE__, __LINE__));
+    CGItem_C* itemObject = static_cast<CGItem_C*>(ClntObjMgrObjectPtr(item, TYPE_ITEM, __FILE__, __LINE__));
 
     if (itemObject) {
-        const char* path = ClientDBStringLookup(3);
+        const char* path = ClientDBStringLookup(SLOOKUP_INVENTORYICONPATH);
         const char* art = itemObject->GetInventoryArt();
         const char* separator = "\\";
 
@@ -361,7 +369,7 @@ void CursorSetHeldItem(WOWGUID item) {
         s_cursorItemMips = TextureLoadImage(fileName, &s_cursorItemMipsWidth, &s_cursorItemMipsHeight, &format, nullptr, nullptr, nullptr, 0);
     }
 
-    s_cursorItemType = 1;
+    s_cursorItemType = CURSOR_ITEM;
     CursorReleaseItemMips();
 }
 
@@ -379,7 +387,7 @@ void CursorGrabMoney(uint32_t amount) {
     GetCurrencyIcon(amount, fileName, sizeof(fileName));
     PIXEL_FORMAT format = PIXEL_ARGB8888;
     s_cursorItemMips = TextureLoadImage(fileName, &s_cursorItemMipsWidth, &s_cursorItemMipsHeight, &format, nullptr, nullptr, nullptr, 0);
-    s_cursorItemType = 2;
+    s_cursorItemType = CURSOR_MONEY;
     CursorReleaseItemMips();
 }
 
@@ -398,7 +406,7 @@ void CursorGrabSpell(const char* texture) {
         s_cursorItemMips = TextureLoadImage(texture, &s_cursorItemMipsWidth, &s_cursorItemMipsHeight, &format, nullptr, nullptr, nullptr, 0);
     }
 
-    s_cursorItemType = 3;
+    s_cursorItemType = CURSOR_SPELL;
     CursorReleaseItemMips();
 }
 
