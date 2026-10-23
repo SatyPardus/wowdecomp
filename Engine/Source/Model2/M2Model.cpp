@@ -2385,6 +2385,11 @@ void CM2Model::FindKey(M2ModelBoneSeq* sequence, const M2TrackBase& track, uint3
                 uint32_t mid = (high + key) >> 1;
 
                 if (time < keys[mid]) {
+                    // When time is before the first key, mid - 1 underflows high to 0xFFFFFFFF and the next probe reads far out of bounds.
+                    if (mid == 0) {
+                        break;
+                    }
+
                     high = mid - 1;
                 } else {
                     key = mid + 1;
