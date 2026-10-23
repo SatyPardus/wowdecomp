@@ -44,7 +44,7 @@ static uint32_t s_pendingLogQueries;
 GuildBankLogEntry CGGuildBankInfo::m_log[7][25];
 
 // STATIC: 0x00C1DC30
-uint32_t CGGuildBankInfo::m_withdrawMoneyRemaining;
+int32_t CGGuildBankInfo::m_withdrawMoneyRemaining;
 
 // STATIC: 0x00C1DC34
 int32_t CGGuildBankInfo::m_remainingWithdrawMoney;
@@ -685,7 +685,7 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
     uint8_t hasTabInfo;
     msg->Get(money);
     msg->Get(tab);
-    msg->Get(CGGuildBankInfo::m_withdrawMoneyRemaining);
+    msg->Get(reinterpret_cast<uint32_t&>(CGGuildBankInfo::m_withdrawMoneyRemaining));
     msg->Get(hasTabInfo);
 
     if (s_pendingItemQueries) {
