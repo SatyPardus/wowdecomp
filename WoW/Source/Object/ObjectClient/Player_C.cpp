@@ -10332,7 +10332,7 @@ static void VisibleItemStatsCallback(int32_t id, const WOWGUID& guid, void* para
         return;
     }
 
-    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__));
+    CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPE_PLAYER, __FILE__, __LINE__));
     int32_t slot = static_cast<int32_t>(reinterpret_cast<intptr_t>(param));
 
     if (!player || slot < 0 || slot >= 19) {
