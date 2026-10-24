@@ -285,6 +285,9 @@ int32_t s_isPvPRealm;
 // STATIC: 0x00B2F9A0
 static int32_t s_gameInitialized;
 
+// Not in the original client: skip the engine teardown on exit.
+static CVar* s_cvFastExit;
+
 // STATIC: 0x00B2F9A8
 static int32_t s_clientTaxiBenchIsOnTaxi;
 
@@ -1087,6 +1090,7 @@ int32_t InitializeEngineCallback(const void* data, void* param) {
     s_cvarUIFaster = CVar::Register("UIFaster", "UI acceleration option", 0, "3", UIFasterCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     s_cvTextureCacheSize = CVar::Register("textureCacheSize", "Texture cache size in bytes", 1, "32", TextureCacheSizeCallback, CATEGORY_GRAPHICS, false, nullptr, false);
     TextureSetCacheSize(s_cvTextureCacheSize->m_intValue << 20);
+    s_cvFastExit = CVar::Register("fastExit", "Save and exit without the full engine teardown", 0, "0", nullptr, CATEGORY_DEFAULT, false, nullptr, false);
 
     uint32_t m2Flags = GetM2CvarFlags();
     AddConsoleDeviceDefaultCallback(SetDefaults);
@@ -1626,9 +1630,29 @@ void ClientDestroyGame(int32_t charSelect, int32_t resumeGlue, int32_t worldLogi
     }
 }
 
+// Writes everything that persists to disk, then ends the process instead of tearing
+// down the world, models, textures, sound and every heap block one by one. The OS
+// reclaims all memory and handles at once.
+[[noreturn]] static void SaveAndQuickExit() {
+    if (s_gameInitialized) {
+        // Fires PLAYER_LOGOUT and saves SavedVariables, macros, bindings, chat
+        // settings, tracked quests/achievements, layout, account data and CVars.
+        CGGameUI::Shutdown();
+    }
+
+    DBCache_Destroy();  // WDB caches
+    CVar::SaveAll();    // Config.wtf, also covers exiting from character select
+    SLogFlushAll();     // quick_exit skips SLogClose, so buffered log lines would be lost
+    std::quick_exit(0);
+}
+
 // VERIFY: e61971e0 auto
 // OFFSET: 0x004066D0
 int32_t DestroyEngineCallback(const void* data, void* param) {
+    if (s_cvFastExit && s_cvFastExit->m_intValue) {
+        SaveAndQuickExit();
+    }
+
     RemoveConsoleDeviceDefaultCallback(SetDefaults);
     ClientDestroyGame(0, 0, 0);
     WowClientDestroy();
